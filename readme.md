@@ -1,6 +1,6 @@
 # Zealot
 
-Add introduction here
+Zealot is built to help people accomplish meaningful objectives. It aims to help people dream, strategize, prioritize, and execute on their goals. It also aims to help one stay accountable, and document/recall information powerfully.
 
 ## Navigation
 
