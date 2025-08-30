@@ -1,28 +1,130 @@
-# Business Requirement Specification
+Zealot is built to help people help others, set and accomplish meaningful goals. It aims to help people elicit requirements, dream, strategize, prioritize and execute on their goals. It is an opinionated Life OS and Service OS with a wiki, planner, project portfolio engine, analytics, scheduling, and publishing capabilities.
 
-Zealot is built to help people accomplish meaningful objectives. It aims to help people dream, strategize, prioritize, and execute on their goals. It also aims to help one stay accountable, and document/recall information powerfully.
+## Requirements
 
-## Table of Contents
-
-## Products
-
-Zealot contains the following features:
-
-- Personl project portfolio engine
-- Daily and weekly planners
-- Self-organizing wiki
-- Powerful analytics
-- Scheduling engine
-
-### Project Portfolio Engine
-
-### Planner
-
-### Wiki
-
-### Analytics
-
-### Scheduling Engine
-
----
-
+- **Portfolio Management** of Programs, Projects and Goals (herein "deliverables")
+	- Basics
+		- Be able to break down deliverables hierarchically
+		- Be able to link deliverables by relationship
+		- Be able to score deliverables by usefulness
+		- Be able to set priority of deliverables
+		- Be able to set sizes for deliverables
+		- Deliverables have the same documentation capabilities as wikis
+		- Be able to track status of deliverables
+			- New, Working, Specify, Hold, Rejected, Blocked, Complete
+	- Repeatable Goals
+		- Some goals can repeat in a lite cron tab like fashion 
+			- Weekdays
+			- Weeks of the month
+			- Months of the year
+		- Some goals repeat after a certain number of days, such as for maintenance tasks like washing the car
+	- Analysis
+		- Export query of deliverables to CSV
+		- See overdue deliverables
+		- See deliverables which need to be scheduled
+		- See a scorecard
+		- See status history
+		- See deliverables requiring specification
+	- Scheduling
+		- Be able to set day for deliverable
+		- Be able to set week for deliverable
+		- Be able to set month for deliverable
+		- Be able to time chunk deliverables on different days
+- **Planning**
+	- Be able to easily set goals each day in alignment with long term goals
+	- Calendar View
+	- Daily View
+	- Weekly View
+	- Monthly View
+	- Quarterly View
+	- Annual View
+	- Basic score statistics on all views
+- Migration
+	- Be able to migrate from Zealot 4
+	- Be able to migrate from Zealot 3
+	- Be able to migrate from Zealot 2
+	- Be able to migrate from Zealot 1
+	- Be able to migrate from Obsidian
+- Item
+	- Store hierarchies.
+	- Store relationships
+		- Blocked status helps indicate other blocked things. 
+		- 
+	- Support schemas on metadata for structured, extensible fields
+	- Metadata can contain items themselves
+	- Maintain 500,000 items at scale
+	- Has "cleanup pages" to show the user what items do not adhere to schema, or do not adhere to tag rules. And do not have any linking.
+	- Items should have a UUID to identify them
+- Externals
+	- Some items link to external things, like YouTube videos
+	- Link to external EPUB books
+	- Link to external websites.
+- Wiki
+	- Automatically index backlinks, tags and headers.
+	- Some historical versioning between content edits.
+	- Deep search and title search
+	- Supports a wiki/doc language, with features from both markdown and ascii doc
+		- Variables
+		- Markdown bullet points, formatting, etc
+		- Commands
+			- Tables much easier than markdown
+			- Embed other wiki pages
+	- Supports media: Pictures, EPUB books, audio
+	- Supports integration with external pages
+	- Supports reading from external sources. Such as scripture or EPUB books.
+	- Supports collections with date, number, week, chapter tracking. Perhaps tags have requirements to belong
+	- Automatically indexes all external links. You can make them items later if you wish for further indexing.
+- Documentation
+	- Requirements specified
+	- Design document created
+	- Manual/wiki on how to use should be constructed
+- Automation
+	- Daemon (zealotd) that supports:
+		- Scheduled automations
+		- Reactive triggers (event -> action)
+		- External hooks
+		- CLI scripting interface
+		- Agentic workflows
+	- Rule engine or scripting language for logic & smart suggestions
+- Technical
+	- Data & Storage
+		- Be able to support SQLite (portable mode) and PostgreSQL (production mode)
+	- Deployment
+		- Can deploy locally easily, or self-host. 
+		- Others should be able to use their own Zealot easily.
+	- Logging
+		- Item changes should be logged. 
+	- Testing
+		- Forward, unit, integration and regression testing
+- User Interfaces
+	- CLI interface to interact with daemon
+	- Desktop client with responsive UI
+	- Web/remote access for mobile + external usage
+	- v2.0 - mobile application
+	- Keyboard focused navigation
+	- Dashboard with live insights (health, productivity, goals)
+	- Notifications (reminders, completion events)
+- Integrations
+	- Full API behind authentication for interfacing with UIs, and other apps.
+	- Remote access from phone + pc
+	- OS calendar sync
+	- IoT device integration
+	- Support for EPUB highlights + research tracking
+	- External website + publishing integration (articles, YouTube, etc.)
+- Non-functional requirements
+	- Performance & Scale
+		- Must run efficiently on a low end server
+		- Must run efficiently in portable mode on laptop
+		- Future support for WASM and mobile
+	- Handle 500,000 pages easily
+- Security
+	- All passwords are encrypted with bcrypt or Argon2id
+	- All network traffic encrypted (TLS). It's okay if this is at a reverse proxy level.
+		- Support for mTLS
+	- Configurable secrets management (env vars, config)
+	- Protection against DoS/DDoS (reverse proxy or CDN)
+	- Transparent open-source security design
+- Reliability
+	- Automated backups of data
+	- Business continuity plan
+	- Daemon resilience (recover on crash)
