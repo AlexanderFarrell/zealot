@@ -2,11 +2,13 @@
 
 use actix_web::{get, web, Scope, HttpResponse};
 
+/// TODO
 #[get("")]
 async fn index() -> HttpResponse {
     HttpResponse::Ok().body("media")
 }
 
+/// TODO
 pub fn media_scope() -> Scope {
     web::scope("/media")
         .service(index)

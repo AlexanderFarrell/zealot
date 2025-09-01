@@ -3,6 +3,7 @@
 use actix_web::{get, App, HttpResponse, HttpServer, Responder};
 
 mod api;
+mod core;
 
 /// TODO
 #[get("/")]
