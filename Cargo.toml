@@ -1,4 +1,5 @@
 [workspace]
 members = [ "cli", "common","desktop", "service"]
+resolver = "3"
 
 
