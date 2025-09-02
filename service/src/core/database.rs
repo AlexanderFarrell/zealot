@@ -4,7 +4,7 @@ use std::sync::Mutex;
 
 static DB: Lazy<Mutex<Connection>> = Lazy::new(|| {
     let conn = Connection::open_with_flags(
-        db_path(), 
+        data_path(), 
         OpenFlags::SQLITE_OPEN_CREATE
             | OpenFlags::SQLITE_OPEN_READ_WRITE
             | OpenFlags::SQLITE_OPEN_URI,
@@ -22,7 +22,7 @@ static DB: Lazy<Mutex<Connection>> = Lazy::new(|| {
     Mutex::new(conn)
 });
 
-fn db_path() -> std::path::PathBuf {
+fn data_path() -> std::path::PathBuf {
     use directories::BaseDirs;
     let mut database_path = BaseDirs::new().unwrap().data_dir().to_path_buf();
     database_path.push("zealotd");

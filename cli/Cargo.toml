@@ -5,3 +5,5 @@ edition = "2024"
 
 [dependencies]
 common = { path = "../common" }
+reqwest = { version = "*", features = ["json"] }
+tokio = { version = "1", features = ["full"] }
