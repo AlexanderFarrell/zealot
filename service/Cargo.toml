@@ -9,3 +9,4 @@ rusqlite = {version = "*", features = ["bundled"]}
 common = { path = "../common" }
 once_cell = "1"
 directories = "5"
+serde = "*"

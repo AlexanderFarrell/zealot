@@ -1,8 +1,10 @@
 use rusqlite::{Connection, OpenFlags};
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
+use std::result::Result;
+use std::error::Error;
 
-static DB: Lazy<Mutex<Connection>> = Lazy::new(|| {
+pub static DB: Lazy<Mutex<Connection>> = Lazy::new(|| {
     let conn = Connection::open_with_flags(
         data_path(), 
         OpenFlags::SQLITE_OPEN_CREATE
@@ -19,6 +21,8 @@ static DB: Lazy<Mutex<Connection>> = Lazy::new(|| {
         "#,
     ).expect("Failed to apply PRAGMAs");
 
+    eprintln!("Connected to database at {:?}", data_path());
+
     Mutex::new(conn)
 });
 
@@ -29,4 +33,20 @@ fn data_path() -> std::path::PathBuf {
     std::fs::create_dir_all(&database_path).unwrap();
     database_path.push("scope.db");
     database_path
+}
+
+pub fn database_seed(sql: &String) -> Result<(), String> {
+    let exists = std::fs::exists(data_path());
+    if let Err(error) = exists {
+        return Err(format!("Failed to seed database: {error}"));
+    }
+
+    let db = DB.lock().unwrap();
+    
+    match db.execute_batch(sql.as_str()) {
+        Err(err) => {
+            Err(format!("Failed to seed database: {err}"))
+        },
+        Ok(_) => {Ok(())},
+    }
 }

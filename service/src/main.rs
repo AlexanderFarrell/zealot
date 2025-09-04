@@ -2,8 +2,8 @@
 
 use actix_web::{get, App, HttpResponse, HttpServer, Responder};
 
-mod api;
-mod core;
+pub mod api;
+pub mod core;
 
 /// TODO
 #[get("/")]
@@ -14,6 +14,11 @@ async fn hello() -> impl Responder {
 /// TODO
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    let sql = String::from(include_str!("../../database/item.sql"));
+    if let Err(err) = core::database::database_seed(&sql) {
+        panic!("{}", err);
+    };
+
     HttpServer::new(|| {
         App::new()
             .service(hello)

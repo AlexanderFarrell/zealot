@@ -4,8 +4,8 @@ PRAGMA foreign_keys = ON;
 
 create table if not exists item (
     item_id integer primary key,
-    type text not null,
-    icon text not null,
+    type text,
+    icon text,
     title text not null,
     content text default '' not null,
     status text,
