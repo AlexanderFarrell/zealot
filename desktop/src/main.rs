@@ -1,4 +1,5 @@
 mod app;
+pub mod screen;
 
 use app::App;
 
