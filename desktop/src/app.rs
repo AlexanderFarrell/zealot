@@ -7,8 +7,14 @@ use crate::screen::content::Content;
 #[function_component]
 pub fn App() -> Html {
     html! {<>
-        <SideButtons />
-        <SideBar />
-        <Content />
+        <header>
+            {"Header"}
+        </header>
+        <main>
+            <SideButtons />
+            <SideBar />
+            <Content />
+            <SideBar />
+        </main>
     </>}
 }
