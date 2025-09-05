@@ -2,7 +2,6 @@ use rusqlite::{Connection, OpenFlags};
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
 use std::result::Result;
-use std::error::Error;
 
 pub static DB: Lazy<Mutex<Connection>> = Lazy::new(|| {
     let conn = Connection::open_with_flags(
