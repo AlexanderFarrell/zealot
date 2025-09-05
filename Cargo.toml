@@ -1,5 +1,5 @@
 [workspace]
-members = [ "cli", "common","desktop", "service"]
+members = [ "cli", "common","desktop", "desktop/src-tauri", "service"]
 resolver = "3"
 
 
