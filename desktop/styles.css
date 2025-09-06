@@ -5,6 +5,7 @@
 
 body {
     background-color: var(--background_color_low);
+    font-family: sans-serif;
     color: white;
     text-shadow: 1px 1px 5px rgba(0, 0, 0, 0.37);
 
