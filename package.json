@@ -1,8 +1,0 @@
-{
-  "name": "zealot",
-  "private": true,
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ]
-}
