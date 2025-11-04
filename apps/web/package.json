@@ -1,0 +1,20 @@
+{
+    "name": "@zealot/web",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview --port 5173"
+    },
+    "dependencies": {
+        "@zealot/editor": "file:../../packages/editor",
+        "@zealot/ui": "file:../../packages/ui",
+        "@zealot/util": "file:../../packages/util"    
+    },
+    "devDependencies": {
+        "@vitejs/plugin-vue": "^6.0.1",
+        "typescript": "^5.9.3",
+        "vite": "^7.1.12"
+    }
+}
