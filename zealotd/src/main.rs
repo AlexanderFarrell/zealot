@@ -1,5 +1,3 @@
-
-
 use actix_web::{get, App, HttpResponse, HttpServer, Responder};
 
 pub mod api;

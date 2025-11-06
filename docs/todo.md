@@ -1,0 +1,15 @@
+- [ ] Docs
+    - [ ] Charter
+    - [ ] PMP
+    - [ ] SDD
+    - [ ] User Manual
+    - [ ] YouTube Tutorials 
+- [ ] Frontend
+    - [ ] CLI
+    - [ ] Web
+    - [ ] Desktop
+    - [ ] Mobile    
+    - [ ] Browser Extension
+- [ ] Zealotd (server)
+    - [ ] Desktop Mode
+    - [ ] Remote Mode

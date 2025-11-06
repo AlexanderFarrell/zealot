@@ -1,2 +1,5 @@
 /target/
 /zealotd/target/
+/.vscode/
+/.idea/
+/client/node_modules/
