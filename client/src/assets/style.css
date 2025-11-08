@@ -1,0 +1,28 @@
+body {
+  background-color: black;
+}
+
+title-bar {
+  background-color: blue;
+}
+
+button {
+  cursor: pointer;
+}
+
+side-buttons {
+  width: 40px;
+  max-width: 40px;
+}
+
+side-buttons > button {
+  background-color: rgba(0.0, 0.0, 0.0, 0.0);
+  outline: none;
+  border: none;
+  display: block;
+  width: 40px;
+}
+
+img {
+  width: 100%;
+}
