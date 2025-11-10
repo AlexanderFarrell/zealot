@@ -2,7 +2,7 @@
 
 class TitleBar extends HTMLElement {
     connectedCallback() {
-        this.textContent = "Hello!"
+        this.textContent = "Title!"
     }
 }
 

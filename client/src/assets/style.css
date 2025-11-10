@@ -1,9 +1,30 @@
+:root {
+  --background-default: rgb(35, 54, 86);
+  --background-pop-default: rgb(44, 74, 121);
+}
+
+* {
+  box-sizing: content-box;
+}
+
 body {
-  background-color: black;
+  background-color: var(--background-default);
+  color: white;
+  margin: 0;
+  font-family: sans-serif;
+  min-height: 100vh;
+}
+
+#app {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr;
 }
 
 title-bar {
-  background-color: blue;
+  background-color: var(--background-pop-default);
+  width: 100%;
+  display: block;
 }
 
 button {
@@ -13,6 +34,7 @@ button {
 side-buttons {
   width: 40px;
   max-width: 40px;
+  background-color: var(--background-pop-default);
 }
 
 side-buttons > button {
@@ -21,8 +43,20 @@ side-buttons > button {
   border: none;
   display: block;
   width: 40px;
+  padding: 5px;
 }
 
 img {
   width: 100%;
+}
+
+#main-display {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  height: 100%;
+}
+
+side-bar {
+  width: 200px;
+  background-color: var(--background-pop-default);
 }
