@@ -5,9 +5,13 @@ import './components/content.ts';
 import './components/sidebar.ts';
 import './components/sidebars/nav_view.ts';
 import './components/sidebars/search_view.ts';
+import './screens/item_screen.ts';
 import commands from './core/command_runner.ts';
 import { events } from './core/events.ts';
-import { CTRL_OR_META_KEY, Hotkey, register_hotkey, SHIFT_KEY } from './core/hotkeys.ts';
+import { ALT_KEY, CTRL_OR_META_KEY, Hotkey, register_hotkey, SHIFT_KEY } from './core/hotkeys.ts';
+import {settings} from './core/settings.ts';
+
+settings.set('host', '127.0.0.1:8082');
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = 
 `<title-bar></title-bar>
@@ -22,7 +26,7 @@ commands.register('Go to Home Page',
     [new Hotkey('h', [CTRL_OR_META_KEY])],
     () => {events.emit('Home')});
 commands.register('Search Items', 
-    [new Hotkey('o', [CTRL_OR_META_KEY])],
+    [new Hotkey('k', [CTRL_OR_META_KEY, SHIFT_KEY])],
     () => {
         let left_sidebar = document.querySelector('#left-side-bar')!;
         left_sidebar.innerHTML = "<search-view></search-view>";

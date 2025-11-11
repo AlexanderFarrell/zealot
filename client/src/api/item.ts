@@ -1,0 +1,36 @@
+export const ItemAPI = {
+    get: async (id: number) => {
+        return (await fetch(`/api/item/id/${id}`)).json();
+    },
+
+    get_by_title: async (title: string) => {
+        return (await fetch(`/api/item/title/${title}`)).json();
+    },
+
+    search: async (term: string) => {
+        return (await fetch(`/api/item/search/${term}`)).json();
+    },
+
+    add: async (title: string) => {
+        let response = await fetch(`/api/item`, {
+            method: "POST",
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({'title': title})
+        });
+        return response.ok;
+    },
+
+    remove: async (id: number) => {
+        let response = await fetch(`/api/item/${id}`, {
+            method: "DELETE",
+            headers: {
+                "Content-Type": "application/json"
+            },
+        })
+        return response.ok;
+    }
+}
+
+export default ItemAPI;

@@ -1,6 +1,6 @@
 //! CRUD operations on items. Search
 
-use actix_web::{get, post, web::{self, get}, HttpResponse, Scope};
+use actix_web::{get, post, delete, web::{self, get}, HttpResponse, Scope};
 use crate::data::item::{ItemDBO, AddInfo};
 
 /// TODO
@@ -50,11 +50,33 @@ async fn get_by_title(path: web::Path<String>) -> Result<HttpResponse, actix_web
     }
 }
 
+#[get("/search/{term}")]
+async fn search_by_title(path: web::Path<String>) -> Result<HttpResponse, actix_web::Error> {
+    let term = path.into_inner();
+    match ItemDBO::search_by_title(&term.as_str(), 20).await {
+        Ok(items) => {
+            Ok(HttpResponse::Ok().json(items))
+        },
+        Err(_) => {
+            Ok(HttpResponse::InternalServerError().body("Error searching"))
+        }
+    }
+}
+
 #[post("")]
 async fn add(add_info: web::Json<AddInfo>) -> Result<HttpResponse, actix_web::Error> {
     match ItemDBO::add(&add_info).await {
         Ok(_) => Ok(HttpResponse::Ok().body("")),
         Err(_) => Ok(HttpResponse::InternalServerError().body("Error adding item")),
+    }
+}
+
+#[delete("")]
+async fn remove(path: web::Path<u32>) -> Result<HttpResponse, actix_web::Error> {
+    let item_id = path.into_inner();
+    match ItemDBO::delete(&item_id).await {
+        Ok(_) => Ok(HttpResponse::Ok().body("")),
+        Err(_) => Ok(HttpResponse::InternalServerError().body("Error removing item")),
     }
 }
 
@@ -64,5 +86,7 @@ pub fn item_scope() -> Scope {
         .service(index)
         .service(get_by_id)
         .service(get_by_title)
+        .service(search_by_title)
         .service(add)
+        .service(remove)
 }

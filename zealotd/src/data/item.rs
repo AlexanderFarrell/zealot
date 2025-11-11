@@ -66,6 +66,13 @@ impl ItemDBO {
         .await
     }
 
+    pub async fn search_by_title(title: &str, max: u32) -> Result<Vec<Item>, String> {
+        ItemDBO::scan_rows(
+            format!("{ITEM_SELECT_FROM} WHERE i.title LIKE '%' || (?1) || '%' LIMIT (?2);").as_str(), 
+            &[&title, &max])
+            .await
+    }
+
     pub async fn get_by_status(status: &str, page: u32, max: u32) -> Result<Vec<Item>, String> {
         let offset = (page - 1) * max;
         ItemDBO::scan_rows(
@@ -114,11 +121,11 @@ impl ItemDBO {
         Ok(())
     }
 
-    pub async fn update(item_id: u32, fields: &BTreeMap<String, serde_json::Value>) -> Result<(), String> {
+    pub async fn update(item_id: &u32, fields: &BTreeMap<String, serde_json::Value>) -> Result<(), String> {
         todo!()
     }
 
-    pub async fn delete(item_id: u32) -> Result<(), String> {
+    pub async fn delete(item_id: &u32) -> Result<(), String> {
         todo!()
     }
 
@@ -142,10 +149,10 @@ impl ItemDBO {
                     date: None,
                     created_on: None,
                     updated_at: None,
-                    week: row.get(6)?,
-                    year: row.get(7)?,
-                    parent_id: row.get(8)?,
-                    parent_title: row.get(9)?,
+                    week: row.get(9)?,
+                    year: row.get(10)?,
+                    parent_id: row.get(11)?,
+                    parent_title: row.get(12)?,
                 })
             })
             .map_err(|e| {
