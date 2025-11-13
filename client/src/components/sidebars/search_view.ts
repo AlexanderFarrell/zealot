@@ -1,5 +1,6 @@
 import ItemAPI from "../../api/item";
 import { events } from "../../core/events";
+import { switch_item_to } from "../../screens/item_screen";
 
 
 class SearchView extends HTMLElement {
@@ -22,12 +23,15 @@ class SearchView extends HTMLElement {
                 this.results = await ItemAPI.search(term) as Array<any>;
                 this.result_views = [];
                 this.result_index = 0;
-                this.results.forEach(result => {
+                this.results.forEach((result, index) => {
                     let resultView = document.createElement('div')
                     resultView.classList.add('result_view')
                     resultView.innerText = result.title;
                     resultView.addEventListener('click', () => {
-                        events.emit('switch_item', {title: result.title})
+
+                        switch_item_to(result.title);
+                        this.result_index = index;
+                        this.set_selected_result();
                     })
                     container.appendChild(resultView)
                     this.result_views.push(resultView);
@@ -42,7 +46,7 @@ class SearchView extends HTMLElement {
         search_bar.addEventListener('keydown', (e: KeyboardEvent) => {
             if (e.key == 'Enter') {
                 if (this.results.length > this.result_index && this.results.length != 0) {
-                    events.emit('switch_item', {title: this.results[this.result_index].title})
+                    switch_item_to(this.results[this.result_index].title);
                 }
             }
             else if (e.key == 'ArrowUp') {

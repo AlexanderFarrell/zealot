@@ -1,5 +1,6 @@
 import ItemAPI from "../api/item";
 import { events } from "../core/events";
+import { switch_item_to } from "../screens/item_screen";
 
 
 class AddItemModal extends HTMLElement {
@@ -28,6 +29,7 @@ class AddItemModal extends HTMLElement {
         submit_button.addEventListener('click', () => {
             this.create_new_item(title_input.value);
         })
+        submit_button.style.marginTop = "5px";
 
         this.error_message = document.createElement('div');
         this.error_message.innerHTML = "";
@@ -60,7 +62,7 @@ class AddItemModal extends HTMLElement {
 
         try {
             if (await ItemAPI.add(title)) {
-                events.emit('switch_item', {title: title})
+                switch_item_to(title);
                 this.remove();
             } else {
                 this.error_message!.innerHTML = "Failed to add item";

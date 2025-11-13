@@ -1,3 +1,4 @@
+import mitt from "mitt";
 import ItemAPI from "../api/item";
 import { events } from "../core/events";
 
@@ -30,6 +31,11 @@ class ItemScreen extends HTMLElement {
             this.innerHTML = `<div id='error'>Error getting item: ${this.title}</div>`
         }
     }
+}
+
+export function switch_item_to(title: string) {
+    document.querySelector('content-')!.innerHTML = "<item-screen></item-screen>";
+    events.emit('switch_item', {title: title})
 }
 
 customElements.define('item-screen', ItemScreen)

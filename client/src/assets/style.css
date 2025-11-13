@@ -1,6 +1,9 @@
 :root {
   --background-default: rgb(35, 54, 86);
   --background-pop-default: rgb(44, 74, 121);
+  --background-button: rgb(44, 82, 144);
+  --background-dark: rgb(24, 37, 59);
+  --accent: rgb(161, 230, 255);
 }
 
 * {
@@ -90,4 +93,34 @@ side-bar {
   background-color: var(--background-pop-default);
   padding: 10px;
   
+}
+input {
+  width: 100%;
+  background-color: var(--background-dark);
+  color: white;
+  outline: none;
+  border: 1px solid var(--background-pop-default);
+  padding: 5px;
+  border-radius: 5px;
+}
+
+a, .result_view {
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.result_view {
+  padding: 2px 5px;
+
+}
+
+button {
+  width: 100%;
+  background-color: var(--background-button);
+  color: white;
+  padding: 5px;
+  border: none;
+  outline: none;
+  border-radius: 5px;
 }
