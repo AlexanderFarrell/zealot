@@ -73,3 +73,21 @@ side-bar {
   width: 200px;
   background-color: var(--background-pop-default);
 }
+
+.modal_background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0,0,0,0.1);
+  backdrop-filter: blur(10px);
+  display: grid;
+  place-items: center;
+}
+
+.inner_window {
+  background-color: var(--background-pop-default);
+  padding: 10px;
+  
+}

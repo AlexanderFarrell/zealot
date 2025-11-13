@@ -39,6 +39,7 @@ document.body.addEventListener('keydown', (e: KeyboardEvent) => {
             (!xor(modifier, hotkey.ctrl_or_meta_key))) 
         {
             hotkey.func();
+            e.preventDefault();
         }
     }
 })

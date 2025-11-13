@@ -10,6 +10,7 @@ import commands from './core/command_runner.ts';
 import { events } from './core/events.ts';
 import { ALT_KEY, CTRL_OR_META_KEY, Hotkey, register_hotkey, SHIFT_KEY } from './core/hotkeys.ts';
 import {settings} from './core/settings.ts';
+import AddItemModal from './components/add_item_modal.ts';
 
 settings.set('host', '127.0.0.1:8082');
 
@@ -72,4 +73,6 @@ commands.register('Open Settings',
     () => {events.emit('Settings')});
 commands.register('New Item', 
     [new Hotkey('n', [CTRL_OR_META_KEY])],
-    () => {});
+    () => {
+        document.body.appendChild(new AddItemModal());
+    });
