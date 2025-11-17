@@ -1,7 +1,24 @@
 use rusqlite::{Connection, OpenFlags};
 use once_cell::sync::Lazy;
+use std::collections::{HashMap};
 use std::sync::Mutex;
 use std::result::Result;
+use serde_json::{Value, Map};
+
+pub enum ColumnType {
+    Bool,
+    Int,
+    Float,
+    Text,
+    // TODO: Add more later.
+}
+
+pub struct FieldDefinition {
+    pub column_name: String,
+    pub column_type: ColumnType,
+}
+
+pub type TableDefinition = HashMap<String, FieldDefinition>;
 
 pub static DB: Lazy<Mutex<Connection>> = Lazy::new(|| {
     let conn = Connection::open_with_flags(
@@ -53,4 +70,28 @@ pub fn database_seed(sql: &String) -> Result<(), String> {
         },
         Ok(_) => {Ok(())},
     }
+}
+
+
+pub fn update_fields(table_name: &str, 
+    id_column: &str,
+    id_value: &i64,
+    data: &Map<String, Value>,
+    updatable_columns: &TableDefinition,
+) -> Result<(), String> {
+    let sql = format!(r#"
+    update {table_name}
+    "#);
+
+    
+    for (key, value) in data {
+        // Add a set to each, as long as the key is in the TableDefinition
+        if !updatable_columns.contains_key(key) {
+            return Err(format!("Cannot update, column {key} is not updaable"));
+        }
+
+        sql.push_str(format!(" set {key}="));
+    }
+
+    Ok(())
 }
