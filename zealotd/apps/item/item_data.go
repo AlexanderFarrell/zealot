@@ -1,1 +1,62 @@
 package item
+
+import (
+	"database/sql"
+	"fmt"
+	"zealotd/web"
+)
+
+var updatableFields = map[string]int {
+	"title": 0,
+	"content": 0,
+}
+
+type Item struct {
+	ItemID int `json:"item_id"`
+	Title string `json:"title"`
+	Content string `json:"Content"`
+}
+
+func GetItemByID(item_id int, account_id int) (*Item, error) {
+	query := `
+	select i.item_id, i.title, i.content
+	from item i
+	where i.item_id = $1
+	and i.account_id = $2;
+	`
+	rows, err := web.Database.Query(query, item_id, account_id)
+	return scanRow(rows, err)
+}
+
+func scanRows(rows *sql.Rows, err error) ([]Item, error) {
+	if err != nil {
+		return nil, err
+	}
+	items := make([]Item, 0)
+
+	for rows.Next() {
+		item := Item{}
+		err = rows.Scan(&item.ItemID, &item.Title, &item.Content)
+		if err != nil {
+			fmt.Printf("Error scanning item %v\n", err)
+			continue
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
+func scanRow(rows *sql.Rows, err error) (*Item, error) {
+	items, err := scanRows(rows, err)
+	if err != nil {
+		return nil, nil
+	}
+	if len(items) > 1 {
+		return nil, fmt.Errorf("SQL query returned more than one item")
+	} else if len(items) == 1 {
+		// Make a copy
+		first := items[0]
+		return &first, nil
+	}
+	return nil, nil
+}
