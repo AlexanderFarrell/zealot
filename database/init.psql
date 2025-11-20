@@ -1,13 +1,40 @@
 create extension if not exists pgcrypto;
 
+create table account (
+    account_id serial primary key,
+    username varchar(30) not null,
+    email varchar(128) not null,
+    password varchar(128) not null,
+    full_name varchar(100) not null,
+    created_on timestamptz not null default now()
+);
+
 create table item (
     -- Primary Key
-    item_id UUID primary key default gen_random_uuid();
+    item_id UUID primary key default gen_random_uuid(),
 
     -- Attributes
-    title varchar(200) not null default '';
-    content text not null default '';
+    title varchar(200) not null default '',
+    content text not null default '',
+
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
 );
+
+create table item_attribute (
+    item_id integer not null references item(item_id),
+    key text not null,
+    value_text text,
+    value_num real,
+    value_int integer,
+    value_date timestamptz,
+    primary key (item_id, key)
+);
+
+create index idx_attr_key_value_text on item_attribute (key, value_text);
+create index idx_attr_key_value_num on item_attribute (key, value_num);
+create index idx_attr_key_value_int on item_attribute (key, value_int);
+create index idx_attr_key_value_date on item_attribute (key, value_date);
 
 create type item_relationship as enum (
     'Parent',
