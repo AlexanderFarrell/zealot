@@ -24,6 +24,13 @@ export const AuthAPI = {
         await AuthAPI.handle_response(response);
     },
 
+    is_logged_in: async () => {
+        const response = await fetch('/api/account/is_logged_in', {
+            method: 'GET'
+        });
+        return response.ok || response.status == 201;
+    },
+
     register: async (username: string, password: string, 
         confirm: string, name: string, email: string) => {
         const response = await fetch('/api/account/register', {

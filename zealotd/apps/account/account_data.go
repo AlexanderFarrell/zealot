@@ -9,6 +9,11 @@ import (
 	"zealotd/web"
 )
 
+type UserDetails struct {
+	Username string `json:"username"`
+	
+}
+
 func IsLoggedIn(c *fiber.Ctx) bool {
 	sess := web.GetSessionStore(c)
 	return sess.Get("username") != nil

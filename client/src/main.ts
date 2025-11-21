@@ -21,6 +21,8 @@ import { ALT_KEY, CTRL_OR_META_KEY, Hotkey, register_hotkey, SHIFT_KEY } from '.
 import {settings} from './core/settings.ts';
 import AddItemModal from './components/add_item_modal.ts';
 import { switch_item_to } from './screens/item_screen.ts';
+import AuthModal from './components/auth_modal.ts';
+import AuthAPI from './api/auth.ts';
 
 settings.set('host', '127.0.0.1:8082');
 
@@ -104,3 +106,13 @@ commands.register('New Item',
     () => {
         document.body.appendChild(new AddItemModal());
     });
+
+events.on('on_logout', () => {
+    document.body.appendChild(new AuthModal());
+});
+
+(async () => {
+    if (!await AuthAPI.is_logged_in()) {
+        document.body.appendChild(new AuthModal());
+    }
+})()
