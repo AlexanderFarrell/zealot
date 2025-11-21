@@ -15,10 +15,10 @@ var (
 	usernameMax            = 20
 	passwordMin            = 6
 	passwordMax            = 70
-	firstNameMin           = 1
-	firstNameMax           = 50
-	lastNameMin            = 1
-	lastNameMax            = 50
+	emailMin           = 1
+	emailMax           = 50
+	nameMin            = 1
+	nameMax            = 50
 )
 
 // Provides username and password authentication via API responses
@@ -53,8 +53,8 @@ func createAccount(c *fiber.Ctx) error {
 		Username  string `json:"username"`
 		Password  string `json:"password"`
 		Confirm   string `json:"confirm"`
-		FirstName string `json:"first_name"`
-		LastName  string `json:"last_name"`
+		Email string `json:"email"`
+		Name  string `json:"name"`
 	}{}
 
 	err := c.BodyParser(&payload)
@@ -63,16 +63,21 @@ func createAccount(c *fiber.Ctx) error {
 	}
 
 	status, err := CreateAccount(payload.Username, payload.Password,
-		payload.Confirm, payload.FirstName, payload.LastName)
+		payload.Confirm, payload.Email, payload.Name)
 	if err != nil {
 		fmt.Printf("Error creating account: %v", err)
 		return c.Status(status).SendString(err.Error())
 	} else {
 		fmt.Printf("User created: %s", payload.Username)
+
+		details, err := GetAccountDetails(payload.Username)
+		if err != nil {
+			return c.SendStatus(fiber.StatusInternalServerError)
+		}
 		sess := web.GetSessionStore(c)
 		sess.Set("username", payload.Username)
 		web.SaveSession(sess)
-		return c.SendStatus(fiber.StatusCreated)
+		return c.Status(fiber.StatusCreated).JSON(details)
 	}
 }
 
@@ -93,10 +98,16 @@ func login(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	} else if success {
 		fmt.Printf("User %s logged in\n", payload.Username)
+
+		details, err := GetAccountDetails(payload.Username)
+		if err != nil {
+			return c.SendStatus(fiber.StatusInternalServerError)
+		}
+		
 		sess := web.GetSessionStore(c)
 		sess.Set("username", payload.Username)
 		web.SaveSession(sess)
-		return c.SendStatus(fiber.StatusAccepted)
+		return c.Status(fiber.StatusOK).JSON(details)
 	} else {
 		fmt.Printf("Failed login on user %s\n", payload.Username)
 		return c.SendStatus(fiber.StatusUnauthorized)

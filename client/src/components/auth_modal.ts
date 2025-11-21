@@ -72,7 +72,7 @@ class AuthModal extends HTMLElement {
         <label for="email">Email:</label>
         <input type="email" id="email" name="email">
 
-        <label for="name">Email:</label>
+        <label for="name">Name:</label>
         <input type="text" id="name" name="name">
 
         <button type="submit">Login</button>

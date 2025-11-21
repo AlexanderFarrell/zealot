@@ -9,9 +9,11 @@ import (
 	"zealotd/web"
 )
 
-type UserDetails struct {
+type AccountDetails struct {
 	Username string `json:"username"`
-	
+	Email string `json:"email"`
+	Name string `json:"name"`
+	AccountID int `json:"account_id"`
 }
 
 func IsLoggedIn(c *fiber.Ctx) bool {
@@ -20,7 +22,7 @@ func IsLoggedIn(c *fiber.Ctx) bool {
 }
 
 func CreateAccount(username string, password string,
-	confirm string, firstName string, lastName string) (int, error) {
+	confirm string, email string, name string) (int, error) {
 	if !accountCreationEnabled {
 		return 401, fmt.Errorf("account creation is currently disabled")
 	}
@@ -32,11 +34,11 @@ func CreateAccount(username string, password string,
 	if err != nil {
 		return 400, err
 	}
-	err = isWithin(firstName, firstNameMin, firstNameMax, "first name")
+	err = isWithin(email, emailMin, emailMax, "first name")
 	if err != nil {
 		return 400, err
 	}
-	err = isWithin(lastName, lastNameMin, lastNameMax, "last name")
+	err = isWithin(name, nameMin, nameMax, "last name")
 	if err != nil {
 		return 400, err
 	}
@@ -57,7 +59,7 @@ func CreateAccount(username string, password string,
 		return 500, errors.New("issue creating account please try again")
 	}
 
-	_, err = web.Database.Exec("call add_account($1, $2, $3, $4);", username, hash, firstName, lastName)
+	_, err = web.Database.Exec("insert into account(username, password, email, full_name) values ($1, $2, $3, $4);", username, hash, email, name)
 	if err != nil {
 		fmt.Printf("%v\n", err)
 		return 500, errors.New("issue creating account please try again")
@@ -79,6 +81,21 @@ func UsernameExists(username string) (bool, error) {
 		return false, errors.New("issue verifying username")
 	}
 	return result, nil
+}
+
+func GetAccountDetails(username string) (AccountDetails, error) {
+	row := web.Database.QueryRow("select account_id, username, email, full_name from account where username=$1", username)
+	if row.Err() != nil {
+		fmt.Printf("Error retrieving account details %v\n", row.Err())
+		return AccountDetails{}, errors.New("issue getting account details")
+	}
+	var details AccountDetails
+	err := row.Scan(&details.AccountID, &details.Username, &details.Email, &details.Name)
+	if err != nil {
+		fmt.Printf("Error scanning account details %v\n", row.Err())
+		return AccountDetails{}, errors.New("issue getting account details")
+	}
+	return details, nil
 }
 
 func Login(username string, password string) (bool, error) {
