@@ -6,11 +6,6 @@ import (
 	"zealotd/web"
 )
 
-var updatableFields = map[string]int {
-	"title": 0,
-	"content": 0,
-}
-
 type Item struct {
 	ItemID int `json:"item_id"`
 	Title string `json:"title"`
@@ -39,6 +34,18 @@ func GetItemByTitle(title string, account_id int) (*Item, error) {
 
 	rows, err := web.Database.Query(query, title, account_id)
 	return scanRow(rows, err)
+}
+
+func SearchByTitle(title string, account_id int) ([]Item, error) {
+	query := `
+	select i.item_id, i.title, i.content
+	from item i
+	where i.title ilike '%' || $1 || '%'
+	and i.account_id = $2
+	`
+
+	rows, err := web.Database.Query(query, title, account_id)
+	return scanRows(rows, err)
 }
 
 func AddItem(title string, account_id int) error {

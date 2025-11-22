@@ -8,7 +8,7 @@ export const ItemAPI = {
     },
 
     search: async (term: string) => {
-        return (await fetch(`/api/item/search/${term}`)).json();
+        return (await fetch(`/api/item/search?term=${term}`)).json();
     },
 
     add: async (title: string) => {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	_ "github.com/lib/pq"
 	"os"
+	"strconv"
 )
 
 const (
@@ -106,5 +107,30 @@ func CheckResultForChanges(result sql.Result, err error) error {
 		}
 	}
 
+	return err
+}
+
+func UpdateRow(account_id int, tableName string, identifier string, identifierRowName string,
+	fields map[string]interface{}, allowedFields map[string]int) error {
+	query := "UPDATE " + tableName + " SET "
+	args := []interface{}{}
+	i := 1
+
+	for field, value := range fields {
+		if _, ok := allowedFields[field]; ok {
+			query += fmt.Sprintf(" %s = $%v, ", field, i)
+			args = append(args, value)
+			i++
+		}
+	}
+
+	query = query[:len(query)-2] +
+		" where " + identifierRowName + " = $" + strconv.Itoa(i) +
+		" and account_id = $" + strconv.Itoa(i+1) + ")"
+
+	args = append(args, identifier)
+	args = append(args, account_id)
+
+	_, err := Database.Exec(query, args...)
 	return err
 }

@@ -18,7 +18,7 @@ type AccountDetails struct {
 
 func IsLoggedIn(c *fiber.Ctx) bool {
 	sess := web.GetSessionStore(c)
-	return sess.Get("username") != nil
+	return sess.Get("account_id") != nil
 }
 
 func CreateAccount(username string, password string,
