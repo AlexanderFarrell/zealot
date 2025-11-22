@@ -75,7 +75,7 @@ func createAccount(c *fiber.Ctx) error {
 			return c.SendStatus(fiber.StatusInternalServerError)
 		}
 		sess := web.GetSessionStore(c)
-		sess.Set("username", payload.Username)
+		sess.Set("account_id", details.AccountID)
 		web.SaveSession(sess)
 		return c.Status(fiber.StatusCreated).JSON(details)
 	}
@@ -105,7 +105,7 @@ func login(c *fiber.Ctx) error {
 		}
 		
 		sess := web.GetSessionStore(c)
-		sess.Set("username", payload.Username)
+		sess.Set("account_id", details.AccountID)
 		web.SaveSession(sess)
 		return c.Status(fiber.StatusOK).JSON(details)
 	} else {
@@ -138,7 +138,7 @@ func logout(c *fiber.Ctx) error {
 	fmt.Printf("User %s logged out\n", username)
 
 	sess := web.GetSessionStore(c)
-	sess.Delete("username")
+	sess.Delete("account_id")
 	web.SaveSession(sess)
 	return c.SendStatus(fiber.StatusOK)
 }

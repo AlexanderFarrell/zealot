@@ -23,6 +23,24 @@ func GetKeyFromSession(c *fiber.Ctx, key string) string {
 	return fmt.Sprintf("%v", sess.Get(key))
 }
 
+func GetKeyFromSessionInt(c *fiber.Ctx, key string) int {
+	sess := GetSessionStore(c)
+	v := sess.Get(key)
+
+	switch val := v.(type) {
+	case int:
+		return val
+	case int64:
+		return int(val)
+	case float64:
+		return int(val)
+	case string:
+	default:
+		panic(fmt.Errorf("cannot convert key %q (type %T) to int", key, v))
+	}
+	return 0
+}
+
 func SaveSession(s *session.Session) {
 	if err := s.Save(); err != nil {
 		panic(err)

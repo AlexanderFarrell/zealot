@@ -1,6 +1,10 @@
 package item
 
-import "github.com/gofiber/fiber/v2"
+import (
+	"zealotd/web"
+
+	"github.com/gofiber/fiber/v2"
+)
 
 func InitRouter(app *fiber.App) fiber.Router {
 	router := app.Group("/item", getRootItems)
@@ -11,5 +15,12 @@ func InitRouter(app *fiber.App) fiber.Router {
 }
 
 func getRootItems(c *fiber.Ctx) error {
-	return c.SendStatus(200)
+	return c.SendStatus(fiber.StatusNotImplemented)
+}
+
+func addItem(c *fiber.Ctx) error {
+	account_id := web.GetKeyFromSessionInt(c, "account_id")
+	// Payload
+
+	err := AddItem()
 }

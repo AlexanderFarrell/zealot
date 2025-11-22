@@ -28,6 +28,29 @@ func GetItemByID(item_id int, account_id int) (*Item, error) {
 	return scanRow(rows, err)
 }
 
+func GetItemByTitle(title string, account_id int) (*Item, error) {
+	query := `
+	select i.item_id, i.title, i.content
+	from item i
+	where i.title = $1
+	and i.account_id = $2
+	limit 1;
+	`
+
+	rows, err := web.Database.Query(query, title, account_id)
+	return scanRow(rows, err)
+}
+
+func AddItem(title string, account_id int) error {
+	query := `
+	insert into item (title, account_id)
+	values ($1, $2);
+	`
+
+	_, err := web.Database.Exec(query, title, account_id);
+	return err
+}
+
 func scanRows(rows *sql.Rows, err error) ([]Item, error) {
 	if err != nil {
 		return nil, err
