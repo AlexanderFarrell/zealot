@@ -1,8 +1,7 @@
-
-
 class Content extends HTMLElement {
     connectedCallback() {
-        this.textContent = "Content!"
+        this.innerHTML = "<item-screen></item-screen>"
+        // this.innerHTML = "<>"
     }
 }
 

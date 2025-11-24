@@ -1,10 +1,24 @@
 :root {
   --background-default: rgb(35, 54, 86);
   --background-pop-default: rgb(44, 74, 121);
+  --background-button: rgb(44, 82, 144);
+  --background-dark: rgb(24, 37, 59);
+  --accent: rgb(161, 230, 255);
 }
 
 * {
-  box-sizing: content-box;
+  box-sizing: border-box;
+}
+
+#item_title {
+  padding: 5px 0;
+  font-size: 2em;
+  line-height: 2em;
+
+}
+
+.result_view.selected {
+  font-weight: bold;
 }
 
 body {
@@ -42,12 +56,14 @@ side-buttons > button {
   outline: none;
   border: none;
   display: block;
-  width: 40px;
-  padding: 5px;
+  width: 45px;
+  padding: 5px 5px;
 }
+
 
 img {
   width: 100%;
+  object-fit: contain;
 }
 
 #main-display {
@@ -59,4 +75,58 @@ img {
 side-bar {
   width: 200px;
   background-color: var(--background-pop-default);
+}
+
+.modal_background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0,0,0,0.5);
+  backdrop-filter: blur(10px);
+  display: grid;
+  place-items: center;
+}
+
+.inner_window {
+  background-color: var(--background-pop-default);
+  padding: 10px;
+  border-radius: 10px;
+  box-shadow: 2px 2px 10px black;
+}
+input {
+  width: 100%;
+  background-color: var(--background-dark);
+  color: white;
+  outline: none;
+  border: 1px solid var(--background-pop-default);
+  padding: 5px;
+  border-radius: 5px;
+}
+
+a, .result_view {
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.result_view {
+  padding: 2px 5px;
+
+}
+
+button {
+  width: 100%;
+  background-color: var(--background-button);
+  color: white;
+  padding: 5px;
+  border: none;
+  outline: none;
+  border-radius: 5px;
+}
+
+#top_container {
+  display: grid;
+  grid-template-columns: 1fr auto;
 }

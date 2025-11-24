@@ -82,7 +82,7 @@ class SideButtons extends HTMLElement {
             new IconButton(
                 SettingsIcon,
                 "Settings",
-                () => {commands.run("Open Media")}
+                () => {commands.run("Open Settings")}
             ),
             new IconButton(
                 NewIcon,
