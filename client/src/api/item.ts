@@ -22,6 +22,17 @@ export const ItemAPI = {
         return response.ok;
     },
 
+    update: async (item_id: number, fields: object) => {
+        let response = await fetch(`/api/item/${item_id}`, {
+            method: "PATCH",
+            headers: {
+                'Content-Type': "application/json"
+            },
+            body: JSON.stringify(fields)
+        })
+        return response.ok;
+    },
+
     remove: async (id: number) => {
         let response = await fetch(`/api/item/${id}`, {
             method: "DELETE",

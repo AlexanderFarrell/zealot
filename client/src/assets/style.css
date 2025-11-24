@@ -125,3 +125,8 @@ button {
   outline: none;
   border-radius: 5px;
 }
+
+#top_container {
+  display: grid;
+  grid-template-columns: 1fr auto;
+}

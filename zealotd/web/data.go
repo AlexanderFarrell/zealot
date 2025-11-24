@@ -126,7 +126,7 @@ func UpdateRow(account_id int, tableName string, identifier string, identifierRo
 
 	query = query[:len(query)-2] +
 		" where " + identifierRowName + " = $" + strconv.Itoa(i) +
-		" and account_id = $" + strconv.Itoa(i+1) + ")"
+		" and account_id = $" + strconv.Itoa(i+1)
 
 	args = append(args, identifier)
 	args = append(args, account_id)

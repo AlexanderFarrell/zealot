@@ -9,7 +9,7 @@ import (
 type Item struct {
 	ItemID int `json:"item_id"`
 	Title string `json:"title"`
-	Content string `json:"Content"`
+	Content string `json:"content"`
 }
 
 func GetItemByID(item_id int, account_id int) (*Item, error) {
@@ -55,6 +55,17 @@ func AddItem(title string, account_id int) error {
 	`
 
 	_, err := web.Database.Exec(query, title, account_id);
+	return err
+}
+
+func DeleteItem(item_id int, account_id int) error {
+	query := `
+	delete from item 
+	where item_id = $1
+	and account_id = $2;
+	`
+
+	_, err := web.Database.Exec(query, item_id, account_id)
 	return err
 }
 

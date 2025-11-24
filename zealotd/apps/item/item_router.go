@@ -2,6 +2,7 @@ package item
 
 import (
 	"fmt"
+	"strconv"
 	"zealotd/apps/account"
 	"zealotd/web"
 
@@ -21,7 +22,8 @@ func InitRouter(app *fiber.App) fiber.Router {
 	router.Get("/title/:title", getByTitle)
 	router.Get("/search", searchTitle)
 	router.Post("/", addItem)
-	router.Patch("/", updateItem)
+	router.Patch("/:item_id", updateItem)
+	router.Delete("/:item_id", deleteItem)
 
 	return router
 }
@@ -60,7 +62,7 @@ func addItem(c *fiber.Ctx) error {
 	}{}
 
 	if err := c.BodyParser(&payload); err != nil {
-		fmt.Printf("Error parsing updates: &v", err)
+		fmt.Printf("Error parsing updates: %v", err)
 		return c.SendStatus(fiber.StatusBadRequest)
 	}
 
@@ -74,4 +76,22 @@ func addItem(c *fiber.Ctx) error {
 
 func updateItem(c * fiber.Ctx) error {
 	return web.HandleUpdateRoute(c, "item", "item_id", updatableFields)
+}
+
+func deleteItem(c *fiber.Ctx) error {
+	account_id := web.GetKeyFromSessionInt(c, "account_id")
+	item_id, err := strconv.Atoi(c.Params("item_id"))
+
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString("Unable to convert item_id to number")
+	}
+
+	err = DeleteItem(item_id, account_id)
+	if err != nil {
+		fmt.Printf("Error deleting item of id %d for account %d: %v\n", item_id, account_id, err)
+		return c.SendStatus(fiber.StatusInternalServerError)
+	} else {
+		return c.SendStatus(fiber.StatusOK)
+	}
+
 }
