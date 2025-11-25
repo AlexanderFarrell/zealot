@@ -7,6 +7,8 @@ import (
 	_ "github.com/lib/pq"
 	"os"
 	"strconv"
+	"context"
+	"time"
 )
 
 const (
@@ -133,4 +135,39 @@ func UpdateRow(account_id int, tableName string, identifier string, identifierRo
 
 	_, err := Database.Exec(query, args...)
 	return err
+}
+
+func InitDatabaseIfEmpty(initSQL string) {
+	// Check if a table exists, if not, need to initialize.
+	var table *string
+	err := Database.QueryRow(`SELECT to_regclass('public.item')`).Scan(&table)
+	if err != nil {
+		panic(fmt.Errorf("error determining if database is initialized, stopping: %v", err))
+	}
+
+	if table == nil {
+		fmt.Printf("Database Init - Started.\n")
+
+		// Not initialized. Require 10 seconds max to initialize.
+		ctx, cancel := context.WithTimeout(context.Background(), 10 * time.Second)
+		defer cancel()
+
+		tx, err := Database.BeginTx(ctx, nil)
+		if err != nil {
+			panic(fmt.Errorf("begin tx: %w", err))
+		}
+
+		if _, err := tx.ExecContext(ctx, initSQL); err != nil {
+			_ = tx.Rollback()
+			panic(fmt.Errorf("begin tx: %w", err))
+		}
+
+		if err := tx.Commit(); err != nil {
+			panic(fmt.Errorf("begin tx: %w", err))
+		}
+
+		fmt.Printf("Database Init - Complete\n")
+	} else {
+		fmt.Printf("Database already initialized\n")
+	}
 }
