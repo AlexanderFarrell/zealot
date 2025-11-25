@@ -4,8 +4,10 @@
 
 ## Docker
 
+To build all containers, run the following:
+
 ```sh
-cd zealotd &&
-docker build -t zealotd:latest .
+cd dev &&
+docker compose -f zealot-compose.yml build
 ```
 
