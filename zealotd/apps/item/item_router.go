@@ -68,6 +68,7 @@ func addItem(c *fiber.Ctx) error {
 
 	err := AddItem(payload.Title, account_id)
 	if err != nil {
+		fmt.Printf("%v\n", err)
 		return c.SendStatus(fiber.StatusInternalServerError)
 	} else {
 		return c.SendStatus(fiber.StatusOK)
@@ -93,5 +94,4 @@ func deleteItem(c *fiber.Ctx) error {
 	} else {
 		return c.SendStatus(fiber.StatusOK)
 	}
-
 }
