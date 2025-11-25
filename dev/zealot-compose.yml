@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: zealot
+      POSTGRES_PASSWORD: zealot
+      POSTGRES_DB: zealot
+    ports:
+     - "5434:5432"
+    volumes:
+     - zealot_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zealot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  server:
+    image: zealotd:latest
+    depends_on:
+     - db
+    environment:
+      ACCOUNT_CREATION_ENABLED: "true"
+      DB_DATABASE: "zealot"
+      DB_USERNAME: "zealot"
+      DB_PASSWORD: "zealot"
+      DB_HOSTNAME: "db"
+      DB_PORT: 5432
+      PORT: 8082
+    ports:
+     - "8082:8082"
+  
+  web:
+    image: zealot-web:latest
+    depends_on:
+     - server
+    ports:
+     - "8080:80"
+    
+volumes:
+  zealot_data:

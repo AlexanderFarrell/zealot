@@ -68,7 +68,7 @@ func createAccount(c *fiber.Ctx) error {
 		fmt.Printf("Error creating account: %v", err)
 		return c.Status(status).SendString(err.Error())
 	} else {
-		fmt.Printf("User created: %s", payload.Username)
+		fmt.Printf("User %s created\n", payload.Username)
 
 		details, err := GetAccountDetails(payload.Username)
 		if err != nil {
