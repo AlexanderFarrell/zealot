@@ -38,6 +38,10 @@ class CommandRunner {
 
         return retVal;
     }
+
+    clear() {
+        this.Commands = new Map();
+    }
 }
 
 let runner = new CommandRunner();

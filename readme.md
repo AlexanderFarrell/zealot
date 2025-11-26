@@ -1,5 +1,9 @@
 # Zealot
 
+![Zealot Logo](./client/public/zealot.webp)
+
+Powerful planner, wiki and Life OS tool. 
+
 # Get Started
 
 ## Docker

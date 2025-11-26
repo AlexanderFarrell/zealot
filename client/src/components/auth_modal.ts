@@ -1,5 +1,7 @@
 import AuthAPI from "../api/auth";
 import { events } from "../core/events";
+import ZealotApp from "./zealot_app";
+import ZealotIcon from "./../../public/zealot.webp";
 
 let auth_modal: any | null = null ;
 
@@ -14,7 +16,7 @@ class AuthModal extends HTMLElement {
 
         let on_login: any;
         on_login = () => {
-            this.remove();
+            this.to_zealot_app();
             events.off('on_login', on_login);
         }
         events.on('on_login', on_login);
@@ -25,15 +27,16 @@ class AuthModal extends HTMLElement {
         this.innerHTML = `
 
         <form id="login" class="inner_window">
-        <h1>Login</h1>
+        <img src="${ZealotIcon}" style="padding: 0 30%">
+        <h1 style="text-align: center;">Login to Zealot</h1>
         <label for="username">Username:</label>
-        <input type="text" id="username" name="username">
+        <input type="text" id="username" name="username" autocomplete="username">
 
         <label for="password">Password:</label>
-        <input type="password" id="password" name="password">
+        <input type="password" id="password" name="password" autocomplete="current-password">
 
-        <button type="submit">Login</button>
-        <a id="register_instead">Register instead</a>
+        <button type="submit" style="margin-top: 0.25em">Login</button>
+        <a id="register_instead">Create Account Instead</a>
         <div id="error_message" class="error"></div>
         </form>
         `
@@ -52,31 +55,32 @@ class AuthModal extends HTMLElement {
         let register_instead = this.querySelector('#register_instead')! as HTMLAnchorElement;
         register_instead.addEventListener('click', () => {
             this.to_register_screen();
-        })
+        });
+        (document.querySelector('#username')! as HTMLInputElement)?.focus();
     }
 
     to_register_screen () {
         this.innerHTML = `
 
         <form id="register" class='inner_window'>
-        <h1>Login</h1>
+        <h1>Register New Account</h1>
         <label for="username">Username:</label>
-        <input type="text" id="username" name="username">
+        <input type="text" id="username" name="username" autocomplete="username">
 
         <label for="password">Password:</label>
-        <input type="password" id="password" name="password">
+        <input type="password" id="password" name="password" autocomplete="new-password">
 
         <label for="confirm">Confirm:</label>
-        <input type="confirm" id="confirm" name="confirm">
+        <input type="password" id="confirm" name="confirm">
 
         <label for="email">Email:</label>
-        <input type="email" id="email" name="email">
+        <input type="email" id="email" name="email" autocomplete="email">
 
         <label for="name">Name:</label>
-        <input type="text" id="name" name="name">
+        <input type="text" id="name" name="name" autocomplete="given-name">
 
-        <button type="submit">Login</button>
-        <a id="register_instead">Register instead</a>
+        <button type="submit">Register</button>
+        <a id="login_instead">Already have an account? Login</a>
         <div id="error_message" class="error"></div>
         </form>
         `
@@ -96,7 +100,16 @@ class AuthModal extends HTMLElement {
             } catch (e) {
                 error_message_view.innerText = (e as Error).message; 
             }
-        })
+        });
+        let login_button = this.querySelector('#login_instead')! as HTMLAnchorElement;
+        login_button.addEventListener('click', () => {
+            this.to_login();
+        });
+    }
+
+    to_zealot_app() {
+        document.body.innerHTML = "";
+        document.body.appendChild(new ZealotApp());
     }
 }
 
