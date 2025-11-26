@@ -49,7 +49,7 @@ export const AuthAPI = {
         await AuthAPI.handle_response(response);
     },
 
-    logout: async (username: string, password: string) => {
+    logout: async () => {
         // Let the server know, whether successful or not.
         await fetch('/api/account/logout', {
             method: "GET",

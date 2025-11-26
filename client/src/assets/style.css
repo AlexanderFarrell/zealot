@@ -1,13 +1,21 @@
 :root {
   --background-default: rgb(35, 54, 86);
   --background-pop-default: rgb(44, 74, 121);
-  --background-button: rgb(44, 82, 144);
+  --background-button: rgb(53, 105, 187);
   --background-dark: rgb(24, 37, 59);
   --accent: rgb(161, 230, 255);
 }
 
 * {
   box-sizing: border-box;
+}
+
+zealot_app {
+  min-height: 100vh;
+}
+
+auth-modal form {
+  max-width: 500px;
 }
 
 #item_title {
@@ -124,6 +132,7 @@ button {
   border: none;
   outline: none;
   border-radius: 5px;
+  font-size: 1.1em;
 }
 
 #top_container {

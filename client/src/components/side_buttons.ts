@@ -12,6 +12,7 @@ import RulesIcon from "../assets/icon/rules.svg";
 import MediaIcon from "../assets/icon/items.svg";
 import SettingsIcon from "../assets/icon/settings.svg";
 import NewIcon from "../assets/icon/add.svg";
+import LogoutIcon from "../assets/icon/logout.svg";
 
 import commands from "../core/command_runner.ts";
 
@@ -88,6 +89,11 @@ class SideButtons extends HTMLElement {
                 NewIcon,
                 "New Item",
                 () => {commands.run("New Item")}
+            ),
+            new IconButton(
+                LogoutIcon,
+                "Logout",
+                () => {commands.run("Logout")}
             ),
         ]
 
