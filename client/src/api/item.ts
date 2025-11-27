@@ -1,3 +1,5 @@
+import AttributeAPI from "./attribute";
+
 export const ItemAPI = {
     get: async (id: number) => {
         return (await fetch(`/api/item/id/${id}`)).json();
@@ -41,7 +43,9 @@ export const ItemAPI = {
             },
         })
         return response.ok;
-    }
+    },
+
+    Attributes: AttributeAPI,
 }
 
 export default ItemAPI;

@@ -25,6 +25,10 @@ func InitRouter(app *fiber.App) fiber.Router {
 	router.Patch("/:item_id", updateItem)
 	router.Delete("/:item_id", deleteItem)
 
+	router.Patch("/:item_id/attr", setAttributes)
+	router.Patch("/:item_id/attr/rename", renameAttribute)
+	router.Delete("/:item_id/attr/:key", deleteAttribute)
+
 	return router
 }
 
@@ -94,4 +98,72 @@ func deleteItem(c *fiber.Ctx) error {
 	} else {
 		return c.SendStatus(fiber.StatusOK)
 	}
+}
+
+func deleteAttribute(c *fiber.Ctx) error {
+	account_id := web.GetKeyFromSessionInt(c, "account_id")
+	item_id, err := strconv.Atoi(c.Params("item_id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString("Unable to convert item_id to number")
+	}
+	key := c.Params("key")
+	err = DeleteAttribute(item_id, account_id, key)
+	if err != nil {
+		return c.SendStatus(fiber.StatusInternalServerError)
+	} else {
+		return c.SendStatus(fiber.StatusOK)
+	}
+}
+
+func renameAttribute(c * fiber.Ctx) error {
+	account_id := web.GetKeyFromSessionInt(c, "account_id")
+	item_id, err := strconv.Atoi(c.Params("item_id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString("Unable to convert item_id to number")
+	}
+	payload := struct {
+		OldKey string `json:"old_key"`
+		NewKey string `json:"new_key"`
+	}{}
+
+	if err := c.BodyParser(&payload); err != nil {
+		fmt.Printf("Error parsing rename value: %v", err)
+		return c.SendStatus(fiber.StatusBadRequest)
+	}
+
+	err = RenameAttribute(item_id, account_id, payload.OldKey, payload.NewKey)
+	if err != nil {
+		return c.SendStatus(fiber.StatusInternalServerError)
+	} else {
+		return c.SendStatus(fiber.StatusOK)
+	}
+}
+
+func setAttributes(c *fiber.Ctx) error {
+	account_id := web.GetKeyFromSessionInt(c, "account_id")
+	item_id, err := strconv.Atoi(c.Params("item_id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString("Unable to convert item_id to number")
+	}
+	
+	var body map[string]any
+
+	if err := c.BodyParser(&body); err != nil {
+		fmt.Printf("Error parsing body: %w\n", err)
+		return c.SendStatus(fiber.StatusBadRequest)
+	}
+
+	if len(body) > 10 {
+		return c.Status(fiber.StatusBadRequest).SendString("Please only update 10 fields at a time")
+	}
+
+	for key, value := range body {
+		err := SetAttributeForItem(item_id, account_id, key, value)
+		if err != nil {
+			fmt.Printf("Error setting item: %w\n", err)
+			return c.SendStatus(fiber.StatusBadRequest)
+		}
+	}
+
+	return c.SendStatus(fiber.StatusOK)	
 }

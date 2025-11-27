@@ -77,6 +77,7 @@ func createAccount(c *fiber.Ctx) error {
 		sess := web.GetSessionStore(c)
 		sess.Set("account_id", details.AccountID)
 		web.SaveSession(sess)
+
 		return c.Status(fiber.StatusCreated).JSON(details)
 	}
 }

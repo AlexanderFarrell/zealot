@@ -1,6 +1,8 @@
 import ItemAPI from "../api/item";
 import { events } from "../core/events";
 import DeleteIcon from "../assets/icon/delete.svg";
+import { item_attribute_view } from "../components/sidebars/item_attributes_view";
+import AttributesView from "../components/attributes_view";
 
 class ItemScreen extends HTMLElement {
     public title: string = "";
@@ -21,6 +23,7 @@ class ItemScreen extends HTMLElement {
 
     disconnectedCallback() {
         events.off('switch_item', this.switch_item);
+        item_attribute_view?.clear();
     }
 
     async render() {
@@ -36,6 +39,7 @@ class ItemScreen extends HTMLElement {
             return;
         }
 
+        item_attribute_view?.switch_item(this.item);
         let title = document.createElement('div')
         title.id = "item_title"
         title.contentEditable = 'true';
@@ -65,6 +69,7 @@ class ItemScreen extends HTMLElement {
         topContainer.id = "top_container"
         topContainer.appendChild(title);
 
+
         let deleteButton = document.createElement('button');
         deleteButton.innerHTML = `<img src="${DeleteIcon}" alt="Delete Icon" title="Delete Item">`
         deleteButton.addEventListener('click', () => {
@@ -78,6 +83,7 @@ class ItemScreen extends HTMLElement {
         topContainer.appendChild(deleteButton)
 
         this.appendChild(topContainer);
+        this.appendChild(new AttributesView().setup(this.item['item_id'], this.item['attributes']));
         this.appendChild(content);
     }
 }

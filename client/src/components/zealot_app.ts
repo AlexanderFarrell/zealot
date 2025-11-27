@@ -13,7 +13,7 @@ class ZealotApp extends HTMLElement {
 <side-buttons></side-buttons>
 <side-bar id="left-side-bar"><nav-view></nav-view></side-bar>
 <content-></content->
-<side-bar id="right-side-bar"></side-bar>
+<side-bar id="right-side-bar"><item-attributes-view></item-attributes-view></side-bar>
 </div>`;
         this.setup_commands();
     }
