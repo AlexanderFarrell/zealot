@@ -27,7 +27,7 @@ const AttributeAPI = {
     },
 
     remove: async (item_id: number, key: string) => {
-        await fetch(`/api/item/${item_id}/att/${key}`, {
+        await fetch(`/api/item/${item_id}/attr/${key}`, {
             method: "DELETE"
         })
     }

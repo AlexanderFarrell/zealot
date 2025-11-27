@@ -71,7 +71,6 @@ side-buttons > button {
 content- {
   padding: 5px;
   display: grid;
-  justify-content: center;
 }
 
 img {
@@ -143,6 +142,7 @@ button {
 item-screen {
   max-width: 1000px;
   display: block;
+  justify-self: center;
 }
 
 #top_container {

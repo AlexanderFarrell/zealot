@@ -9,7 +9,7 @@ class ItemScreen extends HTMLElement {
     public content: string = "";
     public item: any;
 
-    private switch_item = (data: any) => {
+    public switch_item = (data: any) => {
         this.title = data.title;
         this.innerHTML = ""
         this.render();
@@ -82,6 +82,7 @@ class ItemScreen extends HTMLElement {
         })
         topContainer.appendChild(deleteButton)
 
+        this.innerHTML = "";
         this.appendChild(topContainer);
         this.appendChild(new AttributesView().setup(this.item['item_id'], this.item['attributes']));
         this.appendChild(content);
@@ -89,6 +90,10 @@ class ItemScreen extends HTMLElement {
 }
 
 export function switch_item_to(title: string) {
+    // let item_screen = new ItemScreen();
+    document.querySelector('content-')!.innerHTML = "<item-screen></item-screen>";
+    // document.querySelector('content-')!.appendChild(item_screen);
+    // item_screen.switch_to({title: title});
     events.emit('switch_item', {title: title})
 }
 

@@ -26,16 +26,21 @@ class AttributesView extends HTMLElement {
         container.classList.add('attribute')
 
         let key_input = document.createElement('input');
+        key_input.id = "add_key_attribute"
         key_input.type = 'text';
         let value_input = document.createElement('input');
         key_input.type = 'text';
 
         container.addEventListener('submit', async (e: SubmitEvent) => {
             e.preventDefault();
+            if (key_input.value == "" || value_input.value == "") {
+                return;
+            }
             try {
                 await ItemAPI.Attributes.set_value(this.item_id, key_input.value, value_input.value);
                 this.item_attributes[key_input.value] = value_input.value;
                 this.refresh();
+                (document.querySelector('#add_key_attribute') as HTMLInputElement)?.focus();
             } catch(e) {
                 console.error(e)
             }
@@ -89,6 +94,11 @@ class AttributesView extends HTMLElement {
         
         let submit = document.createElement('button');
         submit.innerHTML = `<img src="${SettingsIcon}" style="width: 20px !important">`;
+        submit.addEventListener('click', async () => {
+            await ItemAPI.Attributes.remove(this.item_id, key_input.value);
+            delete this.item_attributes[key_input.value];
+            this.refresh();
+        })
         
         container.appendChild(key_input);
         container.appendChild(value_input);
