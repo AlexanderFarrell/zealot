@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"net/url"
+	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -32,4 +33,25 @@ func HandleUpdateRoute(c *fiber.Ctx, tableName string, identifierName string, al
 		return c.Status(500).SendString("Server error updating " + tableName)
 	}
 	return c.SendStatus(200)
+}
+
+func HandleDeleteRoute(c *fiber.Ctx, tableName string, identifierName string) error {
+	account_id := GetKeyFromSessionInt(c, "account_id")
+	identifier := c.Params(identifierName)
+	identifier, err := url.QueryUnescape(identifier)
+	if err != nil {
+		fmt.Printf("Error unescaping %s\n", identifierName)
+		return c.SendStatus(400)
+	}
+	identifierInt, err := strconv.Atoi(identifier)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString("Please send a number for " + identifierName)
+	}
+
+	err = DeleteRow(account_id, tableName, identifierInt, identifierName)
+	if err != nil {
+		fmt.Printf("Error deleting item from table %s: %v", tableName, err)
+		return c.Status(fiber.StatusInternalServerError).SendString("Server error updating " + tableName)
+	}
+	return c.SendStatus(fiber.StatusOK)
 }

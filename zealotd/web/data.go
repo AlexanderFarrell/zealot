@@ -137,6 +137,12 @@ func UpdateRow(account_id int, tableName string, identifier string, identifierRo
 	return err
 }
 
+func DeleteRow(accountID int, tableName string, identifier int, identifierRowName string) error {
+	query := "DELETE FROM " + tableName + " WHERE " + identifierRowName + "=$1 " + " AND account_id=$2"
+	_, err := Database.Exec(query, identifier, accountID)
+	return err
+}
+
 func InitDatabaseIfEmpty(initSQL string) {
 	// Check if a table exists, if not, need to initialize.
 	var table *string

@@ -54,8 +54,8 @@ create table attribute (
 create table attribute_meta(
     attribute_meta_id serial primary key,
     name text not null,
-    description text not null,
-    kind text not null,
+    description text not null default '',
+    kind text not null default 'text',
     account_id int not null references account(account_id)
         ON DELETE CASCADE
 );
@@ -64,13 +64,16 @@ create table item_type (
     type_id serial primary key,
     name text not null,
     description text not null,
+    instructions jsonb not null default '{"required_fields": []}'::jsonb,
     account_id int not null references account(account_id)
         ON DELETE CASCADE
 );
 
 create table item_item_type_link (
-    item_id int not null references item(item_id),
-    type_id int not null references item_type(type_id),
+    item_id int not null references item(item_id)
+        ON DELETE CASCADE,
+    type_id int not null references item_type(type_id)
+        ON DELETE CASCADE,
     primary key (item_id, type_id)
 );
 
@@ -92,8 +95,10 @@ create table item_item_link (
     item_item_id serial primary key,
 
     -- Items
-    first_item_id int not null references item(item_id),
-    second_item_id int not null references item(item_id),
+    first_item_id int not null references item(item_id)
+        ON DELETE CASCADE,
+    second_item_id int not null references item(item_id)
+        ON DELETE CASCADE,
 
     -- Relationship
     relationship item_relationship not null default 'Parent',

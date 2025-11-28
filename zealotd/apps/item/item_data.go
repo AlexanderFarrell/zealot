@@ -216,12 +216,6 @@ func scanAttributes(rows *sql.Rows, err error) (map[string]any, error) {
 	return attrs, nil
 }
 
-// Attrbute Types
-
-// Item Types
-
-
-
 func scanRows(rows *sql.Rows, err error) ([]Item, error) {
 	if err != nil {
 		return nil, err
