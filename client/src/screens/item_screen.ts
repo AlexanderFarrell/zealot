@@ -3,6 +3,7 @@ import { events } from "../core/events";
 import DeleteIcon from "../assets/icon/delete.svg";
 import { item_attribute_view } from "../components/sidebars/item_attributes_view";
 import AttributesView from "../components/attributes_view";
+import { router } from "../core/router";
 
 class ItemScreen extends HTMLElement {
     public title: string = "";
@@ -16,9 +17,9 @@ class ItemScreen extends HTMLElement {
     };
 
     connectedCallback() {
-        this.title = 'Home';
+        // this.title = 'Home';
         events.on('switch_item', this.switch_item);
-        this.render();
+        // this.render();
     }
 
     disconnectedCallback() {
@@ -76,7 +77,7 @@ class ItemScreen extends HTMLElement {
             if (confirm("Are you sure you want to delete this?")) {
                 ItemAPI.remove(this.item['item_id'])
                     .then(() => {
-                        switch_item_to("Home");
+                        router.navigate('/')
                     })
             }
         })

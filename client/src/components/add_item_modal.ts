@@ -1,5 +1,6 @@
 import ItemAPI from "../api/item";
 import { events } from "../core/events";
+import { router } from "../core/router";
 import { switch_item_to } from "../screens/item_screen";
 
 
@@ -62,7 +63,7 @@ class AddItemModal extends HTMLElement {
 
         try {
             if (await ItemAPI.add(title)) {
-                switch_item_to(title);
+                router.navigate(`/item/${title}`)
                 this.remove();
             } else {
                 this.error_message!.innerHTML = "Failed to add item";
