@@ -67,6 +67,9 @@ func CreateAccount(username string, password string,
 		fmt.Printf("%v\n", err)
 		return 500, errors.New("issue creating account please try again")
 	}
+
+	web.EventEmit("on_create_account", []string{username})
+
 	return 200, nil
 }
 
