@@ -81,6 +81,16 @@ func AddItem(title string, account_id int) error {
 	return err
 }
 
+func AddItemByUsername(title string, username string) error {
+	query := `
+	insert into item (title, account_id)
+	values ($1, (select account_id from account where username=$2));
+	`
+
+	_, err := web.Database.Exec(query, title, username)
+	return err
+}
+
 func DeleteItem(item_id int, account_id int) error {
 	query := `
 	delete from item 

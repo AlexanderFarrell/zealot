@@ -20,7 +20,7 @@ func EventOff(event string, on func([]string)) {
 	}
 }
 
-func Emit(event string, args []string) {
+func EventEmit(event string, args []string) {
 	for _, fn := range events[event] {
 		fn(args)
 	}

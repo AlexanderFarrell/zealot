@@ -29,6 +29,15 @@ func InitRouter(app *fiber.App) fiber.Router {
 	router.Patch("/:item_id/attr/rename", renameAttribute)
 	router.Delete("/:item_id/attr/:key", deleteAttribute)
 
+	// When creating accounts, add a Home item
+	web.EventOn("on_create_account", func(args []string) {
+		username := args[0]
+		err := AddItemByUsername("Home", username)
+		if err != nil {
+			fmt.Printf("Failed to make home page for new user %s: %v\n", username, err)
+		}
+	})
+
 	return router
 }
 

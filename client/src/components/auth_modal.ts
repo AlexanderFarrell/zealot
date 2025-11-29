@@ -97,7 +97,7 @@ class AuthModal extends HTMLElement {
                  data.get('confirm') as string,
                  data.get('name') as string,
                  data.get('email') as string
-            );
+                );
             } catch (e) {
                 error_message_view.innerText = (e as Error).message; 
             }

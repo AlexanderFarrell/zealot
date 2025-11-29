@@ -1,4 +1,5 @@
 import { events } from "../core/events";
+import { router } from "../core/router";
 import {get_settings, set_settings } from "../core/settings";
 
 type User = {
@@ -49,6 +50,7 @@ export const AuthAPI = {
         });
         events.emit('on_register_account');
         await AuthAPI.handle_response(response);
+        router.navigate('/')
     },
 
     logout: async () => {
