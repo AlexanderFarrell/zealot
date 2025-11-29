@@ -37,6 +37,7 @@ func InitRouter(app *fiber.App, settingsHandler SettingsHandler) fiber.Router {
 	api.Patch("/settings", func(c *fiber.Ctx) error {
 		return updateSettings(c, settingsHandler)
 	})
+	api.Get("/details", getAccountDetails)
 	api.Get("/logout", logout)
 
 	return api
@@ -51,7 +52,18 @@ func isLoggedIn(c *fiber.Ctx) error {
 }
 
 func getAccountDetails(c *fiber.Ctx) error {
-	
+	if !IsLoggedIn(c) {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
+
+	username := web.GetKeyFromSession(c, "username")
+
+	details, err := GetAccountDetails(username)
+	if err != nil {
+		fmt.Printf("Error getting account details: %v\n", err)
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+	return c.JSON(details)
 }
 
 func createAccount(c *fiber.Ctx) error {
