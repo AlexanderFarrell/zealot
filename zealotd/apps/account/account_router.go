@@ -99,6 +99,7 @@ func createAccount(c *fiber.Ctx) error {
 		}
 		sess := web.GetSessionStore(c)
 		sess.Set("account_id", details.AccountID)
+		sess.Set("username", details.Name)
 		web.SaveSession(sess)
 
 		return c.Status(fiber.StatusCreated).JSON(details)
@@ -130,6 +131,7 @@ func login(c *fiber.Ctx) error {
 		
 		sess := web.GetSessionStore(c)
 		sess.Set("account_id", details.AccountID)
+		sess.Set("username", details.Name)
 		web.SaveSession(sess)
 		return c.Status(fiber.StatusOK).JSON(details)
 	} else {

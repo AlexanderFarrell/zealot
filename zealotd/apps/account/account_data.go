@@ -95,7 +95,7 @@ func GetAccountDetails(username string) (AccountDetails, error) {
 	var details AccountDetails
 	err := row.Scan(&details.AccountID, &details.Username, &details.Email, &details.Name, &details.Settings)
 	if err != nil {
-		fmt.Printf("Error scanning account details %v\n", row.Err())
+		fmt.Printf("Error scanning account details %v\n", err)
 		return AccountDetails{}, errors.New("issue getting account details")
 	}
 	return details, nil

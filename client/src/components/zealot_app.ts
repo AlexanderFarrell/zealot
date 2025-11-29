@@ -1,4 +1,5 @@
 import AuthAPI from '../api/auth.ts';
+import ItemAPI from '../api/item.ts';
 import { events } from '../core/events';
 import { CTRL_OR_META_KEY, Hotkey, SHIFT_KEY } from '../core/hotkeys';
 import { switch_item_to } from '../screens/item_screen';
@@ -105,5 +106,10 @@ class ZealotApp extends HTMLElement {
 }
 
 customElements.define('zealot-app', ZealotApp)
+
+
+events.on('on_register_account', () => {
+    ItemAPI.add('Home')
+})
 
 export default ZealotApp;

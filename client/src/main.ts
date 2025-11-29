@@ -37,6 +37,11 @@ events.on('on_logout', () => {
         document.body.appendChild(new AuthModal());
     } else {
         document.body.innerHTML = "";
+        try {
+            await AuthAPI.get_user_details();
+        } catch (e) {
+            console.error(e)
+        }
         document.body.appendChild(new ZealotApp());
     }
 })()
