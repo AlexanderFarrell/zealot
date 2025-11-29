@@ -2,11 +2,13 @@ package account
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"zealotd/web"
+
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
-	"zealotd/web"
 )
 
 type AccountDetails struct {
@@ -14,6 +16,7 @@ type AccountDetails struct {
 	Email string `json:"email"`
 	Name string `json:"name"`
 	AccountID int `json:"account_id"`
+	Settings json.RawMessage `json:"settings"`
 }
 
 func IsLoggedIn(c *fiber.Ctx) bool {
@@ -84,13 +87,13 @@ func UsernameExists(username string) (bool, error) {
 }
 
 func GetAccountDetails(username string) (AccountDetails, error) {
-	row := web.Database.QueryRow("select account_id, username, email, full_name from account where username=$1", username)
+	row := web.Database.QueryRow("select account_id, username, email, full_name, settings from account where username=$1", username)
 	if row.Err() != nil {
 		fmt.Printf("Error retrieving account details %v\n", row.Err())
 		return AccountDetails{}, errors.New("issue getting account details")
 	}
 	var details AccountDetails
-	err := row.Scan(&details.AccountID, &details.Username, &details.Email, &details.Name)
+	err := row.Scan(&details.AccountID, &details.Username, &details.Email, &details.Name, &details.Settings)
 	if err != nil {
 		fmt.Printf("Error scanning account details %v\n", row.Err())
 		return AccountDetails{}, errors.New("issue getting account details")
@@ -123,6 +126,17 @@ func Login(username string, password string) (bool, error) {
 	} else {
 		return true, nil
 	}
+}
+
+func SaveUserSettings(accountID int, raw json.RawMessage) error {
+	query := `
+	update account
+	set settings=$1
+	where account_id=$2;
+	`
+
+	_, err := web.Database.Exec(query, raw, accountID)
+	return err
 }
 
 func isWithin(item string, min int, max int, name string) error {

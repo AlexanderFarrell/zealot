@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"zealotd/apps/account"
 	"zealotd/apps/item"
+	"zealotd/apps/settings"
 	"zealotd/web"
 )
 
@@ -19,7 +20,7 @@ func main() {
 
 	app := web.InitServer()
 
-	account.InitRouter(app)
+	account.InitRouter(app, settings.SettingsHandler)
 	item.InitRouter(app)
 
 	web.RunServer(app)

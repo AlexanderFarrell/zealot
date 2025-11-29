@@ -1,4 +1,5 @@
 import { events } from "../core/events";
+import settings, { set_settings } from "../core/settings";
 
 type User = {
     username: string;
@@ -58,6 +59,16 @@ export const AuthAPI = {
         AuthAPI.require_relogin();
     },
 
+    sync_settings: async () => {
+        await fetch('/api/account/settings', {
+            method: 'PATCH',
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(settings)
+        })
+    },
+
     require_relogin: () => {
         AuthAPI.current_user = null;
     },
@@ -71,6 +82,8 @@ export const AuthAPI = {
                 name: data['email'],
                 user_id: data['user_id']
             };
+            set_settings(data['settings']);
+            
             events.emit('on_login');
         } else {
             let error = "Server error";

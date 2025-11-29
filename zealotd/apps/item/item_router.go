@@ -7,7 +7,6 @@ import (
 	"zealotd/web"
 
 	"github.com/gofiber/fiber/v2"
-	"golang.org/x/tools/go/analysis/passes/nilfunc"
 )
 
 var updatableFields = map[string]int {
@@ -30,48 +29,9 @@ func InitRouter(app *fiber.App) fiber.Router {
 	router.Patch("/:item_id/attr/rename", renameAttribute)
 	router.Delete("/:item_id/attr/:key", deleteAttribute)
 
-	router.Get("/meta", getAttrMetas)
-	router.Post("/meta", addAttrMeta)
-	router.Patch("/meta", updateAttrMeta)
-	router.Delete("/meta", deleteAttrMeta)
-
 	return router
 }
 
-func getAttrMetas(c *fiber.Ctx) error {
-	accountID := web.GetKeyFromSessionInt(c, "account_id")
-	metas, err := GetAttributeMetas(accountID)
-	if err != nil {
-		fmt.Printf("Error getting attribute metas: %v\n", err)
-		return c.SendStatus(fiber.StatusInternalServerError)
-	} else {
-		return c.JSON(metas)
-	}
-}
-
-func addAttrMeta(c *fiber.Ctx) error {
-	accountID := web.GetKeyFromSessionInt(c, "account_id")
-	var meta AttributeMeta
-	if err := c.BodyParser(&meta); err != nil {
-		fmt.Printf("Error parsing attribute meta: %v\n", err)
-		return c.SendStatus(fiber.StatusBadRequest)
-	} 
-	err := AttributeMetaAdd(meta, accountID)
-	if err != nil {
-		fmt.Printf("%v\n", err)
-		return c.SendStatus(fiber.StatusInternalServerError)
-	} else {
-		return c.SendStatus(fiber.StatusOK)
-	}
-}
-
-func updateAttrMeta(c *fiber.Ctx) error {
-	return web.HandleUpdateRoute(c, "attribute_meta", "attribute_meta_id", updatableFieldsAttributeMeta)
-}
-
-func deleteAttrMeta(c *fiber.Ctx) error {
-	return web.HandleDeleteRoute(c, "attribute_meta", "attribute_meta_id")
-}
 
 func getRootItems(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNotImplemented)
