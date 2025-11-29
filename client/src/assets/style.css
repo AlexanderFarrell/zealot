@@ -68,6 +68,10 @@ side-buttons > button {
   padding: 5px 5px;
 }
 
+content- {
+  padding: 5px;
+  display: grid;
+}
 
 img {
   width: 100%;
@@ -135,7 +139,31 @@ button {
   font-size: 1.1em;
 }
 
+item-screen {
+  max-width: 1000px;
+  display: block;
+  justify-self: center;
+}
+
 #top_container {
   display: grid;
   grid-template-columns: 1fr auto;
+  align-items: center;
+}
+.row {
+  display: flex;
+}
+
+.col1 {
+  flex: 1;
+}
+
+.gap {
+  gap: 5px;
+}
+
+.attribute {
+  display: grid;
+  grid-template-columns: 1fr 2fr auto;
+
 }

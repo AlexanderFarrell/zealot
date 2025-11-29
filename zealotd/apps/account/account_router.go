@@ -1,11 +1,13 @@
 package account
 
 import (
+	"encoding/json"
 	"fmt"
-	"github.com/gofiber/fiber/v2"
 	"os"
-	"zealotd/web"
 	"strconv"
+	"zealotd/web"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 var (
@@ -21,8 +23,10 @@ var (
 	nameMax            = 50
 )
 
+type SettingsHandler func(accountID int, raw json.RawMessage) error
+
 // Provides username and password authentication via API responses
-func InitRouter(app *fiber.App) fiber.Router {
+func InitRouter(app *fiber.App, settingsHandler SettingsHandler) fiber.Router {
 	initEnvVariables()
 
 	api := app.Group("/account")
@@ -30,6 +34,10 @@ func InitRouter(app *fiber.App) fiber.Router {
 	api.Post("/login", login)
 	api.Get("/exists", usernameExists)
 	api.Get("/is_logged_in", isLoggedIn)
+	api.Patch("/settings", func(c *fiber.Ctx) error {
+		return updateSettings(c, settingsHandler)
+	})
+	api.Get("/details", getAccountDetails)
 	api.Get("/logout", logout)
 
 	return api
@@ -41,6 +49,21 @@ func isLoggedIn(c *fiber.Ctx) error {
 	} else {
 		return c.SendStatus(fiber.StatusUnauthorized)
 	}
+}
+
+func getAccountDetails(c *fiber.Ctx) error {
+	if !IsLoggedIn(c) {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
+
+	username := web.GetKeyFromSession(c, "username")
+
+	details, err := GetAccountDetails(username)
+	if err != nil {
+		fmt.Printf("Error getting account details: %v\n", err)
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+	return c.JSON(details)
 }
 
 func createAccount(c *fiber.Ctx) error {
@@ -76,7 +99,9 @@ func createAccount(c *fiber.Ctx) error {
 		}
 		sess := web.GetSessionStore(c)
 		sess.Set("account_id", details.AccountID)
+		sess.Set("username", details.Name)
 		web.SaveSession(sess)
+
 		return c.Status(fiber.StatusCreated).JSON(details)
 	}
 }
@@ -106,6 +131,7 @@ func login(c *fiber.Ctx) error {
 		
 		sess := web.GetSessionStore(c)
 		sess.Set("account_id", details.AccountID)
+		sess.Set("username", details.Name)
 		web.SaveSession(sess)
 		return c.Status(fiber.StatusOK).JSON(details)
 	} else {
@@ -134,6 +160,10 @@ func usernameExists(c *fiber.Ctx) error {
 }
 
 func logout(c *fiber.Ctx) error {
+	// Protects session management
+	if !IsLoggedIn(c) {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
 	username := web.GetKeyFromSession(c, "username")
 	fmt.Printf("User %s logged out\n", username)
 
@@ -153,6 +183,25 @@ func changePassword(c *fiber.Ctx) error {
 
 func changeAccountDetails(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNotImplemented)
+}
+
+func updateSettings(c *fiber.Ctx, handler SettingsHandler) error {
+	if !IsLoggedIn(c) {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
+	raw := json.RawMessage(c.Body())
+	accountID := web.GetKeyFromSessionInt(c, "account_id")
+
+	if handler == nil {
+		return c.SendStatus(fiber.StatusNotImplemented)
+	}
+
+	if err := handler(accountID, raw); err != nil {
+		fmt.Printf("Error parsing data: %v", err)
+		return c.SendStatus(fiber.StatusBadRequest)
+	}
+
+	return c.SendStatus(fiber.StatusOK)
 }
 
 func initEnvVariables() {

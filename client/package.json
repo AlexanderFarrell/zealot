@@ -4,13 +4,16 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
   "devDependencies": {
+    "mitt": "3.0.1",
     "typescript": "~5.9.3",
-    "vite": "^7.1.7",
-    "mitt": "3.0.1"
+    "vite": "^7.1.7"
+  },
+  "dependencies": {
+    "navigo": "^8.11.1"
   }
 }
