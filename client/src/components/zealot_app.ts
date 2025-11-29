@@ -2,6 +2,7 @@ import AuthAPI from '../api/auth.ts';
 import ItemAPI from '../api/item.ts';
 import { events } from '../core/events';
 import { CTRL_OR_META_KEY, Hotkey, SHIFT_KEY } from '../core/hotkeys';
+import { router, setup_router } from '../core/router.ts';
 import { switch_item_to } from '../screens/item_screen';
 import commands from './../core/command_runner.ts';
 import AddItemModal from './add_item_modal';
@@ -17,6 +18,12 @@ class ZealotApp extends HTMLElement {
 <side-bar id="right-side-bar"><item-attributes-view></item-attributes-view></side-bar>
 </div>`;
         this.setup_commands();
+        setup_router();
+
+        let link = window.location.pathname + window.location.search + window.location.hash;
+        console.log(link)
+        router.navigate('/analysis')
+        router.navigate(link)
     }
 
     disconnectedCallback() {
@@ -27,7 +34,7 @@ class ZealotApp extends HTMLElement {
         commands.register('Go to Home Page',
             [new Hotkey('h', [CTRL_OR_META_KEY])],
             () => {
-                switch_item_to('Home');
+                router.navigate('/');
             });
         commands.register('Search Items', 
             [new Hotkey('k', [CTRL_OR_META_KEY, SHIFT_KEY])],
@@ -47,48 +54,51 @@ class ZealotApp extends HTMLElement {
         commands.register('Open Media', 
             [new Hotkey('m', [CTRL_OR_META_KEY])],
             () => {
-                document.querySelector('content-')!.innerHTML = "<media-screen></media-screen>";
+                router.navigate('/media')
             });
         commands.register('Up to Parent', 
             [new Hotkey('UpArrow', [CTRL_OR_META_KEY])],
-            () => {events.emit('Parent')});
+            () => {
+                events.emit('Parent')
+                console.error("Not implemented Up to Parent command")
+            });
         commands.register('Open Calendar', 
             [new Hotkey('r', [CTRL_OR_META_KEY])],
             () => {events.emit('Calendar')});
         commands.register('Open Daily Planner', 
             [new Hotkey('1', [CTRL_OR_META_KEY])],
             () => {
-                document.querySelector('content-')!.innerHTML = "<daily-planner-screen></daily-planner-screen>";
+                router.navigate('/planner/daily');
             });
         commands.register('Open Weekly Planner', 
             [new Hotkey('2', [CTRL_OR_META_KEY])],
             () => {
-                document.querySelector('content-')!.innerHTML = "<weekly-planner-screen></weekly-planner-screen>";
+                router.navigate('/planner/weekly')
             });
         commands.register('Open Monthly Planner', 
             [new Hotkey('3', [CTRL_OR_META_KEY])],
             () => {
-                document.querySelector('content-')!.innerHTML = "<monthly-planner-screen></monthly-planner-screen>";
+                router.navigate('/planner/monthly')
             });
         commands.register('Open Annual Planner', 
             [new Hotkey('4', [CTRL_OR_META_KEY])],
             () => {
-                document.querySelector('content-')!.innerHTML = "<annual-planner-screen></annual-planner-screen>";
+                router.navigate('/planner/annual')
             });
         commands.register('Open Analysis', 
             [new Hotkey('1', [CTRL_OR_META_KEY, SHIFT_KEY])],
             () => {
-                document.querySelector('content-')!.innerHTML = "<analysis-screen></analysis-screen>";
+                router.navigate('/analysis')
             });
         commands.register('Open Rules Editor', 
             [new Hotkey('2', [CTRL_OR_META_KEY, SHIFT_KEY])],
             () => {
-                document.querySelector('content-')!.innerHTML = "<rules-screen></rules-screen>";
+                router.navigate('/rules')
             });
         commands.register('Open Settings', 
             [new Hotkey('3', [CTRL_OR_META_KEY, SHIFT_KEY])],
             () => {
-                document.querySelector('content-')!.innerHTML = "<settings-screen></settings-screen>";
+                router.navigate('/settings')
             });
         commands.register('New Item', 
             [new Hotkey('n', [CTRL_OR_META_KEY])],

@@ -1,3 +1,4 @@
+import { router } from "../core/router";
 import DataSettingsScreen from "./settings/data_settings_screen";
 import PlannerSettingsScreen from "./settings/planner_settings_screen";
 import TypeSettingsScreen from "./settings/type_settings_screen";
@@ -15,12 +16,13 @@ class SettingsScreen extends HTMLElement {
         let row_buttons = this.querySelector("#row_buttons");
         this.screen_container = this.querySelector('#screen_container');
 
-        let button_names = ["Types", "Planner", "Wiki", "Data"];
+        let button_names = ["types", "planner", "wiki", "data"];
         button_names.forEach(name => {
             let button = document.createElement('button');
-            button.innerHTML = name;
+            let capitalized_name = name.charAt(0).toUpperCase() + name.slice(1);
+            button.innerHTML = capitalized_name;
             button.addEventListener('click', () => {
-                this.switch_screen(name);
+                router.navigate(`/settings/${name}`)
             })
             row_buttons?.appendChild(button);
         })
@@ -29,22 +31,22 @@ class SettingsScreen extends HTMLElement {
     }
 
     disconnectedCallback() {
-
+        
     }
 
     switch_screen(next_screen: string) {
         let element = null;
         switch(next_screen) {
-            case "Types":
+            case "types":
                 element = new TypeSettingsScreen();
                 break;
-            case "Planner":
+            case "planner":
                 element = new PlannerSettingsScreen();
                 break;
-            case "Wiki":
+            case "wiki":
                 element = new WikiSettingsScreen();
                 break;
-            case "Data":
+            case "data":
                 element = new DataSettingsScreen();
                 break;
         }

@@ -2,6 +2,7 @@ import AuthAPI from "../api/auth";
 import { events } from "../core/events";
 import ZealotApp from "./zealot_app";
 import ZealotIcon from "./../../public/zealot.webp";
+import { router } from "../core/router";
 
 let auth_modal: any | null = null ;
 
