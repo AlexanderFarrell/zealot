@@ -74,7 +74,7 @@ func DeleteAttributeKind(kindID int, accountID int) error {
 	query := `
 	delete from attribute_kind
 	where account_id = $1
-	and kind_id = $2;
+	and kind_id = $2
 	and is_system=false;
 	`
 

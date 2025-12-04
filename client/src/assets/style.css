@@ -170,5 +170,5 @@ item-screen {
 
 .attribute_kind {
   display: grid;
-  grid-template-columns: 1fr 2fr auto;
+  grid-template-columns: 1fr 2fr auto auto;
 }

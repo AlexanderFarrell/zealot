@@ -2,6 +2,7 @@ import API from "../../api/api";
 import AuthAPI from "../../api/auth";
 import { events } from "../../core/events";
 import { get_settings } from "../../core/settings";
+import DeleteIcon from "../../assets/icon/delete.svg";
 
 let selectHTML = `<select name="base_type" value="text">
                 <option value="text">Text</option>
@@ -116,16 +117,19 @@ class TypeSettingsScreen extends HTMLElement {
                 `<input name="key" value="${attribute_kind['key']}">
                 <input name="description" value="${attribute_kind['description']}">
                 ${selectHTML}
+                <button class="delete_button"><img style="width: 1em" src="${DeleteIcon}"></button>
                 `;
                 let key_input = view.querySelector('[name="key"]')! as HTMLInputElement;
                 let description_input = view.querySelector('[name="description"]')! as HTMLInputElement;
                 let base_type_input = view.querySelector('[name="base_type"]')! as HTMLSelectElement;
+                let delete_button = view.querySelector('.delete_button')! as HTMLButtonElement;
 
                 base_type_input.value = attribute_kind.base_type;
                 if (attribute_kind.is_system) {
                     key_input.disabled = true;
                     description_input.disabled = true;
                     base_type_input.disabled = true;
+                    delete_button.disabled = true;
                 } else {
                     key_input.addEventListener('change', () => {
                         attribute_kind.key = (view.querySelector('[name="key"]')! as HTMLInputElement).value;
@@ -142,6 +146,13 @@ class TypeSettingsScreen extends HTMLElement {
                         attribute_kind.base_type_input = base_type_input.value;
                         API.item.AttributeKinds.update(attribute_kind.kind_id, {base_type: attribute_kind.base_type})
                         events.emit('refresh_attributes')
+                    })
+                    delete_button.addEventListener('click', () => {
+                        API.item.AttributeKinds.remove(attribute_kind.kind_id)
+                            .then(() => {
+                                events.emit('refresh_attributes')
+                                view.remove();
+                            })
                     })
                 }
 
