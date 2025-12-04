@@ -1,8 +1,22 @@
+import API from "../../api/api";
 import AuthAPI from "../../api/auth";
+import { events } from "../../core/events";
 import { get_settings } from "../../core/settings";
+
+let selectHTML = `<select name="base_type" value="text">
+                <option value="text">Text</option>
+                <option value="integer">Integer</option>
+                <option value="decimal">Decimal</option>
+                <option value="date">Date</option>
+                <option value="week">Week</option>
+                <option value="dropdown">Dropdown</option>
+                <option value="boolean">Boolean</option>
+            </select>`
 
 class TypeSettingsScreen extends HTMLElement {
     connectedCallback() {
+
+
         this.innerHTML = `
         <h1>Type Settings</h1>
         <h2>Types</h2>
@@ -23,10 +37,7 @@ class TypeSettingsScreen extends HTMLElement {
             <label>Description</label>
             <input type="text" name="description">
             <label>Kind</label>
-            <select value="text">
-                <option value="text">Text</option>
-                <option value="number">Number</option>
-            </select>
+            ${selectHTML}
             <button type="submit">Add Attribute Kind</button>
         </form>
         <div id='attribute_kinds_container'></div>
@@ -51,21 +62,26 @@ class TypeSettingsScreen extends HTMLElement {
         (this.querySelector('#add_attribute_kind') as HTMLFormElement)!.addEventListener('submit', (e: SubmitEvent) => {
             e.preventDefault();
             const data = new FormData(this.querySelector('#add_attribute_kind')! as HTMLFormElement);
-            const attribute_kind = {
-                name: data.get('name'),
-                description: data.get('description'),
-                kind: data.get('kind')
-            };
-            let settings = get_settings();
-            settings['attribute_metas'].push(attribute_kind);
-            AuthAPI.sync_settings();
-            this.refresh();
+            API.item.AttributeKinds.add(
+                data.get('name') as string,
+                data.get('description') as string,
+                data.get('base_type') as string
+            )
+                .then(() => {
+                    this.refresh();
+                });
+
+
+            // let settings = get_settings();
+            // settings['attribute_metas'].push(attribute_kind);
+            // AuthAPI.sync_settings();
+            // this.refresh();
         });
 
         this.refresh();
     }
 
-    refresh() {
+    async refresh() {
         let settings = get_settings();
         let types_container = this.querySelector("#types_container")!;
         types_container.innerHTML = "";
@@ -90,27 +106,51 @@ class TypeSettingsScreen extends HTMLElement {
         });
 
         let attribute_kinds_container = this.querySelector('#attribute_kinds_container')!;
-        attribute_kinds_container.innerHTML = "";
-        settings['attribute_metas'].forEach((attribute_kind: any) => {
-            let view = document.createElement('div');
-            view.classList.add('attribute_kind')
-            view.innerHTML = 
-            `<input name="name" value="${attribute_kind['name']}">
-            <input name="description" value="${attribute_kind['description']}">
-            `            
-            view.querySelector('[name="name"]')!.addEventListener('change', () => {
-                attribute_kind.name = (view.querySelector('[name="name"]')! as HTMLInputElement).value;
-                AuthAPI.sync_settings();
-                this.refresh();
+        try {
+            let attribute_kinds = await API.item.AttributeKinds.get_all();
+            attribute_kinds_container.innerHTML = "";
+            attribute_kinds.forEach((attribute_kind: any) => {
+                let view = document.createElement('div');
+                view.classList.add('attribute_kind')
+                view.innerHTML = 
+                `<input name="key" value="${attribute_kind['key']}">
+                <input name="description" value="${attribute_kind['description']}">
+                ${selectHTML}
+                `;
+                let key_input = view.querySelector('[name="key"]')! as HTMLInputElement;
+                let description_input = view.querySelector('[name="description"]')! as HTMLInputElement;
+                let base_type_input = view.querySelector('[name="base_type"]')! as HTMLSelectElement;
+
+                base_type_input.value = attribute_kind.base_type;
+                if (attribute_kind.is_system) {
+                    key_input.disabled = true;
+                    description_input.disabled = true;
+                    base_type_input.disabled = true;
+                } else {
+                    key_input.addEventListener('change', () => {
+                        attribute_kind.key = (view.querySelector('[name="key"]')! as HTMLInputElement).value;
+                        API.item.AttributeKinds.update(attribute_kind.kind_id, {key: attribute_kind.key})
+                        events.emit('refresh_attributes')
+                    })
+                    description_input.addEventListener('change', () => {
+                        attribute_kind.description = (view.querySelector('[name="description"]')! as 
+                        HTMLInputElement).value;
+                        API.item.AttributeKinds.update(attribute_kind.kind_id, {description: attribute_kind.description})
+                        events.emit('refresh_attributes')
+                    })
+                    base_type_input.addEventListener('change', () => {
+                        attribute_kind.base_type_input = base_type_input.value;
+                        API.item.AttributeKinds.update(attribute_kind.kind_id, {base_type: attribute_kind.base_type})
+                        events.emit('refresh_attributes')
+                    })
+                }
+
+                attribute_kinds_container.appendChild(view)
             })
-            view.querySelector('[name="description"]')!.addEventListener('change', () => {
-                attribute_kind.description = (view.querySelector('[name="description"]')! as 
-                HTMLInputElement).value;
-                AuthAPI.sync_settings();
-                this.refresh();
-            })
-            attribute_kinds_container.appendChild(view)
-        })
+        }
+        catch (e) {
+            console.error(e)
+        }
     }
     
 

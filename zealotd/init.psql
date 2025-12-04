@@ -52,6 +52,33 @@ create table attribute (
     primary key (item_id, key)
 );
 
+create table attribute_kind (
+    kind_id serial primary key,
+    account_id int references account(account_id)
+        on delete cascade,
+    key text not null,
+    description text not null default '',
+    base_type text not null check (
+        base_type in 
+        ('integer', 'decimal', 'text', 'date', 'week', 'dropdown', 'boolean')
+    ),
+    config jsonb not null default '{}'::jsonb,
+
+    is_system boolean not null default false,
+
+    constraint u_account_key unique (account_id, key),
+    constraint c_account_or_system check (
+        (account_id is not null and not is_system) or (is_system and account_id is null)
+    )
+);
+
+insert into attribute_kind (key, description, base_type, config, is_system)
+values 
+('Scheduled Date', 'When to do something.', 'date', '{}'::jsonb, true),
+('Status', 'Where is the current item?', 'dropdown', '{}'::jsonb, true),
+('Scheduled Week', 'What week to do something?', 'week', '{}'::jsonb, true),
+('Priority', 'How important is something?', 'dropdown', '{}'::jsonb, true);
+
 create table item_type (
     type_id serial primary key,
     name text not null,

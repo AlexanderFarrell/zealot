@@ -21,7 +21,7 @@ create table item (
     updated_at timestamptz not null default now()
 );
 
-create table item_attribute (
+create table attribute (
     item_id integer not null references item(item_id),
     key text not null,
     value_text text,
@@ -29,6 +29,43 @@ create table item_attribute (
     value_int integer,
     value_date timestamptz,
     primary key (item_id, key)
+);
+
+create table attribute_kind (
+    kind_id serial primary key,
+    account_id int references account(account_id)
+        on delete cascade,
+    key text not null,
+    description text not null default '',
+    base_type text not null check (
+        base_type in 
+        ('integer', 'decimal', 'text', 'date', 'week', 'dropdown', 'boolean')
+    ),
+    config jsonb not null default '{}'::jsonb,
+
+    is_system boolean not null default false,
+
+    constraint u_account_key unique (account_id, key),
+    constraint c_account_or_system check (
+        (account_id is not null and not is_system) or (is_system and account_id is null)
+    )
+);
+
+insert into attribute_kind (key, description, base_type, config, is_system)
+values 
+('Scheduled Date', 'When to do something.', 'date', '{}'::jsonb, true),
+('Status', 'Where is the current item?', 'dropdown', '{}'::jsonb, true),
+('Scheduled Week', 'What week to do something?', 'week', '{}'::jsonb, true),
+('Priority', 'How important is something?', 'dropdown', '{}'::jsonb, true);
+
+create table attribute_kind_option (
+    kind_option_id serial primary key,
+    kind_id int not null references attribute_kind(kind_id),
+    value text not null,
+    description text not null,
+    sort_order int not null default 0
+
+    constraint u_kind_value unique (kind_id, value)
 );
 
 create index idx_attr_key_value_text on item_attribute (key, value_text);

@@ -3,7 +3,6 @@ package item
 import (
 	"database/sql"
 	"fmt"
-	"reflect"
 	"time"
 	"zealotd/web"
 )
@@ -107,36 +106,36 @@ func DeleteItem(item_id int, account_id int) error {
 
 // Attributes
 
-func SetAttributeForItem(item_id int, account_id int, key string, value interface{}) error {
-	column := "value_text"
-	t := reflect.TypeOf(value)
-	switch t.Kind() {
-	case reflect.Int:
-		column = "value_int"
-	case reflect.String:
-		column = "value_text"
-	case reflect.Float64:
-		column = "value_num"
-	case reflect.Bool:
-		column = "value_bool"
-	}
+// func SetAttributeForItem(item_id int, account_id int, key string, value interface{}) error {
+// 	column := "value_text"
+// 	t := reflect.TypeOf(value)
+// 	switch t.Kind() {
+// 	case reflect.Int:
+// 		column = "value_int"
+// 	case reflect.String:
+// 		column = "value_text"
+// 	case reflect.Float64:
+// 		column = "value_num"
+// 	case reflect.Bool:
+// 		column = "value_bool"
+// 	}
 
-	// No chance of SQL injection, just be sure to ensure column value is controlled.
-	query := fmt.Sprintf(`
-	insert into attribute (item_id, key, %s)
-	values (
-	(select item_id from item i where i.item_id=$1 and i.account_id=$2),
-	$3,
-	$4)
-	on conflict (item_id, key)
-	do update set
-		%s = $4;
-	`, column, column)
+// 	// No chance of SQL injection, just be sure to ensure column value is controlled.
+// 	query := fmt.Sprintf(`
+// 	insert into attribute (item_id, key, %s)
+// 	values (
+// 	(select item_id from item i where i.item_id=$1 and i.account_id=$2),
+// 	$3,
+// 	$4)
+// 	on conflict (item_id, key)
+// 	do update set
+// 		%s = $4;
+// 	`, column, column)
 
-	_, err := web.Database.Exec(query, item_id, account_id, key, value)
+// 	_, err := web.Database.Exec(query, item_id, account_id, key, value)
 
-	return err
-}
+// 	return err
+// }
 
 func GetAttributesForItem(item_id int, account_id int) (map[string]any, error) {
 	query := `

@@ -163,7 +163,12 @@ item-screen {
 }
 
 .attribute {
+
   display: grid;
   grid-template-columns: 1fr 2fr auto;
+}
 
+.attribute_kind {
+  display: grid;
+  grid-template-columns: 1fr 2fr auto;
 }
