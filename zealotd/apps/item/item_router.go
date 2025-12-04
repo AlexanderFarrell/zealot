@@ -14,6 +14,13 @@ var updatableFields = map[string]int {
 	"content": 0,
 }
 
+var updatableFieldsAttrKind = map[string]int {
+	"key": 0,
+	"description": 0,
+	"base_type": 0,
+	"config": 0,
+}
+
 func InitRouter(app *fiber.App) fiber.Router {
 	router := app.Group("/item")
 	router.Use(account.RequireLoginMiddleware)
@@ -21,6 +28,60 @@ func InitRouter(app *fiber.App) fiber.Router {
 	router.Get("/", getRootItems)
 	router.Get("/title/:title", getByTitle)
 	router.Get("/search", searchTitle)
+
+	// Gets all attribute kinds, system and account specific.
+	router.Get("/kind", func (c * fiber.Ctx) error {
+		account_id := web.GetKeyFromSessionInt(c, "account_id")
+		kinds, err := GetAllAttributeKinds(account_id)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			return c.SendStatus(fiber.StatusInternalServerError)
+		} else {
+			return c.JSON(kinds)
+		}
+	})
+
+	// Adds a new attribute kind
+	router.Post("/kind", func (c * fiber.Ctx) error {
+		account_id := web.GetKeyFromSessionInt(c, "account_id")
+		var kind AttributeKind
+		if err := c.BodyParser(&kind); err != nil {
+			fmt.Printf("Unable to parse new kind: %w", err)
+			return c.SendStatus(fiber.StatusBadRequest)
+		}
+		kind.IsSystem = false
+
+		err := AddAttributeKind(&kind, account_id)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			return c.SendStatus(fiber.StatusInternalServerError)
+		} else {
+			return c.SendStatus(fiber.StatusOK)
+		}
+	})
+
+	// Updates fields on an attribute kind
+	router.Patch("/kind/:kind_id", func (c *fiber.Ctx) error {
+		return web.HandleUpdateRoute(c, "attribute_kind", "kind_id", updatableFieldsAttrKind)
+	})
+
+	// Deletes a non-system attribute kind
+	router.Delete("/kind/:kind_id", func (c *fiber.Ctx) error {
+		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		kindID, err := strconv.Atoi(c.Params("kind_id"))
+		if err != nil {
+			return c.SendStatus(fiber.StatusBadRequest)
+		}
+
+		err = DeleteAttributeKind(kindID, accountID)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			return c.SendStatus(fiber.StatusInternalServerError)
+		} else {
+			return c.SendStatus(fiber.StatusOK)
+		}
+	})
+
 	router.Post("/", addItem)
 	router.Patch("/:item_id", updateItem)
 	router.Delete("/:item_id", deleteItem)

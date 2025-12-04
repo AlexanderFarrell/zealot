@@ -4,6 +4,8 @@ import DeleteIcon from "../assets/icon/delete.svg";
 import { item_attribute_view } from "../components/sidebars/item_attributes_view";
 import AttributesView from "../components/attributes_view";
 import { router } from "../core/router";
+import API from "../api/api";
+
 
 class ItemScreen extends HTMLElement {
     public title: string = "";
@@ -29,6 +31,7 @@ class ItemScreen extends HTMLElement {
 
     async render() {
         this.innerHTML = ""
+
         try {
             this.item = await ItemAPI.get_by_title(this.title) as any;
             this.title = this.item.title;
