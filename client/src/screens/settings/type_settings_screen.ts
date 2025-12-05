@@ -48,16 +48,20 @@ class TypeSettingsScreen extends HTMLElement {
             e.preventDefault();
             const data = new FormData(this.querySelector('#add_type')! as HTMLFormElement);
             const item_type = {
-                name: data.get('name')!,
-                description: data.get('description')!,
-                instructions: {
-                    required_fields: []
-                }
+                name: data.get('name')! as string,
+                description: data.get('description')! as string,
+                // instructions: {
+                    // required_fields: []
+                // }
             }
-            let settings = get_settings()
-            settings['item_types'].push(item_type);
-            AuthAPI.sync_settings();
-            this.refresh();
+            API.item.Types.add(item_type)
+                .then(() => {
+                    this.refresh();
+                })
+            // let settings = get_settings()
+            // settings['item_types'].push(item_type);
+            // AuthAPI.sync_settings();
+            // this.refresh();
         });
 
         (this.querySelector('#add_attribute_kind') as HTMLFormElement)!.addEventListener('submit', (e: SubmitEvent) => {
@@ -83,28 +87,41 @@ class TypeSettingsScreen extends HTMLElement {
     }
 
     async refresh() {
-        let settings = get_settings();
         let types_container = this.querySelector("#types_container")!;
-        types_container.innerHTML = "";
-        settings['item_types'].forEach((item_type: any) => {
-            let view = document.createElement('div');
-            view.classList.add('item_type');
-            view.innerHTML =
-                `<input name="name" value="${item_type['name']}">
-                <input name="description" value="${item_type['description']}">`
-            view.querySelector('[name="name"]')!.addEventListener('change', () => {
-                item_type.name = (view.querySelector('[name="name"]')! as HTMLInputElement).value;
-                AuthAPI.sync_settings();
-                this.refresh();
+        try {
+            let item_types = await API.item.Types.get_all();
+            types_container.innerHTML = "";
+            item_types.forEach(item_type => {
+                let view = document.createElement('div');
+                view.classList.add('item_type')
+                view.innerHTML =
+                    `<input name="name" value="${item_type['name']}">
+                    <input name="description" value="${item_type['description']}">
+                    <button class="delete_button"><img style="width: 1em" src="${DeleteIcon}"></button>`
+                let name_input = view.querySelector('[name="name"]')! as HTMLInputElement;
+                let description_input = view.querySelector('[name="description"]')! as HTMLInputElement;
+                let delete_button = view.querySelector('.delete_button')! as HTMLButtonElement;
+                name_input.addEventListener('change', () => {
+                    item_type.name = name_input.value;
+                    API.item.Types.update(item_type.type_id!, {name: item_type.name})
+                    this.refresh();
+                })
+                description_input.addEventListener('change', () => {
+                    item_type.description = description_input.value;
+                    API.item.Types.update(item_type.type_id!, {description: item_type.description})
+                    this.refresh();
+                })
+                delete_button.addEventListener('click', () => {
+                    API.item.remove(item_type.type_id!)
+                        .then(() => {
+                            view.remove();
+                        })
+                })
+                types_container.appendChild(view);
             })
-            view.querySelector('[name="description"]')!.addEventListener('change', () => {
-                item_type.description = (view.querySelector('[name="description"]')! as 
-                HTMLInputElement).value;
-                AuthAPI.sync_settings();
-                this.refresh();
-            })
-            types_container.appendChild(view);
-        });
+        } catch (e) {
+            console.error(e)
+        }
 
         let attribute_kinds_container = this.querySelector('#attribute_kinds_container')!;
         try {

@@ -1,5 +1,6 @@
 import AttributeAPI from "./attribute";
 import AttributeKindAPI from "./attribute_kind";
+import { ItemTypeAPI } from "./item_type";
 
 export const ItemAPI = {
     get: async (id: number) => {
@@ -47,7 +48,8 @@ export const ItemAPI = {
     },
 
     Attributes: AttributeAPI,
-    AttributeKinds: AttributeKindAPI
+    AttributeKinds: AttributeKindAPI,
+    Types: ItemTypeAPI
 }
 
 export default ItemAPI;
