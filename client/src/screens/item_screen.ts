@@ -5,6 +5,7 @@ import { item_attribute_view } from "../components/sidebars/item_attributes_view
 import AttributesView from "../components/attributes_view";
 import { router } from "../core/router";
 import API from "../api/api";
+import type ChipsInput from "../components/common/chips_input";
 
 
 class ItemScreen extends HTMLElement {
@@ -14,6 +15,7 @@ class ItemScreen extends HTMLElement {
     private title_view!: HTMLHeadingElement;
     private attribute_view!: AttributesView;
     private content_view!: HTMLElement;
+    private item_types_view!: HTMLElement;
 
     public set item(value: Item) {
         this._item = value;
@@ -45,12 +47,16 @@ class ItemScreen extends HTMLElement {
             <h1 name="title" contenteditable="true"></h1>
             <button name="delete_button" title="Delete Item"><img src="${DeleteIcon}" alt="Delete Button Icon"></button>
         </div>
+        <div name="item_types" class="attribute"></div>
         <attributes-view></attributes-view>
         <div name="content" contenteditable="true"></div>
         `
         this.title_view = this.querySelector('[name="title"]')!;
         this.attribute_view = this.querySelector('attributes-view')!;
         this.content_view = this.querySelector('[name="content"]')!;
+        this.item_types_view = this.querySelector('[name="item_types"]')!;
+
+        this.render_item_types_view();
 
         // Title
         this.title_view.contentEditable = 'true';
@@ -72,7 +78,7 @@ class ItemScreen extends HTMLElement {
         })
 
         // Attributes View
-        this.attribute_view.setup(this.item!.item_id, this.item!.attributes!);
+        this.attribute_view.item = this.item!;
 
         // Content
         this.content_view.innerText = this.item!.content;
@@ -81,6 +87,37 @@ class ItemScreen extends HTMLElement {
         })
         this.content_view.addEventListener('blur', () => {
             ItemAPI.update(this.item!.item_id, {content: this.item!.content});
+        })
+    }
+
+    async render_item_types_view() {
+        this.item_types_view.innerHTML = `
+        <input disabled value="Types">
+        <chips-input></chips-input>
+        <div style="visibility: hidden;"><img src="${DeleteIcon}"</div>
+        `
+        let input = this.item_types_view.querySelector('chips-input')! as ChipsInput;
+
+        input.set_value(this.item!.types!.map(it => it.name));
+
+        input.on_add((items: string[]) => {
+            try {
+                items.forEach((item) => {
+                    API.item.assign_type(this.item!.item_id, item)
+                })
+            } catch (e) {
+                console.error(e)
+            }
+        })
+
+        input.on_remove((items: string[]) => {
+            try {
+                items.forEach(item => {
+                    API.item.unassign_type(this.item!.item_id, item)
+                })
+            } catch (e) {
+                console.error(e)
+            }
         })
     }
 }

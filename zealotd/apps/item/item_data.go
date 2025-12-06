@@ -58,6 +58,11 @@ func addAttrsTypesToItem(rows *sql.Rows, err error, accountID int) (*Item, error
 
 	item.Attributes = attrs
 	item.Types = t
+
+	if item.Types == nil {
+		item.Types = make([]itemtype.ItemType, 0)
+	}
+
 	return item, nil
 }
 

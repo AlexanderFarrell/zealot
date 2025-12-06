@@ -60,7 +60,7 @@ class AddItemModal extends HTMLElement {
 
         try {
             if (await ItemAPI.add(title)) {
-                router.navigate(`/item/${title}`)
+                router.navigate(`/item/${encodeURIComponent(title)}`)
                 this.remove();
             } else {
                 this.error_message!.innerHTML = "Failed to add item";

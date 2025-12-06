@@ -27,7 +27,7 @@ class SearchView extends HTMLElement {
                     resultView.classList.add('result_view')
                     resultView.innerText = result.title;
                     resultView.addEventListener('click', () => {
-                        router.navigate(`/item/${result.title}`)
+                        router.navigate(`/item/${encodeURIComponent(result.title)}`)
                         this.result_index = index;
                         this.set_selected_result();
                     })
@@ -44,7 +44,7 @@ class SearchView extends HTMLElement {
         search_bar.addEventListener('keydown', (e: KeyboardEvent) => {
             if (e.key == 'Enter') {
                 if (this.results.length > this.result_index && this.results.length != 0) {
-                    router.navigate(`/item/${this.results[this.result_index].title}`)
+                    router.navigate(`/item/${encodeURIComponent(this.results[this.result_index].title)}`)
                 }
             }
             else if (e.key == 'ArrowUp') {

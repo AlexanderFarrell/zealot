@@ -2,6 +2,7 @@ package item
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"zealotd/apps/account"
 	"zealotd/apps/item/attribute"
@@ -44,7 +45,7 @@ func InitRouter(app *fiber.App) fiber.Router {
 		}
 		typeName := c.Params("type_name")
 		err = AssignItemType(itemID, typeName, accountID)
-		return web.SendOkOrError(c, err, err.Error())
+		return web.SendOkOrError(c, err, "assigning item type")
 	})
 
 	router.Delete("/:item_id/assign_type/:type_name", func (c *fiber.Ctx) error {
@@ -55,7 +56,7 @@ func InitRouter(app *fiber.App) fiber.Router {
 		}
 		typeName := c.Params("type_name")
 		err = UnassignItemType(itemID, typeName, accountID)
-		return web.SendOkOrError(c, err, err.Error())
+		return web.SendOkOrError(c, err, "unassigning item type")
 	})
 
 	// When creating accounts, add a Home item
@@ -78,6 +79,11 @@ func getRootItems(c *fiber.Ctx) error {
 func getByTitle(c *fiber.Ctx) error {
 	account_id := web.GetKeyFromSessionInt(c, "account_id")
 	title := c.Params("title")
+	title, err := url.QueryUnescape(title)
+	if err != nil {
+		fmt.Printf("Failed to query unescape input: %v\n", err)
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
 	item, err := GetItemByTitle(title, account_id)
 	if err != nil {
 		fmt.Printf("%v\n", err)

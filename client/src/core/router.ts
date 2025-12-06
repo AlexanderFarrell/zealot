@@ -2,49 +2,52 @@ import Navigo from "navigo";
 import ItemScreen from "../screens/item_screen";
 import SettingsScreen from "../screens/settings_screen";
 import { events } from "./events";
+import type Content from "../components/content";
 
 export const router = new Navigo("/")
 
-
 export function setup_router() {
+    const content_view = document.querySelector('content-')! as Content;
     router.on({
         "/": () => {
             let item_screen = new ItemScreen();
-            document.querySelector('content-')!.appendChild(item_screen)
+            content_view!.innerHTML = "";
+            content_view!.appendChild(item_screen)
             item_screen.LoadItem('Home');
         },
         "/item/:title": (params: any) => {
             let item_screen = new ItemScreen();
-            document.querySelector('content-')!.appendChild(item_screen)
-            item_screen.LoadItem(params['title'])
+            content_view!.innerHTML = "";
+            content_view!.appendChild(item_screen)
+            item_screen.LoadItem(decodeURIComponent(params.data['title']))
         },
         "/media": () => {
-            document.querySelector('content-')!.innerHTML = "<media-screen></media-screen>";
+            content_view!.innerHTML = "<media-screen></media-screen>";
         },
         "/planner/daily": () => {
-            document.querySelector('content-')!.innerHTML = "<daily-planner-screen></daily-planner-screen>";
+            content_view!.innerHTML = "<daily-planner-screen></daily-planner-screen>";
         },
         "/planner/weekly": () => {
-            document.querySelector('content-')!.innerHTML = "<weekly-planner-screen></weekly-planner-screen>";
+            content_view!.innerHTML = "<weekly-planner-screen></weekly-planner-screen>";
         },
         "/planner/monthly": () => {
-            document.querySelector('content-')!.innerHTML = "<monthly-planner-screen></monthly-planner-screen>";
+            content_view!.innerHTML = "<monthly-planner-screen></monthly-planner-screen>";
         },
         "/planner/annual": () => {
-            document.querySelector('content-')!.innerHTML = "<annual-planner-screen></annual-planner-screen>";
+            content_view!.innerHTML = "<annual-planner-screen></annual-planner-screen>";
         },
         "/analysis": () => {
-            document.querySelector('content-')!.innerHTML = "<analysis-screen></analysis-screen>";
+            content_view!.innerHTML = "<analysis-screen></analysis-screen>";
         },
         "/rules": () => {
-            document.querySelector('content-')!.innerHTML = "<rules-screen></rules-screen>";
+            content_view!.innerHTML = "<rules-screen></rules-screen>";
         },
         "/settings": () => {
             router.navigate('/settings/attributes')
         },
         "/settings/:screen": (params: any) => {
             let settings_screen = new SettingsScreen();
-            let content = document.querySelector('content-')!
+            let content = content_view!
             content.innerHTML = "";
             content.appendChild(settings_screen);
             settings_screen.switch_screen(params.data['screen'])

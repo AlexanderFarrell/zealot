@@ -23,7 +23,7 @@ class AttributeSettingsScreen extends HTMLElement {
             <label>Description</label>
             <label>Kind</label>
             <div>&nbsp;</div>
-            <input type="text" name="name">
+            <input type="text" name="key">
             <input type="text" name="description">
             ${selectHTML}
             <button type="submit"><img src="${AddIcon}" style="width: 1em;"></button>
@@ -33,11 +33,12 @@ class AttributeSettingsScreen extends HTMLElement {
         (this.querySelector('#add_attribute_kind') as HTMLFormElement)!.addEventListener('submit', (e: SubmitEvent) => {
             e.preventDefault();
             const data = new FormData(this.querySelector('#add_attribute_kind')! as HTMLFormElement);
-            API.item.AttributeKinds.add(
-                data.get('name') as string,
-                data.get('description') as string,
-                data.get('base_type') as string
-            )
+            API.item.AttributeKinds.add({
+                key: data.get('key') as string,
+                description: data.get('description') as string,
+                base_type: data.get('base_type') as string,
+                config: {}
+            })
                 .then(() => {
                     this.refresh();
                 });

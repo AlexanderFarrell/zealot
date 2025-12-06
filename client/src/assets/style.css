@@ -94,7 +94,8 @@ auth-modal form {
 
 item-screen {
   max-width: 1000px;
-  display: block;
+  display: grid;
+  grid-template-rows: auto auto auto 1fr;
   justify-self: center;
 }
 
@@ -230,7 +231,7 @@ a, .result_view {
 
 
 
-#top_container {
+[name="title_container"] {
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;

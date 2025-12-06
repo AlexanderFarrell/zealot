@@ -7,7 +7,7 @@ export interface Item {
     item_id: number,
     title: string,
     content: string,
-    attributes?: object,
+    attributes?: Record<string, any>,
     types?: Array<ItemType>
 }
 

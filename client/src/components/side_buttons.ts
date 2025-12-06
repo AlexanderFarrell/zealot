@@ -1,5 +1,6 @@
 import IconButton from './common/icon_button.ts';
 import HomeIcon from '../assets/icon/home.svg';
+import ZealotIcon from '../../public/zealot.webp';
 import NavIcon from '../assets/icon/tree2.svg';
 import SearchIcon from '../assets/icon/search.svg';
 import CalendarIcon from "../assets/icon/month.svg";
@@ -21,6 +22,7 @@ class SideButtons extends HTMLElement {
     connectedCallback() {
         let buttons: IconButton[] = [
              new IconButton(
+                // ZealotIcon,
                 HomeIcon,
                 "Home Page",
                 () => {commands.run("Go to Home Page")}
