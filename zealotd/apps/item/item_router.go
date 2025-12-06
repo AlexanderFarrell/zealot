@@ -17,6 +17,13 @@ var updatableFields = map[string]int {
 	"content": 0,
 }
 
+var updatableFieldsAttrKind = map[string]int {
+	"key": 0,
+	"description": 0,
+	"base_type": 0,
+	"config": 0,
+}
+
 func InitRouter(app *fiber.App) fiber.Router {
 	router := app.Group("/item")
 	router.Use(account.RequireLoginMiddleware)
