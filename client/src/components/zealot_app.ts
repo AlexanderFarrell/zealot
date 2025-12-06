@@ -62,7 +62,10 @@ class ZealotApp extends HTMLElement {
             });
         commands.register('Open Calendar', 
             [new Hotkey('r', [CTRL_OR_META_KEY])],
-            () => {events.emit('Calendar')});
+            () => {
+                let left_sidebar = document.querySelector('#left-side-bar')!;
+                left_sidebar.innerHTML = "<calendar-view></calendar-view>"
+            });
         commands.register('Open Daily Planner', 
             [new Hotkey('1', [CTRL_OR_META_KEY])],
             () => {

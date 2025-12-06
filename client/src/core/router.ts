@@ -3,6 +3,8 @@ import ItemScreen from "../screens/item_screen";
 import SettingsScreen from "../screens/settings_screen";
 import { events } from "./events";
 import type Content from "../components/content";
+import DailyPlannerScreen from "../screens/day_screen";
+import { DateTime } from "luxon";
 
 export const router = new Navigo("/")
 
@@ -25,7 +27,15 @@ export function setup_router() {
             content_view!.innerHTML = "<media-screen></media-screen>";
         },
         "/planner/daily": () => {
-            content_view!.innerHTML = "<daily-planner-screen></daily-planner-screen>";
+            let date = DateTime.local();
+            router.navigate(`/planner/daily/${date.toISODate()}`)
+        },
+        "/planner/daily/:date": (params: any) => {
+            let date_str = params.data['date'];
+            let daily_screen = new DailyPlannerScreen();
+            daily_screen.date = DateTime.fromFormat(date_str, 'yyyy-MM-dd');
+            content_view.innerHTML = "";
+            content_view!.appendChild(daily_screen);
         },
         "/planner/weekly": () => {
             content_view!.innerHTML = "<weekly-planner-screen></weekly-planner-screen>";

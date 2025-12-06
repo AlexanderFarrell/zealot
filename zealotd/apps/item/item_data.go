@@ -6,6 +6,8 @@ import (
 	"zealotd/apps/item/attribute"
 	"zealotd/apps/item/itemtype"
 	"zealotd/web"
+
+	"github.com/lib/pq"
 )
 
 type Item struct {
@@ -16,32 +18,57 @@ type Item struct {
 	Types []itemtype.ItemType `json:"types"`
 }
 
+const (
+	ItemQuery = `select i.item_id, i.title, i.content from item i `
+)
+
+var (
+	acceptableAttributeColumns = map[string]int{
+		"value_int": 0,
+		"value_date": 0,
+		"value_text": 0,
+		"value_num": 0,
+	}
+)
+
 func GetItemByID(item_id int, account_id int) (*Item, error) {
-	query := `
-	select i.item_id, i.title, i.content
-	from item i
+	query := fmt.Sprintf(`%s
 	where i.item_id = $1
 	and i.account_id = $2;
-	`
+	`, ItemQuery)
 	rows, err := web.Database.Query(query, item_id, account_id)
 	return addAttrsTypesToItem(rows, err, account_id)
 }
 
 func GetItemByTitle(title string, account_id int) (*Item, error) {
-	query := `
-	select i.item_id, i.title, i.content
-	from item i
+	query := fmt.Sprintf(`%s
 	where i.title = $1
 	and i.account_id = $2
 	limit 1;
-	`
+	`, ItemQuery)
 
 	rows, err := web.Database.Query(query, title, account_id)
 	return addAttrsTypesToItem(rows, err, account_id)
 }
 
+func GetItemsByAttribute(key string, value interface{}, valueCol string, accountID int) ([]Item, error) {
+	if _, ok := acceptableAttributeColumns[valueCol]; !ok {
+		return nil, fmt.Errorf("invalid column passed")
+	}
+
+	query := fmt.Sprintf(`%s
+	inner join attribute a on a.item_id = i.item_id
+	where i.account_id=$1
+	and a.key=$2
+	and a.%s=$3;
+	`, ItemQuery, valueCol)
+
+	rows, err := web.Database.Query(query, accountID, key, value)
+	return addAttrsTypesToItems(rows, err, accountID)
+}
+
 func addAttrsTypesToItem(rows *sql.Rows, err error, accountID int) (*Item, error) {
-	item, err := scanRow(rows, err)
+	item, err := ScanRow(rows, err)
 	if err != nil || item == nil {
 		return nil, err
 	}
@@ -66,16 +93,100 @@ func addAttrsTypesToItem(rows *sql.Rows, err error, accountID int) (*Item, error
 	return item, nil
 }
 
+func addAttrsTypesToItems(rows *sql.Rows, err error, accountID int) ([]Item, error) {
+	items, err := ScanRows(rows, err)
+	if err != nil {
+		return nil, err
+	}
+
+	ids := make([]int, len(items))
+	index := make(map[int]*Item, len(items))
+	for i := range items {
+		ids[i] = items[i].ItemID
+		index[items[i].ItemID] = &items[i]
+		items[i].Attributes = make(map[string]any)
+		items[i].Types = make([]itemtype.ItemType, 0)
+	}
+
+	// Attributes
+	rows, err = web.Database.Query(`
+		select item_id, key, value_int, value_date, value_text, value_num
+		from attribute
+		where item_id = ANY($1)
+	`, pq.Array(ids))
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			itemID int
+			key    string
+			vInt sql.NullInt64
+			vDate sql.NullTime
+			vText sql.NullString
+			vNum sql.NullFloat64
+		)
+		if err := rows.Scan(&itemID, &key, &vInt, &vDate, &vText, &vNum); err != nil {
+			return nil, err
+		}
+
+		it := index[itemID]
+		if it == nil {
+			continue
+		}
+
+		switch {
+		case vInt.Valid:
+			it.Attributes[key] = vInt.Int64
+		case vDate.Valid:
+			it.Attributes[key] = vDate.Time
+		case vText.Valid:
+			it.Attributes[key] = vText.String
+		case vNum.Valid:
+			it.Attributes[key] = vNum.Float64
+		}
+	}
+	
+	// Types
+	rows, err = web.Database.Query(`
+		select l.item_id, t.type_id, t.name, t.description
+		from item_item_type_link l
+		join item_type t on l.type_id = t.type_id
+		where l.item_id = ANY($1)
+		  and (t.account_id = $2 or t.account_id is null);
+	`, pq.Array(ids), accountID)
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var itID int
+		var t itemtype.ItemType
+		if err := rows.Scan(&itID, &t.TypeID, &t.Name, &t.Description); err != nil {
+			return nil, err
+		}
+		it := index[itID]
+		if it == nil {
+			continue
+		}
+		it.Types = append(it.Types, t)
+	}
+	return items, nil
+}
+
 func SearchByTitle(title string, account_id int) ([]Item, error) {
-	query := `
-	select i.item_id, i.title, i.content
-	from item i
-	where i.title ilike '%' || $1 || '%'
+	query := fmt.Sprintf(`%s
+	where i.title ilike '%%' || $1 || '%%'
 	and i.account_id = $2
-	`
+	`, ItemQuery)
 
 	rows, err := web.Database.Query(query, title, account_id)
-	return scanRows(rows, err)
+	return addAttrsTypesToItems(rows, err, account_id)
 }
 
 func AddItem(title string, account_id int) error {
@@ -173,7 +284,7 @@ func UnassignItemType(itemID int, typeName string, accountID int) error {
 }
 
 
-func scanRows(rows *sql.Rows, err error) ([]Item, error) {
+func ScanRows(rows *sql.Rows, err error) ([]Item, error) {
 	if err != nil {
 		return nil, err
 	}
@@ -191,8 +302,8 @@ func scanRows(rows *sql.Rows, err error) ([]Item, error) {
 	return items, nil
 }
 
-func scanRow(rows *sql.Rows, err error) (*Item, error) {
-	items, err := scanRows(rows, err)
+func ScanRow(rows *sql.Rows, err error) (*Item, error) {
+	items, err := ScanRows(rows, err)
 	if err != nil {
 		return nil, nil
 	}

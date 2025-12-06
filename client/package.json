@@ -9,11 +9,13 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@types/luxon": "^3.7.1",
     "mitt": "3.0.1",
     "typescript": "~5.9.3",
     "vite": "^7.1.7"
   },
   "dependencies": {
+    "luxon": "^3.7.2",
     "navigo": "^8.11.1"
   }
 }

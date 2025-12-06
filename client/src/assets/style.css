@@ -4,6 +4,7 @@
   --background-button: rgb(53, 105, 187);
   --background-dark: rgb(24, 37, 59);
   --accent: rgb(161, 230, 255);
+  --wide_content_max: 1000px;
 }
 
 * {
@@ -28,7 +29,7 @@ img {
   object-fit: contain;
 }
 
-input {
+input, textarea {
   width: 100%;
   background-color: var(--background-dark);
   color: white;
@@ -217,10 +218,34 @@ a, .result_view {
   border-radius: 5px;
 }
 
+.center {
+  max-width: 1000px;
+  width: 100%;
+  margin: 0 auto;
+  justify-self: center;
+}
+
+.icon + img {
+  width: 1em;
+}
+
+.button_row > button {
+  width: auto;
+}
 
 
 
-
+plan-view {
+  background-color: var(--background-pop-default);
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  grid-gap: 10px;
+  justify-content: space-between;
+  padding: 10px;
+  border-radius: 10px;
+  cursor: pointer;
+}
 
 
 
