@@ -1,18 +1,9 @@
-import API from "../../api/api";
-import AuthAPI from "../../api/auth";
-import { events } from "../../core/events";
-import { get_settings } from "../../core/settings";
-import DeleteIcon from "../../assets/icon/delete.svg";
 
-let selectHTML = `<select name="base_type" value="text">
-                <option value="text">Text</option>
-                <option value="integer">Integer</option>
-                <option value="decimal">Decimal</option>
-                <option value="date">Date</option>
-                <option value="week">Week</option>
-                <option value="dropdown">Dropdown</option>
-                <option value="boolean">Boolean</option>
-            </select>`
+import API from "../../api/api";
+import DeleteIcon from "../../assets/icon/delete.svg";
+import AddIcon from "../../assets/icon/add.svg"
+import ChipsInput from "../../components/common/chips_input";
+
 
 class TypeSettingsScreen extends HTMLElement {
     connectedCallback() {
@@ -20,28 +11,18 @@ class TypeSettingsScreen extends HTMLElement {
 
         this.innerHTML = `
         <h1>Type Settings</h1>
-        <h2>Types</h2>
-        <form id='add_type'>
+        <form id='add_type' class="box" 
+            style="display: grid; grid-template-columns: 1fr 1fr 2fr auto; margin-bottom: 10px;">
             <label>Name:</label>
-            <input type="text" name="name">
             <label>Description</label>
+            <label>Attributes</label>
+            <div>&nbsp;</div>
+            <input type="text" name="name">
             <input type="text" name="description">
-            <label>Instructions</label>
-            <button type="submit">Add Item Type</button>
+            <chips-input></chips-input>
+            <button type="submit"><img src="${AddIcon}" style="width: 1em"></button>
         </form>
         <div id='types_container'></div>
-        
-        <h2>Attribute Kinds</h2>
-        <form id='add_attribute_kind'>
-            <label>Name:</label>
-            <input type="text" name="name">
-            <label>Description</label>
-            <input type="text" name="description">
-            <label>Kind</label>
-            ${selectHTML}
-            <button type="submit">Add Attribute Kind</button>
-        </form>
-        <div id='attribute_kinds_container'></div>
         `;
 
         (this.querySelector('#add_type') as HTMLFormElement)!.addEventListener('submit', (e: SubmitEvent) => {
@@ -50,37 +31,11 @@ class TypeSettingsScreen extends HTMLElement {
             const item_type = {
                 name: data.get('name')! as string,
                 description: data.get('description')! as string,
-                // instructions: {
-                    // required_fields: []
-                // }
             }
             API.item.Types.add(item_type)
                 .then(() => {
                     this.refresh();
                 })
-            // let settings = get_settings()
-            // settings['item_types'].push(item_type);
-            // AuthAPI.sync_settings();
-            // this.refresh();
-        });
-
-        (this.querySelector('#add_attribute_kind') as HTMLFormElement)!.addEventListener('submit', (e: SubmitEvent) => {
-            e.preventDefault();
-            const data = new FormData(this.querySelector('#add_attribute_kind')! as HTMLFormElement);
-            API.item.AttributeKinds.add(
-                data.get('name') as string,
-                data.get('description') as string,
-                data.get('base_type') as string
-            )
-                .then(() => {
-                    this.refresh();
-                });
-
-
-            // let settings = get_settings();
-            // settings['attribute_metas'].push(attribute_kind);
-            // AuthAPI.sync_settings();
-            // this.refresh();
         });
 
         this.refresh();
@@ -97,10 +52,15 @@ class TypeSettingsScreen extends HTMLElement {
                 view.innerHTML =
                     `<input name="name" value="${item_type['name']}">
                     <input name="description" value="${item_type['description']}">
+                    <chips-input></chips-input>
                     <button class="delete_button"><img style="width: 1em" src="${DeleteIcon}"></button>`
                 let name_input = view.querySelector('[name="name"]')! as HTMLInputElement;
                 let description_input = view.querySelector('[name="description"]')! as HTMLInputElement;
+                let attributes_input = view.querySelector('chips-input')! as ChipsInput;
                 let delete_button = view.querySelector('.delete_button')! as HTMLButtonElement;
+
+                attributes_input.set_value(item_type.required_attribute_keys || [])
+
                 name_input.addEventListener('change', () => {
                     item_type.name = name_input.value;
                     API.item.Types.update(item_type.type_id!, {name: item_type.name})
@@ -110,6 +70,16 @@ class TypeSettingsScreen extends HTMLElement {
                     item_type.description = description_input.value;
                     API.item.Types.update(item_type.type_id!, {description: item_type.description})
                     this.refresh();
+                })
+                attributes_input.on_add((items: string[]) => {
+                    item_type.required_attribute_keys!.push(...items);
+                    API.item.Types.assign(items, item_type.name);
+                })
+                attributes_input.on_remove((items: string[]) => {
+                    item_type.required_attribute_keys = item_type.required_attribute_keys!.filter((i => {
+                        return !(i in items)
+                    }))
+                    API.item.Types.unassign(items, item_type.name)
                 })
                 delete_button.addEventListener('click', () => {
                     API.item.remove(item_type.type_id!)
@@ -123,62 +93,6 @@ class TypeSettingsScreen extends HTMLElement {
             console.error(e)
         }
 
-        let attribute_kinds_container = this.querySelector('#attribute_kinds_container')!;
-        try {
-            let attribute_kinds = await API.item.AttributeKinds.get_all();
-            attribute_kinds_container.innerHTML = "";
-            attribute_kinds.forEach((attribute_kind: any) => {
-                let view = document.createElement('div');
-                view.classList.add('attribute_kind')
-                view.innerHTML = 
-                `<input name="key" value="${attribute_kind['key']}">
-                <input name="description" value="${attribute_kind['description']}">
-                ${selectHTML}
-                <button class="delete_button"><img style="width: 1em" src="${DeleteIcon}"></button>
-                `;
-                let key_input = view.querySelector('[name="key"]')! as HTMLInputElement;
-                let description_input = view.querySelector('[name="description"]')! as HTMLInputElement;
-                let base_type_input = view.querySelector('[name="base_type"]')! as HTMLSelectElement;
-                let delete_button = view.querySelector('.delete_button')! as HTMLButtonElement;
-
-                base_type_input.value = attribute_kind.base_type;
-                if (attribute_kind.is_system) {
-                    key_input.disabled = true;
-                    description_input.disabled = true;
-                    base_type_input.disabled = true;
-                    delete_button.disabled = true;
-                } else {
-                    key_input.addEventListener('change', () => {
-                        attribute_kind.key = (view.querySelector('[name="key"]')! as HTMLInputElement).value;
-                        API.item.AttributeKinds.update(attribute_kind.kind_id, {key: attribute_kind.key})
-                        events.emit('refresh_attributes')
-                    })
-                    description_input.addEventListener('change', () => {
-                        attribute_kind.description = (view.querySelector('[name="description"]')! as 
-                        HTMLInputElement).value;
-                        API.item.AttributeKinds.update(attribute_kind.kind_id, {description: attribute_kind.description})
-                        events.emit('refresh_attributes')
-                    })
-                    base_type_input.addEventListener('change', () => {
-                        attribute_kind.base_type_input = base_type_input.value;
-                        API.item.AttributeKinds.update(attribute_kind.kind_id, {base_type: attribute_kind.base_type})
-                        events.emit('refresh_attributes')
-                    })
-                    delete_button.addEventListener('click', () => {
-                        API.item.AttributeKinds.remove(attribute_kind.kind_id)
-                            .then(() => {
-                                events.emit('refresh_attributes')
-                                view.remove();
-                            })
-                    })
-                }
-
-                attribute_kinds_container.appendChild(view)
-            })
-        }
-        catch (e) {
-            console.error(e)
-        }
     }
     
 

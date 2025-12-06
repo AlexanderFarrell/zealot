@@ -36,40 +36,11 @@ func DatabaseStart() {
 }
 
 func getDatabaseURI() string {
-	//dbUri := os.Getenv("DATABASE_URL")
-	//if dbUri == "" {
-	//	return dbUri
-	//}
-
-	username := os.Getenv("DB_USERNAME")
-	if username == "" {
-		username = DbUserDefault
-	}
-
-	//password := os.Getenv("DB_PASSWORD")
-	//if password == "" {
-	//	password = DbPassDefault
-	//}
-
-	host := os.Getenv("DB_HOSTNAME")
-	if host == "" {
-		host = DbHostDefault
-	}
-
-	port := os.Getenv("DB_PORT")
-	if port == "" {
-		port = DbPortDefault
-	}
-
-	database := os.Getenv("DB_DATABASE")
-	if database == "" {
-		database = DbDatabaseDefault
-	}
-
-	sslmode := os.Getenv("DB_SSL_MODE")
-	if sslmode == "" {
-		sslmode = DbSSLModeDefault
-	}
+	username := GetEnvVar("DB_USERNAME", DbUserDefault)
+	host := GetEnvVar("DB_HOSTNAME", DbHostDefault)
+	port := GetEnvVar("DB_PORT", DbPortDefault)
+	database := GetEnvVar("DB_DATABASE", DbDatabaseDefault)
+	sslmode := GetEnvVar("DB_SSL_MODE", DbSSLModeDefault)
 
 	uri := fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=%s",
 		host, port, username, database, sslmode)

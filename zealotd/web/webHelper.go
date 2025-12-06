@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -88,4 +89,12 @@ func SendOkOrError(c *fiber.Ctx, err error, errorMessage string) error {
 	} else {
 		return c.SendStatus(fiber.StatusOK)
 	}
+}
+
+func GetEnvVar(name string, defaultVal string) string {
+	val := os.Getenv(name)
+	if val == "" {
+		val = defaultVal
+	}
+	return val
 }

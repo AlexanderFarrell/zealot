@@ -37,17 +37,18 @@ export async function patch_json(url: string, data: any) {
     })).json()
 }
 
-export async function delete_req(url: string) {
+export async function delete_req(url: string, data: any = {}) {
     return (await fetch(url, {
         method: "DELETE",
         headers: {
             "Content-Type": "application/json"
-        }
+        },
+        body: JSON.stringify(data)
     }))
 }
 
 export class BasicAPI<T> {
-    private URL: string;
+    protected URL: string;
 
     constructor(url: string) {
         this.URL = url;

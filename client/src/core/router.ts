@@ -36,7 +36,7 @@ export function setup_router() {
             document.querySelector('content-')!.innerHTML = "<rules-screen></rules-screen>";
         },
         "/settings": () => {
-            router.navigate('/settings/types')
+            router.navigate('/settings/attributes')
         },
         "/settings/:screen": (params: any) => {
             let settings_screen = new SettingsScreen();

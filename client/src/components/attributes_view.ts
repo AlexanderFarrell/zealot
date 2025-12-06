@@ -3,6 +3,7 @@ import ItemAPI from "../api/item";
 import AddIcon from "../assets/icon/add.svg";
 import SettingsIcon from "../assets/icon/settings.svg";
 import { events } from "../core/events";
+import ChipsInput from "./common/chips_input";
 
 let attribute_kinds: null | Array<any> = null;
 
@@ -60,7 +61,9 @@ class AttributesView extends HTMLElement {
     }
 
     async refresh() {
-        this.innerHTML = ""; 
+        this.innerHTML = "<div>Types</div><chips-input id='types_input'></chips-input>"; 
+        let item_types_input = this.querySelector('#types_input')! as ChipsInput;
+        
 
 
         if (attribute_kinds == null) {

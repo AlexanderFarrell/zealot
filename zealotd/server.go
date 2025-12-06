@@ -15,8 +15,8 @@ var initSQL string
 
 func main() {
 	web.DatabaseStart()
-
 	web.InitDatabaseIfEmpty(initSQL)
+	web.InitSessions()
 
 	app := web.InitServer()
 

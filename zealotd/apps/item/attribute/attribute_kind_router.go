@@ -1,15 +1,17 @@
 package attribute
 
 import (
-	"zealotd/web"
 	"fmt"
 	"strconv"
+	"zealotd/apps/account"
+	"zealotd/web"
 
 	"github.com/gofiber/fiber/v2"
 )
 
 func InitRouter(parent fiber.Router) fiber.Router {
 	router := parent.Group("/kind")
+	router.Use(account.RequireLoginMiddleware)
 
 	// Gets all attribute kinds, system and account specific.
 	router.Get("/", func (c * fiber.Ctx) error {
