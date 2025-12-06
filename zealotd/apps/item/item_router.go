@@ -2,8 +2,11 @@ package item
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"zealotd/apps/account"
+	"zealotd/apps/item/attribute"
+	"zealotd/apps/item/itemtype"
 	"zealotd/web"
 
 	"github.com/gofiber/fiber/v2"
@@ -25,62 +28,13 @@ func InitRouter(app *fiber.App) fiber.Router {
 	router := app.Group("/item")
 	router.Use(account.RequireLoginMiddleware)
 
+	// Protects sub routers
+	itemtype.InitRouter(router)
+	attribute.InitRouter(router)
+
 	router.Get("/", getRootItems)
 	router.Get("/title/:title", getByTitle)
 	router.Get("/search", searchTitle)
-
-	// Gets all attribute kinds, system and account specific.
-	router.Get("/kind", func (c * fiber.Ctx) error {
-		account_id := web.GetKeyFromSessionInt(c, "account_id")
-		kinds, err := GetAllAttributeKinds(account_id)
-		if err != nil {
-			fmt.Printf("Error: %v\n", err)
-			return c.SendStatus(fiber.StatusInternalServerError)
-		} else {
-			return c.JSON(kinds)
-		}
-	})
-
-	// Adds a new attribute kind
-	router.Post("/kind", func (c * fiber.Ctx) error {
-		account_id := web.GetKeyFromSessionInt(c, "account_id")
-		var kind AttributeKind
-		if err := c.BodyParser(&kind); err != nil {
-			fmt.Printf("Unable to parse new kind: %w", err)
-			return c.SendStatus(fiber.StatusBadRequest)
-		}
-		kind.IsSystem = false
-
-		err := AddAttributeKind(&kind, account_id)
-		if err != nil {
-			fmt.Printf("Error: %v\n", err)
-			return c.SendStatus(fiber.StatusInternalServerError)
-		} else {
-			return c.SendStatus(fiber.StatusOK)
-		}
-	})
-
-	// Updates fields on an attribute kind
-	router.Patch("/kind/:kind_id", func (c *fiber.Ctx) error {
-		return web.HandleUpdateRoute(c, "attribute_kind", "kind_id", updatableFieldsAttrKind)
-	})
-
-	// Deletes a non-system attribute kind
-	router.Delete("/kind/:kind_id", func (c *fiber.Ctx) error {
-		accountID := web.GetKeyFromSessionInt(c, "account_id")
-		kindID, err := strconv.Atoi(c.Params("kind_id"))
-		if err != nil {
-			return c.SendStatus(fiber.StatusBadRequest)
-		}
-
-		err = DeleteAttributeKind(kindID, accountID)
-		if err != nil {
-			fmt.Printf("Error: %v\n", err)
-			return c.SendStatus(fiber.StatusInternalServerError)
-		} else {
-			return c.SendStatus(fiber.StatusOK)
-		}
-	})
 
 	router.Post("/", addItem)
 	router.Patch("/:item_id", updateItem)
@@ -89,6 +43,28 @@ func InitRouter(app *fiber.App) fiber.Router {
 	router.Patch("/:item_id/attr", setAttributes)
 	router.Patch("/:item_id/attr/rename", renameAttribute)
 	router.Delete("/:item_id/attr/:key", deleteAttribute)
+
+	router.Post("/:item_id/assign_type/:type_name", func (c *fiber.Ctx) error {
+		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		itemID, err := strconv.Atoi(c.Params("item_id"))
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).SendString("Unable to parse item_id")
+		}
+		typeName := c.Params("type_name")
+		err = AssignItemType(itemID, typeName, accountID)
+		return web.SendOkOrError(c, err, "assigning item type")
+	})
+
+	router.Delete("/:item_id/assign_type/:type_name", func (c *fiber.Ctx) error {
+		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		itemID, err := strconv.Atoi(c.Params("item_id"))
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).SendString("Unable to parse item_id")
+		}
+		typeName := c.Params("type_name")
+		err = UnassignItemType(itemID, typeName, accountID)
+		return web.SendOkOrError(c, err, "unassigning item type")
+	})
 
 	// When creating accounts, add a Home item
 	web.EventOn("on_create_account", func(args []string) {
@@ -110,6 +86,11 @@ func getRootItems(c *fiber.Ctx) error {
 func getByTitle(c *fiber.Ctx) error {
 	account_id := web.GetKeyFromSessionInt(c, "account_id")
 	title := c.Params("title")
+	title, err := url.QueryUnescape(title)
+	if err != nil {
+		fmt.Printf("Failed to query unescape input: %v\n", err)
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
 	item, err := GetItemByTitle(title, account_id)
 	if err != nil {
 		fmt.Printf("%v\n", err)
@@ -178,7 +159,7 @@ func deleteAttribute(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).SendString("Unable to convert item_id to number")
 	}
 	key := c.Params("key")
-	err = DeleteAttribute(item_id, account_id, key)
+	err = attribute.DeleteAttribute(item_id, account_id, key)
 	if err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	} else {
@@ -202,7 +183,7 @@ func renameAttribute(c * fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusBadRequest)
 	}
 
-	err = RenameAttribute(item_id, account_id, payload.OldKey, payload.NewKey)
+	err = attribute.RenameAttribute(item_id, account_id, payload.OldKey, payload.NewKey)
 	if err != nil {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	} else {
@@ -220,7 +201,7 @@ func setAttributes(c *fiber.Ctx) error {
 	var body map[string]any
 
 	if err := c.BodyParser(&body); err != nil {
-		fmt.Printf("Error parsing body: %w\n", err)
+		fmt.Printf("Error parsing body: %v\n", err)
 		return c.SendStatus(fiber.StatusBadRequest)
 	}
 
@@ -229,9 +210,9 @@ func setAttributes(c *fiber.Ctx) error {
 	}
 
 	for key, value := range body {
-		err := SetAttributeForItem(item_id, account_id, key, value)
+		err := attribute.SetAttributeForItem(item_id, account_id, key, value)
 		if err != nil {
-			fmt.Printf("Error setting item: %w\n", err)
+			fmt.Printf("Error setting item: %v\n", err)
 			return c.SendStatus(fiber.StatusBadRequest)
 		}
 	}

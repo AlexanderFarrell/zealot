@@ -4,3 +4,5 @@
 /.idea/
 /client/node_modules/
 /zealotd/run_app.sh
+/dev/.db.env
+/dev/.zealot.env

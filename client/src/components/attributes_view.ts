@@ -1,11 +1,14 @@
 import API from "../api/api";
-import ItemAPI from "../api/item";
+import type { AttributeKind } from "../api/attribute_kind";
+import ItemAPI, { type Item } from "../api/item";
 import AddIcon from "../assets/icon/add.svg";
+import DeleteIcon from "../assets/icon/close.svg";
 import SettingsIcon from "../assets/icon/settings.svg";
 import { events } from "../core/events";
+import ChipsInput from "./common/chips_input";
 
+// Store attribute kinds for validation
 let attribute_kinds: null | Array<any> = null;
-
 events.on('refresh_attributes', () => {
     attribute_kinds = null;
 })
@@ -15,172 +18,165 @@ export function get_kind_for_key(key: string): any | undefined {
         return e.key == key;
     })
 }
-let refresh_value_input = (key: string, value_input: HTMLInputElement) => {
-    let attribute_kind = get_kind_for_key(key);
-    if (attribute_kind != undefined) {
-        switch (attribute_kind.base_type) {
-            case 'text':
-                value_input.type = 'text';
-                return;
-            case 'integer':
-                value_input.type = 'number';
-                value_input.step = '1';
-                return;
-            case 'decimal':
-                value_input.type = 'number';
-                return;
-            case 'date':
-                value_input.type = 'date';
-                return;
-            case 'week':
-                value_input.type = 'week';
-                return;
-            case 'dropdown':
-                value_input.type = 'text';
-                return;
-            case 'boolean':
-                value_input.type = 'checkbox';
-                return;
-        }
-    }
-    value_input.type = "text";
-}
+
 
 class AttributesView extends HTMLElement {
-    private item_id: number = 0;
-    private item_attributes: any = {};
-    private container: HTMLElement | null = null;
+    private _item: Item | null = null;
+    private container!: HTMLElement;
 
-    setup(item_id: number, attributes: object): AttributesView {
-        this.item_id = item_id;
-        this.item_attributes = attributes;
-
-        this.refresh()
-        return this;
+    public get item(): Item | null {
+        return this._item;
     }
 
-    async refresh() {
-        this.innerHTML = ""; 
+    public set item(value: Item) {
+        this._item = value;
+        this.refresh();
+    }
 
+    private async refresh() {
+        // this.innerHTML = "<div>Types</div><chips-input id='types_input'></chips-input>"; 
+        // let item_types_input = this.querySelector('#types_input')! as ChipsInput;
 
-        if (attribute_kinds == null) {
-            attribute_kinds = await API.item.AttributeKinds.get_all();
+        this.innerHTML = `
+        <datalist id="attribute_kind_suggestions">
+        
+        </datalist>
+        <div name="attribute_container">
+        </div>
+        <form class="attribute">
+            <input type="text" name="key" list="attribute_kind_suggestions" required>
+            <input type="text" name="value" required>
+            <button type="submit"><img src="${AddIcon}" style="width: 1em"></button>
+        </form>
+        `
+
+        this.refresh_add_form();
+        this.refresh_attribute_views();
+    }
+    
+    private refresh_add_form() {
+        // Datalist
+        let suggestions = this.querySelector('#attribute_kind_suggestions')! as HTMLDataListElement;
+        for (const [key, value] of Object.entries(this.item!.attributes!)) {
+            suggestions.innerHTML += `<option value=${key}></option>`
         }
-        // Add all attribute kinds as a datalist for suggestions
-        let datalistHtml = '<datalist id="attribute_kind_suggestions">'
-        attribute_kinds?.forEach(kind => {
-            datalistHtml += `<option value="${kind.key}">`
-        });
-        datalistHtml += "</datalist>"
 
-        // For each attribute, make an input for it
-        for (const [key, value] of Object.entries(this.item_attributes)) {
-            this.add_key_value_input(key, value);
-        }
-
-        let container = document.createElement('form')
-        container.classList.add('attribute')
-
-        let key_input = document.createElement('input');
-        key_input.id = "add_key_attribute"
-        key_input.setAttribute('list', 'attribute_kind_suggestions');
-        key_input.type = 'text';
-        let value_input = document.createElement('input');
+        // Form
+        let form_add = this.querySelector('form')! as HTMLFormElement;
+        let key_input = form_add.querySelector('input[name="key"]')! as HTMLInputElement;
+        let value_input = form_add.querySelector('input[name="value"]')! as HTMLInputElement;
 
         key_input.addEventListener('input', () => {
-            refresh_value_input(key_input.value, value_input);
+            this.refresh_value_input(key_input.value, value_input);
         })
 
-        container.addEventListener('submit', async (e: SubmitEvent) => {
+        form_add.addEventListener('submit', async (e: SubmitEvent) => {
             e.preventDefault();
-            if (key_input.value == "" || value_input.value == "") {
-                return;
-            }
+            const data = new FormData(form_add);
             try {
-                await ItemAPI.Attributes.set_value(this.item_id, key_input.value, value_input.value);
-                this.item_attributes[key_input.value] = value_input.value;
-                this.refresh();
-                (document.querySelector('#add_key_attribute') as HTMLInputElement)?.focus();
+                let key = data.get('key') as string;
+                let value = data.get('value') as string;
+                await ItemAPI.Attributes.set_value(this.item!.item_id, key, value)
+                this.item!.attributes![key] = value;
+                this.add_key_value_input(key, value);
+                form_add.reset();
+                (form_add.querySelector('[name="key"]') as HTMLInputElement)?.focus();
             } catch(e) {
                 console.error(e)
             }
         })
+    }
 
-        //Submit
-        let submit = document.createElement('button');
-        submit.innerHTML = `<img src="${AddIcon}" style="width: 20px !important">`;
-        submit.type = 'submit';
+    private async refresh_attribute_views() {
+        if (!attribute_kinds) {
+            attribute_kinds = await API.item.AttributeKinds.get_all();
+        }
 
-
-        container.appendChild(key_input);
-        container.appendChild(value_input);
-        container.appendChild(submit)
-        this.appendChild(container);
+        for (const [key, value] of Object.entries(this.item!.attributes!)) {
+            this.add_key_value_input(key, value);
+        }
     }
 
     private add_key_value_input(key: string, value: any) {
-        let container = document.createElement('div');
-        container.classList.add('attribute');
+        let attributes_container = this.querySelector('[name="attribute_container"]')! as HTMLDivElement;
+        let view = document.createElement('div');
+        view.classList.add('attribute')
+        view.innerHTML = `
+            <input type="text" name="key" list="attribute_kind_suggestions" required>
+            <input type="text" name="value" required>
+            <button type="submit"><img src="${DeleteIcon}" style="width: 1em"></button>`;
 
-        let key_input = document.createElement('input');
-        let last_key = key;
-        let attribute_kind = get_kind_for_key(key);
+        let key_input = view.querySelector('[name="key"]')! as HTMLInputElement;
+        let value_input = view.querySelector('[name="value"]')! as HTMLInputElement;
+        let button_submit = view.querySelector('[type="submit"]')! as HTMLButtonElement;
 
+        // Set the value input to the type of the attribute kind.
+        let kind = get_kind_for_key(key);
+        this.refresh_value_input(key, value_input);
 
-        let value_input = document.createElement('input');
-
-        refresh_value_input(key, value_input);
-        value_input.value = value as string;
-        if (attribute_kind && attribute_kind.base_type == 'date') {
-            value_input.value = (value as string ).substring(0, 10)
-        }
-        value_input.addEventListener('change', async () => {
-            try {
-                await ItemAPI.Attributes.set_value(this.item_id,
-                    key_input.value,
-                    value_input.value
-                )
-            } catch (e) {
-                console.error(e)
-            }
-        })
-
+        // Set values
         key_input.value = key;
+        this.set_value_input(value, value_input, kind);
+
+        // Change listeners
         key_input.addEventListener('change', async () => {
-            try {
-                await ItemAPI.Attributes.rename(this.item_id, 
-                    last_key,
-                    key_input.value
-                );
-                last_key = key_input.value;
-                this.item_attributes[key_input.value] = value_input;
-                refresh_value_input(key_input.value, value_input);
-            } catch (e) {
-                console.error(e)
-            }
-        });
-        
-        let submit = document.createElement('button');
-        submit.innerHTML = `<img src="${SettingsIcon}" style="width: 20px !important">`;
-        submit.addEventListener('click', async () => {
-            await ItemAPI.Attributes.remove(this.item_id, key_input.value);
-            delete this.item_attributes[key_input.value];
-            this.refresh();
+            await ItemAPI.Attributes.rename(this.item!.item_id, key, key_input.value);
+            delete this.item!.attributes![key];
+            key = key_input.value;
+            this.item!.attributes![key] = value_input.value;
+            this.refresh_value_input(key, value_input);
         })
-        
-        container.appendChild(key_input);
-        container.appendChild(value_input);
-        container.appendChild(submit)
-        this.appendChild(container);
+        value_input.addEventListener('change', async () => {
+            await ItemAPI.Attributes.set_value(this.item!.item_id, key_input.value, value_input.value);
+        })
+
+        // Delete
+        button_submit.addEventListener('click', async () => {
+            await ItemAPI.Attributes.remove(this.item!.item_id, key_input.value);
+            delete this.item!.attributes![key_input.value];
+            this.refresh()
+        })
+        attributes_container.appendChild(view);
     }
 
-    // connectedCallback() {
+    private refresh_value_input (key: string, value_input: HTMLInputElement) {
+        let attribute_kind = get_kind_for_key(key);
+        if (attribute_kind != undefined) {
+            switch (attribute_kind.base_type) {
+                case 'text':
+                    value_input.type = 'text';
+                    return;
+                case 'integer':
+                    value_input.type = 'number';
+                    value_input.step = '1';
+                    return;
+                case 'decimal':
+                    value_input.type = 'number';
+                    return;
+                case 'date':
+                    value_input.type = 'date';
+                    return;
+                case 'week':
+                    value_input.type = 'week';
+                    return;
+                case 'dropdown':
+                    value_input.type = 'text';
+                    return;
+                case 'boolean':
+                    value_input.type = 'checkbox';
+                    return;
+            }
+        }
+        value_input.type = "text";
+    }
 
-    // }
-
-    // disconnectedCallback() {
-
-    // }
+    private set_value_input(value: string, value_input: HTMLInputElement, kind?: AttributeKind) {
+        if (kind && kind.base_type == 'date') {
+            value_input.value = (value as string ).substring(0, 10)
+        } else {
+            value_input.value = value;
+        }
+    }
 }
 
 customElements.define('attributes-view', AttributesView)

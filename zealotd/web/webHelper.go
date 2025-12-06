@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -35,6 +36,22 @@ func HandleUpdateRoute(c *fiber.Ctx, tableName string, identifierName string, al
 	return c.SendStatus(200)
 }
 
+// func HandleAddRoute[T any](c *fiber.Ctx, tableName string, identifierName string) error {
+// 	account_id := GetKeyFromSessionInt(c, "account_id")
+// 	identifier := c.Params(identifierName)
+// 	identifier, err := url.QueryUnescape(identifier)
+// 	if err != nil {
+// 		fmt.Printf("Error unescaping %s\n", identifierName)
+// 		return c.SendStatus(fiber.StatusBadRequest)
+// 	}
+// 	identiferInt, err := strconv.Atoi(identifier)
+// 	if err != nil {
+// 		return c.Status(fiber.StatusBadRequest).SendString("Please send a number for " + identifierName)
+// 	}
+
+
+// }
+
 func HandleDeleteRoute(c *fiber.Ctx, tableName string, identifierName string) error {
 	account_id := GetKeyFromSessionInt(c, "account_id")
 	identifier := c.Params(identifierName)
@@ -54,4 +71,30 @@ func HandleDeleteRoute(c *fiber.Ctx, tableName string, identifierName string) er
 		return c.Status(fiber.StatusInternalServerError).SendString("Server error updating " + tableName)
 	}
 	return c.SendStatus(fiber.StatusOK)
+}
+
+func SendJSONOrError[T any](c *fiber.Ctx, data T, err error, errorMessage string) error {
+	if err != nil {
+		fmt.Printf("Error: %s: %v\n", errorMessage, err)
+		return c.SendStatus(fiber.StatusInternalServerError)
+	} else {
+		return c.JSON(data)
+	}
+}
+
+func SendOkOrError(c *fiber.Ctx, err error, errorMessage string) error {
+	if err != nil {
+		fmt.Printf("Error: %s: %v\n", errorMessage, err)
+		return c.SendStatus(fiber.StatusInternalServerError)
+	} else {
+		return c.SendStatus(fiber.StatusOK)
+	}
+}
+
+func GetEnvVar(name string, defaultVal string) string {
+	val := os.Getenv(name)
+	if val == "" {
+		val = defaultVal
+	}
+	return val
 }

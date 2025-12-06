@@ -3,10 +3,7 @@ version: "3.9"
 services:
   db:
     image: postgres:17
-    environment:
-      POSTGRES_USER: zealot
-      POSTGRES_PASSWORD: zealot
-      POSTGRES_DB: zealot
+    env_file: .db.env
     ports:
      - "5434:5432"
     volumes:
@@ -17,37 +14,42 @@ services:
       timeout: 5s
       retries: 10
 
-  server:
+  zealot:
     build:
       context: ./../zealotd
       dockerfile: Dockerfile
     image: zealotd:latest
     depends_on:
      - db
-    environment:
-      ACCOUNT_CREATION_ENABLED: "true"
-      DB_DATABASE: "zealot"
-      DB_USERNAME: "zealot"
-      DB_PASSWORD: "zealot"
-      DB_HOSTNAME: "db"
-      DB_PORT: 5432
-      PORT: 8082
+     - redis
+    env_file: .zealot.env
     ports:
      - "8082:8082"
-    #healthcheck:
-    #  test: ["CMD", "wget", "--spider", "-q", "http://localhost:8082/health"]
-    #  interval: 5s
-    #  timeout: 5s
-    #  retries: 3
-    #  start_period: 10s
+    # healthcheck:
+    #   test: ["CMD", "wget", "--spider", "-q", "http://localhost:8082/health"]
+    #   interval: 5s
+    #   timeout: 5s
+    #   retries: 3
+    #   start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server"]
+    ports:
+     - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
   
-  web:
+  web_ui:
     build: 
       context: ./../client
       dockerfile: Dockerfile
     image: zealot-web:latest
     depends_on:
-     - server
+     - zealot
     ports:
      - "8080:80"
     

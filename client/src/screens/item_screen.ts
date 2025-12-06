@@ -1,104 +1,125 @@
-import ItemAPI from "../api/item";
+import ItemAPI, { type Item } from "../api/item";
 import { events } from "../core/events";
 import DeleteIcon from "../assets/icon/delete.svg";
 import { item_attribute_view } from "../components/sidebars/item_attributes_view";
 import AttributesView from "../components/attributes_view";
 import { router } from "../core/router";
 import API from "../api/api";
+import type ChipsInput from "../components/common/chips_input";
 
 
 class ItemScreen extends HTMLElement {
-    public title: string = "";
-    public content: string = "";
-    public item: any;
+    private _item: Item | null = null;
 
-    public switch_item = (data: any) => {
-        this.title = data.title;
-        this.innerHTML = ""
-        this.render();
-    };
+    // Views
+    private title_view!: HTMLHeadingElement;
+    private attribute_view!: AttributesView;
+    private content_view!: HTMLElement;
+    private item_types_view!: HTMLElement;
+
+    public set item(value: Item) {
+        this._item = value;
+        this.render()
+    }
+
+    public get item(): Item | null {
+        return this._item;
+    }
+
+    public async LoadItem(title: string) {
+        try {
+            this.item = await ItemAPI.get_by_title(title);
+        } catch (e) {
+            this.innerHTML = "<div class='error'>Error loading item</div>";
+        }
+    }
 
     connectedCallback() {
-        // this.title = 'Home';
-        events.on('switch_item', this.switch_item);
-        // this.render();
+        this.innerHTML = "Loading..."
     }
 
     disconnectedCallback() {
-        events.off('switch_item', this.switch_item);
-        item_attribute_view?.clear();
     }
 
     async render() {
-        this.innerHTML = ""
+        this.innerHTML = `
+        <div name="title_container">
+            <h1 name="title" contenteditable="true"></h1>
+            <button name="delete_button" title="Delete Item"><img src="${DeleteIcon}" alt="Delete Button Icon"></button>
+        </div>
+        <div name="item_types" class="attribute"></div>
+        <attributes-view></attributes-view>
+        <div name="content" contenteditable="true"></div>
+        `
+        this.title_view = this.querySelector('[name="title"]')!;
+        this.attribute_view = this.querySelector('attributes-view')!;
+        this.content_view = this.querySelector('[name="content"]')!;
+        this.item_types_view = this.querySelector('[name="item_types"]')!;
 
-        try {
-            this.item = await ItemAPI.get_by_title(this.title) as any;
-            this.title = this.item.title;
-            this.content = this.item.content;
-        }
-        catch (e) {
-            console.error(e)
-            this.innerHTML = `<div id='error'>Error getting item: ${this.title}</div>`
-            return;
-        }
+        this.render_item_types_view();
 
-        item_attribute_view?.switch_item(this.item);
-        let title = document.createElement('div')
-        title.id = "item_title"
-        title.contentEditable = 'true';
-        title.innerText = this.title;
-        title.addEventListener('input', () => {
-            // Update title
-            this.title = title.textContent;
-        });
-        title.addEventListener('blur', () => {
-            ItemAPI.update(this.item['item_id'], {'title': this.title});
-            this.item['title'] = this.title;
-        });
-
-        let content = document.createElement('div');
-        content.id = "item_content"
-        content.contentEditable = 'true';
-        content.innerText = this.item['content'];
-        content.addEventListener('input', () => {
-            this.content = content.textContent;
+        // Title
+        this.title_view.contentEditable = 'true';
+        this.title_view.innerText = this.item!.title;
+        this.title_view.addEventListener('input', () => {
+            this.item!.title = this.title_view.textContent;
         })
-        content.addEventListener('blur', () => {
-            ItemAPI.update(this.item['item_id'], {'content': this.content});
-            this.item['content'] = this.content;
+        this.title_view.addEventListener('blur', () => {
+            ItemAPI.update(this.item!.item_id, {title: this.item!.title})
         })
 
-        let topContainer = document.createElement('div');
-        topContainer.id = "top_container"
-        topContainer.appendChild(title);
-
-
-        let deleteButton = document.createElement('button');
-        deleteButton.innerHTML = `<img src="${DeleteIcon}" alt="Delete Icon" title="Delete Item">`
-        deleteButton.addEventListener('click', () => {
+        // Delete Button
+        let delete_button = this.querySelector('[name="delete_button"]')!;
+        delete_button.addEventListener('click', async () => {
             if (confirm("Are you sure you want to delete this?")) {
-                ItemAPI.remove(this.item['item_id'])
-                    .then(() => {
-                        router.navigate('/')
-                    })
+                await ItemAPI.remove(this.item!.item_id)
+                router.navigate('/')
             }
         })
-        topContainer.appendChild(deleteButton)
 
-        this.innerHTML = "";
-        this.appendChild(topContainer);
-        this.appendChild(new AttributesView().setup(this.item['item_id'], this.item['attributes']));
-        this.appendChild(content);
+        // Attributes View
+        this.attribute_view.item = this.item!;
+
+        // Content
+        this.content_view.innerText = this.item!.content;
+        this.content_view.addEventListener('input', () => {
+            this.item!.content = this.content_view.textContent;
+        })
+        this.content_view.addEventListener('blur', () => {
+            ItemAPI.update(this.item!.item_id, {content: this.item!.content});
+        })
     }
-}
 
-export function switch_item_to(title: string) {
-    // let item_screen = new ItemScreen();
-    document.querySelector('content-')!.innerHTML = "<item-screen></item-screen>";
-    // document.querySelector('content-')!.appendChild(item_screen);
-    // item_screen.switch_to({title: title});
-    events.emit('switch_item', {title: title})
+    async render_item_types_view() {
+        this.item_types_view.innerHTML = `
+        <input disabled value="Types">
+        <chips-input></chips-input>
+        <div style="visibility: hidden;"><img src="${DeleteIcon}"</div>
+        `
+        let input = this.item_types_view.querySelector('chips-input')! as ChipsInput;
+
+        input.set_value(this.item!.types!.map(it => it.name));
+
+        input.on_add((items: string[]) => {
+            try {
+                items.forEach((item) => {
+                    API.item.assign_type(this.item!.item_id, item)
+                })
+            } catch (e) {
+                console.error(e)
+            }
+        })
+
+        input.on_remove((items: string[]) => {
+            try {
+                items.forEach(item => {
+                    API.item.unassign_type(this.item!.item_id, item)
+                })
+            } catch (e) {
+                console.error(e)
+            }
+        })
+    }
 }
 
 customElements.define('item-screen', ItemScreen)

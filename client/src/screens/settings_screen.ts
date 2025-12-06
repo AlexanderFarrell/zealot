@@ -1,11 +1,12 @@
 import { router } from "../core/router";
+import AttributeSettingsScreen from "./settings/attr_settings_screen";
 import DataSettingsScreen from "./settings/data_settings_screen";
 import PlannerSettingsScreen from "./settings/planner_settings_screen";
 import TypeSettingsScreen from "./settings/type_settings_screen";
 import WikiSettingsScreen from "./settings/wiki_settings_screen";
 
 class SettingsScreen extends HTMLElement {
-    private current_screen: string = "Types";
+    private current_screen: string = "attributes";
     private screen_container: HTMLElement | null = null;
 
     connectedCallback() {
@@ -16,7 +17,7 @@ class SettingsScreen extends HTMLElement {
         let row_buttons = this.querySelector("#row_buttons");
         this.screen_container = this.querySelector('#screen_container');
 
-        let button_names = ["types", "planner", "wiki", "data"];
+        let button_names = ["attributes", "types", "planner", "wiki", "data"];
         button_names.forEach(name => {
             let button = document.createElement('button');
             let capitalized_name = name.charAt(0).toUpperCase() + name.slice(1);
@@ -27,7 +28,7 @@ class SettingsScreen extends HTMLElement {
             row_buttons?.appendChild(button);
         })
 
-        this.switch_screen("Types");
+        this.switch_screen("attributes");
     }
 
     disconnectedCallback() {
@@ -37,6 +38,9 @@ class SettingsScreen extends HTMLElement {
     switch_screen(next_screen: string) {
         let element = null;
         switch(next_screen) {
+            case "attributes":
+                element = new AttributeSettingsScreen();
+                break;
             case "types":
                 element = new TypeSettingsScreen();
                 break;

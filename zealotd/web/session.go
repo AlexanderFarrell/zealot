@@ -2,13 +2,42 @@ package web
 
 import (
 	"fmt"
+	"os"
+	"strconv"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
+	"github.com/gofiber/storage/redis"
 )
 
 var (
-	sessionStore = session.New()
+	sessionStore *session.Store
 )
+
+func InitSessions() {
+	if os.Getenv("SESSION_STORE") == "redis" {
+		port, err := strconv.Atoi(GetEnvVar("REDIS_PORT", "6379"))
+		if err != nil {
+			panic("Redis port is not a number, please set to a number")
+		}
+		database, err := strconv.Atoi(GetEnvVar("REDIS_DATABASE", "0"))
+		if err != nil {
+			panic("Redis database must be a number")
+		}
+		redisStore := redis.New(redis.Config{
+			Host: GetEnvVar("REDIS_HOST", "127.0.0.1"),
+			Port: port,
+			Password: GetEnvVar("REDIS_PASSWORD", ""),
+			Database: database,
+			Reset: GetEnvVar("REDIS_RESET", "false") == "true",
+		})
+		sessionStore = session.New(session.Config{
+			Storage: redisStore,
+		})
+	} else {
+		sessionStore = session.New()
+	}
+}
 
 func GetSessionStore(c *fiber.Ctx) *session.Session {
 	sess, err := sessionStore.Get(c)
