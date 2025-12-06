@@ -5,8 +5,8 @@ import SettingsIcon from "../assets/icon/settings.svg";
 import { events } from "../core/events";
 import ChipsInput from "./common/chips_input";
 
+// Store attribute kinds for validation
 let attribute_kinds: null | Array<any> = null;
-
 events.on('refresh_attributes', () => {
     attribute_kinds = null;
 })
@@ -16,6 +16,9 @@ export function get_kind_for_key(key: string): any | undefined {
         return e.key == key;
     })
 }
+
+
+
 let refresh_value_input = (key: string, value_input: HTMLInputElement) => {
     let attribute_kind = get_kind_for_key(key);
     if (attribute_kind != undefined) {
@@ -64,8 +67,6 @@ class AttributesView extends HTMLElement {
         this.innerHTML = "<div>Types</div><chips-input id='types_input'></chips-input>"; 
         let item_types_input = this.querySelector('#types_input')! as ChipsInput;
         
-
-
         if (attribute_kinds == null) {
             attribute_kinds = await API.item.AttributeKinds.get_all();
         }
@@ -119,6 +120,8 @@ class AttributesView extends HTMLElement {
         container.appendChild(value_input);
         container.appendChild(submit)
         this.appendChild(container);
+        
+        item_types_input.set_value()
     }
 
     private add_key_value_input(key: string, value: any) {

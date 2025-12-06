@@ -1,7 +1,5 @@
 import ItemAPI from "../../api/item";
-import { events } from "../../core/events";
 import { router } from "../../core/router";
-import { switch_item_to } from "../../screens/item_screen";
 
 
 class SearchView extends HTMLElement {
@@ -29,7 +27,6 @@ class SearchView extends HTMLElement {
                     resultView.classList.add('result_view')
                     resultView.innerText = result.title;
                     resultView.addEventListener('click', () => {
-
                         router.navigate(`/item/${result.title}`)
                         this.result_index = index;
                         this.set_selected_result();

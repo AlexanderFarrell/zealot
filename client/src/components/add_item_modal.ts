@@ -1,8 +1,5 @@
 import ItemAPI from "../api/item";
-import { events } from "../core/events";
 import { router } from "../core/router";
-import { switch_item_to } from "../screens/item_screen";
-
 
 class AddItemModal extends HTMLElement {
     public error_message: HTMLElement | null = null;

@@ -1,5 +1,5 @@
 import Navigo from "navigo";
-import { switch_item_to } from "../screens/item_screen";
+import ItemScreen from "../screens/item_screen";
 import SettingsScreen from "../screens/settings_screen";
 import { events } from "./events";
 
@@ -9,10 +9,14 @@ export const router = new Navigo("/")
 export function setup_router() {
     router.on({
         "/": () => {
-            switch_item_to('Home');
+            let item_screen = new ItemScreen();
+            document.querySelector('content-')!.appendChild(item_screen)
+            item_screen.LoadItem('Home');
         },
         "/item/:title": (params: any) => {
-            switch_item_to(params.data['title'])
+            let item_screen = new ItemScreen();
+            document.querySelector('content-')!.appendChild(item_screen)
+            item_screen.LoadItem(params['title'])
         },
         "/media": () => {
             document.querySelector('content-')!.innerHTML = "<media-screen></media-screen>";

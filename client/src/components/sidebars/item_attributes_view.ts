@@ -1,8 +1,9 @@
+import type { Item } from "../../api/item";
 
 class ItemAttributesView extends HTMLElement {
     private LinkedView: HTMLElement | null = null;
     private MetaView: HTMLElement | null = null;
-    private Item: object | null = null;
+    private Item: Item | null = null;
 
     constructor() {
         super();
@@ -31,7 +32,7 @@ class ItemAttributesView extends HTMLElement {
 
     }
 
-    switch_item(item: object) {
+    switch_item(item: Item) {
         this.Item = item;
         // Attributes
         this.update_linked();

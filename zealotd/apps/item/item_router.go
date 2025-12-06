@@ -36,6 +36,28 @@ func InitRouter(app *fiber.App) fiber.Router {
 	router.Patch("/:item_id/attr/rename", renameAttribute)
 	router.Delete("/:item_id/attr/:key", deleteAttribute)
 
+	router.Post("/:item_id/assign_type/:type_name", func (c *fiber.Ctx) error {
+		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		itemID, err := strconv.Atoi(c.Params("item_id"))
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).SendString("Unable to parse item_id")
+		}
+		typeName := c.Params("type_name")
+		err = AssignItemType(itemID, typeName, accountID)
+		return web.SendOkOrError(c, err, err.Error())
+	})
+
+	router.Delete("/:item_id/assign_type/:type_name", func (c *fiber.Ctx) error {
+		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		itemID, err := strconv.Atoi(c.Params("item_id"))
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).SendString("Unable to parse item_id")
+		}
+		typeName := c.Params("type_name")
+		err = UnassignItemType(itemID, typeName, accountID)
+		return web.SendOkOrError(c, err, err.Error())
+	})
+
 	// When creating accounts, add a Home item
 	web.EventOn("on_create_account", func(args []string) {
 		username := args[0]

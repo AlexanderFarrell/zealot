@@ -17,11 +17,6 @@ type Item struct {
 }
 
 func GetItemByID(item_id int, account_id int) (*Item, error) {
-	attrs, err := attribute.GetAttributesForItem(item_id, account_id)
-	if err != nil {
-		return nil, err
-	}
-	
 	query := `
 	select i.item_id, i.title, i.content
 	from item i
@@ -140,9 +135,36 @@ func AssignItemType(itemID int, typeName string, accountID int) error {
 	}
 
 	// Assign the item type to the item
+	// We already verified that both are owned or allowed by the account.
 	query := `
-	select 
+	insert into item_item_type_link (item_id, type_id)
+	values ($1, $2);
 	`
+	_, err = web.Database.Exec(query, itemID, t.TypeID)
+	if err != nil {
+		fmt.Printf("Error assigning item to item type: %v\n", err)
+		return fmt.Errorf("server error assigning item type to item")
+	} else {
+		return nil
+	}
+}
+
+func UnassignItemType(itemID int, typeName string, accountID int) error {
+	query := `
+	delete from item_item_type_link
+	where item_id=(select item_id from item where item_id=$1 and account_id=$2)
+	and type_id=(select type_id from item_type where name=$3 and (
+		account_id=$2 or account_id is null
+	));
+	`
+
+	_, err := web.Database.Exec(query, itemID, accountID, typeName)
+	if err != nil {
+		fmt.Printf("Error unassigning item type from item: %v\n", err)
+		return fmt.Errorf("server error unassigning item type from item")
+	} else {
+		return nil
+	}
 }
 
 
