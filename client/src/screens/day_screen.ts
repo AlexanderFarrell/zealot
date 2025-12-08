@@ -2,6 +2,7 @@ import type { DateTime } from "luxon";
 import API from "../api/api";
 import PlanView from "../components/plan_view";
 import { router } from "../core/router";
+import HomeIcon from "../assets/icon/home.svg";
 import PreviousIcon from "../assets/icon/back.svg";
 import NextIcon from "../assets/icon/forward.svg";
 import DocIcon from "../assets/icon/doc.svg";
@@ -22,6 +23,7 @@ class DailyPlannerScreen extends HTMLElement {
         this.innerHTML = `
         <h1>${this.date!.toFormat(`EEEE - d MMMM yyyy`)}</h1>
         <div class="button_row" style="margin-bottom: 1em">
+            <button name="today"><img style="width: 2em" src="${HomeIcon}"></button>
             <button name="prev"><img style="width: 2em" src="${PreviousIcon}"></button>
             <button name="next"><img style="width: 2em" src="${NextIcon}"></button>
             <button name="note"><img style="width: 2em" src="${DocIcon}"></button>
