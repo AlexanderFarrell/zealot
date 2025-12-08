@@ -247,7 +247,18 @@ plan-view {
   cursor: pointer;
 }
 
+button-group {
+  display: flex;
+  gap: 5px;
+}
 
+button-group > button {
+  width: auto;
+}
+
+button-group > img {
+  width: 2em;
+}
 
 
 

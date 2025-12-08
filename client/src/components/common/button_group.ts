@@ -17,13 +17,14 @@ export class ButtonGroup extends BaseElement<ButtonDef[]> {
         this.innerHTML = "";
         let buttons = this.data;
         buttons?.forEach(buttonDef => {
-            let view = new HTMLButtonElement();
+            let view = document.createElement('button') as HTMLButtonElement;
             view.classList.add('button-group-button');
-            view.innerHTML = `<img src="${buttonDef.Icon}">`;
+            view.innerHTML = `<img style="width: 2em" src="${buttonDef.Icon}">`;
             view.title = buttonDef.Title;
             view.addEventListener('click', () => {
                 buttonDef.On();
             })
+            this.appendChild(view)
         })
     }
 }

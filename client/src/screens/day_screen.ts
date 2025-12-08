@@ -1,63 +1,64 @@
-import type { DateTime } from "luxon";
+import { DateTime } from "luxon";
 import API from "../api/api";
 import PlanView from "../components/plan_view";
 import { router } from "../core/router";
 import HomeIcon from "../assets/icon/home.svg";
 import PreviousIcon from "../assets/icon/back.svg";
 import NextIcon from "../assets/icon/forward.svg";
+import WeekIcon from "../assets/icon/week.svg";
+import MonthIcon from "../assets/icon/moon.svg";
+import YearIcon from "../assets/icon/sun.svg";
 import DocIcon from "../assets/icon/doc.svg";
+import BaseElement from "../components/common/base_element";
+import ButtonGroup, { ButtonDef } from "../components/common/button_group";
 
-class DailyPlannerScreen extends HTMLElement {
-    private _date: DateTime | null = null;
 
-    public get date(): DateTime | null {
-        return this._date;
-    }
-
-    public set date(value: DateTime) {
-        this._date = value;
-        this.render();
-    }
-
+class DailyPlannerScreen extends BaseElement<DateTime> {
     async render() {
+        let date = this.data!;
+        this.classList.add('center')
         this.innerHTML = `
-        <h1>${this.date!.toFormat(`EEEE - d MMMM yyyy`)}</h1>
-        <div class="button_row" style="margin-bottom: 1em">
-            <button name="today"><img style="width: 2em" src="${HomeIcon}"></button>
-            <button name="prev"><img style="width: 2em" src="${PreviousIcon}"></button>
-            <button name="next"><img style="width: 2em" src="${NextIcon}"></button>
-            <button name="note"><img style="width: 2em" src="${DocIcon}"></button>
-        </div>
-
-        <div name="items" style="display: grid; grid-gap: 10px"></div>
-        `
+        <h1>${date.toFormat(`EEEE - d MMMM yyyy`)}</h1>
+        <div name="items" style="display: grid; grid-gap: 10px"></div>`
+        this.prepend(new ButtonGroup().init([
+            new ButtonDef(HomeIcon, "Today", () => {
+                let today = DateTime.now()
+                router.navigate(`/planner/daily/${today.toISODate()}`);
+            }),
+            new ButtonDef(PreviousIcon, "Previous Day", () => {
+                let previous = date.minus({days: 1})
+                router.navigate(`/planner/daily/${previous.toISODate()}`)
+            }),
+            new ButtonDef(NextIcon, "Next Day", () => {
+                let next = date.plus({days: 1});
+                router.navigate(`/planner/daily/${next.toISODate()}`)
+            }),
+            new ButtonDef(WeekIcon, `Week ${date.weekNumber} - ${date.year}`, () => {
+                let week = date.toISOWeekDate()?.substring(0, 8);
+                router.navigate(`/planner/weekly/${week}`)
+            }),
+            new ButtonDef(MonthIcon, `${date.monthLong} ${date.year}`, () => {
+                let month_str = date.toFormat(`yyyy-MM`)
+                router.navigate(`/planner/monthly/${month_str}`);
+            }),
+            new ButtonDef(YearIcon, `${date.year}`, () => {
+                router.navigate(`/planner/annual/${date.year}`)
+            })
+        ]))
         let items_container = this.querySelector('[name="items"]')! as HTMLElement;
 
-        let prev_button = this.querySelector('[name="prev"]')! as HTMLButtonElement;
-        let next_button = this.querySelector('[name="next"]')! as HTMLButtonElement;
-        let note_button = this.querySelector('[name="note"]')! as HTMLButtonElement;
-
-        prev_button.addEventListener('click', () => {
-            let yesterday = this.date!.minus({days: 1});
-            router.navigate(`/planner/daily/${yesterday.toISODate()}`)
-        })
-        next_button.addEventListener('click', () => {
-            let tomorrow = this.date!.plus({days: 1});
-            router.navigate(`/planner/daily/${tomorrow.toISODate()}`)
-        })
-        note_button.addEventListener('click', () => {
-            router.navigate(`/item/${this.date!.toISODate()!}`)
-        })
-
-        this.classList.add('center')
         try {
-            let items = await API.planner.get_items_on_day(this.date!);
+            let items = await API.planner.get_items_on_day(date!);
             items.forEach(item => {
                 let view = new PlanView();
                 view.item = item;
                 items_container.appendChild(view)
             })
+            if (items.length == 0) {
+                items_container.innerHTML = "No items scheduled for this day."
+            }
         } catch (e) {
+            console.error(e)
             items_container.innerHTML = "<div class='error'>Error getting items</div>"
         }
     }
