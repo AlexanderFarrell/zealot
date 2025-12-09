@@ -6,6 +6,7 @@ import AttributesView from "../components/attributes_view";
 import { router } from "../core/router";
 import API from "../api/api";
 import type ChipsInput from "../components/common/chips_input";
+import ContentView from "./item/content_view";
 
 
 class ItemScreen extends HTMLElement {
@@ -14,7 +15,8 @@ class ItemScreen extends HTMLElement {
     // Views
     private title_view!: HTMLHeadingElement;
     private attribute_view!: AttributesView;
-    private content_view!: HTMLTextAreaElement;
+    private content_view!: ContentView;
+    // private content_view!: HTMLTextAreaElement;
     private item_types_view!: HTMLElement;
     private last_loaded_title: string | null = null;
 
@@ -69,12 +71,14 @@ class ItemScreen extends HTMLElement {
         </div>
         <div name="item_types" class="attribute"></div>
         <attributes-view></attributes-view>
-        <textarea name="content"></textarea>
+        <content-view></content-view>
         `
         this.title_view = this.querySelector('[name="title"]')!;
         this.attribute_view = this.querySelector('attributes-view')!;
-        this.content_view = this.querySelector('[name="content"]')!;
+        this.content_view = this.querySelector('content-view')! as ContentView;
         this.item_types_view = this.querySelector('[name="item_types"]')!;
+
+        this.content_view.init(this.item);
 
         this.render_item_types_view();
 
@@ -101,13 +105,13 @@ class ItemScreen extends HTMLElement {
         this.attribute_view.item = this.item!;
 
         // Content
-        this.content_view.value = this.item!.content;
-        this.content_view.addEventListener('input', () => {
-            this.item!.content = this.content_view.value;
-        })
-        this.content_view.addEventListener('blur', () => {
-            ItemAPI.update(this.item!.item_id, {content: this.item!.content});
-        })
+        // this.content_view.value = this.item!.content;
+        // this.content_view.addEventListener('input', () => {
+        //     this.item!.content = this.content_view.value;
+        // })
+        // this.content_view.addEventListener('blur', () => {
+        //     ItemAPI.update(this.item!.item_id, {content: this.item!.content});
+        // })
     }
 
     async render_item_types_view() {
