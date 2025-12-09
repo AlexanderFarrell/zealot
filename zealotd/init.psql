@@ -77,7 +77,9 @@ values
 ('Date', 'When to do something.', 'date', '{}'::jsonb, true),
 ('Status', 'Where is the current item?', 'dropdown', '{}'::jsonb, true),
 ('Week', 'What week to do something?', 'week', '{}'::jsonb, true),
-('Priority', 'How important is something?', 'integer', '{}'::jsonb, true);
+('Priority', 'How important is something?', 'integer', '{}'::jsonb, true),
+('Month', 'Tenative month something is scheduled on', 'integer', '{}'::jsonb, true),
+('Year', 'Tenative year something is scheduled on', 'integer', '{}'::jsonb, true);
 
 create table item_type (
     type_id serial primary key,

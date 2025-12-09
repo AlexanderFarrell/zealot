@@ -5,6 +5,7 @@ import './components/content.ts';
 import './components/sidebar.ts';
 import './components/sidebars/nav_view.ts';
 import './components/sidebars/search_view.ts';
+import './components/sidebars/calendar_view.ts';
 import './screens/item_screen.ts';
 
 import './screens/analysis_screen.ts';

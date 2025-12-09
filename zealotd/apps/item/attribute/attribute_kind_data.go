@@ -140,7 +140,7 @@ func prepareAttrValueFromKind(kind AttributeKind, raw interface{}) (column strin
 		return column, v, nil
 	case "week":
 		column = "value_int"
-		weekCode, err := toWeekCode(raw)
+		weekCode, err := ToWeekCode(raw)
 		if err != nil {
 			return "", nil, fmt.Errorf("invalid week value for %s: %w", kind.Key, err)
 		}
@@ -417,8 +417,12 @@ func toTime(v interface{}) (time.Time, error) {
 	}
 }
 
-func toWeekCode(v interface{}) (int, error) {
+func ToWeekCode(v interface{}) (int, error) {
 	switch vv := v.(type) {
+	case int:
+		// year := vv / 100
+		// week := vv % 100
+		return vv, nil
 	case string:
 		if len(vv) != 8 {
 			break
@@ -427,7 +431,7 @@ func toWeekCode(v interface{}) (int, error) {
 		if err != nil {
 			return 0, fmt.Errorf("error parsing year: %w", err)
 		}
-		week, err := strconv.Atoi(vv[5:7])
+		week, err := strconv.Atoi(vv[6:8])
 		if err != nil {
 			return 0, fmt.Errorf("error parsing week: %w", err)
 		}

@@ -14,8 +14,9 @@ class ItemScreen extends HTMLElement {
     // Views
     private title_view!: HTMLHeadingElement;
     private attribute_view!: AttributesView;
-    private content_view!: HTMLElement;
+    private content_view!: HTMLTextAreaElement;
     private item_types_view!: HTMLElement;
+    private last_loaded_title: string | null = null;
 
     public set item(value: Item) {
         this._item = value;
@@ -27,6 +28,7 @@ class ItemScreen extends HTMLElement {
     }
 
     public async LoadItem(title: string) {
+        this.last_loaded_title = title;
         try {
             this.item = await ItemAPI.get_by_title(title);
         } catch (e) {
@@ -42,6 +44,24 @@ class ItemScreen extends HTMLElement {
     }
 
     async render() {
+        if (this.item == null) {
+            this.innerHTML = `That item doesn't exist.`
+            if (this.last_loaded_title) {
+                this.innerHTML += '<button>Create it?</button>'
+            }
+            this.querySelector('button')?.addEventListener('click', async () => {
+                let item = {
+                    title: this.last_loaded_title!,
+                    content: '',
+                    item_id: -1
+                }
+                await API.item.add(item)
+                this.item = await API.item.get_by_title(this.last_loaded_title!);
+            })
+
+            return;
+        }
+
         this.innerHTML = `
         <div name="title_container">
             <h1 name="title" contenteditable="true"></h1>
@@ -49,7 +69,7 @@ class ItemScreen extends HTMLElement {
         </div>
         <div name="item_types" class="attribute"></div>
         <attributes-view></attributes-view>
-        <div name="content" contenteditable="true"></div>
+        <textarea name="content"></textarea>
         `
         this.title_view = this.querySelector('[name="title"]')!;
         this.attribute_view = this.querySelector('attributes-view')!;
@@ -81,9 +101,9 @@ class ItemScreen extends HTMLElement {
         this.attribute_view.item = this.item!;
 
         // Content
-        this.content_view.innerText = this.item!.content;
+        this.content_view.value = this.item!.content;
         this.content_view.addEventListener('input', () => {
-            this.item!.content = this.content_view.textContent;
+            this.item!.content = this.content_view.value;
         })
         this.content_view.addEventListener('blur', () => {
             ItemAPI.update(this.item!.item_id, {content: this.item!.content});

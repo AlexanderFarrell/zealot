@@ -3,6 +3,11 @@ import ItemScreen from "../screens/item_screen";
 import SettingsScreen from "../screens/settings_screen";
 import { events } from "./events";
 import type Content from "../components/content";
+import DailyPlannerScreen from "../screens/day_screen";
+import { DateTime } from "luxon";
+import WeeklyPlannerScreen from "../screens/week_screen";
+import MonthlyPlannerScreen from "../screens/month_screen";
+import AnnualPlannerScreen from "../screens/year_screen";
 
 export const router = new Navigo("/")
 
@@ -25,16 +30,51 @@ export function setup_router() {
             content_view!.innerHTML = "<media-screen></media-screen>";
         },
         "/planner/daily": () => {
-            content_view!.innerHTML = "<daily-planner-screen></daily-planner-screen>";
+            let date = DateTime.local();
+            router.navigate(`/planner/daily/${date.toISODate()}`)
+        },
+        "/planner/daily/:date": (params: any) => {
+            let date_str = params.data['date'];
+            let daily_screen = new DailyPlannerScreen().init(
+                DateTime.fromFormat(date_str, "yyyy-MM-dd")
+            );
+            content_view.innerHTML = "";
+            content_view!.appendChild(daily_screen);
         },
         "/planner/weekly": () => {
-            content_view!.innerHTML = "<weekly-planner-screen></weekly-planner-screen>";
+            let date = DateTime.local();
+            router.navigate(`/planner/weekly/${date.toISOWeekDate().substring(0, 8)}`)
+        },
+        "/planner/weekly/:date": (params: any) => {
+            let date_str = params.data['date'];
+            let weekly_screen = new WeeklyPlannerScreen().init(
+                DateTime.fromObject({
+                    weekYear: parseInt(date_str.substring(0, 4)),
+                    weekNumber: parseInt(date_str.substring(6, 8))
+                })
+            );
+            content_view!.innerHTML = "";
+            content_view!.appendChild(weekly_screen);
         },
         "/planner/monthly": () => {
-            content_view!.innerHTML = "<monthly-planner-screen></monthly-planner-screen>";
+            let date = DateTime.local();
+            router.navigate(`/planner/monthly/${date.toFormat('yyyy-MM')}`)
+        },
+        "/planner/monthly/:date": (params: any) => {
+            let date_str = params.data['date'];
+            let date = DateTime.fromFormat(date_str, `yyyy-MM`)
+            content_view.innerHTML = "";
+            content_view.appendChild(new MonthlyPlannerScreen().init(date));
         },
         "/planner/annual": () => {
-            content_view!.innerHTML = "<annual-planner-screen></annual-planner-screen>";
+            router.navigate(`/planner/annual/${DateTime.now().year}`)
+        },
+        "/planner/annual/:year": (params: any) => {
+            let year = params.data['year'];
+            content_view.innerHTML = "";
+            content_view.appendChild(new AnnualPlannerScreen().init(DateTime.fromObject({
+                year: year
+            })))
         },
         "/analysis": () => {
             content_view!.innerHTML = "<analysis-screen></analysis-screen>";
