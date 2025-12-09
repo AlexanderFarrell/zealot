@@ -334,7 +334,7 @@ func toWeekCode(v interface{}) (int, error) {
 		if err != nil {
 			return 0, fmt.Errorf("error parsing year: %w", err)
 		}
-		week, err := strconv.Atoi(vv[5:7])
+		week, err := strconv.Atoi(vv[6:8])
 		if err != nil {
 			return 0, fmt.Errorf("error parsing week: %w", err)
 		}

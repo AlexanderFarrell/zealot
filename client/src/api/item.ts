@@ -24,13 +24,13 @@ export const ItemAPI = {
         return (await fetch(`/api/item/search?term=${term}`)).json();
     },
 
-    add: async (title: string) => {
+    add: async (item: Item) => {
         let response = await fetch(`/api/item`, {
             method: "POST",
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({'title': title})
+            body: JSON.stringify(item)
         });
         return response.ok;
     },

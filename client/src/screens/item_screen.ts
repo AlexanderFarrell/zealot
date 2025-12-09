@@ -50,7 +50,12 @@ class ItemScreen extends HTMLElement {
                 this.innerHTML += '<button>Create it?</button>'
             }
             this.querySelector('button')?.addEventListener('click', async () => {
-                await API.item.add(this.last_loaded_title!)
+                let item = {
+                    title: this.last_loaded_title!,
+                    content: '',
+                    item_id: -1
+                }
+                await API.item.add(item)
                 this.item = await API.item.get_by_title(this.last_loaded_title!);
             })
 

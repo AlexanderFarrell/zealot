@@ -112,23 +112,15 @@ func searchTitle(c *fiber.Ctx) error {
 
 func addItem(c *fiber.Ctx) error {
 	account_id := web.GetKeyFromSessionInt(c, "account_id")
-	// Payload
-	payload := struct {
-		Title string `json:"title"`
-	}{}
+	var payload Item
 
 	if err := c.BodyParser(&payload); err != nil {
 		fmt.Printf("Error parsing updates: %v", err)
 		return c.SendStatus(fiber.StatusBadRequest)
 	}
 
-	err := AddItem(payload.Title, account_id)
-	if err != nil {
-		fmt.Printf("%v\n", err)
-		return c.SendStatus(fiber.StatusInternalServerError)
-	} else {
-		return c.SendStatus(fiber.StatusOK)
-	}
+	err := AddItem2(&payload, account_id)
+	return web.SendOkOrError(c, err, "adding item")
 } 
 
 func updateItem(c * fiber.Ctx) error {

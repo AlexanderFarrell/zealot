@@ -8,6 +8,19 @@ class PlannerAPIHandler {
         const iso = date.toISODate();
         return get_json(`/api/planner/day/${iso}`);
     }
+
+    async get_items_for_week(date: DateTime): Promise<Item[]> {
+        const str = date.toISOWeekDate()!.substring(0, 8);
+        return get_json(`/api/planner/week/${str}`)
+    }
+
+    async get_items_for_month(date: DateTime): Promise<Item[]> {
+        return get_json(`/api/planner/month/${date.month}/year/${date.year}`)
+    }
+
+    async get_items_for_year(date: DateTime): Promise<Item[]> {
+        return get_json(`/api/planner/year/${date.year}`)
+    }
 }
 
 const PlannerAPI = new PlannerAPIHandler();

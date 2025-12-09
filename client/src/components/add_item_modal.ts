@@ -59,7 +59,12 @@ class AddItemModal extends HTMLElement {
         }
 
         try {
-            if (await ItemAPI.add(title)) {
+            let item = {
+                item_id: -1,
+                title: title,
+                content: ""
+            }
+            if (await ItemAPI.add(item)) {
                 router.navigate(`/item/${encodeURIComponent(title)}`)
                 this.remove();
             } else {

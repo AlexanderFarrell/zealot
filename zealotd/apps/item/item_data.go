@@ -67,6 +67,14 @@ func GetItemsByAttribute(key string, value interface{}, valueCol string, account
 	return addAttrsTypesToItems(rows, err, accountID)
 }
 
+// func GetItemsByAttributes(keys []string, values []interface{}, valueCol string, accountID int) ([]Item, error) {
+// 	if _, ok := acceptableAttributeColumns[valueCol]; !ok {
+// 		return nil, fmt.Errorf("invalid column passed")
+// 	}
+
+
+// }
+
 func addAttrsTypesToItem(rows *sql.Rows, err error, accountID int) (*Item, error) {
 	item, err := ScanRow(rows, err)
 	if err != nil || item == nil {
@@ -197,6 +205,25 @@ func AddItem(title string, account_id int) error {
 
 	_, err := web.Database.Exec(query, title, account_id);
 	return err
+}
+
+func AddItem2(item *Item, account_id int) error {
+	query := `
+	insert into item(title, account_id)
+	values ($1, $2)
+	returning item_id;
+	`
+	err := web.Database.QueryRow(query, item.Title, account_id).Scan(&item.ItemID)
+	if err != nil {
+		return err
+	}
+
+	// Add attributes
+	for attr_key, attr_value := range item.Attributes {
+		attribute.SetAttributeForItem(item.ItemID, account_id, attr_key, attr_value)
+	}
+
+	return nil
 }
 
 func AddItemByUsername(title string, username string) error {
