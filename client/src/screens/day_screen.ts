@@ -43,6 +43,9 @@ class DailyPlannerScreen extends BaseElement<DateTime> {
             }),
             new ButtonDef(YearIcon, `${date.year}`, () => {
                 router.navigate(`/planner/annual/${date.year}`)
+            }),
+            new ButtonDef(DocIcon, 'Create Note', () => {
+                router.navigate(`/item/${date!.toISODate()}`)
             })
         ]))
         let items_container = this.querySelector('[name="items"]')! as HTMLElement;

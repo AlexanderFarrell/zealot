@@ -39,6 +39,9 @@ class WeeklyPlannerScreen extends BaseElement<DateTime> {
             }),
             new ButtonDef(YearIcon, `${date.year}`, () => {
                 router.navigate(`/planner/annual/${date.year}`)
+            }),
+            new ButtonDef(DocIcon, 'Create Note', () => {
+                router.navigate(`/item/${date.toISOWeekDate()!.substring(0, 8)}`)
             })
         ]));
         

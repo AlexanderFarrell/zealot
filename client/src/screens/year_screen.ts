@@ -2,6 +2,7 @@
 import HomeIcon from "../assets/icon/home.svg";
 import PreviousIcon from "../assets/icon/back.svg";
 import NextIcon from "../assets/icon/forward.svg";
+import DocIcon from "../assets/icon/doc.svg";
 import ButtonGroup, { ButtonDef } from "../components/common/button_group";
 import { router } from "../core/router";
 import { DateTime } from "luxon";
@@ -32,6 +33,9 @@ class AnnualPlannerScreen extends BaseElement<DateTime> {
                 let str = next_year.year;
                 router.navigate(`/planner/annual/${str}`)
             }),
+            new ButtonDef(DocIcon, 'Create Note', () => {
+                router.navigate(`/item/${date.toFormat('yyyy')}`)
+            })
         ]));  
     } 
 }

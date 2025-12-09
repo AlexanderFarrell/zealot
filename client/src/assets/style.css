@@ -2,6 +2,8 @@
   --background-default: rgb(35, 54, 86);
   --background-pop-default: rgb(44, 74, 121);
   --background-button: rgb(53, 105, 187);
+  --background-button-pop: rgb(76, 130, 216);
+  --background-button-highlight: rgb(53, 187, 118);
   --background-dark: rgb(24, 37, 59);
   --accent: rgb(161, 230, 255);
   --wide_content_max: 1000px;
@@ -27,6 +29,11 @@ button {
 img {
   width: 100%;
   object-fit: contain;
+}
+
+h1, h2, h3, h4, h5 {
+  padding: 10px 5px;
+  margin: 0;
 }
 
 input, textarea {
@@ -65,7 +72,7 @@ title-bar {
 }
 
 side-bar {
-  width: 200px;
+  width: 250px;
   background-color: var(--background-pop-default);
 }
 
@@ -260,12 +267,28 @@ button-group > img {
   width: 2em;
 }
 
+calendar-view {
+  /* padding: 2px; */
+}
 
+.today {
+  background-color: var(--background-button-pop);
+}
 
+[name="calendar_items"] {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+  text-align: center;
+  grid-gap: 2px;
+}
 
+[name="calendar_items"] > * {
+  padding: 3px;
+}
 
-
-
+calendar-view > img {
+  width: 1em;
+}
 
 [name="title_container"] {
   display: grid;
