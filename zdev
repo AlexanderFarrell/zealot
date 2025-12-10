@@ -5,6 +5,10 @@ import sys
 
 def build():
     what =  sys.argv[2] if len(sys.argv) > 2 else 'all'
+    valid = {"cli", "all", "native", "server", "client", "docker"}
+    if what not in valid:
+        print(f"Unknown build arg: {what}. \nUsage: ./zdev build [cli|server|client|docker|native|all]")
+        exit(1)
     if what == "cli" or what == "all" or what == "native":
         os.system("cd cli && go build .")
     if what == "server" or what == "all" or what == "native":
@@ -13,10 +17,6 @@ def build():
         os.system("cd client && npm run build")
     if what == "docker" or what == "all":
         os.system("cd dev && docker compose -f zealot-compose.yml build")
-    else:
-        print(f"Unknown build arg: {what}. \nUsage: ./zdev build [cli|server|client|docker|native|all]")
-        exit(1)
-    pass
 
 
 def run():
