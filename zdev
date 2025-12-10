@@ -63,12 +63,33 @@ def fmt():
     if what == "client-look":
         os.system("cd client && npm run lint")
 
+def vet():
+    what = sys.argv[2] if len(sys.argv) > 2 else "all"
+    valid = {"all", "server", "client", "cli"}
+    if what not in valid:
+        print(f"Unknown arg {what}: \nUsage ./zdev fmt [{valid}]")
+    if what == "server" or what == "all":
+        print("---Running gosec---")
+        os.system("cd zealotd && gosec -quiet ./...")
+        print()
+        print("---Running Static Check---")
+        os.system("cd zealotd && staticcheck ./...")
+    if what == "cli" or what == "all":
+        print("---Running gosec---")
+        os.system("cd cli && gosec -quiet ./...")
+        print()
+        print("---Running Static Check---")
+        os.system("cd cli && staticcheck ./...")
+    if what == "client" or what == "all":
+        print("client not yet supported")
+
 commands = {
     "build": build,
     "run": run,
     "redeploy": redeploy,
     "deploy": deploy,
-    "fmt": fmt
+    "fmt": fmt,
+    "vet": vet
 }
 
 def help():
