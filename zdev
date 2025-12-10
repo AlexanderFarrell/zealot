@@ -59,6 +59,8 @@ def fmt():
     if what == "cli" or what == "all":
         os.system("cd cli && go fmt ./...")
     if what == "client" or what == "all":
+        os.system("cd client && npm run lint:fix")
+    if what == "client-look":
         os.system("cd client && npm run lint")
 
 commands = {
