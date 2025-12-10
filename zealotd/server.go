@@ -12,8 +12,6 @@ import (
 //go:embed init.psql
 var initSQL string
 
-
-
 func main() {
 	web.DatabaseStart()
 	web.InitDatabaseIfEmpty(initSQL)

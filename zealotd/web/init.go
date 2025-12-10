@@ -26,7 +26,7 @@ func InitServer() *fiber.App {
 		Expiration: 30 * time.Second,
 	}))
 	app.Use(logger.New())
-	app.Get("/health", func (c *fiber.Ctx) error {
+	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.SendString("{\"status\": \"ok\"}")
 	})
 

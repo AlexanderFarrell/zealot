@@ -12,11 +12,11 @@ import (
 )
 
 type AccountDetails struct {
-	Username string `json:"username"`
-	Email string `json:"email"`
-	Name string `json:"name"`
-	AccountID int `json:"account_id"`
-	Settings json.RawMessage `json:"settings"`
+	Username  string          `json:"username"`
+	Email     string          `json:"email"`
+	Name      string          `json:"name"`
+	AccountID int             `json:"account_id"`
+	Settings  json.RawMessage `json:"settings"`
 }
 
 func IsLoggedIn(c *fiber.Ctx) bool {

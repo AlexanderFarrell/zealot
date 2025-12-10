@@ -65,7 +65,8 @@ commands = {
     "build": build,
     "run": run,
     "redeploy": redeploy,
-    "deploy": deploy
+    "deploy": deploy,
+    "fmt": fmt
 }
 
 def help():

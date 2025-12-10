@@ -15,7 +15,7 @@ func InitRouter(app *fiber.App) {
 	router := app.Group("/planner")
 
 	// Get on day
-	router.Get("/day/:date", func (c * fiber.Ctx) error {
+	router.Get("/day/:date", func(c *fiber.Ctx) error {
 		accountID := web.GetKeyFromSessionInt(c, "account_id")
 		dateStr := c.Params("date")
 		t, err := time.Parse(time.DateOnly, dateStr)
@@ -27,7 +27,7 @@ func InitRouter(app *fiber.App) {
 		return web.SendJSONOrError(c, items, err, "getting items on date")
 	})
 
-	router.Get("/week/:week", func (c *fiber.Ctx) error {
+	router.Get("/week/:week", func(c *fiber.Ctx) error {
 		accountID := web.GetKeyFromSessionInt(c, "account_id")
 		week, err := attribute.ToWeekCode(c.Params("week"))
 		if err != nil {
@@ -37,7 +37,7 @@ func InitRouter(app *fiber.App) {
 		return web.SendJSONOrError(c, items, err, "getting items on week")
 	})
 
-	router.Get("/month/:month/year/:year", func (c *fiber.Ctx) error {
+	router.Get("/month/:month/year/:year", func(c *fiber.Ctx) error {
 		accountID := web.GetKeyFromSessionInt(c, "account_id")
 		month, err := strconv.Atoi(c.Params("month"))
 		if err != nil {
@@ -68,7 +68,7 @@ func InitRouter(app *fiber.App) {
 		return c.JSON(itemsSend)
 	})
 
-	router.Get("/year/:year", func (c *fiber.Ctx) error {
+	router.Get("/year/:year", func(c *fiber.Ctx) error {
 		accountID := web.GetKeyFromSessionInt(c, "account_id")
 		year, err := strconv.Atoi(c.Params("year"))
 		if err != nil {
