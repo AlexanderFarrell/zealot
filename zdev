@@ -55,9 +55,9 @@ def fmt():
     if what not in valid:
         print(f"Unknown arg {what}: \nUsage ./zdev fmt [{valid}]")
     if what == "server" or what == "all":
-        os.system("cd zealotd && gofmt")
+        os.system("cd zealotd && go fmt ./...")
     if what == "cli" or what == "all":
-        os.system("cd cli && gofmt")
+        os.system("cd cli && go fmt ./...")
     if what == "client" or what == "all":
         os.system("cd client && npm run lint")
 
