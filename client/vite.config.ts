@@ -1,6 +1,10 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+    build: {
+        outDir: '../bin/client',
+        emptyOutDir: true
+    },
     server: {
         port: 5173,
         proxy: {

@@ -6,4 +6,5 @@
 /zealotd/run_app.sh
 /dev/.db.env
 /dev/.zealot.env
-/.DS_Store
+/bin/
+.DS_Store

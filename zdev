@@ -2,21 +2,50 @@
 
 import os
 import sys
+import re
+import pathlib
+
+
+DATABASE_INCLUDE_RE=re.compile(r'^\s*\\i\s+(.+?)\s*$')
+
+
+def build_database():
+    """
+    Puts together scripts from database into one single script, and then puts
+    into the zealotd folder so that the go server can init the database as needed.
+    """
+
+    # Change directory and read the order file
+    os.chdir('database')
+    order = pathlib.Path('order.txt').read_text(encoding='utf-8').split('\n')
+
+    init_sql = ""
+    for item in order:
+        sql = pathlib.Path(item).read_text(encoding='utf-8')
+        init_sql += sql + "\n\n"
+
+    os.chdir('..')
+    file = open('zealotd/init.psql', 'w')
+    file.write(init_sql)
+    file.close()
+
 
 def build():
     what =  sys.argv[2] if len(sys.argv) > 2 else 'all'
-    valid = {"cli", "all", "native", "server", "client", "docker"}
+    valid = {"cli", "all", "native", "server", "client", "docker", "database"}
     if what not in valid:
         print(f"Unknown build arg: {what}. \nUsage: ./zdev build [cli|server|client|docker|native|all]")
         exit(1)
     if what == "cli" or what == "all" or what == "native":
-        os.system("cd cli && go build .")
+        os.system("cd cli && go build -o ../bin/zl .")
     if what == "server" or what == "all" or what == "native":
-        os.system("cd zealotd && go build .")
+        os.system("cd zealotd && go build -o ../bin/zealotd .")
     if what == "client" or what == "all" or what == "native":
         os.system("cd client && npm run build")
     if what == "docker" or what == "all":
         os.system("cd dev && docker compose -f zealot-compose.yml build")
+    if what == "database" or what == "all":
+        build_database()
 
 
 def run():

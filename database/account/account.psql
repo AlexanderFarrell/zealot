@@ -1,0 +1,21 @@
+create table account (
+    account_id serial primary key,
+    username varchar(30) not null,
+    email varchar(128) not null,
+    password varchar(128) not null,
+    full_name varchar(100) not null,
+    settings jsonb not null default '{}',
+    created_on timestamptz not null default now()
+);
+comment on table account is 
+    'Stores users, hashed passwords, and user info';
+comment on column account.account_id is 
+    'Unique ID for the account, used for linking to the account';
+comment on column account.username is 
+    'The name of the account when logging in';
+comment on column account.email is
+    'The email of the user of the account';
+comment on column account.password is
+    'The HASHED password of the user account for authentication';
+comment on column account.full_name is
+    'The full name of the user, first name and last name';
