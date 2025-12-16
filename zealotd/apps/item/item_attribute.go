@@ -4,20 +4,20 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
 	"zealotd/web"
-	"reflect"
 )
 
 type AttributeKind struct {
-	KindID int `json:"kind_id"`
-	Key string `json:"key"`
-	Description string `json:"description"`
-	BaseType string `json:"base_type"`
-	Config json.RawMessage `json:"config"`
-	IsSystem bool `json:"is_system"`
+	KindID      int             `json:"kind_id"`
+	Key         string          `json:"key"`
+	Description string          `json:"description"`
+	BaseType    string          `json:"base_type"`
+	Config      json.RawMessage `json:"config"`
+	IsSystem    bool            `json:"is_system"`
 }
 
 func GetAttributeKind(key string, accountID int) (*AttributeKind, error) {
@@ -33,7 +33,7 @@ func GetAttributeKind(key string, accountID int) (*AttributeKind, error) {
 		return nil, nil
 	}
 
-    kinds, err := scanAttributeKinds(rows, err)
+	kinds, err := scanAttributeKinds(rows, err)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func AddAttributeKind(kind *AttributeKind, accountID int) error {
 
 	_, err := web.Database.Exec(query, accountID, kind.Key, kind.Description, kind.BaseType,
 		kind.Config)
-	
+
 	if err != nil {
 		return fmt.Errorf("error adding attribute kind: %w", err)
 	}
@@ -92,7 +92,7 @@ func scanAttributeKinds(rows *sql.Rows, err error) ([]AttributeKind, error) {
 	var attributeKinds []AttributeKind = make([]AttributeKind, 0)
 	for rows.Next() {
 		var kind AttributeKind
-		if err := rows.Scan(&kind.KindID, &kind.Key, &kind.Description, &kind.BaseType, 
+		if err := rows.Scan(&kind.KindID, &kind.Key, &kind.Description, &kind.BaseType,
 			&kind.Config, &kind.IsSystem); err != nil {
 			return nil, err
 		}
@@ -212,8 +212,6 @@ func SetAttributeForItem(itemID int, accountID int, key string, value interface{
 	_, err = web.Database.Exec(query, itemID, accountID, key, preparedValue)
 	return err
 }
-
-
 
 // Converters
 
@@ -338,7 +336,7 @@ func toWeekCode(v interface{}) (int, error) {
 		if err != nil {
 			return 0, fmt.Errorf("error parsing week: %w", err)
 		}
-		return year * 100 + week, nil
+		return year*100 + week, nil
 	default:
 		return 0, fmt.Errorf("cannot convert %T to week", v)
 	}

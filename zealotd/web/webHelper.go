@@ -49,7 +49,6 @@ func HandleUpdateRoute(c *fiber.Ctx, tableName string, identifierName string, al
 // 		return c.Status(fiber.StatusBadRequest).SendString("Please send a number for " + identifierName)
 // 	}
 
-
 // }
 
 func HandleDeleteRoute(c *fiber.Ctx, tableName string, identifierName string) error {

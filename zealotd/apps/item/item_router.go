@@ -12,16 +12,16 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-var updatableFields = map[string]int {
-	"title": 0,
+var updatableFields = map[string]int{
+	"title":   0,
 	"content": 0,
 }
 
-var updatableFieldsAttrKind = map[string]int {
-	"key": 0,
+var updatableFieldsAttrKind = map[string]int{
+	"key":         0,
 	"description": 0,
-	"base_type": 0,
-	"config": 0,
+	"base_type":   0,
+	"config":      0,
 }
 
 func InitRouter(app *fiber.App) fiber.Router {
@@ -44,7 +44,7 @@ func InitRouter(app *fiber.App) fiber.Router {
 	router.Patch("/:item_id/attr/rename", renameAttribute)
 	router.Delete("/:item_id/attr/:key", deleteAttribute)
 
-	router.Post("/:item_id/assign_type/:type_name", func (c *fiber.Ctx) error {
+	router.Post("/:item_id/assign_type/:type_name", func(c *fiber.Ctx) error {
 		accountID := web.GetKeyFromSessionInt(c, "account_id")
 		itemID, err := strconv.Atoi(c.Params("item_id"))
 		if err != nil {
@@ -55,7 +55,7 @@ func InitRouter(app *fiber.App) fiber.Router {
 		return web.SendOkOrError(c, err, "assigning item type")
 	})
 
-	router.Delete("/:item_id/assign_type/:type_name", func (c *fiber.Ctx) error {
+	router.Delete("/:item_id/assign_type/:type_name", func(c *fiber.Ctx) error {
 		accountID := web.GetKeyFromSessionInt(c, "account_id")
 		itemID, err := strconv.Atoi(c.Params("item_id"))
 		if err != nil {
@@ -77,7 +77,6 @@ func InitRouter(app *fiber.App) fiber.Router {
 
 	return router
 }
-
 
 func getRootItems(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNotImplemented)
@@ -121,9 +120,9 @@ func addItem(c *fiber.Ctx) error {
 
 	err := AddItem2(&payload, account_id)
 	return web.SendOkOrError(c, err, "adding item")
-} 
+}
 
-func updateItem(c * fiber.Ctx) error {
+func updateItem(c *fiber.Ctx) error {
 	return web.HandleUpdateRoute(c, "item", "item_id", updatableFields)
 }
 
@@ -159,7 +158,7 @@ func deleteAttribute(c *fiber.Ctx) error {
 	}
 }
 
-func renameAttribute(c * fiber.Ctx) error {
+func renameAttribute(c *fiber.Ctx) error {
 	account_id := web.GetKeyFromSessionInt(c, "account_id")
 	item_id, err := strconv.Atoi(c.Params("item_id"))
 	if err != nil {
@@ -189,7 +188,7 @@ func setAttributes(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).SendString("Unable to convert item_id to number")
 	}
-	
+
 	var body map[string]any
 
 	if err := c.BodyParser(&body); err != nil {
@@ -209,5 +208,5 @@ func setAttributes(c *fiber.Ctx) error {
 		}
 	}
 
-	return c.SendStatus(fiber.StatusOK)	
+	return c.SendStatus(fiber.StatusOK)
 }

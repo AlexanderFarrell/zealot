@@ -17,10 +17,10 @@ var (
 	usernameMax            = 20
 	passwordMin            = 6
 	passwordMax            = 70
-	emailMin           = 1
-	emailMax           = 50
-	nameMin            = 1
-	nameMax            = 50
+	emailMin               = 1
+	emailMax               = 50
+	nameMin                = 1
+	nameMax                = 50
 )
 
 type SettingsHandler func(accountID int, raw json.RawMessage) error
@@ -73,11 +73,11 @@ func createAccount(c *fiber.Ctx) error {
 	}
 
 	payload := struct {
-		Username  string `json:"username"`
-		Password  string `json:"password"`
-		Confirm   string `json:"confirm"`
-		Email string `json:"email"`
-		Name  string `json:"name"`
+		Username string `json:"username"`
+		Password string `json:"password"`
+		Confirm  string `json:"confirm"`
+		Email    string `json:"email"`
+		Name     string `json:"name"`
 	}{}
 
 	err := c.BodyParser(&payload)
@@ -128,7 +128,7 @@ func login(c *fiber.Ctx) error {
 		if err != nil {
 			return c.SendStatus(fiber.StatusInternalServerError)
 		}
-		
+
 		sess := web.GetSessionStore(c)
 		sess.Set("account_id", details.AccountID)
 		sess.Set("username", details.Name)

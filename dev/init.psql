@@ -1,0 +1,155 @@
+create extension if not exists pgcrypto;
+
+-- Account Table
+
+create table account (
+    account_id serial primary key,
+    username varchar(30) not null,
+    email varchar(128) not null,
+    password varchar(128) not null,
+    full_name varchar(100) not null,
+    settings jsonb not null default '{}',
+    created_on timestamptz not null default now()
+);
+comment on table account is 
+    'Stores users, hashed passwords, and user info';
+comment on column account.account_id is 
+    'Unique ID for the account, used for linking to the account';
+comment on column account.username is 
+    'The name of the account when logging in';
+comment on column account.email is
+    'The email of the user of the account';
+comment on column account.password is
+    'The HASHED password of the user account for authentication';
+comment on column account.full_name is
+    'The full name of the user, first name and last name';
+
+-- Item Table
+
+create table item (
+    -- Primary Key
+    item_id serial primary key,
+
+    -- Attributes
+    title varchar(200) not null default '',
+    content text not null default '',
+
+    account_id int not null references account(account_id)
+        ON DELETE CASCADE,
+
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create table attribute (
+    item_id integer not null references item(item_id)
+        ON DELETE CASCADE,
+    key text not null,
+    value_text text,
+    value_num real,
+    value_int integer,
+    value_date timestamptz,
+    primary key (item_id, key)
+);
+
+create table attribute_kind (
+    kind_id serial primary key,
+    account_id int references account(account_id)
+        on delete cascade,
+    key text not null,
+    description text not null default '',
+    base_type text not null check (
+        base_type in 
+        ('integer', 'decimal', 'text', 'date', 'week', 'dropdown', 'boolean')
+    ),
+    config jsonb not null default '{}'::jsonb,
+
+    is_system boolean not null default false,
+
+    constraint u_account_key unique (account_id, key),
+    constraint c_account_or_system check (
+        (account_id is not null and not is_system) or (is_system and account_id is null)
+    )
+);
+
+insert into attribute_kind (key, description, base_type, config, is_system)
+values 
+('Date', 'When to do something.', 'date', '{}'::jsonb, true),
+('Status', 'Where is the current item?', 'dropdown', '{}'::jsonb, true),
+('Week', 'What week to do something?', 'week', '{}'::jsonb, true),
+('Priority', 'How important is something?', 'integer', '{}'::jsonb, true),
+('Month', 'Tenative month something is scheduled on', 'integer', '{}'::jsonb, true),
+('Year', 'Tenative year something is scheduled on', 'integer', '{}'::jsonb, true);
+
+create table item_type (
+    type_id serial primary key,
+    name text not null,
+    description text not null,
+    -- instructions jsonb not null default '{"required_fields": []}'::jsonb,
+    account_id int references account(account_id)
+        ON DELETE CASCADE,
+
+    constraint u_name_account unique (name, account_id)
+);
+
+insert into item_type (name, description, account_id)
+values 
+('Plan', 'Something to get done', null);
+
+create table item_item_type_link (
+    item_id int not null references item(item_id)
+        ON DELETE CASCADE,
+    type_id int not null references item_type(type_id)
+        ON DELETE CASCADE,
+    primary key (item_id, type_id)
+);
+
+
+create table item_type_attribute_kind_link (
+    attribute_kind_id int not null references attribute_kind(kind_id)
+        ON DELETE CASCADE,
+    item_type_id int not null references item_type(type_id)
+        ON DELETE CASCADE,
+    primary key (attribute_kind_id, item_type_id)
+);
+
+insert into item_type_attribute_kind_link (attribute_kind_id, item_type_id)
+values 
+(
+    (select kind_id from attribute_kind where key='Status'),
+    (select type_id from item_type where name='Plan')
+),
+(
+    (select kind_id from attribute_kind where key='Priority'),
+    (select type_id from item_type where name='Plan')
+);
+
+create index idx_attr_key_value_text on attribute (key, value_text);
+create index idx_attr_key_value_num on attribute (key, value_num);
+create index idx_attr_key_value_int on attribute (key, value_int);
+create index idx_attr_key_value_date on attribute (key, value_date);
+
+create type item_relationship as enum (
+    'Parent',
+    'Blocks',
+    'Tag',
+    'Topic',
+    'Other'
+);
+
+create table item_item_link (
+    -- Primary Key
+    item_item_id serial primary key,
+
+    -- Items
+    first_item_id int not null references item(item_id)
+        ON DELETE CASCADE,
+    second_item_id int not null references item(item_id)
+        ON DELETE CASCADE,
+
+    -- Relationship
+    relationship item_relationship not null default 'Parent',
+
+    constraint u_item_link unique (first_item_id, second_item_id)
+);
+

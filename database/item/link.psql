@@ -1,0 +1,24 @@
+create type item_relationship as enum (
+    'Parent',
+    'Blocks',
+    'Tag',
+    'Topic',
+    'Other'
+);
+
+create table item_item_link (
+    -- Primary Key
+    item_item_id serial primary key,
+
+    -- Items
+    first_item_id int not null references item(item_id)
+        ON DELETE CASCADE,
+    second_item_id int not null references item(item_id)
+        ON DELETE CASCADE,
+
+    -- Relationship
+    relationship item_relationship not null default 'Parent',
+
+    constraint u_item_link unique (first_item_id, second_item_id)
+);
+

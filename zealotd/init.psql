@@ -1,6 +1,5 @@
-create extension if not exists pgcrypto;
 
--- Account Table
+create extension if not exists pgcrypto;
 
 create table account (
     account_id serial primary key,
@@ -72,14 +71,10 @@ create table attribute_kind (
     )
 );
 
-insert into attribute_kind (key, description, base_type, config, is_system)
-values 
-('Date', 'When to do something.', 'date', '{}'::jsonb, true),
-('Status', 'Where is the current item?', 'dropdown', '{}'::jsonb, true),
-('Week', 'What week to do something?', 'week', '{}'::jsonb, true),
-('Priority', 'How important is something?', 'integer', '{}'::jsonb, true),
-('Month', 'Tenative month something is scheduled on', 'integer', '{}'::jsonb, true),
-('Year', 'Tenative year something is scheduled on', 'integer', '{}'::jsonb, true);
+create index idx_attr_key_value_text on attribute (key, value_text);
+create index idx_attr_key_value_num on attribute (key, value_num);
+create index idx_attr_key_value_int on attribute (key, value_int);
+create index idx_attr_key_value_date on attribute (key, value_date);
 
 create table item_type (
     type_id serial primary key,
@@ -113,21 +108,7 @@ create table item_type_attribute_kind_link (
     primary key (attribute_kind_id, item_type_id)
 );
 
-insert into item_type_attribute_kind_link (attribute_kind_id, item_type_id)
-values 
-(
-    (select kind_id from attribute_kind where key='Status'),
-    (select type_id from item_type where name='Plan')
-),
-(
-    (select kind_id from attribute_kind where key='Priority'),
-    (select type_id from item_type where name='Plan')
-);
 
-create index idx_attr_key_value_text on attribute (key, value_text);
-create index idx_attr_key_value_num on attribute (key, value_num);
-create index idx_attr_key_value_int on attribute (key, value_int);
-create index idx_attr_key_value_date on attribute (key, value_date);
 
 create type item_relationship as enum (
     'Parent',
@@ -151,5 +132,27 @@ create table item_item_link (
     relationship item_relationship not null default 'Parent',
 
     constraint u_item_link unique (first_item_id, second_item_id)
+);
+
+
+
+insert into attribute_kind (key, description, base_type, config, is_system)
+values 
+('Date', 'When to do something.', 'date', '{}'::jsonb, true),
+('Status', 'Where is the current item?', 'dropdown', '{}'::jsonb, true),
+('Week', 'What week to do something?', 'week', '{}'::jsonb, true),
+('Priority', 'How important is something?', 'integer', '{}'::jsonb, true),
+('Month', 'Tenative month something is scheduled on', 'integer', '{}'::jsonb, true),
+('Year', 'Tenative year something is scheduled on', 'integer', '{}'::jsonb, true);
+
+insert into item_type_attribute_kind_link (attribute_kind_id, item_type_id)
+values 
+(
+    (select kind_id from attribute_kind where key='Status'),
+    (select type_id from item_type where name='Plan')
+),
+(
+    (select kind_id from attribute_kind where key='Priority'),
+    (select type_id from item_type where name='Plan')
 );
 

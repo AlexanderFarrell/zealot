@@ -4,16 +4,21 @@ import { CTRL_OR_META_KEY, Hotkey, SHIFT_KEY } from '../core/hotkeys';
 import { router, setup_router } from '../core/router.ts';
 import commands from './../core/command_runner.ts';
 import AddItemModal from './add_item_modal';
+import MobileTitleBar from './mobile_title_bar.ts';
 
 class ZealotApp extends HTMLElement {
     connectedCallback() {
         this.id = "app";
-        this.innerHTML = `<title-bar></title-bar>
+        this.innerHTML = `
+<title-bar>
+        <mobile-title-bar></mobile-title-bar>
+        <div class="mobile_only" style="height: 58px;">&nbsp;</div>
+</title-bar>
 <div id="main-display">
-<side-buttons></side-buttons>
-<side-bar id="left-side-bar"><nav-view></nav-view></side-bar>
+<side-buttons class="desktop_only"></side-buttons>
+<side-bar id="left-side-bar" class="desktop_only"><nav-view></nav-view></side-bar>
 <content-></content->
-<side-bar id="right-side-bar"><item-attributes-view></item-attributes-view></side-bar>
+<side-bar style="display: none;" id="right-side-bar"><item-attributes-view></item-attributes-view></side-bar>
 </div>`;
         this.setup_commands();
         setup_router();

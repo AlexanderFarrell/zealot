@@ -19,15 +19,15 @@ const (
 )
 
 type ItemType struct {
-	TypeID int `json:"type_id"`
-	Name string `json:"name"`
-	Description string `json:"description"`
-	IsSystem bool `json:"is_system"`
+	TypeID                int      `json:"type_id"`
+	Name                  string   `json:"name"`
+	Description           string   `json:"description"`
+	IsSystem              bool     `json:"is_system"`
 	RequiredAttributeKeys []string `json:"required_attribute_keys"`
 }
 
-var updatableFields = map[string]int {
-	"name": 0,
+var updatableFields = map[string]int{
+	"name":        0,
 	"description": 0,
 }
 
@@ -91,8 +91,6 @@ func GetItemTypesForItem(itemID int, accountID int) ([]ItemType, error) {
 	rows, err := web.Database.Query(query, accountID, itemID)
 	return scanItemTypes(rows, err)
 }
-
-
 
 func AddItemType(itemType ItemType, accountID int) error {
 	query := `

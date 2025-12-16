@@ -66,7 +66,7 @@ zealot_app {
 }
 
 title-bar {
-  background-color: var(--background-pop-default);
+  /* background-color: var(--background-pop-default); */
   width: 100%;
   display: block;
 }
@@ -79,6 +79,7 @@ side-bar {
 content- {
   padding: 5px;
   display: grid;
+  /* width: 100% !important; */
 }
 
 side-buttons {
@@ -86,6 +87,8 @@ side-buttons {
   max-width: 40px;
   background-color: var(--background-pop-default);
 }
+
+
 
 side-buttons > button {
   background-color: rgba(0.0, 0.0, 0.0, 0.0);
@@ -101,7 +104,7 @@ auth-modal form {
 }
 
 item-screen {
-  max-width: 800px;
+  max-width: 600px;
   width: 100%;
   display: grid;
   grid-template-rows: auto auto auto 1fr;
@@ -294,7 +297,71 @@ calendar-view > img {
 [name="title_container"] {
   display: grid;
   grid-template-columns: 1fr auto;
+  grid-template-rows: auto;
   align-items: center;
+}
+.mobile_only {
+    display: none;
 }
 
 
+
+mobile-title-bar {
+  display: none;
+  position: fixed;
+  left: 0;
+  top: 0;
+  right: 0;
+  /* grid-template-rows: auto 1fr; */
+  /* height: 100vh; */
+  z-index: 100;
+}
+
+#mobile_title_bar_top {
+  background-color: var(--background-pop-default);
+}
+
+mobile-dropdown {
+  /* position: absolute; */
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  background-color: rgba(0,0,0,0.5);
+  backdrop-filter: blur(10px);
+  z-index: 100;
+}
+
+mobile-dropdown > button {
+  width: auto;
+  /* display: grid; */
+  /* grid-template-rows: 1fr auto; */
+  background: none !important;
+}
+mobile-dropdown > img {
+  padding: 5px;
+  background: none !important;
+  border-radius: 5px;
+}
+
+
+@media only screen and (max-width: 768px) {
+    .desktop_only {
+        display: none;
+    }
+
+    .mobile_only {
+        display: block;
+    }
+
+    .row {
+        display: block;
+    }
+
+    mobile-title-bar {
+      display: grid;
+    }
+    
+    content- {
+      grid-column: 3;
+
+    }
+}

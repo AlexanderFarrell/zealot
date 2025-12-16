@@ -25,11 +25,11 @@ func InitSessions() {
 			panic("Redis database must be a number")
 		}
 		redisStore := redis.New(redis.Config{
-			Host: GetEnvVar("REDIS_HOST", "127.0.0.1"),
-			Port: port,
+			Host:     GetEnvVar("REDIS_HOST", "127.0.0.1"),
+			Port:     port,
 			Password: GetEnvVar("REDIS_PASSWORD", ""),
 			Database: database,
-			Reset: GetEnvVar("REDIS_RESET", "false") == "true",
+			Reset:    GetEnvVar("REDIS_RESET", "false") == "true",
 		})
 		sessionStore = session.New(session.Config{
 			Storage: redisStore,

@@ -1,0 +1,141 @@
+#! python3
+
+import os
+import sys
+import re
+import pathlib
+
+
+DATABASE_INCLUDE_RE=re.compile(r'^\s*\\i\s+(.+?)\s*$')
+
+
+def build_database():
+    """
+    Puts together scripts from database into one single script, and then puts
+    into the zealotd folder so that the go server can init the database as needed.
+    """
+
+    # Change directory and read the order file
+    os.chdir('database')
+    order = pathlib.Path('order.txt').read_text(encoding='utf-8').split('\n')
+
+    init_sql = ""
+    for item in order:
+        sql = pathlib.Path(item).read_text(encoding='utf-8')
+        init_sql += sql + "\n\n"
+
+    os.chdir('..')
+    file = open('zealotd/init.psql', 'w')
+    file.write(init_sql)
+    file.close()
+
+
+def build():
+    what =  sys.argv[2] if len(sys.argv) > 2 else 'all'
+    valid = {"cli", "all", "native", "server", "client", "docker", "database"}
+    if what not in valid:
+        print(f"Unknown build arg: {what}. \nUsage: ./zdev build [cli|server|client|docker|native|all]")
+        exit(1)
+    if what == "cli" or what == "all" or what == "native":
+        os.system("cd cli && go build -o ../bin/zl .")
+    if what == "server" or what == "all" or what == "native":
+        os.system("cd zealotd && go build -o ../bin/zealotd .")
+    if what == "client" or what == "all" or what == "native":
+        os.system("cd client && npm install && npm run build")
+    if what == "docker" or what == "all":
+        os.system("cd dev && docker buildx use multi && docker buildx bake -f zealot-compose.yml --push --no-cache")
+    if what == "database" or what == "all":
+        build_database()
+
+
+def run():
+    what =  sys.argv[2] if len(sys.argv) > 2 else 'all'
+    if what == "all":
+        print("Cannot run all, see usage")
+    elif what == "cli":
+        os.system("cd cli && go run .")
+    elif what == "server":
+        os.system("cd bin && ./server.run.sh")
+    elif what == "client_dev":
+        os.system("cd client && npm install && npm run dev")
+    else:
+        print(f"Unknown build arg: {what}\nUsage: ./zdev run [cli|server|client_dev]")
+        exit(1)
+    pass
+
+
+def redeploy():
+    what =  sys.argv[2] if len(sys.argv) > 2 else 'all'
+    if what == "all":
+        os.system("cd dev && docker stack rm zealot && docker compose -f zealot-compose.yml build && docker stack deploy -c zealot-compose.yml zealot")
+    if what == "server":
+        os.system("cd dev && docker compose -f zealot-compose.yml build && docker service update --force zealot_zealot")
+    else:
+        print(f"Unknown redeploy arg: {what}\nUsage: ./zdev redeploy [all|server]")
+
+
+def deploy():
+    os.system("cd dev && docker stack deploy -c zealot-compose.yml zealot")
+
+
+def fmt():
+    what = sys.argv[2] if len(sys.argv) > 2 else "all"
+    valid = {"all", "server", "client", "cli"}
+    if what not in valid:
+        print(f"Unknown arg {what}: \nUsage ./zdev fmt [{valid}]")
+    if what == "server" or what == "all":
+        os.system("cd zealotd && go fmt ./...")
+    if what == "cli" or what == "all":
+        os.system("cd cli && go fmt ./...")
+    if what == "client" or what == "all":
+        os.system("cd client && npm run lint:fix")
+    if what == "client-look":
+        os.system("cd client && npm run lint")
+
+def vet():
+    what = sys.argv[2] if len(sys.argv) > 2 else "all"
+    valid = {"all", "server", "client", "cli"}
+    if what not in valid:
+        print(f"Unknown arg {what}: \nUsage ./zdev fmt [{valid}]")
+    if what == "server" or what == "all":
+        print("---Running gosec---")
+        os.system("cd zealotd && gosec -quiet ./...")
+        print()
+        print("---Running Static Check---")
+        os.system("cd zealotd && staticcheck ./...")
+    if what == "cli" or what == "all":
+        print("---Running gosec---")
+        os.system("cd cli && gosec -quiet ./...")
+        print()
+        print("---Running Static Check---")
+        os.system("cd cli && staticcheck ./...")
+    if what == "client" or what == "all":
+        print("client not yet supported")
+
+commands = {
+    "build": build,
+    "run": run,
+    "redeploy": redeploy,
+    "deploy": deploy,
+    "fmt": fmt,
+    "vet": vet
+}
+
+def help():
+    print(f"Usage: ./zdev [{'|'.join(commands)}]")
+
+commands["help"] = help
+
+def main():
+    if len(sys.argv) == 1:
+        help()
+        exit(1)
+    
+    command = sys.argv[1]
+    if command in commands:
+        commands[command]()
+    else:
+        print(f'Unknown command: {command}. For help type zli help')
+        exit(1)
+
+main()

@@ -5,16 +5,34 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
+    "lint": "eslint --ext .js,.ts src",
+    "lint:fix": "eslint --ext .js,.ts src --fix",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.3",
+    "@eslint/js": "^9.39.1",
     "@types/luxon": "^3.7.1",
+    "@typescript-eslint/eslint-plugin": "^8.49.0",
+    "@typescript-eslint/parser": "^8.49.0",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "eslint-plugin-vue": "^10.6.2",
+    "globals": "^16.5.0",
     "mitt": "3.0.1",
+    "prettier": "^3.7.4",
     "typescript": "~5.9.3",
     "vite": "^7.1.7"
   },
   "dependencies": {
+    "@editorjs/code": "^2.9.3",
+    "@editorjs/delimiter": "^1.4.2",
+    "@editorjs/editorjs": "^2.31.0",
+    "@editorjs/header": "^2.8.8",
+    "@editorjs/list": "^2.0.9",
+    "@editorjs/quote": "^2.7.6",
     "luxon": "^3.7.2",
     "navigo": "^8.11.1"
   }

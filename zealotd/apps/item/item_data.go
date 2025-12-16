@@ -11,11 +11,11 @@ import (
 )
 
 type Item struct {
-	ItemID int `json:"item_id"`
-	Title string `json:"title"`
-	Content string `json:"content"`
-	Attributes map[string]any `json:"attributes"`
-	Types []itemtype.ItemType `json:"types"`
+	ItemID     int                 `json:"item_id"`
+	Title      string              `json:"title"`
+	Content    string              `json:"content"`
+	Attributes map[string]any      `json:"attributes"`
+	Types      []itemtype.ItemType `json:"types"`
 }
 
 const (
@@ -24,10 +24,10 @@ const (
 
 var (
 	acceptableAttributeColumns = map[string]int{
-		"value_int": 0,
+		"value_int":  0,
 		"value_date": 0,
 		"value_text": 0,
-		"value_num": 0,
+		"value_num":  0,
 	}
 )
 
@@ -71,7 +71,6 @@ func GetItemsByAttribute(key string, value interface{}, valueCol string, account
 // 	if _, ok := acceptableAttributeColumns[valueCol]; !ok {
 // 		return nil, fmt.Errorf("invalid column passed")
 // 	}
-
 
 // }
 
@@ -132,10 +131,10 @@ func addAttrsTypesToItems(rows *sql.Rows, err error, accountID int) ([]Item, err
 		var (
 			itemID int
 			key    string
-			vInt sql.NullInt64
-			vDate sql.NullTime
-			vText sql.NullString
-			vNum sql.NullFloat64
+			vInt   sql.NullInt64
+			vDate  sql.NullTime
+			vText  sql.NullString
+			vNum   sql.NullFloat64
 		)
 		if err := rows.Scan(&itemID, &key, &vInt, &vDate, &vText, &vNum); err != nil {
 			return nil, err
@@ -157,7 +156,7 @@ func addAttrsTypesToItems(rows *sql.Rows, err error, accountID int) ([]Item, err
 			it.Attributes[key] = vNum.Float64
 		}
 	}
-	
+
 	// Types
 	rows, err = web.Database.Query(`
 		select l.item_id, t.type_id, t.name, t.description
@@ -203,7 +202,7 @@ func AddItem(title string, account_id int) error {
 	values ($1, $2);
 	`
 
-	_, err := web.Database.Exec(query, title, account_id);
+	_, err := web.Database.Exec(query, title, account_id)
 	return err
 }
 
@@ -309,7 +308,6 @@ func UnassignItemType(itemID int, typeName string, accountID int) error {
 		return nil
 	}
 }
-
 
 func ScanRows(rows *sql.Rows, err error) ([]Item, error) {
 	if err != nil {

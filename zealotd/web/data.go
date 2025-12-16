@@ -1,13 +1,13 @@
 package web
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 	_ "github.com/lib/pq"
 	"os"
 	"strconv"
-	"context"
 	"time"
 )
 
@@ -126,7 +126,7 @@ func InitDatabaseIfEmpty(initSQL string) {
 		fmt.Printf("Database Init - Started.\n")
 
 		// Not initialized. Require 10 seconds max to initialize.
-		ctx, cancel := context.WithTimeout(context.Background(), 10 * time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		tx, err := Database.BeginTx(ctx, nil)

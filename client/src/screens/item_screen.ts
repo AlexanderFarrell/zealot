@@ -6,7 +6,13 @@ import AttributesView from "../components/attributes_view";
 import { router } from "../core/router";
 import API from "../api/api";
 import type ChipsInput from "../components/common/chips_input";
+import EditorJS, { type OutputData } from "@editorjs/editorjs";
 
+import Header from "@editorjs/header";
+import List from "@editorjs/list";
+import Quote from "@editorjs/quote";
+import Code from "@editorjs/code";
+import Delimiter from "@editorjs/delimiter";
 
 class ItemScreen extends HTMLElement {
     private _item: Item | null = null;
@@ -14,7 +20,8 @@ class ItemScreen extends HTMLElement {
     // Views
     private title_view!: HTMLHeadingElement;
     private attribute_view!: AttributesView;
-    private content_view!: HTMLTextAreaElement;
+    private content_view!: EditorJS;
+    // private content_view!: HTMLTextAreaElement;
     private item_types_view!: HTMLElement;
     private last_loaded_title: string | null = null;
 
@@ -69,11 +76,11 @@ class ItemScreen extends HTMLElement {
         </div>
         <div name="item_types" class="attribute"></div>
         <attributes-view></attributes-view>
-        <textarea name="content"></textarea>
+        <div id="content_holder"></div>
         `
         this.title_view = this.querySelector('[name="title"]')!;
         this.attribute_view = this.querySelector('attributes-view')!;
-        this.content_view = this.querySelector('[name="content"]')!;
+        // this.content_view = this.querySelector('[name="content"]')!;
         this.item_types_view = this.querySelector('[name="item_types"]')!;
 
         this.render_item_types_view();
@@ -100,14 +107,79 @@ class ItemScreen extends HTMLElement {
         // Attributes View
         this.attribute_view.item = this.item!;
 
+        let data: OutputData | undefined = undefined;
+        try {
+            data = JSON.parse(this.item.content) as OutputData;
+        } catch (e) {
+            console.error(e)
+        }
+
         // Content
-        this.content_view.value = this.item!.content;
-        this.content_view.addEventListener('input', () => {
-            this.item!.content = this.content_view.value;
-        })
-        this.content_view.addEventListener('blur', () => {
-            ItemAPI.update(this.item!.item_id, {content: this.item!.content});
-        })
+        this.content_view = new EditorJS({
+            holder: "content_holder",
+            // readOnly: !!opts.readOnly,
+            placeholder: "Write content here...",
+            data: data,
+            // data: this.item!.content,
+            // autofocus: !opts.readOnly,
+            inlineToolbar: ["bold", "italic", "link"],
+
+            tools: {
+            paragraph: {
+                // paragraph is built-in, no import needed
+
+            },
+            header: {
+                // @ts-ignore
+                class: Header,
+                inlineToolbar: true,
+                config: {
+                levels: [1, 2, 3, 4],
+                defaultLevel: 1,
+                },
+            },
+            list: {
+                class: List,
+                inlineToolbar: true,
+                config: {
+                defaultStyle: "unordered",
+                },
+            },
+            quote: {
+                class: Quote,
+                inlineToolbar: true,
+                config: {
+                quotePlaceholder: "Quote",
+                captionPlaceholder: "Source",
+                },
+            },
+            code: {
+                class: Code,
+            },
+            delimiter: {
+                class: Delimiter,
+            },
+            },
+
+            // Keep it predictable: no “random” pasting behavior surprises
+            // (You can loosen this later.)
+            // sanitize: undefined,
+
+            onChange: async () => {
+                let output = await this.content_view.save();
+                ItemAPI.update(this.item!.item_id, {content: JSON.stringify(output)})
+                // if (!opts.onChange) return;
+                // const data = await editor.save();
+                // opts.onChange(data);
+            },
+        });
+        // this.content_view.value = this.item!.content;
+        // this.content_view.addEventListener('input', () => {
+        //     this.item!.content = this.content_view.value;
+        // })
+        // this.content_view.addEventListener('blur', () => {
+        //     ItemAPI.update(this.item!.item_id, {content: this.item!.content});
+        // })
     }
 
     async render_item_types_view() {
