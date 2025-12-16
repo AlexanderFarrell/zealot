@@ -8,6 +8,8 @@ services:
      - "5434:5432"
     volumes:
      - zealot_data:/var/lib/postgresql/data
+    networks:
+     - zealot_net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U zealot"]
       interval: 5s
@@ -18,13 +20,19 @@ services:
     build:
       context: ./../zealotd
       dockerfile: Dockerfile
-    image: zealotd:latest
+      platforms:
+       - linux/amd64
+       - linux/arm64
+    # image: zealotd:latest
+    image: registry.alexanderfarrell.net/zealotd:latest
     depends_on:
      - db
      - redis
     env_file: .zealot.env
     ports:
      - "8082:8082"
+    networks:
+     - zealot_net
     # healthcheck:
     #   test: ["CMD", "wget", "--spider", "-q", "http://localhost:8082/health"]
     #   interval: 5s
@@ -37,6 +45,8 @@ services:
     command: ["redis-server"]
     ports:
      - "6379:6379"
+    networks:
+     - zealot_net
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -47,11 +57,21 @@ services:
     build: 
       context: ./../client
       dockerfile: Dockerfile
-    image: zealot-web:latest
+      platforms:
+       - linux/amd64
+       - linux/arm64
+    # image: zealot-web:latest
+    image: registry.alexanderfarrell.net/zealot-web:latest
     depends_on:
      - zealot
     ports:
      - "8080:80"
+    networks:
+     - zealot_net
     
 volumes:
   zealot_data:
+
+networks:
+  zealot_net:
+    external: true

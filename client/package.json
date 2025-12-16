@@ -27,6 +27,12 @@
     "vite": "^7.1.7"
   },
   "dependencies": {
+    "@editorjs/code": "^2.9.3",
+    "@editorjs/delimiter": "^1.4.2",
+    "@editorjs/editorjs": "^2.31.0",
+    "@editorjs/header": "^2.8.8",
+    "@editorjs/list": "^2.0.9",
+    "@editorjs/quote": "^2.7.6",
     "luxon": "^3.7.2",
     "navigo": "^8.11.1"
   }

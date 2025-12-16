@@ -43,7 +43,7 @@ def build():
     if what == "client" or what == "all" or what == "native":
         os.system("cd client && npm install && npm run build")
     if what == "docker" or what == "all":
-        os.system("cd dev && docker compose -f zealot-compose.yml build")
+        os.system("cd dev && docker buildx use multi && docker buildx bake -f zealot-compose.yml --push --no-cache")
     if what == "database" or what == "all":
         build_database()
 
