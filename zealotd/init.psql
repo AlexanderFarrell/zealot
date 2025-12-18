@@ -48,7 +48,23 @@ create table attribute (
     value_num real,
     value_int integer,
     value_date timestamptz,
+    value_item_id integer references item(item_id)
+        on delete cascade,
     primary key (item_id, key)
+);
+
+create table attribute_list_value (
+    alv_id serial primary key,
+    item_id integer not null references item(item_id)
+        on delete cascade,
+    key text not null,
+    ordinal int not null default 0,
+    value_text text,
+    value_num real,
+    value_int int,
+    value_date timestamptz,
+    value_item_id integer references item(item_id)
+        on delete cascade
 );
 
 create table attribute_kind (
@@ -59,7 +75,7 @@ create table attribute_kind (
     description text not null default '',
     base_type text not null check (
         base_type in 
-        ('integer', 'decimal', 'text', 'date', 'week', 'dropdown', 'boolean')
+        ('integer', 'decimal', 'text', 'date', 'week', 'dropdown', 'boolean', 'list', 'item')
     ),
     config jsonb not null default '{}'::jsonb,
 
@@ -71,10 +87,18 @@ create table attribute_kind (
     )
 );
 
-create index idx_attr_key_value_text on attribute (key, value_text);
-create index idx_attr_key_value_num on attribute (key, value_num);
-create index idx_attr_key_value_int on attribute (key, value_int);
-create index idx_attr_key_value_date on attribute (key, value_date);
+create index on attribute (key, value_text);
+create index on attribute (key, value_num);
+create index on attribute (key, value_int);
+create index on attribute (key, value_date);
+create index on attribute (key, value_item_id);
+
+create index on attribute_list_value (key, value_text);
+create index on attribute_list_value (key, value_int);
+create index on attribute_list_value (key, value_num);
+create index on attribute_list_value (key, value_date);
+create index on attribute_list_value (key, value_item_id);
+create index on attribute_list_value (item_id, key);
 
 create table item_type (
     type_id serial primary key,

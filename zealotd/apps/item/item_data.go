@@ -265,7 +265,7 @@ func AssignItemType(itemID int, typeName string, accountID int) error {
 	// Verify that all required fields are there
 	for _, key := range t.RequiredAttributeKeys {
 		found := false
-		for attrKey, _ := range item.Attributes {
+		for attrKey := range item.Attributes {
 			if attrKey == key {
 				found = true
 				break
