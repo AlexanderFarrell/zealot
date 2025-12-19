@@ -28,6 +28,7 @@ var (
 		"value_date": 0,
 		"value_text": 0,
 		"value_num":  0,
+		"value_item_id": 0,
 	}
 )
 

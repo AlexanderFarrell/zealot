@@ -1,15 +1,24 @@
 package attribute
 
 import (
+	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
-	"reflect"
 	// "encoding/json"
 )
 
-func prepareAttrValueFromKind(kind AttributeKind, raw interface{}) (column string, dbVal interface{}, err error) {
+type attributeListConfig struct {
+	ListType string `json:"list_type"`
+}
+
+type dropdownConfig struct {
+	Values []string `json:"values"`
+}
+
+func prepareAttrValueFromKind(kind *AttributeKind, raw interface{}) (column string, dbVal interface{}, err error) {
 	switch kind.BaseType {
 	case "integer":
 		column = "value_int"
@@ -52,6 +61,9 @@ func prepareAttrValueFromKind(kind AttributeKind, raw interface{}) (column strin
 		if err != nil {
 			return "", nil, fmt.Errorf("invalid dropdown value for %s: %w", kind.Key, err)
 		}
+		if err := validateDropdownValue(kind, v); err != nil {
+			return "", nil, err
+		}
 		return column, v, nil
 	case "boolean":
 		column = "value_int"
@@ -72,18 +84,16 @@ func prepareAttrValueFromKind(kind AttributeKind, raw interface{}) (column strin
 	}
 }
 
-// func prepareListFromKind(kind *AttributeKind, raw any) (string, any, error) {
-// 	// Figure out if the config constrains the type
-// 	if kind == nil {
-// 		return "", nil, fmt.Errorf("type is null")
-// 	}
+func prepareListItemValue(kind *AttributeKind, raw interface{}) (string, interface{}, error) {
+	var cfg attributeListConfig
+	if len(kind.Config) > 0 {
+		if err := json.Unmarshal(kind.Config, &cfg); err != nil {
+			return "", nil, fmt.Errorf("invalid list config for %s: %w", kind.Key, err)
+		}
+	}
 
-// 	col := "value_text"
-// 	var cfg map[string]any
-// 	if err := json.Unmarshal(kind.Config, &cfg); err != nil {
-		
-// 	}
-// }
+	return prepareAttrValueFromKind(kind, raw)
+}
 
 func inferColumnFromValue(value interface{}) (string, interface{}) {
 	column := "value_text"
@@ -273,4 +283,26 @@ func toListAny(raw interface{}) ([]any, error) {
 		// For scalars, do array of 1 element
 		return []any{vv}, nil
 	}
+}
+
+func validateDropdownValue(kind *AttributeKind, value string) error {
+	if len(kind.Config) == 0 {
+		return nil
+	}
+
+	var cfg dropdownConfig
+	if err := json.Unmarshal(kind.Config, &cfg); err != nil {
+		return fmt.Errorf("invalid dropdown config for %s: %w", kind.Key, err)
+	}
+
+	if len(cfg.Values) == 0 {
+		return nil
+	}
+
+	for _, v := range cfg.Values {
+		if v == value {
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid dropdown value %q for %s", value, kind.Key)
 }
