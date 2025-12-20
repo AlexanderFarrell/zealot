@@ -1,9 +1,8 @@
-class AnalysisScreen extends HTMLElement {
-    connectedCallback() {
-        this.innerHTML = "<h1>Analysis</h1>"
-    }
+import { BaseElementEmpty } from "../components/common/base_element";
 
-    disconnectedCallback() {
+class AnalysisScreen extends BaseElementEmpty {
+    render() {
+        this.innerHTML = "<h1>Analysis</h1>"
     }
 }
 

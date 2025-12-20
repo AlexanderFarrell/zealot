@@ -2,7 +2,7 @@ import ItemAPI, { type Item } from "../api/item";
 import { events } from "../core/events";
 import DeleteIcon from "../assets/icon/delete.svg";
 import { item_attribute_view } from "../components/sidebars/item_attributes_view";
-import AttributesView from "../components/attributes_view";
+import AttributesView from "../components/item/attributes_view";
 import { router } from "../core/router";
 import API from "../api/api";
 import type ChipsInput from "../components/common/chips_input";
@@ -13,59 +13,15 @@ import List from "@editorjs/list";
 import Quote from "@editorjs/quote";
 import Code from "@editorjs/code";
 import Delimiter from "@editorjs/delimiter";
+import BaseElement from "../components/common/base_element";
 
-class ItemScreen extends HTMLElement {
-    private _item: Item | null = null;
-
-    // Views
-    private title_view!: HTMLHeadingElement;
-    private attribute_view!: AttributesView;
-    private content_view!: EditorJS;
-    // private content_view!: HTMLTextAreaElement;
-    private item_types_view!: HTMLElement;
+class ItemScreen extends BaseElement<Item> {
     private last_loaded_title: string | null = null;
 
-    public set item(value: Item) {
-        this._item = value;
-        this.render()
-    }
-
-    public get item(): Item | null {
-        return this._item;
-    }
-
-    public async LoadItem(title: string) {
-        this.last_loaded_title = title;
-        try {
-            this.item = await ItemAPI.get_by_title(title);
-        } catch (e) {
-            this.innerHTML = "<div class='error'>Error loading item</div>";
-        }
-    }
-
-    connectedCallback() {
-        this.innerHTML = "Loading..."
-    }
-
-    disconnectedCallback() {
-    }
 
     async render() {
-        if (this.item == null) {
-            this.innerHTML = `That item doesn't exist.`
-            if (this.last_loaded_title) {
-                this.innerHTML += '<button>Create it?</button>'
-            }
-            this.querySelector('button')?.addEventListener('click', async () => {
-                let item = {
-                    title: this.last_loaded_title!,
-                    content: '',
-                    item_id: -1
-                }
-                await API.item.add(item)
-                this.item = await API.item.get_by_title(this.last_loaded_title!);
-            })
-
+        if (this.data == null) {
+            this.render_empty_screen()
             return;
         }
 
@@ -78,44 +34,84 @@ class ItemScreen extends HTMLElement {
         <attributes-view></attributes-view>
         <div id="content_holder"></div>
         `
-        this.title_view = this.querySelector('[name="title"]')!;
-        this.attribute_view = this.querySelector('attributes-view')!;
-        // this.content_view = this.querySelector('[name="content"]')!;
-        this.item_types_view = this.querySelector('[name="item_types"]')!;
 
-        this.render_item_types_view();
+        this.setup_title_view();
+        this.setup_types_view();
+        this.setup_attributes_view();
+        this.setup_content_view();
+    }
 
-        // Title
-        this.title_view.contentEditable = 'true';
-        this.title_view.innerText = this.item!.title;
-        this.title_view.addEventListener('input', () => {
-            this.item!.title = this.title_view.textContent;
+
+    async setup_title_view() {
+        let title = this.querySelector('[name="title"]')! as HTMLHeadingElement;        
+        title.innerText = this.data!.title;
+        title.addEventListener('input', () => {
+            this.data!.title = title.textContent;
         })
-        this.title_view.addEventListener('blur', () => {
-            ItemAPI.update(this.item!.item_id, {title: this.item!.title})
-        })
-
-        // Delete Button
+        title.addEventListener('blur', () => {
+            ItemAPI.update(this.data!.item_id, {title: this.data!.title})
+        })        
         let delete_button = this.querySelector('[name="delete_button"]')!;
         delete_button.addEventListener('click', async () => {
             if (confirm("Are you sure you want to delete this?")) {
-                await ItemAPI.remove(this.item!.item_id)
+                await ItemAPI.remove(this.data!.item_id)
                 router.navigate('/')
             }
         })
+    }
 
-        // Attributes View
-        this.attribute_view.item = this.item!;
 
+    async setup_attributes_view() {
+        let attribute_view = this.querySelector('attributes-view')! as AttributesView;
+        attribute_view.init(this.data!);
+    }
+
+
+    async setup_types_view() {
+        let types_view = this.querySelector('[name="item_types"]')!;
+        types_view.innerHTML = `
+        <input disabled value="Types">
+        <chips-input></chips-input>
+        <div style="visibility: hidden;"><img src="${DeleteIcon}"</div>
+        `
+        let input = types_view.querySelector('chips-input')! as ChipsInput;
+
+        input.set_value(this.data!.types!.map(it => it.name));
+
+        input.addEventListener('chips-add', (e) => {
+            let items = e.detail.items;
+            try {
+                items.forEach((item) => {
+                    API.item.assign_type(this.data!.item_id, item)
+                })
+            } catch (e) {
+                console.error(e)
+            }
+        })
+
+        input.addEventListener('chips-remove', (e) => {
+            let items = e.detail.items;
+            try {
+                items.forEach(item => {
+                    API.item.unassign_type(this.data!.item_id, item)
+                })
+            } catch (e) {
+                console.error(e)
+            }
+        })
+    }    
+    
+    
+    async setup_content_view() {
         let data: OutputData | undefined = undefined;
         try {
-            data = JSON.parse(this.item.content) as OutputData;
+            data = JSON.parse(this.data!.content) as OutputData;
         } catch (e) {
             console.error(e)
         }
 
         // Content
-        this.content_view = new EditorJS({
+        let content_view = new EditorJS({
             holder: "content_holder",
             // readOnly: !!opts.readOnly,
             placeholder: "Write content here...",
@@ -161,56 +157,36 @@ class ItemScreen extends HTMLElement {
             },
             },
 
-            // Keep it predictable: no “random” pasting behavior surprises
-            // (You can loosen this later.)
-            // sanitize: undefined,
-
             onChange: async () => {
-                let output = await this.content_view.save();
-                ItemAPI.update(this.item!.item_id, {content: JSON.stringify(output)})
-                // if (!opts.onChange) return;
-                // const data = await editor.save();
-                // opts.onChange(data);
+                let output = await content_view.save();
+                ItemAPI.update(this.data!.item_id, {content: JSON.stringify(output)})
             },
         });
-        // this.content_view.value = this.item!.content;
-        // this.content_view.addEventListener('input', () => {
-        //     this.item!.content = this.content_view.value;
-        // })
-        // this.content_view.addEventListener('blur', () => {
-        //     ItemAPI.update(this.item!.item_id, {content: this.item!.content});
-        // })
+    }    
+    
+    async render_empty_screen() {
+        this.innerHTML = `That item doesn't exist.`
+        if (this.last_loaded_title) {
+            this.innerHTML += '<button>Create it?</button>'
+        }
+        this.querySelector('button')?.addEventListener('click', async () => {
+            let item = {
+                title: this.last_loaded_title!,
+                content: '',
+                item_id: -1
+            }
+            await API.item.add(item)
+            this.data = await API.item.get_by_title(this.last_loaded_title!);
+        })
     }
-
-    async render_item_types_view() {
-        this.item_types_view.innerHTML = `
-        <input disabled value="Types">
-        <chips-input></chips-input>
-        <div style="visibility: hidden;"><img src="${DeleteIcon}"</div>
-        `
-        let input = this.item_types_view.querySelector('chips-input')! as ChipsInput;
-
-        input.set_value(this.item!.types!.map(it => it.name));
-
-        input.on_add((items: string[]) => {
-            try {
-                items.forEach((item) => {
-                    API.item.assign_type(this.item!.item_id, item)
-                })
-            } catch (e) {
-                console.error(e)
-            }
-        })
-
-        input.on_remove((items: string[]) => {
-            try {
-                items.forEach(item => {
-                    API.item.unassign_type(this.item!.item_id, item)
-                })
-            } catch (e) {
-                console.error(e)
-            }
-        })
+    
+    public async LoadItem(title: string) {
+        this.last_loaded_title = title;
+        try {
+            this.data = await ItemAPI.get_by_title(title);
+        } catch (e) {
+            this.innerHTML = "<div class='error'>Error loading item</div>";
+        }
     }
 }
 

@@ -71,11 +71,13 @@ class TypeSettingsScreen extends HTMLElement {
                     API.item.Types.update(item_type.type_id!, {description: item_type.description})
                     this.refresh();
                 })
-                attributes_input.on_add((items: string[]) => {
+                attributes_input.addEventListener('chips-add', (e) => {
+                    let items = e.detail.items;
                     item_type.required_attribute_keys!.push(...items);
                     API.item.Types.assign(items, item_type.name);
                 })
-                attributes_input.on_remove((items: string[]) => {
+                attributes_input.addEventListener('chips-remove', (e) => {
+                    let items = e.detail.items;
                     item_type.required_attribute_keys = item_type.required_attribute_keys!.filter((i => {
                         return !(i in items)
                     }))

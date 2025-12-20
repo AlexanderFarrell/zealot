@@ -44,6 +44,34 @@ func GetAttributeForItem(item_id int, account_id int, key string) (any, error) {
 	return getListAttributeForItem(item_id, account_id, key)
 }
 
+func GetAttributeKeysForItem(itemID int, accountID int) (map[string]bool, error) {
+	query := `
+		select key
+		from attribute
+		where item_id = (select item_id from item where item_id=$1 and account_id=$2)
+		union
+		select key
+		from attribute_list_value
+		where item_id = (select item_id from item where item_id=$1 and account_id=$2);
+	`
+	rows, err := web.Database.Query(query, itemID, accountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	keys := make(map[string]bool)
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return nil, err
+		}
+		keys[key] = true
+	}
+	return keys, nil
+}
+
+
 func getScalarAttributesForItem(item_id int, account_id int) (map[string]any, error) {
 	query := `
 	select key, value_text, value_num, value_int, value_date, value_item_id
@@ -274,7 +302,7 @@ func scanAttributes(rows *sql.Rows, err error) (map[string]any, error) {
 			valueItemID *int64
 		)
 
-		if err := rows.Scan(&key, &valueText, &valueNum, &valueInt, &valueDate); err != nil {
+		if err := rows.Scan(&key, &valueText, &valueNum, &valueInt, &valueDate, &valueItemID); err != nil {
 			return nil, err
 		}
 		switch {

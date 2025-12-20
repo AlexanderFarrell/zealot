@@ -1,12 +1,31 @@
 import CloseIcon from "../../assets/icon/close.svg";
 
+type ChipsAddEvent = CustomEvent<{items: string[]}>;
+type ChipsRemoveEvent = CustomEvent<{items: string[]}>;
+
+declare global {
+    interface HTMLElementEventMap {
+        "chips-add": ChipsAddEvent,
+        "chips-remove": ChipsRemoveEvent
+    }
+}
+
 class ChipsInput extends HTMLElement {
     private items_container!: HTMLDivElement;
     private items: string[] = [];
     private input!: HTMLInputElement;
-    private on_add_listeners: Set<(items: string[]) => void> = new Set();
-    private on_remove_listeners: Set<(items: string[]) => void> = new Set();
+    // private on_add_listeners: Set<(items: string[]) => void> = new Set();
+    // private on_remove_listeners: Set<(items: string[]) => void> = new Set();
     private enforce_unique: boolean = true;
+
+    public get value(): string[] {
+        return this.items;
+    }
+
+    public set value(v: string[]) {
+        this.items = v;
+        this.dispatchEvent(new Event('change', {bubbles: true}));
+    }
 
     connectedCallback() {
         this.refresh()
@@ -16,14 +35,14 @@ class ChipsInput extends HTMLElement {
 
     }
 
-    // Events
-    public on_add(func: (items: string[]) => void) {
-        this.on_add_listeners.add(func);
-    }
+    // // Events
+    // public on_add(func: (items: string[]) => void) {
+    //     this.on_add_listeners.add(func);
+    // }
 
-    public on_remove(func: (items: string[]) => void) {
-        this.on_remove_listeners.add(func)
-    }
+    // public on_remove(func: (items: string[]) => void) {
+    //     this.on_remove_listeners.add(func)
+    // }
 
     add_items(...items: string[]) {
         if (this.enforce_unique) {
@@ -37,9 +56,9 @@ class ChipsInput extends HTMLElement {
         this.items.push(...items)
         this.refresh();
 
-        this.on_add_listeners.forEach(listener => {
-            listener(items)
-        })
+        this.dispatchEvent(new CustomEvent('chips-add', {
+            detail: {items}
+        }))
     }
 
     remove_items(...items: string[]) {
@@ -51,9 +70,9 @@ class ChipsInput extends HTMLElement {
         })
         this.refresh();
 
-        this.on_remove_listeners.forEach(listener => {
-            listener(items)
-        })
+        this.dispatchEvent(new CustomEvent('chips-remove', {
+            detail: {items}
+        }));
     }
 
     private refresh() {
@@ -97,10 +116,10 @@ class ChipsInput extends HTMLElement {
     remove_item_by_index(index: number) {
         let item = this.items[index];
         this.items.splice(index, 1);
-        this.refresh();
-        this.on_remove_listeners.forEach(listener => {
-            listener([item])
-        })
+        this.refresh();       
+        this.dispatchEvent(new CustomEvent('chips-remove', {
+            detail: {items: [item]}
+        }));
     }
 
     set_value(items: string[]) {

@@ -32,12 +32,13 @@ img {
 }
 
 h1, h2, h3, h4, h5 {
-  padding: 10px 5px;
+  padding: 10px 0px;
   margin: 0;
 }
 
-input, textarea {
+input, textarea, select {
   width: 100%;
+  height: 100%;
   background-color: var(--background-dark);
   color: white;
   outline: none;

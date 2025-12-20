@@ -20,7 +20,6 @@ var updatableFieldsAttrKind = map[string]int{
 	"key":         0,
 	"description": 0,
 	"base_type":   0,
-	"config":      0,
 }
 
 func GetAttributeKind(key string, accountID int) (*AttributeKind, error) {
@@ -47,6 +46,32 @@ func GetAttributeKind(key string, accountID int) (*AttributeKind, error) {
 	return &kinds[0], nil
 }
 
+func GetAttributeKindByID(kindID int, accountID int) (*AttributeKind, error) {
+	query := `
+	select kind_id, key, description, base_type, config, is_system
+	from attribute_kind
+	where kind_id=$1
+	and account_id=$2
+	and is_system=false
+	limit 1;
+	`
+
+	rows, err := web.Database.Query(query, kindID, accountID)
+	if err != nil {
+		return nil, err
+	}
+
+	kinds, err := scanAttributeKinds(rows, err)
+	if err != nil {
+		return nil, err
+	}
+	if len(kinds) == 0 {
+		return nil, nil
+	}
+
+	return &kinds[0], nil
+}
+
 func GetAllAttributeKinds(accountID int) ([]AttributeKind, error) {
 	query := `
 	select kind_id, key, description, base_type, config, is_system
@@ -59,18 +84,48 @@ func GetAllAttributeKinds(accountID int) ([]AttributeKind, error) {
 }
 
 func AddAttributeKind(kind *AttributeKind, accountID int) error {
+	err := validateAttributeKindConfig(kind)
+	if err != nil {
+		return err
+	}
+
 	query := `
 	insert into attribute_kind (account_id, key, description, base_type, config, is_system)
 	values ($1, $2, $3, $4, $5, false);
 	`
 
-	_, err := web.Database.Exec(query, accountID, kind.Key, kind.Description, kind.BaseType,
+	_, err = web.Database.Exec(query, accountID, kind.Key, kind.Description, kind.BaseType,
 		kind.Config)
 
 	if err != nil {
 		return fmt.Errorf("error adding attribute kind: %w", err)
 	}
 	return nil
+}
+
+func UpdateAttributeKindConfig(kindID int, accountID int, config json.RawMessage) error {
+	kind, err := GetAttributeKindByID(kindID, accountID)
+	if err != nil {
+		return err
+	}
+	if kind == nil {
+		return fmt.Errorf("attribute kind not found")
+	}
+
+	kind.Config = config
+	if err := validateAttributeKindConfig(kind); err != nil {
+		return err
+	}
+
+	query := `
+	update attribute_kind
+	set config=$1
+	where kind_id=$2
+	and account_id=$3
+	and is_system=false;
+	`
+	_, err = web.Database.Exec(query, config, kindID, accountID)
+	return err
 }
 
 func DeleteAttributeKind(kindID int, accountID int) error {

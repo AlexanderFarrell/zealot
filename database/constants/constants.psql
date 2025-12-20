@@ -1,11 +1,19 @@
-insert into attribute_kind (key, description, base_type, config, is_system)
+insert into attribute_kind (key, description, base_type, is_system, config)
 values 
-('Date', 'When to do something.', 'date', '{}'::jsonb, true),
-('Status', 'Where is the current item?', 'dropdown', '{}'::jsonb, true),
-('Week', 'What week to do something?', 'week', '{}'::jsonb, true),
-('Priority', 'How important is something?', 'integer', '{}'::jsonb, true),
-('Month', 'Tenative month something is scheduled on', 'integer', '{}'::jsonb, true),
-('Year', 'Tenative year something is scheduled on', 'integer', '{}'::jsonb, true);
+('Date', 'When to do something.', 'date', true,
+    '{}'::jsonb),
+('Status', 'Where is the current item?', 'dropdown', true,
+    '{"values": ["To Do", "Specify", "Working",
+                "Hold", "Complete", "Rejected",
+                "Blocked"]}'::jsonb),
+('Week', 'What week to do something?', 'week', true,
+    '{}'::jsonb),
+('Priority', 'How important is something?', 'integer', true,
+    '{"min": 1, "max": 10}'::jsonb),
+('Month', 'Tenative month something is scheduled on', 'integer', true,
+    '{}'::jsonb),
+('Year', 'Tenative year something is scheduled on', 'integer', true,
+    '{}'::jsonb);
 
 insert into item_type_attribute_kind_link (attribute_kind_id, item_type_id)
 values 
