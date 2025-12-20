@@ -151,6 +151,8 @@ class AttributeItemView extends BaseElement<AttributeItem> {
 		else if (kind.base_type == 'boolean') {
 			value_input = document.createElement('input');
 			value_input.type = 'checkbox';
+			(value_input as HTMLInputElement).checked = 
+				attr.value === true || attr.value === 1;
 		}
 		else if (kind.base_type == 'list') {
 			value_input = new ChipsInput();
@@ -180,7 +182,11 @@ class AttributeItemView extends BaseElement<AttributeItem> {
 		value_input.setAttribute('name', 'value');
 
 		value_input?.addEventListener('change', async () => {
-			attr.value = value_input!.value;
+			if (kind && kind!.base_type == "boolean") {
+				attr.value = (value_input as HTMLInputElement).checked;
+			} else {
+				attr.value = value_input!.value;
+			}
 			if (!attr.is_new) {
 				await API.item.Attributes.set_value(attr.item_id, attr.key, attr.value);
 			}

@@ -1,0 +1,27 @@
+{
+  "name": "Zealot Productivity App",
+  "short_name": "Zealot",
+  "description": "Organize, schedule and prioritize goals.",
+  "icons": [
+    {
+      "src": "./zealot.png",
+      "sizes": "256x256",
+      "type": "image/png"
+    }
+  ],
+  "display": "minimal-ui",
+  "theme_color": "#4f4fb7",
+  "background_color": "#343479",
+  "lang": "en-UK",
+  "shortcuts": [
+    {
+      "name": "Daily Planner",
+      "url": "/planner/daily"
+    },
+    {
+      "name": "Weekly Planner",
+      "url": "/planner/weekly"
+    }
+  ],
+  "start_url": "/"
+}

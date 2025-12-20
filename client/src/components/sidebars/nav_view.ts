@@ -2,13 +2,15 @@ import API from "../../api/api";
 import type { Item } from "../../api/item";
 import { router } from "../../core/router";
 import BaseElement, { BaseElementEmpty } from "../common/base_element";
-
+import ArrowIcon from "../../assets/icon/expand.svg";
 
 class NavViewItem extends BaseElement<Item> {
     render() {
         this.innerHTML = `
         <div style="display: grid; grid-template-columns: auto 1fr;">
-            <div name="expand_button"> > </div>
+            <div name="expand_button">
+                <img src="${ArrowIcon}" style="width: 1em">
+            </div>
             <div name="title"></div>
         </div>
         <div name="children" style="padding-left: 1em"></div>
@@ -17,9 +19,10 @@ class NavViewItem extends BaseElement<Item> {
 
         let expand_button = this.querySelector('[name="expand_button"]')!;
         let title = this.querySelector('[name="title"]')! as HTMLDivElement;
-        let child_view = this.querySelector('[name="chidren"]')!;
+        let child_view = this.querySelector('[name="children"]')!;
 
-        title.innerText = this.data!.title;
+        let icon: string = this.data!.attributes!['Icon'] || "";
+        title.innerText = icon + " " + this.data!.title;
         title.addEventListener('click', () => {
             router.navigate(`/item/${this.data!.title}`)
         })
@@ -54,5 +57,6 @@ class NavView extends BaseElementEmpty {
 }
 
 customElements.define('nav-view', NavView)
+customElements.define('nav-view-item', NavViewItem)
 
 export default NavView;

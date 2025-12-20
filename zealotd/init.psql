@@ -177,7 +177,9 @@ values
 ('Year', 'Tentative year something is scheduled on', 'integer', true,
     '{}'::jsonb),
 ('Root', 'Does the item appear at the top of the nav view?', 'boolean', true,
-    '{}'::jsonb);
+    '{}'::jsonb),
+('Parent', 'Creates hierarchical relationships', 'list', true,
+    '{"list_type": "text"}');
 
 insert into item_type_attribute_kind_link (attribute_kind_id, item_type_id)
 values 

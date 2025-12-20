@@ -23,8 +23,8 @@ services:
       # platforms:
       #  - linux/amd64
       #  - linux/arm64
-    image: zealotd:latest
-    # image: registry.alexanderfarrell.net/zealotd:latest
+    # image: zealotd:latest
+    image: registry.alexanderfarrell.net/zealotd:latest
     depends_on:
      - db
      - redis
@@ -60,8 +60,8 @@ services:
       # platforms:
       #  - linux/amd64
       #  - linux/arm64
-    image: zealot-web:latest
-    # image: registry.alexanderfarrell.net/zealot-web:latest
+    # image: zealot-web:latest
+    image: registry.alexanderfarrell.net/zealot-web:latest
     depends_on:
      - zealot
     ports:

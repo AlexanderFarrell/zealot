@@ -15,6 +15,7 @@ import Code from "@editorjs/code";
 import Delimiter from "@editorjs/delimiter";
 import BaseElement from "../components/common/base_element";
 import PlanView from "../components/plan_view";
+import type AddItemScoped from "../components/add_item_scope";
 
 class ItemScreen extends BaseElement<Item> {
     private last_loaded_title: string | null = null;
@@ -34,14 +35,23 @@ class ItemScreen extends BaseElement<Item> {
         <div name="item_types" class="attribute"></div>
         <attributes-view></attributes-view>
         <div id="content_holder"></div>
-        <div name="children_container"></div>
+        <div name="children">
+            <add-item-scoped></add-item-scoped>
+            <div name="children_container"></div>
+        </div>
         `
 
         this.setup_title_view();
         this.setup_types_view();
         this.setup_attributes_view();
         this.setup_content_view();
-        this.render_children()
+        this.render_children();        
+        
+        let add_child = this.querySelector('add-item-scoped')! as AddItemScoped;
+        add_child.init({
+            Parent: [this.data!.title]
+        })
+        add_child.listen_on_submit(() => {this.render_children()})
     }
 
 
@@ -170,6 +180,8 @@ class ItemScreen extends BaseElement<Item> {
     async render_children() {
         let item = this.data!;
         let container = this.querySelector('[name="children_container"]')!;
+
+
         container.innerHTML = "";
 
         // Get children

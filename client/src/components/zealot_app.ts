@@ -1,6 +1,6 @@
 import AuthAPI from '../api/auth.ts';
 import { events } from '../core/events';
-import { CTRL_OR_META_KEY, Hotkey, SHIFT_KEY } from '../core/hotkeys';
+import { ALT_KEY, CTRL_OR_META_KEY, Hotkey, SHIFT_KEY } from '../core/hotkeys';
 import { router, setup_router } from '../core/router.ts';
 import commands from './../core/command_runner.ts';
 import AddItemModal from './add_item_modal';
@@ -40,7 +40,7 @@ class ZealotApp extends HTMLElement {
                 router.navigate('/');
             });
         commands.register('Search Items', 
-            [new Hotkey('k', [CTRL_OR_META_KEY, SHIFT_KEY])],
+            [new Hotkey('q', [ALT_KEY, CTRL_OR_META_KEY])],
             () => {
                 let left_sidebar = document.querySelector('#left-side-bar')!;
                 left_sidebar.innerHTML = "<search-view></search-view>";
