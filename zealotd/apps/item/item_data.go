@@ -28,6 +28,7 @@ var (
 		"value_date": 0,
 		"value_text": 0,
 		"value_num":  0,
+		"value_item_id": 0,
 	}
 )
 
@@ -57,11 +58,24 @@ func GetItemsByAttribute(key string, value interface{}, valueCol string, account
 	}
 
 	query := fmt.Sprintf(`%s
-	inner join attribute a on a.item_id = i.item_id
 	where i.account_id=$1
-	and a.key=$2
-	and a.%s=$3;
-	`, ItemQuery, valueCol)
+	and (
+		exists (
+			select 1
+			from attribute a
+			where a.item_id = i.item_id
+			  and a.key = $2
+			  and a.%s  = $3
+		)
+		or exists (
+			select 1
+			from attribute_list_value alv
+			where alv.item_id = i.item_id
+			and alv.key = $2
+			and alv.%s = $3
+		)
+	);
+	`, ItemQuery, valueCol, valueCol)
 
 	rows, err := web.Database.Query(query, accountID, key, value)
 	return addAttrsTypesToItems(rows, err, accountID)
@@ -117,7 +131,7 @@ func addAttrsTypesToItems(rows *sql.Rows, err error, accountID int) ([]Item, err
 
 	// Attributes
 	rows, err = web.Database.Query(`
-		select item_id, key, value_int, value_date, value_text, value_num
+		select item_id, key, value_int, value_date, value_text, value_num, value_item_id
 		from attribute
 		where item_id = ANY($1)
 	`, pq.Array(ids))
@@ -135,8 +149,9 @@ func addAttrsTypesToItems(rows *sql.Rows, err error, accountID int) ([]Item, err
 			vDate  sql.NullTime
 			vText  sql.NullString
 			vNum   sql.NullFloat64
+			vItem  sql.NullInt64
 		)
-		if err := rows.Scan(&itemID, &key, &vInt, &vDate, &vText, &vNum); err != nil {
+		if err := rows.Scan(&itemID, &key, &vInt, &vDate, &vText, &vNum, &vItem); err != nil {
 			return nil, err
 		}
 
@@ -154,6 +169,68 @@ func addAttrsTypesToItems(rows *sql.Rows, err error, accountID int) ([]Item, err
 			it.Attributes[key] = vText.String
 		case vNum.Valid:
 			it.Attributes[key] = vNum.Float64
+		case vItem.Valid:
+			it.Attributes[key] = vItem.Int64
+		}
+	}
+
+	// Attributes (list)
+	rows, err = web.Database.Query(`
+	select item_id, key, value_int, value_date, value_text, value_num, value_item_id, ordinal
+	from attribute_list_value
+	where item_id = ANY($1)
+	order by item_id, key, ordinal
+	`, pq.Array(ids))
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			itemID int
+			key    string
+			vInt   sql.NullInt64
+			vDate  sql.NullTime
+			vText  sql.NullString
+			vNum   sql.NullFloat64
+			vItem  sql.NullInt64
+			ordinal int
+		)
+		if err := rows.Scan(&itemID, &key, &vInt, &vDate, &vText, &vNum, &vItem, &ordinal); err != nil {
+			return nil, err
+		}
+
+		it := index[itemID]
+		if it == nil {
+			continue
+		}
+
+		var v any
+		switch {
+		case vInt.Valid:
+			v = vInt.Int64
+		case vDate.Valid:
+			v = vDate.Time
+		case vText.Valid:
+			v = vText.String
+		case vNum.Valid:
+			v = vNum.Float64
+		case vItem.Valid:
+			v = vItem.Int64
+		}
+
+		existing, ok := it.Attributes[key]
+		if !ok {
+			it.Attributes[key] = []any{v}
+			continue
+		}
+
+		if list, ok := existing.([]any); ok {
+			it.Attributes[key] = append(list, v)
+		} else {
+			it.Attributes[key] = []any{existing, v}
 		}
 	}
 
@@ -219,7 +296,9 @@ func AddItem2(item *Item, account_id int) error {
 
 	// Add attributes
 	for attr_key, attr_value := range item.Attributes {
-		attribute.SetAttributeForItem(item.ItemID, account_id, attr_key, attr_value)
+		if err := attribute.SetAttributeForItem(item.ItemID, account_id, attr_key, attr_value); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -255,23 +334,14 @@ func AssignItemType(itemID int, typeName string, accountID int) error {
 		return fmt.Errorf("error getting item type")
 	}
 
-	// Get the item requested
-	item, err := GetItemByID(itemID, accountID)
+	// Verify that all required fields are there
+	keys, err := attribute.GetAttributeKeysForItem(itemID, accountID)
 	if err != nil {
-		fmt.Printf("Error getting item of id %d: %v\n", itemID, err)
-		return fmt.Errorf("error finding item")
+		return fmt.Errorf("error verifying required attributes for item: %d", itemID)
 	}
 
-	// Verify that all required fields are there
 	for _, key := range t.RequiredAttributeKeys {
-		found := false
-		for attrKey, _ := range item.Attributes {
-			if attrKey == key {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if !keys[key] {
 			return fmt.Errorf("item does not adhere to required attribute %s", key)
 		}
 	}

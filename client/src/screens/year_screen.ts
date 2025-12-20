@@ -60,7 +60,7 @@ class AnnualPlannerScreen extends BaseElement<DateTime> {
                 items_container.appendChild(view)
             })
             if (items.length == 0) {
-                items_container.innerHTML = "No items scheduled for this week"
+                items_container.innerHTML = "No items scheduled for this year"
             }
 
         } catch (e) {

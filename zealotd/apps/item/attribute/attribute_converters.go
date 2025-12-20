@@ -1,139 +1,50 @@
-package item
+package attribute
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
-	"zealotd/web"
+	// "encoding/json"
 )
 
-type AttributeKind struct {
-	KindID      int             `json:"kind_id"`
-	Key         string          `json:"key"`
-	Description string          `json:"description"`
-	BaseType    string          `json:"base_type"`
-	Config      json.RawMessage `json:"config"`
-	IsSystem    bool            `json:"is_system"`
-}
 
-func GetAttributeKind(key string, accountID int) (*AttributeKind, error) {
-	query := `
-	select kind_id, key, description, base_type, config, is_system
-	from attribute_kind
-	where key=$1
-	and (account_id = $2 or is_system)
-	limit 1;
-	`
-	rows, err := web.Database.Query(query, key, accountID)
-	if err != nil {
-		return nil, nil
-	}
 
-	kinds, err := scanAttributeKinds(rows, err)
-	if err != nil {
-		return nil, err
-	}
-	if len(kinds) == 0 {
-		return nil, nil
-	}
-
-	return &kinds[0], nil
-}
-
-func GetAllAttributeKinds(accountID int) ([]AttributeKind, error) {
-	query := `
-	select kind_id, key, description, base_type, config, is_system
-	from attribute_kind
-	where (account_id=$1 or is_system);
-	`
-
-	rows, err := web.Database.Query(query, accountID)
-	return scanAttributeKinds(rows, err)
-}
-
-func AddAttributeKind(kind *AttributeKind, accountID int) error {
-	query := `
-	insert into attribute_kind (account_id, key, description, base_type, config, is_system)
-	values ($1, $2, $3, $4, $5, false);
-	`
-
-	_, err := web.Database.Exec(query, accountID, kind.Key, kind.Description, kind.BaseType,
-		kind.Config)
-
-	if err != nil {
-		return fmt.Errorf("error adding attribute kind: %w", err)
-	}
-	return nil
-}
-
-func DeleteAttributeKind(kindID int, accountID int) error {
-	query := `
-	delete from attribute_kind
-	where account_id = $1
-	and kind_id = $2
-	and is_system=false;
-	`
-
-	_, err := web.Database.Exec(query, accountID, kindID)
-	if err != nil {
-		return fmt.Errorf("error removing attribute kind: %w", err)
-	}
-	return nil
-}
-
-func scanAttributeKinds(rows *sql.Rows, err error) ([]AttributeKind, error) {
-	if err != nil {
-		return nil, err
-	}
-	var attributeKinds []AttributeKind = make([]AttributeKind, 0)
-	for rows.Next() {
-		var kind AttributeKind
-		if err := rows.Scan(&kind.KindID, &kind.Key, &kind.Description, &kind.BaseType,
-			&kind.Config, &kind.IsSystem); err != nil {
-			return nil, err
-		}
-		attributeKinds = append(attributeKinds, kind)
-	}
-	return attributeKinds, nil
-}
-
-func prepareAttrValueFromKind(kind AttributeKind, raw interface{}) (column string, dbVal interface{}, err error) {
+func prepareAttrValueFromKind(kind *AttributeKind, raw interface{}) (column string, dbVal interface{}, err error) {
 	switch kind.BaseType {
 	case "integer":
 		column = "value_int"
 		v, err := toInt64(raw)
 		if err != nil {
-			return "", nil, fmt.Errorf("invalid integer value for %s: %w", kind.Key, &err)
+			return "", nil, fmt.Errorf("invalid integer value for %s: %v", kind.Key, &err)
 		}
 		return column, v, nil
 	case "decimal":
-		column = "value_float"
+		column = "value_num"
 		v, err := toFloat64(raw)
 		if err != nil {
-			return "", nil, fmt.Errorf("invalid decimal value for %s: %w", kind.Key, &err)
+			return "", nil, fmt.Errorf("invalid decimal value for %s: %v", kind.Key, &err)
 		}
 		return column, v, nil
 	case "text":
 		column = "value_text"
 		v, err := toString(raw)
 		if err != nil {
-			return "", nil, fmt.Errorf("invalid text value for %s: %w", kind.Key, err)
+			return "", nil, fmt.Errorf("invalid text value for %s: %v", kind.Key, err)
 		}
 		return column, v, nil
 	case "date":
 		column = "value_date"
 		v, err := toTime(raw)
 		if err != nil {
-			return "", nil, fmt.Errorf("invalid date value for %s: %w", kind.Key, err)
+			return "", nil, fmt.Errorf("invalid date value for %s: %v", kind.Key, err)
 		}
 		return column, v, nil
 	case "week":
 		column = "value_int"
-		weekCode, err := toWeekCode(raw)
+		weekCode, err := ToWeekCode(raw)
 		if err != nil {
 			return "", nil, fmt.Errorf("invalid week value for %s: %w", kind.Key, err)
 		}
@@ -144,6 +55,9 @@ func prepareAttrValueFromKind(kind AttributeKind, raw interface{}) (column strin
 		if err != nil {
 			return "", nil, fmt.Errorf("invalid dropdown value for %s: %w", kind.Key, err)
 		}
+		if err := validateDropdownValue(kind, v); err != nil {
+			return "", nil, err
+		}
 		return column, v, nil
 	case "boolean":
 		column = "value_int"
@@ -152,6 +66,69 @@ func prepareAttrValueFromKind(kind AttributeKind, raw interface{}) (column strin
 			return "", nil, fmt.Errorf("invalid boolean value for %s: %w", kind.Key, err)
 		}
 		return column, v, nil
+	case "item":
+		column = "value_item_id"
+		v, err := toInt64(raw)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid item id value for %s: %v", kind.Key, err)
+		}
+		return column, v, nil
+	default:
+		return "", nil, fmt.Errorf("unsupported base type %q for attribute %s", kind.BaseType, kind.Key)
+	}
+}
+
+func prepareListItemValue(kind *AttributeKind, raw interface{}) (string, interface{}, error) {
+	var cfg AttributeListConfig
+	if len(kind.Config) > 0 {
+		if err := json.Unmarshal(kind.Config, &cfg); err != nil {
+			return "", nil, fmt.Errorf("invalid list config for %s: %w", kind.Key, err)
+		}
+	}
+
+	switch cfg.ListType {
+	case "integer":
+		v, err := toInt64(raw)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid integer value for %s: %v", kind.Key, &err)
+		}
+		return "value_int", v, nil
+	case "decimal":
+		v, err := toFloat64(raw)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid decimal value for %s: %v", kind.Key, &err)
+		}
+		return "value_num", v, nil
+	case "text":
+		v, err := toString(raw)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid text value for %s: %v", kind.Key, err)
+		}
+		return "value_text", v, nil
+	case "date":
+		v, err := toTime(raw)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid date value for %s: %v", kind.Key, err)
+		}
+		return "value_date", v, nil
+	case "week":
+		weekCode, err := ToWeekCode(raw)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid week value for %s: %w", kind.Key, err)
+		}
+		return "value_int", weekCode, nil
+	case "boolean":
+		v, err := toBoolInt(raw)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid boolean value for %s: %w", kind.Key, err)
+		}
+		return "value_int", v, nil
+	case "item":
+		v, err := toInt64(raw)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid item id value for %s: %v", kind.Key, err)
+		}
+		return "value_item_id", v, nil
 	default:
 		return "", nil, fmt.Errorf("unsupported base type %q for attribute %s", kind.BaseType, kind.Key)
 	}
@@ -173,47 +150,17 @@ func inferColumnFromValue(value interface{}) (string, interface{}) {
 	case reflect.Float64, reflect.Float32:
 		column = "value_num"
 	case reflect.Bool:
-		column = "value_bool"
+		column = "value_int"
+		if b, ok := value.(bool); ok {
+			if b {
+				value = int64(1)
+			} else {
+				value = int64(0)
+			}
+		}
 	}
 	return column, value
 }
-
-func SetAttributeForItem(itemID int, accountID int, key string, value interface{}) error {
-	// Check if there is an attribute kind defined.
-	kind, err := GetAttributeKind(key, accountID)
-	if err != nil {
-		return err
-	}
-
-	var column string
-	var preparedValue interface{}
-
-	if kind != nil {
-		column, preparedValue, err = prepareAttrValueFromKind(*kind, value)
-		if err != nil {
-			return err
-		}
-	} else {
-		column, preparedValue = inferColumnFromValue(value)
-	}
-
-	query := fmt.Sprintf(`
-	insert into attribute (item_id, key, %s)
-	values (
-		(select item_id from item i where i.item_id=$1 and i.account_id=$2),
-		$3,
-		$4
-	)
-		on conflict (item_id, key)
-		do update 
-		set %s = $4;
-	`, column, column)
-
-	_, err = web.Database.Exec(query, itemID, accountID, key, preparedValue)
-	return err
-}
-
-// Converters
 
 func toInt64(v interface{}) (int64, error) {
 	switch vv := v.(type) {
@@ -273,7 +220,7 @@ func toString(v interface{}) (string, error) {
 func toBoolInt(v interface{}) (int, error) {
 	switch vv := v.(type) {
 	case bool:
-		if vv == true {
+		if vv {
 			return 1, nil
 		} else {
 			return 0, nil
@@ -322,8 +269,12 @@ func toTime(v interface{}) (time.Time, error) {
 	}
 }
 
-func toWeekCode(v interface{}) (int, error) {
+func ToWeekCode(v interface{}) (int, error) {
 	switch vv := v.(type) {
+	case int:
+		// year := vv / 100
+		// week := vv % 100
+		return vv, nil
 	case string:
 		if len(vv) != 8 {
 			break
@@ -342,3 +293,34 @@ func toWeekCode(v interface{}) (int, error) {
 	}
 	return 0, fmt.Errorf("incorrect format, please specify YYYY-W##")
 }
+
+func toListAny(raw interface{}) ([]any, error) {
+	switch vv := raw.(type) {
+	case []any:
+		return vv, nil
+	case []int:
+		out := make([]any, 0, len(vv))
+		for _, v := range vv {
+			out = append(out, v)
+		}
+		return out, nil
+	case []int64:
+		out := make([]any, 0, len(vv))
+		for _, v := range vv {
+			out = append(out, v)
+		}
+		return out, nil
+	case []string:
+		out := make([]any, 0, len(vv))
+		for _, v := range vv {
+			out = append(out, v)
+		}
+		return out, nil
+	case nil:
+		return []any{}, nil
+	default:
+		// For scalars, do array of 1 element
+		return []any{vv}, nil
+	}
+}
+

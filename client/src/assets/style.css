@@ -32,12 +32,13 @@ img {
 }
 
 h1, h2, h3, h4, h5 {
-  padding: 10px 5px;
+  padding: 10px 0px;
   margin: 0;
 }
 
-input, textarea {
+input, textarea, select, chips-input {
   width: 100%;
+  height: 100%;
   background-color: var(--background-dark);
   color: white;
   outline: none;
@@ -113,6 +114,9 @@ item-screen {
 
 chips-input {
   display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: flex-start;
 }
 chips-input [type="items"] {
   display: flex;
@@ -120,6 +124,11 @@ chips-input [type="items"] {
   gap: 5px;
 }
 chips-input input[type="text"] {
+  width: auto;
+  flex: 1 1 auto;
+  min-width: 160px;
+  height: auto;
+  /* min-height: 32px; */
 }
 
 .chip_item {
@@ -304,7 +313,32 @@ calendar-view > img {
     display: none;
 }
 
+.chip_item {
+  background-color: rgba(0,128,255,0.2);
+  padding: 0 2px;
+  border-radius: 3px;
+}
 
+.chip_item > button {
+  width: 1em;
+  height: 1em;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chip_item > button > img {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+
+chips-input > input {
+  background: none;
+  border: none;
+  padding: 0;
+}
 
 mobile-title-bar {
   display: none;
@@ -364,4 +398,121 @@ mobile-dropdown > img {
       grid-column: 3;
 
     }
+}
+
+
+
+
+/* === Visual Refresh: palette + surfaces + typography === */
+:root {
+  --bg-0: #1b2a44;
+  --bg-1: #223454;
+  --panel-0: #1f3050;
+  --panel-1: #263b63;
+  --panel-2: #2c4777;
+  --border-0: rgba(130, 170, 230, 0.25);
+  --text-0: #e7efff;
+  --text-1: #b8c7e6;
+  --accent-0: #60d3ff;
+  --accent-1: #7cf0c4;
+  --danger-0: #ff6b6b;
+  --shadow-0: 0 10px 30px rgba(12, 22, 40, 0.35);
+}
+
+body {
+  color: var(--text-0);
+  background:
+    radial-gradient(1200px 700px at 10% -10%, #2b4168 0%, rgba(43, 65, 104, 0) 60%),
+    radial-gradient(900px 600px at 90% 10%, #2f507f 0%, rgba(47, 80, 127, 0) 55%),
+    var(--bg-0);
+  font-family: "Space Grotesk", "Manrope", "Segoe UI", sans-serif;
+  letter-spacing: 0.2px;
+}
+
+h1, h2, h3 {
+  color: var(--text-0);
+  letter-spacing: 0.4px;
+}
+
+a, .result_view {
+  color: var(--accent-0);
+  text-decoration: none;
+}
+a:hover, .result_view:hover {
+  color: var(--accent-1);
+  text-decoration: underline;
+}
+
+/* Inputs / selects / chips */
+input, textarea, select, chips-input {
+  background-color: var(--panel-0);
+  border: 1px solid var(--border-0);
+  color: var(--text-0);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+  transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+}
+input::placeholder, textarea::placeholder {
+  color: var(--text-1);
+}
+input:focus, textarea:focus, select:focus, chips-input:focus-within {
+  border-color: rgba(124, 240, 196, 0.6);
+  box-shadow: 0 0 0 3px rgba(124, 240, 196, 0.15);
+  background-color: var(--panel-1);
+}
+
+/* Buttons */
+button {
+  background: linear-gradient(180deg, #3f6fb1 0%, #315a97 100%);
+  color: var(--text-0);
+  box-shadow: 0 6px 16px rgba(14, 24, 42, 0.3);
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+}
+button:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 10px 20px rgba(14, 24, 42, 0.4);
+}
+button:active {
+  transform: translateY(1px);
+}
+
+/* Layout surfaces */
+side-bar,
+/* side-buttons, */
+#mobile_title_bar_top,
+.inner_window,
+.box,
+plan-view {
+  background-color: var(--panel-1);
+  border: 1px solid var(--border-0);
+  box-shadow: var(--shadow-0);
+}
+
+side-buttons > button {
+  background: none;
+  box-shadow: none;
+  border: none;
+}
+
+content- {
+  padding: 12px;
+}
+
+#main-display {
+  gap: 12px;
+}
+
+/* Chips */
+.chip_item {
+  background-color: rgba(96, 211, 255, 0.18);
+  border: 1px solid rgba(96, 211, 255, 0.2);
+  color: var(--text-0);
+}
+
+/* Title + subtle separators */
+#item_title {
+  text-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+
+search-view > input {
+  height: auto;
 }

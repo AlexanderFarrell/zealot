@@ -126,6 +126,7 @@ func AddAttributeKindsToItemType(attributeKinds []string, itemTypeKey string, ac
 		  on it.name=$1
 		 and it.account_id=$2
 	    where ak.key = ANY($3)
+		 and (ak.account_id=$2 or ak.is_system)
 		 on conflict (attribute_kind_id, item_type_id) do nothing;
 	`
 	_, err := web.Database.Exec(query, itemTypeKey, accountID, pq.Array(attributeKinds))
@@ -150,6 +151,7 @@ func RemoveAttributeKindsFromItemType(attributeKinds []string, itemTypeKey strin
 		select ak.kind_id
 		from attribute_kind ak
 		where ak.key = ANY($3)
+		 and (ak.account_id=$2 or ak.is_system)
 	);`
 
 	_, err := web.Database.Exec(query, itemTypeKey, accountID, pq.Array(attributeKinds))

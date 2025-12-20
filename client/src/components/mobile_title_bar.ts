@@ -17,17 +17,14 @@ import HamburgerIcon from '../assets/icon/hamburger.svg';
 import { router } from '../core/router';
 import commands from "../core/command_runner.ts";
 import BackButton from "../assets/icon/back.svg";
+import { BaseElementEmpty } from './common/base_element.ts';
 
 let mobile_menu_dropdown: MobileDropdown | null = null;
 // let mobile_menu_toggled = false;
 
-class MobileDropdown extends HTMLElement {
-    connectedCallback() {
-        this.render();
-        mobile_menu_dropdown = this;
-    }
-
+class MobileDropdown extends BaseElementEmpty {
     render() {
+        mobile_menu_dropdown = this;
         let buttons = [
             {
                 name: "Home",
@@ -100,11 +97,7 @@ class MobileDropdown extends HTMLElement {
     }
 }
 
-class MobileTitleBar extends HTMLElement {
-    connectedCallback() {
-        this.render();
-    }
-
+class MobileTitleBar extends BaseElementEmpty {
     render() {
         // this.classList.add('mobile_only')
         this.innerHTML = `

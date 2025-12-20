@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"zealotd/apps/account"
 	"zealotd/web"
+	"encoding/json"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -37,6 +38,25 @@ func InitRouter(parent fiber.Router) fiber.Router {
 	// Updates fields on an attribute kind
 	router.Patch("/:kind_id", func(c *fiber.Ctx) error {
 		return web.HandleUpdateRoute(c, "attribute_kind", "kind_id", updatableFieldsAttrKind)
+	})
+
+		// Updates the config
+	router.Patch("/:kind_id/config", func(c *fiber.Ctx) error {
+		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		kindID, err := strconv.Atoi(c.Params("kind_id"))
+		if err != nil {
+			return c.SendStatus(fiber.StatusBadRequest)
+		}
+
+		payload := struct {
+			Config json.RawMessage `json:"config"`
+		}{}
+		if err := c.BodyParser(&payload); err != nil {
+			return c.SendStatus(fiber.StatusBadRequest)
+		}
+
+		err = UpdateAttributeKindConfig(kindID, accountID, payload.Config)
+		return web.SendOkOrError(c, err, "updating attribute kind config")
 	})
 
 	// Deletes a non-system attribute kind

@@ -20,9 +20,9 @@ services:
     build:
       context: ./../zealotd
       dockerfile: Dockerfile
-      platforms:
-       - linux/amd64
-       - linux/arm64
+      # platforms:
+      #  - linux/amd64
+      #  - linux/arm64
     # image: zealotd:latest
     image: registry.alexanderfarrell.net/zealotd:latest
     depends_on:
@@ -57,9 +57,9 @@ services:
     build: 
       context: ./../client
       dockerfile: Dockerfile
-      platforms:
-       - linux/amd64
-       - linux/arm64
+      # platforms:
+      #  - linux/amd64
+      #  - linux/arm64
     # image: zealot-web:latest
     image: registry.alexanderfarrell.net/zealot-web:latest
     depends_on:
@@ -74,4 +74,3 @@ volumes:
 
 networks:
   zealot_net:
-    external: true

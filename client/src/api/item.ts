@@ -24,6 +24,14 @@ export const ItemAPI = {
         return (await fetch(`/api/item/search?term=${term}`)).json();
     },
 
+    root_items: async (): Promise<Item[]> => {
+        return (await fetch(`/api/item/root`)).json();
+    },
+
+    children: async (parent_title: string): Promise<Item[]> => {
+        return (await fetch(`/api/item/children/${parent_title}`)).json()
+    },
+
     add: async (item: Item) => {
         let response = await fetch(`/api/item`, {
             method: "POST",

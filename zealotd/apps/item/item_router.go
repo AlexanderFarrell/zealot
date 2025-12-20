@@ -35,6 +35,8 @@ func InitRouter(app *fiber.App) fiber.Router {
 	router.Get("/", getRootItems)
 	router.Get("/title/:title", getByTitle)
 	router.Get("/search", searchTitle)
+	router.Get("/root", getRootItems)
+	router.Get("/children/:title", getChildren)
 
 	router.Post("/", addItem)
 	router.Patch("/:item_id", updateItem)
@@ -79,7 +81,16 @@ func InitRouter(app *fiber.App) fiber.Router {
 }
 
 func getRootItems(c *fiber.Ctx) error {
-	return c.SendStatus(fiber.StatusNotImplemented)
+	accountID := web.GetKeyFromSessionInt(c, "account_id");
+	items, err := GetItemsByAttribute("Root", 1, "value_int", accountID)
+	return web.SendJSONOrError(c, items, err, "getting root items")
+}
+
+func getChildren(c *fiber.Ctx) error {
+	accountID := web.GetKeyFromSessionInt(c, "account_id")
+	title := c.Params("title")
+	items, err := GetItemsByAttribute("Parent", title, "value_text", accountID)
+	return web.SendJSONOrError(c, items, err, "getting children")
 }
 
 func getByTitle(c *fiber.Ctx) error {
