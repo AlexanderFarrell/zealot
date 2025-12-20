@@ -1,5 +1,5 @@
 
-create extension if not exists pgcrypto;
+-- create extension if not exists pgcrypto;
 
 create table account (
     account_id serial primary key,
@@ -172,9 +172,11 @@ values
     '{}'::jsonb),
 ('Priority', 'How important is something?', 'integer', true,
     '{"min": 1, "max": 10}'::jsonb),
-('Month', 'Tenative month something is scheduled on', 'integer', true,
+('Month', 'Tentative month something is scheduled on', 'integer', true,
     '{}'::jsonb),
-('Year', 'Tenative year something is scheduled on', 'integer', true,
+('Year', 'Tentative year something is scheduled on', 'integer', true,
+    '{}'::jsonb),
+('Root', 'Does the item appear at the top of the nav view?', 'boolean', true,
     '{}'::jsonb);
 
 insert into item_type_attribute_kind_link (attribute_kind_id, item_type_id)

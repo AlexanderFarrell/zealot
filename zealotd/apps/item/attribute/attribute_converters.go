@@ -86,7 +86,52 @@ func prepareListItemValue(kind *AttributeKind, raw interface{}) (string, interfa
 		}
 	}
 
-	return prepareAttrValueFromKind(kind, raw)
+	switch cfg.ListType {
+	case "integer":
+		v, err := toInt64(raw)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid integer value for %s: %v", kind.Key, &err)
+		}
+		return "value_int", v, nil
+	case "decimal":
+		v, err := toFloat64(raw)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid decimal value for %s: %v", kind.Key, &err)
+		}
+		return "value_num", v, nil
+	case "text":
+		v, err := toString(raw)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid text value for %s: %v", kind.Key, err)
+		}
+		return "value_text", v, nil
+	case "date":
+		v, err := toTime(raw)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid date value for %s: %v", kind.Key, err)
+		}
+		return "value_date", v, nil
+	case "week":
+		weekCode, err := ToWeekCode(raw)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid week value for %s: %w", kind.Key, err)
+		}
+		return "value_int", weekCode, nil
+	case "boolean":
+		v, err := toBoolInt(raw)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid boolean value for %s: %w", kind.Key, err)
+		}
+		return "value_int", v, nil
+	case "item":
+		v, err := toInt64(raw)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid item id value for %s: %v", kind.Key, err)
+		}
+		return "value_item_id", v, nil
+	default:
+		return "", nil, fmt.Errorf("unsupported base type %q for attribute %s", kind.BaseType, kind.Key)
+	}
 }
 
 func inferColumnFromValue(value interface{}) (string, interface{}) {

@@ -18,8 +18,8 @@ class AttributesView extends BaseElement<Item> {
         <datalist id="attribute_kind_suggestions">
         
         </datalist>
-        <div name="add_container"></div>
         <div name="attribute_container"></div>
+        <div name="add_container"></div>
         <!--<form class="attribute">
             <input type="text" name="key" list="attribute_kind_suggestions" required>
             <input type="text" name="value" required>

@@ -63,7 +63,7 @@ class MonthlyPlannerScreen extends BaseElement<DateTime> {
                 items_container.appendChild(view)
             })
             if (items.length == 0) {
-                items_container.innerHTML = "No items scheduled for this day."
+                items_container.innerHTML = "No items scheduled for this month."
             }
         } catch (e) {
             console.error(e)

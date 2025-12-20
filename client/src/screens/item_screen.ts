@@ -14,6 +14,7 @@ import Quote from "@editorjs/quote";
 import Code from "@editorjs/code";
 import Delimiter from "@editorjs/delimiter";
 import BaseElement from "../components/common/base_element";
+import PlanView from "../components/plan_view";
 
 class ItemScreen extends BaseElement<Item> {
     private last_loaded_title: string | null = null;
@@ -33,12 +34,14 @@ class ItemScreen extends BaseElement<Item> {
         <div name="item_types" class="attribute"></div>
         <attributes-view></attributes-view>
         <div id="content_holder"></div>
+        <div name="children_container"></div>
         `
 
         this.setup_title_view();
         this.setup_types_view();
         this.setup_attributes_view();
         this.setup_content_view();
+        this.render_children()
     }
 
 
@@ -163,6 +166,20 @@ class ItemScreen extends BaseElement<Item> {
             },
         });
     }    
+
+    async render_children() {
+        let item = this.data!;
+        let container = this.querySelector('[name="children_container"]')!;
+        container.innerHTML = "";
+
+        // Get children
+        let children = await API.item.children(item.title);
+        children.forEach(child => {
+            let view = new PlanView();
+            view.item = child;
+            container.appendChild(view)
+        });
+    }
     
     async render_empty_screen() {
         this.innerHTML = `That item doesn't exist.`

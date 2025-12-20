@@ -92,13 +92,13 @@ func UsernameExists(username string) (bool, error) {
 func GetAccountDetails(username string) (AccountDetails, error) {
 	row := web.Database.QueryRow("select account_id, username, email, full_name, settings from account where username=$1", username)
 	if row.Err() != nil {
-		fmt.Printf("Error retrieving account details %v\n", row.Err())
+		fmt.Printf("Error retrieving account details for account %s: %v\n", username, row.Err())
 		return AccountDetails{}, errors.New("issue getting account details")
 	}
 	var details AccountDetails
 	err := row.Scan(&details.AccountID, &details.Username, &details.Email, &details.Name, &details.Settings)
 	if err != nil {
-		fmt.Printf("Error scanning account details %v\n", err)
+		fmt.Printf("Error scanning account details for account %s: %v\n", username, err)
 		return AccountDetails{}, errors.New("issue getting account details")
 	}
 	return details, nil

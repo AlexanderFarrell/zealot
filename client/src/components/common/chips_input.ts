@@ -1,4 +1,5 @@
 import CloseIcon from "../../assets/icon/close.svg";
+import { router } from "../../core/router";
 
 type ChipsAddEvent = CustomEvent<{items: string[]}>;
 type ChipsRemoveEvent = CustomEvent<{items: string[]}>;
@@ -10,6 +11,7 @@ declare global {
     }
 }
 
+
 class ChipsInput extends HTMLElement {
     private items_container!: HTMLDivElement;
     private items: string[] = [];
@@ -17,13 +19,29 @@ class ChipsInput extends HTMLElement {
     // private on_add_listeners: Set<(items: string[]) => void> = new Set();
     // private on_remove_listeners: Set<(items: string[]) => void> = new Set();
     private enforce_unique: boolean = true;
+    private on_click_item: ((item: string) => void) | null = null;
+
+    public set OnClickItem(value: (item: string) => void) {
+
+        this.on_click_item = value;
+        let views = this.querySelectorAll('.chip_item')!
+        views.forEach((v) => {
+            v.addEventListener('click', () => {
+                this.on_click_item!((v as HTMLElement).textContent)
+            })
+        })
+    }
 
     public get value(): string[] {
         return this.items;
     }
 
-    public set value(v: string[]) {
-        this.items = v;
+    public set value(v: any) {
+        if (Array.isArray(v)) {
+            this.items = v;
+        } else {
+            this.items = [];
+        }
         this.dispatchEvent(new Event('change', {bubbles: true}));
     }
 
@@ -59,6 +77,7 @@ class ChipsInput extends HTMLElement {
         this.dispatchEvent(new CustomEvent('chips-add', {
             detail: {items}
         }))
+        this.dispatchEvent(new Event('change'));
     }
 
     remove_items(...items: string[]) {
@@ -73,6 +92,7 @@ class ChipsInput extends HTMLElement {
         this.dispatchEvent(new CustomEvent('chips-remove', {
             detail: {items}
         }));
+        this.dispatchEvent(new Event('change'));
     }
 
     private refresh() {
@@ -99,6 +119,11 @@ class ChipsInput extends HTMLElement {
             let view = document.createElement("div");
             view.classList.add('chip_item')
             view.innerText = item;
+            if (this.on_click_item) {
+                view.addEventListener('click', () => {
+                    this.on_click_item!(item);
+                })
+            }
             let delete_button = document.createElement("button");
             delete_button.innerHTML = `<img src="${CloseIcon}" style="display: inline;">`
             view.appendChild(delete_button)
@@ -120,6 +145,7 @@ class ChipsInput extends HTMLElement {
         this.dispatchEvent(new CustomEvent('chips-remove', {
             detail: {items: [item]}
         }));
+        this.dispatchEvent(new Event('change'));
     }
 
     set_value(items: string[]) {

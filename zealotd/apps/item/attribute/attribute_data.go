@@ -153,7 +153,11 @@ func setScalarAttributeForItem(itemID int, accountID int, key string, value inte
 	var err error
 
 	if kind != nil {
-		column, preparedValue, err = prepareAttrValueFromKind(kind, value)
+		if kind.BaseType == "list" {
+			column, preparedValue, err = prepareListItemValue(kind, value)
+		} else {
+			column, preparedValue, err = prepareAttrValueFromKind(kind, value)
+		}
 		if err != nil {
 			return err
 		}

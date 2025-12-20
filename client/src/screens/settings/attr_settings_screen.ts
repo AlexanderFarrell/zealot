@@ -37,7 +37,7 @@ class AttributeSettingsScreen extends BaseElementEmpty {
                 key: data.get('key') as string,
                 description: data.get('description') as string,
                 base_type: data.get('base_type') as string,
-                config: {}
+                config: defaultConfigForType(data.get('base_type') as string)
             })
             this.render_kinds()
         });
@@ -127,20 +127,26 @@ let select_html_make = () => {
     )
 }
 
-function defaultConfigForType(base_type: string): string {
+function defaultConfigForType(base_type: string): object {
     switch (base_type) {
         case "integer":
-            return JSON.stringify({min: null, max: null});
+            return {min: null, max: null};
         case "decimal":
-            return JSON.stringify({min: null, max: null});
+            return {min: null, max: null};
         case "text":
-            return JSON.stringify({min_len: null, max_len: null, pattern: null});
+            return {min_len: null, max_len: null, pattern: null};
+        case "date":
+            return {};
+        case "week":
+            return {};
         case "dropdown":
-            return JSON.stringify({values: ["todo", "working", "complete"]});
+            return {values: ["todo", "working", "complete"]};
+        case "boolean":
+            return {};
         case "list":
-            return JSON.stringify({list_type: "text"});
+            return {list_type: "text"};
         default:
-            return JSON.stringify({})
+            return {}
     }
 }
 

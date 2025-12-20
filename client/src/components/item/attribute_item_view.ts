@@ -5,6 +5,7 @@ import { get_kind_for_key, type AttributeKind } from "../../api/attribute_kind";
 import API from "../../api/api";
 import ItemAPI from "../../api/item";
 import ChipsInput from "../common/chips_input";
+import { router } from "../../core/router";
 
 interface AttributeItem {
 	item_id: number,
@@ -69,6 +70,9 @@ class AttributeItemView extends BaseElement<AttributeItem> {
 		key_input.addEventListener('keydown', (e) => {
 			console.log(e.key)
 			if (e.key == "Tab") {
+				if (e.shiftKey) {
+					return;
+				}
 				setTimeout(() => {
 					let v: HTMLInputElement | HTMLSelectElement | ChipsInput = this.querySelector('[name="value"]')!;
 					v.focus()
@@ -81,6 +85,11 @@ class AttributeItemView extends BaseElement<AttributeItem> {
 				this.dispatchEvent(new CustomEvent('attr-add', {
 					detail: {attr}
 				}))
+
+				let v: HTMLInputElement | HTMLSelectElement | ChipsInput = this.querySelector('[name="value"]')!;
+				v.value = "";
+				key_input.value = "";
+				key_input.focus();
 			} else {
 				await API.item.Attributes.remove(attr.item_id, key_input.value);
 				this.dispatchEvent(new CustomEvent('attr-remove', {
@@ -145,6 +154,15 @@ class AttributeItemView extends BaseElement<AttributeItem> {
 		}
 		else if (kind.base_type == 'list') {
 			value_input = new ChipsInput();
+
+			// Hack need to fix later
+			if (attr.key == "Parent") {
+				let on: (i: string) => void = (i) => {
+					router.navigate(`/item/${i}`)
+				}
+				// @ts-ignore
+				(value_input as ChipsInput).OnClickItem = on;
+			}
 		}
 		else {
 			value_view.innerText = "Error: Unknown Type";
@@ -163,9 +181,8 @@ class AttributeItemView extends BaseElement<AttributeItem> {
 
 		value_input?.addEventListener('change', async () => {
 			attr.value = value_input!.value;
-			if (attr.item_id) {
+			if (!attr.is_new) {
 				await API.item.Attributes.set_value(attr.item_id, attr.key, attr.value);
-
 			}
 		})
 	}

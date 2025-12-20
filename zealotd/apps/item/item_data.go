@@ -75,7 +75,7 @@ func GetItemsByAttribute(key string, value interface{}, valueCol string, account
 			and alv.%s = $3
 		)
 	);
-	`, ItemQuery, key, valueCol)
+	`, ItemQuery, valueCol, valueCol)
 
 	rows, err := web.Database.Query(query, accountID, key, value)
 	return addAttrsTypesToItems(rows, err, accountID)
@@ -131,7 +131,7 @@ func addAttrsTypesToItems(rows *sql.Rows, err error, accountID int) ([]Item, err
 
 	// Attributes
 	rows, err = web.Database.Query(`
-		select item_id, key, value_int, value_date, value_text, value_num
+		select item_id, key, value_int, value_date, value_text, value_num, value_item_id
 		from attribute
 		where item_id = ANY($1)
 	`, pq.Array(ids))
