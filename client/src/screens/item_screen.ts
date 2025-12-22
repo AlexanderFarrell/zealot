@@ -6,16 +6,11 @@ import AttributesView from "../components/item/attributes_view";
 import { router } from "../core/router";
 import API from "../api/api";
 import type ChipsInput from "../components/common/chips_input";
-import EditorJS, { type OutputData } from "@editorjs/editorjs";
 
-import Header from "@editorjs/header";
-import List from "@editorjs/list";
-import Quote from "@editorjs/quote";
-import Code from "@editorjs/code";
-import Delimiter from "@editorjs/delimiter";
 import BaseElement from "../components/common/base_element";
 import PlanView from "../components/plan_view";
 import type AddItemScoped from "../components/add_item_scope";
+import ContentView from "../components/item/content_view";
 
 class ItemScreen extends BaseElement<Item> {
     private last_loaded_title: string | null = null;
@@ -34,7 +29,7 @@ class ItemScreen extends BaseElement<Item> {
         </div>
         <div name="item_types" class="attribute"></div>
         <attributes-view></attributes-view>
-        <div id="content_holder"></div>
+        <content-view></content-view>
         <div name="children">
             <add-item-scoped></add-item-scoped>
             <div name="children_container"></div>
@@ -116,65 +111,8 @@ class ItemScreen extends BaseElement<Item> {
     
     
     async setup_content_view() {
-        let data: OutputData | undefined = undefined;
-        try {
-            data = JSON.parse(this.data!.content) as OutputData;
-        } catch (e) {
-            console.error(e)
-        }
-
-        // Content
-        let content_view = new EditorJS({
-            holder: "content_holder",
-            // readOnly: !!opts.readOnly,
-            placeholder: "Write content here...",
-            data: data,
-            // data: this.item!.content,
-            // autofocus: !opts.readOnly,
-            inlineToolbar: ["bold", "italic", "link"],
-
-            tools: {
-            paragraph: {
-                // paragraph is built-in, no import needed
-
-            },
-            header: {
-                // @ts-ignore
-                class: Header,
-                inlineToolbar: true,
-                config: {
-                levels: [1, 2, 3, 4],
-                defaultLevel: 1,
-                },
-            },
-            list: {
-                class: List,
-                inlineToolbar: true,
-                config: {
-                defaultStyle: "unordered",
-                },
-            },
-            quote: {
-                class: Quote,
-                inlineToolbar: true,
-                config: {
-                quotePlaceholder: "Quote",
-                captionPlaceholder: "Source",
-                },
-            },
-            code: {
-                class: Code,
-            },
-            delimiter: {
-                class: Delimiter,
-            },
-            },
-
-            onChange: async () => {
-                let output = await content_view.save();
-                ItemAPI.update(this.data!.item_id, {content: JSON.stringify(output)})
-            },
-        });
+        let view = this.querySelector('content-view')! as ContentView;
+        view.init(this.data!);
     }    
 
     async render_children() {

@@ -34,6 +34,13 @@
     "@editorjs/list": "^2.0.9",
     "@editorjs/quote": "^2.7.6",
     "luxon": "^3.7.2",
-    "navigo": "^8.11.1"
+    "navigo": "^8.11.1",
+    "prosemirror-example-setup": "^1.2.3",
+    "prosemirror-markdown": "^1.13.2",
+    "prosemirror-model": "^1.25.4",
+    "prosemirror-schema-basic": "^1.2.4",
+    "prosemirror-schema-list": "^1.5.1",
+    "prosemirror-state": "^1.4.4",
+    "prosemirror-view": "^1.41.4"
   }
 }
