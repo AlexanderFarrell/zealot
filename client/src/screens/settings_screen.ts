@@ -11,6 +11,7 @@ class SettingsScreen extends HTMLElement {
     private screen_container: HTMLElement | null = null;
 
     connectedCallback() {
+        this.classList.add('center');
         this.innerHTML = `
         <div id="row_buttons" class="row gap"></div>
         <div id="screen_container"></div>

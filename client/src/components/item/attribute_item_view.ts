@@ -47,6 +47,10 @@ class AttributeItemView extends BaseElement<AttributeItem> {
 			this.querySelector('[type="submit"]')!;
 		this.setup_value_view();
 
+		if (this.data?.is_new) {
+			key_input.placeholder = "Add attribute..."
+		}
+
 		key_input.value = attr.key;
 
 		key_input.addEventListener('change', async () => {

@@ -1,20 +1,11 @@
 import type { Item } from "../api/item";
 import { router } from "../core/router";
+import BaseElement from "./common/base_element";
 
 
-class PlanView extends HTMLElement {
-    private _item: Item | null = null;
-
-    public get item(): Item | null {
-        return this._item;
-    }
-
-    public set item(value: Item) {
-        this._item = value;
-        this.render();
-    }
-
+class ItemView extends BaseElement<Item> {
     async render() {
+        let item = this.data!;
         this.innerHTML = `
         <div name="icon"></div>
         <div name="title"></div>
@@ -27,11 +18,11 @@ class PlanView extends HTMLElement {
         let status_view = this.querySelector('[name="status"]')! as HTMLElement;
         let priority_view = this.querySelector('[name="priority"]')! as HTMLElement;
 
-        title_view.innerText = this.item!.title;
+        title_view.innerText = item.title;
 
         let set_attr = (view: HTMLElement, attribute: string) => {
-            if (this.item!.attributes![attribute] != null) {
-                view.innerText = this.item!.attributes![attribute];
+            if (item.attributes![attribute] != null) {
+                view.innerText = item.attributes![attribute];
             } else {
                 view.innerHTML = "&nbsp;"
             }
@@ -42,11 +33,11 @@ class PlanView extends HTMLElement {
         set_attr(priority_view, "Priority")
 
         this.addEventListener('click', () => {
-            router.navigate(`/item/${encodeURIComponent(this.item!.title)}`);
+            router.navigate(`/item/${encodeURIComponent(item.title)}`);
         })
     }
 }
 
-customElements.define('plan-view', PlanView)
+customElements.define('item-view', ItemView)
 
-export default PlanView;
+export default ItemView;

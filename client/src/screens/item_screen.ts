@@ -8,9 +8,10 @@ import API from "../api/api";
 import type ChipsInput from "../components/common/chips_input";
 
 import BaseElement from "../components/common/base_element";
-import PlanView from "../components/plan_view";
+import PlanView from "../components/item_view";
 import type AddItemScoped from "../components/add_item_scope";
 import ContentView from "../components/item/content_view";
+import ItemListView from "../components/item_list_view";
 
 class ItemScreen extends BaseElement<Item> {
     private last_loaded_title: string | null = null;
@@ -23,17 +24,20 @@ class ItemScreen extends BaseElement<Item> {
         }
 
         this.innerHTML = `
-        <div name="title_container">
+        <div class="title" name="title_container">
             <h1 name="title" contenteditable="true"></h1>
             <button name="delete_button" title="Delete Item"><img src="${DeleteIcon}" alt="Delete Button Icon"></button>
         </div>
         <div name="item_types" class="attribute"></div>
         <attributes-view></attributes-view>
         <content-view></content-view>
-        <div name="children">
-            <add-item-scoped></add-item-scoped>
-            <div name="children_container"></div>
-        </div>
+        <item-list-view></item-list-view>
+        <!--<div id="children_container" style="padding-top: 4em"></div>
+                    <div name="children">
+                <div>Children</div>
+                <add-item-scoped></add-item-scoped>
+                <div name="children_container"></div>
+            </div>-->
         `
 
         this.setup_title_view();
@@ -41,12 +45,12 @@ class ItemScreen extends BaseElement<Item> {
         this.setup_attributes_view();
         this.setup_content_view();
         this.render_children();        
-        
-        let add_child = this.querySelector('add-item-scoped')! as AddItemScoped;
-        add_child.init({
-            Parent: [this.data!.title]
-        })
-        add_child.listen_on_submit(() => {this.render_children()})
+    }
+
+    disconnectedCallback() {
+        // let right_sidebar = document.querySelector('#right-side-bar')!;
+        // right_sidebar.innerHTML = "";
+
     }
 
 
@@ -117,18 +121,46 @@ class ItemScreen extends BaseElement<Item> {
 
     async render_children() {
         let item = this.data!;
-        let container = this.querySelector('[name="children_container"]')!;
+        let children_view = this.querySelector('item-list-view')! as ItemListView;
 
-
-        container.innerHTML = "";
-
-        // Get children
         let children = await API.item.children(item.title);
-        children.forEach(child => {
-            let view = new PlanView();
-            view.item = child;
-            container.appendChild(view)
-        });
+
+        children_view
+            .enable_add_item(
+                {Parent: [this.data!.title]},
+                async () => {
+                    children_view.data = await API.item.children(item.title);
+                }
+            )
+            .init(children);
+        // let right_sidebar = document.querySelector('#right-side-bar')!;
+        // right_sidebar.innerHTML = `
+        //     <div name="children">
+        //         <div>Children</div>
+        //         <add-item-scoped></add-item-scoped>
+        //         <div name="children_container"></div>
+        //     </div>
+        // `
+
+        // let container = right_sidebar.querySelector('[name="children_container"]')!;
+        // let container = this.querySelector('[name="children_container"]')!;
+
+
+        // container.innerHTML = "";
+
+        // // Get children
+        // let children = await API.item.children(item.title);
+        // children.forEach(child => {
+        //     let view = new PlanView().init(child);
+        //     container.appendChild(view)
+        // });
+
+        // // let add_child = right_sidebar.querySelector('add-item-scoped')! as AddItemScoped;
+        // let add_child = this.querySelector('add-item-scoped')! as AddItemScoped;
+        // add_child.init({
+        //     Parent: [this.data!.title]
+        // })
+        // add_child.listen_on_submit(() => {this.render_children()})
     }
     
     async render_empty_screen() {

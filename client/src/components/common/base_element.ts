@@ -2,6 +2,7 @@
 
 abstract class BaseElement<T extends any> extends HTMLElement {
     private _data: T | null = null;
+    protected is_rendered = false;
     public get data(): T | null {
         return this._data;
     }
@@ -9,6 +10,7 @@ abstract class BaseElement<T extends any> extends HTMLElement {
     public set data(data: T) {
         this._data = data;
         this.render();
+        this.is_rendered = true;
     }
 
     public init(data: T): BaseElement<T> {

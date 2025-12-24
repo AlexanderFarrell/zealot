@@ -1,5 +1,6 @@
 import CloseIcon from "../../assets/icon/close.svg";
 import { router } from "../../core/router";
+import "./chips-input.scss";
 
 type ChipsAddEvent = CustomEvent<{items: string[]}>;
 type ChipsRemoveEvent = CustomEvent<{items: string[]}>;

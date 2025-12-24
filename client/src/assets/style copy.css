@@ -488,6 +488,12 @@ plan-view {
   box-shadow: var(--shadow-0);
 }
 
+side-buttons > button {
+  background: none;
+  box-shadow: none;
+  border: none;
+}
+
 content- {
   padding: 12px;
 }

@@ -11,14 +11,14 @@ class ZealotApp extends HTMLElement {
         this.id = "app";
         this.innerHTML = `
 <title-bar>
-        <mobile-title-bar></mobile-title-bar>
+        <mobile-title-bar class="mobile_only"></mobile-title-bar>
         <div class="mobile_only" style="height: 58px;">&nbsp;</div>
 </title-bar>
 <div id="main-display">
 <side-buttons class="desktop_only"></side-buttons>
 <side-bar id="left-side-bar" class="desktop_only"><nav-view></nav-view></side-bar>
 <content-></content->
-<side-bar style="display: none;" id="right-side-bar"><item-attributes-view></item-attributes-view></side-bar>
+<!--<side-bar id="right-side-bar"><item-attributes-view></item-attributes-view></side-bar>-->
 </div>`;
         this.setup_commands();
         setup_router();

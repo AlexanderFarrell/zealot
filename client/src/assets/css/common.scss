@@ -1,0 +1,174 @@
+#main-display {
+	display: grid;
+	grid-template-columns: auto auto 1fr auto;
+}
+
+zealot_app {
+  min-height: 100vh;
+}
+
+side-buttons {
+	@extend .box;
+	min-height: 100vh;
+}
+
+side-buttons > icon-button {
+	display: block;
+}
+
+icon-button {
+	cursor: pointer
+}
+
+side-bar {
+	@extend .box;
+	min-width: 200px;
+}
+content- {
+  padding: 5px;
+  display: grid;
+}
+
+auth-modal form {
+  max-width: 500px;
+}
+
+item-screen {
+  max-width: 600px;
+  width: 100%;
+  /* display: grid; */
+  /* grid-template-rows: auto auto auto auto; */
+  justify-self: center;
+}
+
+.icon {
+	width: 2.5rem;
+	height: 2.5rem;
+	padding: 6px 6px;
+}
+
+.box {
+	background-color: var(--panel-1);
+	// border: 1px solid var(--border-0);
+}
+
+.inner_window {
+	@extend .box;
+}
+
+/* Classes */
+.row {
+  display: flex;
+}
+
+.col1 {
+  flex: 1;
+}
+
+.gap {
+  gap: 5px;
+}
+
+.result_view.selected {
+  font-weight: bold;
+}
+
+.modal_background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0,0,0,0.5);
+  backdrop-filter: blur(10px);
+  display: grid;
+  place-items: center;
+}
+
+.title {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.inner_window {
+  padding: 10px;
+  border-radius: 10px;
+}
+
+.mobile_only {
+	display: none;
+}
+
+.center {
+  max-width: 1000px;
+  width: 100%;
+  margin: 0 auto;
+  justify-self: center;
+}
+
+.button_row > button {
+  width: auto;
+}
+
+plan-view {
+  background-color: var(--background-pop-default);
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  grid-gap: 10px;
+  justify-content: space-between;
+  padding: 10px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+button-group {
+  display: flex;
+  gap: 5px;
+}
+
+button-group > button {
+  width: auto;
+}
+
+button-group > img {
+  width: 2em;
+}
+
+calendar-view {
+  /* padding: 2px; */
+}
+
+.today {
+  background-color: var(--background-button-pop);
+}
+
+[name="calendar_items"] {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+  text-align: center;
+  grid-gap: 2px;
+}
+
+[name="calendar_items"] > * {
+  padding: 3px;
+}
+
+calendar-view > img {
+  width: 1em;
+}
+
+@media only screen and (max-width: 768px) {
+    .desktop_only {
+        display: none;
+    }
+
+    .mobile_only {
+        display: block;
+    }
+
+    .row {
+        display: block;
+    }
+}

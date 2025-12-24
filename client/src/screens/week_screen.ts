@@ -10,7 +10,8 @@ import DocIcon from "../assets/icon/doc.svg";
 import { router } from "../core/router";
 import type AddItemScoped from "../components/add_item_scope";
 import API from "../api/api";
-import PlanView from "../components/plan_view";
+import PlanView from "../components/item_view";
+import type ItemListView from "../components/item_list_view";
 
 class WeeklyPlannerScreen extends BaseElement<DateTime> {
     async render() {
@@ -18,17 +19,8 @@ class WeeklyPlannerScreen extends BaseElement<DateTime> {
         this.classList.add('center')
         this.innerHTML = 
         `<h1>Week ${date.weekNumber} - ${date.year}</h1>
-        <add-item-scoped></add-item-scoped>
+        <item-list-view></item-list-view>
         <div name="items" style="display: grid; grid-gap: 10px"></div>`;
-
-        let add_item = this.querySelector('add-item-scoped')! as AddItemScoped;
-        add_item.init({
-            Week: date.toISOWeekDate()?.substring(0, 8),
-            Status: "To Do",
-            Priority: 3,
-            Icon: ''
-        })
-        add_item.listen_on_submit(() => {this.render()});
 
         this.prepend(new ButtonGroup().init([
             new ButtonDef(HomeIcon, "This Week", () => {
@@ -58,21 +50,21 @@ class WeeklyPlannerScreen extends BaseElement<DateTime> {
             })
         ]));
         
-        let items_container = this.querySelector('[name="items"]')! as HTMLElement;
+        let items_view = this.querySelector('item-list-view')! as ItemListView;
         try {
-            let items = await API.planner.get_items_for_week(date);
-            items.forEach(item => {
-                let view = new PlanView();
-                view.item = item;
-                items_container.appendChild(view)
-            })
-            if (items.length == 0) {
-                items_container.innerHTML = "No items scheduled for this week"
-            }
-
+            items_view
+                .enable_add_item(
+                    {
+                        Week: date.toISOWeekDate()?.substring(0, 8),
+                        Status: "To Do",
+                        Priority: 3,
+                        Icon: ''
+                    },
+                    async () => {items_view.data = await API.planner.get_items_for_week(date!)}
+                )
+                .init(await API.planner.get_items_for_week(date!))
         } catch (e) {
             console.error(e)
-            items_container.innerHTML = "<div class='error'>Error getting items</div>"
         }
     }
 }
