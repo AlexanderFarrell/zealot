@@ -104,3 +104,8 @@ img {
 div[contenteditable="true"] {
   outline: none;
 }
+
+hr {
+	border: none;
+	border-bottom: 1px solid var(--bg-3);
+}

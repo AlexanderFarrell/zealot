@@ -52,6 +52,19 @@ func GetItemByTitle(title string, account_id int) (*Item, error) {
 	return addAttrsTypesToItem(rows, err, account_id)
 }
 
+func GetItemsByType(kind string, accountID int) ([]Item, error) {
+	query := fmt.Sprintf(`%s
+	inner join item_item_type_link l
+		on l.item_id = i.item_id
+	where i.account_id=$1
+	and type_id = (select type_id from item_type
+				   where name=$2);
+	`, ItemQuery)
+
+	rows, err := web.Database.Query(query, accountID, kind)
+	return addAttrsTypesToItems(rows, err, accountID)
+}
+
 func GetItemsByAttribute(key string, value interface{}, valueCol string, accountID int) ([]Item, error) {
 	if _, ok := acceptableAttributeColumns[valueCol]; !ok {
 		return nil, fmt.Errorf("invalid column passed")

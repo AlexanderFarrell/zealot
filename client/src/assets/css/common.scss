@@ -1,3 +1,5 @@
+@import "./constants.scss";
+
 #main-display {
 	display: grid;
 	grid-template-columns: auto auto 1fr auto;
@@ -159,6 +161,17 @@ calendar-view > img {
   width: 1em;
 }
 
+mobile-title-bar {
+  position: fixed;
+  width: 100%;
+  background: var(--bg-2);
+  box-shadow: 1px 1px 4px rgba(0, 0, 0, 0.199);
+}
+
+#mobile-title-bar-top > button {
+  box-shadow: none !important;
+}
+
 @media only screen and (max-width: 768px) {
     .desktop_only {
         display: none;
@@ -171,4 +184,8 @@ calendar-view > img {
     .row {
         display: block;
     }
+}
+
+nav-view-item {
+  cursor: pointer;
 }

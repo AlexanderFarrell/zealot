@@ -2,12 +2,15 @@ import Navigo from "navigo";
 import ItemScreen from "../screens/item_screen";
 import SettingsScreen from "../screens/settings_screen";
 import { events } from "./events";
-import type Content from "../components/content";
+import Content from "../components/content";
 import DailyPlannerScreen from "../screens/day_screen";
 import { DateTime } from "luxon";
 import WeeklyPlannerScreen from "../screens/week_screen";
 import MonthlyPlannerScreen from "../screens/month_screen";
 import AnnualPlannerScreen from "../screens/year_screen";
+import TypesScreen from "../screens/types_screen";
+import TypeScreen from "../screens/type_screen";
+import { get_item_types, get_type_for_name } from "../api/item_type";
 
 export const router = new Navigo("/")
 
@@ -75,6 +78,26 @@ export function setup_router() {
             content_view.appendChild(new AnnualPlannerScreen().init(DateTime.fromObject({
                 year: year
             })))
+        },
+        "/types": () => {
+            let content = content_view!
+            content.innerHTML = "";
+            content.appendChild(new TypesScreen)
+        },
+        "/types/:title": async (params: any) => {
+            let title = params.data['title']
+            try {
+                let type = await get_type_for_name(title);
+                if (type != null) {
+                    content_view.innerHTML = ""
+                    content_view.appendChild(new TypeScreen().init(type))
+                } else {
+                    content_view.innerHTML = "Type not found: " + title
+                }
+            } catch (e) {
+                console.error(e);
+                content_view.innerHTML = "Error getting type " + title;
+            }
         },
         "/analysis": () => {
             content_view!.innerHTML = "<analysis-screen></analysis-screen>";

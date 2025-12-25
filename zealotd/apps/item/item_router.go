@@ -35,7 +35,6 @@ func InitRouter(app *fiber.App) fiber.Router {
 	router.Get("/", getRootItems)
 	router.Get("/title/:title", getByTitle)
 	router.Get("/search", searchTitle)
-	router.Get("/root", getRootItems)
 	router.Get("/children/:title", getChildren)
 
 	router.Post("/", addItem)
@@ -82,13 +81,30 @@ func InitRouter(app *fiber.App) fiber.Router {
 
 func getRootItems(c *fiber.Ctx) error {
 	accountID := web.GetKeyFromSessionInt(c, "account_id");
-	items, err := GetItemsByAttribute("Root", 1, "value_int", accountID)
+	
+	// See if type is passed, if so do that:
+	kind := c.Query("type", "")
+	var items []Item
+	var err error
+
+	if kind != "" {
+		items, err = GetItemsByType(kind, accountID)
+	} else {
+		items, err = GetItemsByAttribute("Root", 1, "value_int", accountID)
+
+	}
+
 	return web.SendJSONOrError(c, items, err, "getting root items")
 }
 
 func getChildren(c *fiber.Ctx) error {
 	accountID := web.GetKeyFromSessionInt(c, "account_id")
 	title := c.Params("title")
+	title, err := url.QueryUnescape(title)
+	if err != nil {
+		fmt.Printf("Failed to query unescape input: %v\n", err)
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
 	items, err := GetItemsByAttribute("Parent", title, "value_text", accountID)
 	return web.SendJSONOrError(c, items, err, "getting children")
 }

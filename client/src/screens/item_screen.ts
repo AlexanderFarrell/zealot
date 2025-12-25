@@ -31,7 +31,7 @@ class ItemScreen extends BaseElement<Item> {
         <div name="item_types" class="attribute"></div>
         <attributes-view></attributes-view>
         <content-view></content-view>
-        <item-list-view></item-list-view>
+        <item-list-view style="padding-bottom: 1em;"></item-list-view>
         <!--<div id="children_container" style="padding-top: 4em"></div>
                     <div name="children">
                 <div>Children</div>
@@ -111,6 +111,12 @@ class ItemScreen extends BaseElement<Item> {
                 console.error(e)
             }
         })
+
+        let on: (i: string) => void = (i) => {
+            router.navigate(`/types/${i}`)
+        }
+        // @ts-ignore
+        input.OnClickItem = on;
     }    
     
     

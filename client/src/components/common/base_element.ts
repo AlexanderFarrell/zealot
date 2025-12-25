@@ -1,4 +1,14 @@
 
+export abstract class BaseAPIElement<T extends any> extends HTMLElement {
+    private _data: T | null = null;
+
+    protected abstract get_data(): Promise<T>;
+    protected abstract on_render(): any;
+    public async refresh() {
+        this._data = await this.get_data();
+        this.on_render();
+    }
+}
 
 abstract class BaseElement<T extends any> extends HTMLElement {
     private _data: T | null = null;

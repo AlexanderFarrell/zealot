@@ -91,6 +91,12 @@ class ZealotApp extends HTMLElement {
             () => {
                 router.navigate('/planner/annual')
             });
+        commands.register('Open Item Types',
+            [new Hotkey('t', [CTRL_OR_META_KEY, SHIFT_KEY, ALT_KEY])],
+            () => {
+                router.navigate('/types')
+            }
+        )
         commands.register('Open Analysis', 
             [new Hotkey('1', [CTRL_OR_META_KEY, SHIFT_KEY])],
             () => {

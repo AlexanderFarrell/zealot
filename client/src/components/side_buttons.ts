@@ -16,18 +16,24 @@ import NewIcon from "../assets/icon/add.svg";
 import LogoutIcon from "../assets/icon/logout.svg";
 
 import commands from "../core/command_runner.ts";
+import { TableIcon } from '../assets/asset_map.ts';
 
 class SideButtons extends HTMLElement {
 
     connectedCallback() {
-        let buttons: IconButton[] = [
+        let buttons: Array<IconButton | null> = [
              new IconButton(
                 // ZealotIcon,
                 HomeIcon,
                 "Home Page",
                 () => {commands.run("Go to Home Page")}
             ),
-
+            new IconButton(
+                NewIcon,
+                "New Item",
+                () => {commands.run("New Item")}
+            ),
+            null,
             new IconButton(
                 SearchIcon,
                 "Search",
@@ -44,7 +50,7 @@ class SideButtons extends HTMLElement {
                 "Calendar",
                 () => {commands.run("Open Calendar")}
             ), 
-
+            null,
             new IconButton(
                 DailyIcon,
                 "Daily Planner",
@@ -65,6 +71,13 @@ class SideButtons extends HTMLElement {
                 AnnualIcon,
                 "Annual Planner",
                 () => {commands.run("Open Annual Planner")}
+            ),
+            null,
+
+            new IconButton(
+                TableIcon,
+                "Types",
+                () => {commands.run("Open Item Types")}
             ),
 
             new IconButton(
@@ -87,11 +100,7 @@ class SideButtons extends HTMLElement {
                 "Settings",
                 () => {commands.run("Open Settings")}
             ),
-            new IconButton(
-                NewIcon,
-                "New Item",
-                () => {commands.run("New Item")}
-            ),
+
             new IconButton(
                 LogoutIcon,
                 "Logout",
@@ -100,7 +109,11 @@ class SideButtons extends HTMLElement {
         ]
 
         buttons.forEach(button => {
-            this.appendChild(button);
+            if (button != null) {
+                this.appendChild(button!);
+            } else {
+                this.appendChild(document.createElement('hr'))
+            }
         })
     }
 }

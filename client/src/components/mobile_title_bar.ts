@@ -99,6 +99,7 @@ class MobileDropdown extends BaseElementEmpty {
 
 class MobileTitleBar extends BaseElementEmpty {
     render() {
+        this.classList.add('box')
         // this.classList.add('mobile_only')
         this.innerHTML = `
             <div style="display: grid; grid-template-columns: auto 1fr auto auto auto" id="mobile_title_bar_top">
