@@ -146,7 +146,7 @@ func addItem(c *fiber.Ctx) error {
 	}
 
 	err := AddItem2(&payload, account_id)
-	return web.SendOkOrError(c, err, "adding item")
+	return web.SendJSONOrError(c, payload, err, "adding item")
 }
 
 func updateItem(c *fiber.Ctx) error {

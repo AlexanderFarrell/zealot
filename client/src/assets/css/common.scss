@@ -11,6 +11,7 @@ zealot_app {
 
 side-buttons {
 	@extend .box;
+  width: 40px;
 	min-height: 100vh;
 }
 
@@ -44,9 +45,10 @@ item-screen {
 }
 
 .icon {
-	width: 2.5rem;
-	height: 2.5rem;
-	padding: 6px 6px;
+  height: auto;
+	// width: 2.5rem;
+	// height: 2.5rem;
+	// padding: 6px 6px;
 }
 
 .box {
@@ -140,6 +142,11 @@ button-group > img {
 
 calendar-view {
   /* padding: 2px; */
+}
+
+attribute-value-view > input, attribute-value-view > select, attribute-value-view > chips-input {
+  background: none;
+  border: none;
 }
 
 .today {

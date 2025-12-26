@@ -3,6 +3,7 @@ import { events } from '../core/events';
 import { ALT_KEY, CTRL_OR_META_KEY, Hotkey, SHIFT_KEY } from '../core/hotkeys';
 import { router, setup_router } from '../core/router.ts';
 import commands from './../core/command_runner.ts';
+import AddItemModal2 from './add_item_modal';
 import AddItemModal from './add_item_modal';
 import MobileTitleBar from './mobile_title_bar.ts';
 
@@ -115,7 +116,7 @@ class ZealotApp extends HTMLElement {
         commands.register('New Item', 
             [new Hotkey('n', [CTRL_OR_META_KEY])],
             () => {
-                document.body.appendChild(new AddItemModal());
+                document.body.appendChild(new AddItemModal2());
             });
         commands.register('Logout',
             [],

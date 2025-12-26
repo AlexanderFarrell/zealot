@@ -36,7 +36,7 @@ export const ItemAPI = {
         return (await fetch(`/api/item/children/${parent_title}`)).json()
     },
 
-    add: async (item: Item) => {
+    add: async (item: Item): Promise<Item> => {
         let response = await fetch(`/api/item`, {
             method: "POST",
             headers: {
@@ -44,7 +44,7 @@ export const ItemAPI = {
             },
             body: JSON.stringify(item)
         });
-        return response.ok;
+        return response.json()
     },
 
     update: async (item_id: number, fields: object) => {

@@ -8,110 +8,30 @@ import ChipsInput from "../common/chips_input";
 import { router } from "../../core/router";
 
 interface AttributeItem {
-	item_id: number,
 	key: string,
 	value: any,
-	is_new: boolean
 }
 
 type AttrAddEvent = CustomEvent<{attr: AttributeItem}>;
 type AttrRemoveEvent = CustomEvent<{attr: AttributeItem}>;
 type AttrRenameEvent = CustomEvent<{old_key: string, new_key: string}>;
+type AttrChangeEvent = CustomEvent<{key: string, new_value: any}>
 
 declare global {
 	interface HTMLElementEventMap {
 		'attr-add': AttrAddEvent,
 		'attr-remove': AttrRemoveEvent,
-		'attr-rename': AttrRenameEvent
+		'attr-rename': AttrRenameEvent,
+		'attr-value-change': AttrChangeEvent
 	}
 }
 
-class AttributeItemView extends BaseElement<AttributeItem> {
+export class AttributeValueView extends BaseElement<AttributeItem> {
 	async render() {
-		let attr = this.data!;
-		this.classList.add('attribute')
-
-		this.innerHTML = `
-			<input type="text" name="key" tab-index="1"
-			 	list="attribute_kind_suggestions" required>
-			<span name="value_view"></span>
-			<button type="submit">
-				<img src="${(attr.is_new) ? AddIcon : DeleteIcon}" 
-					style="width: 1em;">
-			</button>
-		`
-
-        let key_input: HTMLInputElement = 
-			this.querySelector('[name="key"]')!;
-		let button_submit: HTMLButtonElement =
-			this.querySelector('[type="submit"]')!;
-		this.setup_value_view();
-
-		if (this.data?.is_new) {
-			key_input.placeholder = "Add attribute..."
-		}
-
-		key_input.value = attr.key;
-
-		key_input.addEventListener('change', async () => {
-			let old_key = attr.key;
-			let new_key = key_input.value;
-			attr.key = new_key;
-			if (attr.is_new) {
-				this.setup_value_view();
-				return;
-			} else {
-				await ItemAPI.Attributes.rename(attr.item_id, 
-					old_key,
-					new_key
-				);
-				this.dispatchEvent(new CustomEvent('attr-rename', {
-					detail: {old_key,new_key}
-				}));
-				this.render();
-			}
-		})
-		key_input.addEventListener('keydown', (e) => {
-			console.log(e.key)
-			if (e.key == "Tab") {
-				if (e.shiftKey) {
-					return;
-				}
-				setTimeout(() => {
-					let v: HTMLInputElement | HTMLSelectElement | ChipsInput = this.querySelector('[name="value"]')!;
-					v.focus()
-				}, 50)
-			}
-		})
-		button_submit.addEventListener('click', async () => {
-			if (attr.is_new) {
-				await API.item.Attributes.set_value(attr.item_id, attr.key, attr.value);
-				this.dispatchEvent(new CustomEvent('attr-add', {
-					detail: {attr}
-				}))
-
-				let v: HTMLInputElement | HTMLSelectElement | ChipsInput = this.querySelector('[name="value"]')!;
-				v.value = "";
-				key_input.value = "";
-				key_input.focus();
-			} else {
-				await API.item.Attributes.remove(attr.item_id, key_input.value);
-				this.dispatchEvent(new CustomEvent('attr-remove', {
-					detail: {attr}
-				}))
-				this.remove();
-			}
-
-		})
-	}
-
-	async setup_value_view() {
 		let attr = this.data!;
 		let kind = await get_kind_for_key(attr.key);
 
-		let value_view: HTMLSpanElement = 
-			this.querySelector('[name="value_view"]')!;
-		value_view.innerHTML = "";
+		this.innerHTML = "";
 
 		let value_input: HTMLSelectElement | HTMLInputElement |
 			ChipsInput | null = null;
@@ -171,7 +91,7 @@ class AttributeItemView extends BaseElement<AttributeItem> {
 			}
 		}
 		else {
-			value_view.innerText = "Error: Unknown Type";
+			this.innerText = "Error: Unknown Type";
 			return;
 		}
 
@@ -182,22 +102,90 @@ class AttributeItemView extends BaseElement<AttributeItem> {
 			value_input!.value = attr.value;
 		}
 
-		value_view.appendChild(value_input!);
+		this.appendChild(value_input!);
 		value_input.setAttribute('name', 'value');
 
-		value_input?.addEventListener('change', async () => {
+		value_input!.addEventListener('change', async () => {
 			if (kind && kind!.base_type == "boolean") {
-				attr.value = (value_input as HTMLInputElement).checked;
+				this.data!.value = (value_input as HTMLInputElement).checked;
 			} else {
-				attr.value = value_input!.value;
+				this.data!.value = value_input!.value;
 			}
-			if (!attr.is_new) {
-				await API.item.Attributes.set_value(attr.item_id, attr.key, attr.value);
-			}
+			this.dispatchEvent(new Event('change'));
 		})
+	}
+
+	get key(): string {
+		return this.data!.key;
+	}
+
+	get value(): any {
+		return this.data!.value;
+	}
+
+	focus() {
+		this.querySelector('input')?.focus();
+	}
+}
+
+class AttributeItemView extends BaseElement<AttributeItem> {
+	async render() {
+		let attr = this.data!;
+		this.classList.add('attribute')
+
+		this.innerHTML = `
+			<input type="text" name="key" tab-index="1"
+			 	list="attribute_kind_suggestions" required>
+			<attribute-value-view></attribute-value-view>
+		`
+
+        let key_input: HTMLInputElement = 
+			this.querySelector('[name="key"]')!;
+		let value_view: AttributeValueView =
+			this.querySelector('attribute-value-view')!;
+		
+		value_view.init(this.data!);
+
+		key_input.value = attr.key;
+
+		key_input.addEventListener('change', async () => {
+			let old_key = attr.key;
+			let new_key = key_input.value;
+			attr.key = new_key;
+			this.dispatchEvent(new CustomEvent('attr-rename', {
+				detail: {old_key, new_key}
+			}))
+		})
+		key_input.addEventListener('keydown', (e) => {
+			if (e.key == "Tab") {
+				return;
+			}
+			setTimeout(() => {
+				value_view.data!.key = key_input.value;
+				value_view.render()
+			}, 30)
+		})
+		value_view.addEventListener('change', async () => {
+			attr.value = value_view.value;
+			this.dispatchEvent(new CustomEvent('attr-value-change', {
+				detail: {
+					key: attr.key,
+					new_value: attr.value
+				}
+			}))
+		})
+	}
+
+	get key() {
+		return this.data!.key;
+	}
+
+	get value() {
+		return this.data!.value;
 	}
 }
 
 customElements.define('attribute-item-view', AttributeItemView)
+customElements.define('attribute-value-view', AttributeValueView)
 
 export default AttributeItemView;
