@@ -1,4 +1,4 @@
-@import "./constants.scss";
+@use "./constants.scss";
 
 #main-display {
 	display: grid;
@@ -17,6 +17,7 @@ side-buttons {
 
 side-buttons > icon-button {
 	display: block;
+  padding: 6px;
 }
 
 icon-button {
@@ -95,6 +96,28 @@ item-screen {
   align-items: center;
 }
 
+table {
+  overflow-x: scroll;
+  gap: 0;
+  width: 100%;
+}
+
+tr {
+  background-color: var(--bg-1);
+}
+
+thead > tr {
+  background-color: var(--bg-2);
+}
+
+tbody > tr:nth-child(odd) {
+  background-color: var(--bg-1);
+}
+
+td {
+  padding: 2px;
+}
+
 .inner_window {
   padding: 10px;
   border-radius: 10px;
@@ -147,6 +170,11 @@ calendar-view {
 attribute-value-view > input, attribute-value-view > select, attribute-value-view > chips-input {
   background: none;
   border: none;
+}
+
+option {
+  background-color: var(--bg-1);
+  color: white;
 }
 
 .today {

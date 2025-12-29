@@ -15,7 +15,9 @@ class AddItemModal2 extends BaseElementEmpty {
         let item_type_vals = ['', ...((await get_item_types()).map(i => i.name))];
         this.innerHTML = `
         <div class="inner_window">
-            <input name="title" placeholder="Title..." type="text" required>
+            <label>Title</label>
+            <input name="title" type="text" required>
+            <label>Type</label>
             ${GenerateSelectHTML('item_type', '', item_type_vals)}
             <div name="additional_fields"></div>
             <button name="submit" style="margin-top: 5px">Create</button>
@@ -29,6 +31,12 @@ class AddItemModal2 extends BaseElementEmpty {
         let submit = this.querySelector('[name="submit"]')! as HTMLButtonElement;
         let error_message = this.querySelector('[name="error_message"]')! as HTMLDivElement;
 
+        this.addEventListener('keydown', (e: KeyboardEvent) => {
+            if (e.key == "Escape") {
+                this.remove();
+            }
+        })
+
         // Handle clicking out to close, but not clicking inside modal        
         inner_window.addEventListener('click', (e: MouseEvent) => {
             e.stopPropagation();
@@ -36,6 +44,13 @@ class AddItemModal2 extends BaseElementEmpty {
         this.addEventListener('click', (e: MouseEvent) => {
             this.remove();
         })
+
+        title_input.addEventListener('keydown', (e: KeyboardEvent) => {
+            console.log(e.key)
+            if (e.key == "Enter") {
+                submit.dispatchEvent(new Event('click'));
+            }
+        }) 
 
         type_select.addEventListener('change', () => {
             // Populate Additional Fields
@@ -67,6 +82,7 @@ class AddItemModal2 extends BaseElementEmpty {
                 item = await API.item.add(item);
                 await API.item.assign_type(item.item_id, type_select.value);
                 router.navigate(`/item/${encodeURIComponent(title)}`);
+                this.remove();
                 // if (await ItemAPI.add(item)) {
                 //     router.navigate(`/item/${encodeURIComponent(title)}`)
                 //     this.remove();
@@ -78,6 +94,8 @@ class AddItemModal2 extends BaseElementEmpty {
                 error_message.innerText = e;
             }
         })
+
+        title_input.focus();
     }
 
     async render_additional_fields() {

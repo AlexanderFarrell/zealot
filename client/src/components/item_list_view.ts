@@ -4,6 +4,7 @@ import AddItemScoped from "./add_item_scope";
 import BaseElement from "./common/base_element";
 import type ButtonGroup from "./common/button_group";
 import { ButtonDef } from "./common/button_group";
+import type ItemAnalysis from "./item_analysis";
 import ItemView from "./item_view";
 
 class ItemListView extends BaseElement<Item[]> {
@@ -20,14 +21,12 @@ class ItemListView extends BaseElement<Item[]> {
 
 		this.innerHTML = `
 		<add-item-scoped></add-item-scoped>
-		<!--<div style="display: grid; grid-template-columns: auto auto;">
-			<div name="filter"><img class="icon" src="${FilterIcon}"> Filter</div>
-			<div name="group_by"><img class="icon" src="${GroupByIcon}"> Group By</div>
-		</div>-->
-		<!--<button-group name="sort_filter_buttons"></button-group>-->
+		<item-analysis></item-analysis>
 		<div name="list_view"></div>
 		`;
 		let add_item_view = this.querySelector('add-item-scoped')! as AddItemScoped;
+		let analysis = this.querySelector('item-analysis')! as ItemAnalysis;
+		analysis.init(items);
 		// let filter_buttons = this.querySelector('button-group')! as ButtonGroup;
 		let list_view = this.querySelector('[name="list_view"]')! as HTMLDivElement;
 
@@ -59,20 +58,72 @@ class ItemListView extends BaseElement<Item[]> {
 		// 	)
 		// ])
 
+		let view_containers: Map<string, Item[]> = new Map();
+		let uncategorized: Item[] = []
+
 
 		// Setup list view
 
 		items.forEach(item => {
-			let view = new ItemView().init(item);
-			this.appendChild(view)
+			if (item.attributes!['Status'] != null) {
+				if (!view_containers.has(item.attributes!['Status'])) {
+					view_containers.set(item.attributes!['Status'], [])
+				}
+				view_containers.get(item.attributes!['Status'])?.push(item)
+			} else {
+				uncategorized.push(item)
+			}
 		})
+
+		let render_category = (status: string, isOpen: boolean = true) => {
+			if (view_containers.get(status) == null) {
+				return;
+			}
+			let div = document.createElement('div');
+			div.innerHTML = `
+			<h2>${status}</h2>
+			<div name="items"></div>
+			`
+			let i_container = div.querySelector('[name="items"]')! as HTMLDivElement;
+			let heading = div.querySelector('h2')! as HTMLHeadingElement;
+
+			let refresh_container = () => {
+				if (isOpen) {
+					i_container.innerHTML = "";
+					view_containers.get(status)?.forEach(item => {
+						i_container.appendChild(new ItemView().init(item));
+					})
+				} else {
+					i_container.innerText = view_containers.get(status)!.length.toString() + ' hidden';
+				}
+			}
+			refresh_container();
+
+			heading.addEventListener('click', () => {
+				isOpen = !isOpen;
+				refresh_container()
+			})
+			list_view.appendChild(div)
+		}
+
+		// Render uncategorized first
+		let div = document.createElement('div')
+		uncategorized.forEach(item => {
+			div.appendChild(new ItemView().init(item));
+		})
+		list_view.appendChild(div)
+
+		render_category('Working')
+		render_category('To Do')
+		render_category('Specify')
+		render_category('Blocked')
+		render_category('Complete', )
+		render_category('Hold')
+		render_category('Rejected')
 
 		if (items.length == 0) {
 			list_view.innerHTML = "No items";
 		}
-
-
-
 	}
 
 	enable_add_item(attributes: any, on_add: Function) {

@@ -103,12 +103,14 @@ class ChipsInput extends HTMLElement {
 
         this.input.addEventListener('keydown', (e: KeyboardEvent) => {
             if (e.key == "Enter") {
-                e.preventDefault();
                 if (this.input.value.length == 0) {
                     return;
                 }
+                e.preventDefault();
+                e.stopPropagation();
                 this.add_items(this.input.value)
                 this.input.value = ""
+                this.input.focus()
             }
         })
 

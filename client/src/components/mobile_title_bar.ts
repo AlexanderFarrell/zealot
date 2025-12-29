@@ -18,6 +18,7 @@ import { router } from '../core/router';
 import commands from "../core/command_runner.ts";
 import BackButton from "../assets/icon/back.svg";
 import { BaseElementEmpty } from './common/base_element.ts';
+import { TableIcon } from '../assets/asset_map.ts';
 
 let mobile_menu_dropdown: MobileDropdown | null = null;
 // let mobile_menu_toggled = false;
@@ -70,6 +71,11 @@ class MobileDropdown extends BaseElementEmpty {
                 name: "Logout",
                 command: "Logout",
                 icon: LogoutIcon
+            },
+            {
+                name: "Types",
+                command: "Open Item Types",
+                TableIcon
             },
             {
                 name: "Back",

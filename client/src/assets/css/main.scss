@@ -1,8 +1,8 @@
-@import "./constants.scss";
-@import "./tags.scss";
-@import "./common.scss";
-@import "./elements.scss";
-@import "./layout.scss";
+@use "./constants.scss";
+@use "./tags.scss";
+@use "./common.scss";
+@use "./elements.scss";
+@use "./layout.scss";
 
-@import "./screens/item.scss";
-@import "./screens/settings.scss";
+@use "./screens/item.scss";
+@use "./screens/settings.scss";
