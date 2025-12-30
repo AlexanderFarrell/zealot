@@ -5,6 +5,7 @@ import { router, setup_router } from '../core/router.ts';
 import commands from './../core/command_runner.ts';
 import AddItemModal2 from './add_item_modal';
 import AddItemModal from './add_item_modal';
+import type ContentView from './item/content_view.ts';
 import MobileTitleBar from './mobile_title_bar.ts';
 
 class ZealotApp extends HTMLElement {
@@ -41,7 +42,7 @@ class ZealotApp extends HTMLElement {
                 router.navigate('/');
             });
         commands.register('Search Items', 
-            [new Hotkey('q', [ALT_KEY, CTRL_OR_META_KEY])],
+            [new Hotkey('o', [CTRL_OR_META_KEY])],
             () => {
                 let left_sidebar = document.querySelector('#left-side-bar')!;
                 left_sidebar.innerHTML = "<search-view></search-view>";
@@ -55,6 +56,13 @@ class ZealotApp extends HTMLElement {
                 let left_sidebar = document.querySelector("#left-side-bar")!;
                 left_sidebar.innerHTML = "<nav-view></nav-view>";
             });
+        commands.register('Focus Edit',
+            [new Hotkey('e', [CTRL_OR_META_KEY])],
+            () => {
+                (document.querySelector('content-view')! as ContentView).focusEditor();
+                // console.log('Focused')
+            }
+        );
         commands.register('Open Media', 
             [new Hotkey('m', [CTRL_OR_META_KEY])],
             () => {
@@ -67,7 +75,7 @@ class ZealotApp extends HTMLElement {
                 console.error("Not implemented Up to Parent command")
             });
         commands.register('Open Calendar', 
-            [new Hotkey('r', [CTRL_OR_META_KEY])],
+            [new Hotkey('y', [CTRL_OR_META_KEY])],
             () => {
                 let left_sidebar = document.querySelector('#left-side-bar')!;
                 left_sidebar.innerHTML = "<calendar-view></calendar-view>"

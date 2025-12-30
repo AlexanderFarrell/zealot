@@ -19,6 +19,11 @@ import API from "../../api/api";
 class ContentView extends BaseElement<Item> {
 	private save_timer: number | null = null;
 
+	focusEditor() {
+		(this.querySelector('[name="editor_prose"]')! as HTMLDivElement).focus();
+		console.log("Focused editor");
+	}
+
 	render() {
 		this.innerHTML = `
 		<div name="editor"></div>
@@ -47,6 +52,7 @@ class ContentView extends BaseElement<Item> {
 				}, 1000)
 			}
 		})
+		view.dom.setAttribute('name', 'editor_prose')
 
 
 
