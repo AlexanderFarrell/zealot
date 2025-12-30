@@ -15,6 +15,11 @@ var (
 )
 
 func InitSessions() {
+	cfg := session.Config{
+		CookieHTTPOnly: GetEnvVar("SESSION_COOKIE_HTTPONLY", "true") == "true",
+		CookieSecure:   GetEnvVar("SESSION_COOKIE_SECURE", "false") == "true",
+		CookieSameSite: GetEnvVar("SESSION_COOKIE_SAMESITE", "Lax"),
+	}
 	if os.Getenv("SESSION_STORE") == "redis" {
 		port, err := strconv.Atoi(GetEnvVar("REDIS_PORT", "6379"))
 		if err != nil {
@@ -31,12 +36,9 @@ func InitSessions() {
 			Database: database,
 			Reset:    GetEnvVar("REDIS_RESET", "false") == "true",
 		})
-		sessionStore = session.New(session.Config{
-			Storage: redisStore,
-		})
-	} else {
-		sessionStore = session.New()
+		cfg.Storage = redisStore
 	}
+	sessionStore = session.New(cfg)
 }
 
 func GetSessionStore(c *fiber.Ctx) *session.Session {

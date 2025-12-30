@@ -11,6 +11,7 @@ import AnnualPlannerScreen from "../screens/year_screen";
 import TypesScreen from "../screens/types_screen";
 import TypeScreen from "../screens/type_screen";
 import { get_item_types, get_type_for_name } from "../api/item_type";
+import MediaScreen from "../screens/media_screen";
 
 export const router = new Navigo("/")
 
@@ -35,8 +36,10 @@ export function setup_router() {
             content_view!.appendChild(item_screen)
             item_screen.LoadItem(decodeURIComponent(params.data['title']))
         },
-        "/media": () => {
-            content_view!.innerHTML = "<media-screen></media-screen>";
+        "/media/*": (params: any) => {
+            content_view!.innerHTML = "";
+            content_view!.appendChild(new MediaScreen().init(params.url.substring(6)))
+            // content_view!.innerHTML = "<media-screen></media-screen>";
         },
         "/planner/daily": () => {
             let date = DateTime.local();
