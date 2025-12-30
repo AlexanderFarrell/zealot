@@ -1,6 +1,6 @@
 
 
-class IconButton extends HTMLButtonElement {
+class IconButton extends HTMLElement {
     public image_src: string;
 
     constructor(image_src: string, title: string, on: Function) {
@@ -13,10 +13,10 @@ class IconButton extends HTMLButtonElement {
     }
 
     connectedCallback() {
-        this.innerHTML = `<img src="${this.image_src}">`;
+        this.innerHTML = `<img class="icon" src="${this.image_src}">`;
     }
 }
 
-customElements.define('icon-button', IconButton, {extends: 'button'});
+customElements.define('icon-button', IconButton);
 
 export default IconButton;

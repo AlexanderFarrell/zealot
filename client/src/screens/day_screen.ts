@@ -1,6 +1,6 @@
 import { DateTime } from "luxon";
 import API from "../api/api";
-import PlanView from "../components/plan_view";
+import PlanView from "../components/item_view";
 import { router } from "../core/router";
 import HomeIcon from "../assets/icon/home.svg";
 import PreviousIcon from "../assets/icon/back.svg";
@@ -12,6 +12,7 @@ import DocIcon from "../assets/icon/doc.svg";
 import BaseElement from "../components/common/base_element";
 import ButtonGroup, { ButtonDef } from "../components/common/button_group";
 import AddItemScoped from "../components/add_item_scope";
+import type ItemListView from "../components/item_list_view";
 
 class DailyPlannerScreen extends BaseElement<DateTime> {
     async render() {
@@ -19,17 +20,8 @@ class DailyPlannerScreen extends BaseElement<DateTime> {
         this.classList.add('center')
         this.innerHTML = `
         <h1>${date.toFormat(`EEEE - d MMMM yyyy`)}</h1>
-        <add-item-scoped></add-item-scoped>
+        <item-list-view></item-list-view>
         <div name="items" style="display: grid; grid-gap: 10px"></div>`
-
-        let add_item = this.querySelector('add-item-scoped')! as AddItemScoped;
-        add_item.init({
-            Date: date.toISODate(),
-            Status: "To Do",
-            Priority: 3,
-            Icon: ''
-        })
-        add_item.listen_on_submit(() => {this.render()});
 
         this.prepend(new ButtonGroup().init([
             new ButtonDef(HomeIcon, "Today", () => {
@@ -60,20 +52,21 @@ class DailyPlannerScreen extends BaseElement<DateTime> {
             })
         ]))
 
-        let items_container = this.querySelector('[name="items"]')! as HTMLElement;
+        let items_view = this.querySelector('item-list-view')! as ItemListView;
         try {
-            let items = await API.planner.get_items_on_day(date!);
-            items.forEach(item => {
-                let view = new PlanView();
-                view.item = item;
-                items_container.appendChild(view)
-            })
-            if (items.length == 0) {
-                items_container.innerHTML = "No items scheduled for this day."
-            }
+            items_view
+                .enable_add_item(
+                    {
+                        Date: date.toISODate(),
+                        Status: "To Do",
+                        Priority: 3,
+                        Icon: ''
+                    },
+                    async () => {items_view.data = await API.planner.get_items_on_day(date!)}
+                )
+                .init(await API.planner.get_items_on_day(date!))
         } catch (e) {
             console.error(e)
-            items_container.innerHTML = "<div class='error'>Error getting items</div>"
         }
     }
 }

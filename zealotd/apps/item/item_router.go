@@ -34,9 +34,27 @@ func InitRouter(app *fiber.App) fiber.Router {
 
 	router.Get("/", getRootItems)
 	router.Get("/title/:title", getByTitle)
+	router.Get("/id/:item_id", func (c *fiber.Ctx) error {
+		account_id := web.GetKeyFromSessionInt(c, "account_id")
+		itemID, err := strconv.Atoi(c.Params("item_id"))
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).SendString("Unable to parse item_id")
+		}
+		// title := c.Params("title")
+		// title, err := url.QueryUnescape(title)
+		// if err != nil {
+			// fmt.Printf("Failed to query unescape input: %v\n", err)
+			// return c.SendStatus(fiber.StatusInternalServerError)
+		// }
+		item, err := GetItemByID(itemID, account_id)
+		if err != nil {
+			fmt.Printf("%v\n", err)
+			return c.SendStatus(fiber.StatusInternalServerError)
+		}
+		return c.JSON(item)
+	})
 	router.Get("/search", searchTitle)
-	router.Get("/root", getRootItems)
-	router.Get("/children/:title", getChildren)
+	router.Get("/children/:item_id", getChildren)
 
 	router.Post("/", addItem)
 	router.Patch("/:item_id", updateItem)
@@ -82,14 +100,45 @@ func InitRouter(app *fiber.App) fiber.Router {
 
 func getRootItems(c *fiber.Ctx) error {
 	accountID := web.GetKeyFromSessionInt(c, "account_id");
-	items, err := GetItemsByAttribute("Root", 1, "value_int", accountID)
+	
+	// See if type is passed, if so do that:
+	kind := c.Query("type", "")
+	var items []Item
+	var err error
+
+	if kind != "" {
+		items, err = GetItemsByType(kind, accountID)
+	} else {
+		items, err = GetItemsByAttribute("Root", 1, "value_int", accountID)
+
+	}
+
 	return web.SendJSONOrError(c, items, err, "getting root items")
 }
 
 func getChildren(c *fiber.Ctx) error {
-	accountID := web.GetKeyFromSessionInt(c, "account_id")
-	title := c.Params("title")
-	items, err := GetItemsByAttribute("Parent", title, "value_text", accountID)
+	accountID := web.GetKeyFromSessionInt(c, "account_id")		
+	itemID, err := strconv.Atoi(c.Params("item_id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString("Unable to parse item_id")
+	}
+	// title := c.Params("title")
+	// title, err := url.QueryUnescape(title)
+	// if err != nil {
+		// fmt.Printf("Failed to query unescape input: %v\n", err)
+		// return c.SendStatus(fiber.StatusInternalServerError)
+	// }
+	item, err := GetItemByID(itemID, accountID)
+	if err != nil || item == nil {
+		fmt.Printf("Failed to get item for children: %v\n", err)
+		if err == nil {
+			return c.SendStatus(fiber.StatusNotFound)
+		} else {
+			return c.SendStatus(fiber.StatusInternalServerError)
+		}
+	}
+	
+	items, err := GetItemsByAttribute("Parent", item.Title, "value_text", accountID)
 	return web.SendJSONOrError(c, items, err, "getting children")
 }
 
@@ -106,7 +155,17 @@ func getByTitle(c *fiber.Ctx) error {
 		fmt.Printf("%v\n", err)
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
-	return c.JSON(item)
+	if item == nil {
+		fmt.Printf("%v\n", err)
+		return c.SendStatus(fiber.StatusNotFound)
+	}
+
+	return c.Redirect("/api/item/id/" + strconv.Itoa(item.ItemID))
+	// if err != nil {
+	// 	fmt.Printf("%v\n", err)
+	// 	return c.SendStatus(fiber.StatusInternalServerError)
+	// }
+	// return c.JSON(item)
 }
 
 func searchTitle(c *fiber.Ctx) error {
@@ -130,7 +189,7 @@ func addItem(c *fiber.Ctx) error {
 	}
 
 	err := AddItem2(&payload, account_id)
-	return web.SendOkOrError(c, err, "adding item")
+	return web.SendJSONOrError(c, payload, err, "adding item")
 }
 
 func updateItem(c *fiber.Ctx) error {

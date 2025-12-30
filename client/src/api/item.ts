@@ -25,14 +25,18 @@ export const ItemAPI = {
     },
 
     root_items: async (): Promise<Item[]> => {
-        return (await fetch(`/api/item/root`)).json();
+        return (await fetch(`/api/item/`)).json();
     },
 
-    children: async (parent_title: string): Promise<Item[]> => {
-        return (await fetch(`/api/item/children/${parent_title}`)).json()
+    get_by_type: async (item_type: string): Promise<Item[]> => {
+        return (await fetch(`/api/item?type=${item_type}`)).json();
     },
 
-    add: async (item: Item) => {
+    children: async (parent_id: number): Promise<Item[]> => {
+        return (await fetch(`/api/item/children/${parent_id}`)).json()
+    },
+
+    add: async (item: Item): Promise<Item> => {
         let response = await fetch(`/api/item`, {
             method: "POST",
             headers: {
@@ -40,7 +44,7 @@ export const ItemAPI = {
             },
             body: JSON.stringify(item)
         });
-        return response.ok;
+        return response.json()
     },
 
     update: async (item_id: number, fields: object) => {

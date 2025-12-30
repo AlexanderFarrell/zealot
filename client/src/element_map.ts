@@ -1,0 +1,19 @@
+// Components
+import './components/side_buttons.ts';
+import './components/titlebar.ts';
+import './components/content.ts';
+import './components/sidebar.ts';
+import './components/sidebars/nav_view.ts';
+import './components/sidebars/search_view.ts';
+import './components/sidebars/calendar_view.ts';
+
+// Screens
+import './screens/item_screen.ts';
+import './screens/analysis_screen.ts';
+import './screens/day_screen.ts';
+import './screens/media_screen.ts';
+import './screens/month_screen.ts';
+import './screens/rules_screen.ts';
+import './screens/settings_screen.ts';
+import './screens/week_screen.ts';
+import './screens/year_screen.ts';

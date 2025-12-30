@@ -1,0 +1,36 @@
+.ProseMirror-menubar {
+	display: none;
+}
+
+.attribute {
+	display: grid;
+	grid-template-columns: 1fr 2fr auto;
+	  border-bottom: 1px solid rgb(37, 74, 143, 0.1);
+}
+
+.attribute > input, .attribute > chips-input, span[name="value_view"] > input, span[name="value_view"] > chips-input,
+span[name="value_view"] > select {
+  background: none !important;
+  background-color: rgba(0,0,0,0);
+  border: none !important;
+  box-shadow: none;
+}
+
+item-screen {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto auto auto 1fr auto;
+}
+
+item-view {
+  background-color: var(--bg-2);
+  border: 1px solid var(--bg-3);
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  grid-gap: 10px;
+  justify-content: space-between;
+  padding: 10px;
+  border-radius: 10px;
+  cursor: pointer;
+}

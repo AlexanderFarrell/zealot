@@ -27,6 +27,10 @@ export class ButtonGroup extends BaseElement<ButtonDef[]> {
             this.appendChild(view)
         })
     }
+
+    setDirection(isBlock = false) {
+         
+    }
 }
 
 customElements.define('button-group', ButtonGroup);

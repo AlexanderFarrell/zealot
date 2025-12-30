@@ -6,16 +6,12 @@ import AttributesView from "../components/item/attributes_view";
 import { router } from "../core/router";
 import API from "../api/api";
 import type ChipsInput from "../components/common/chips_input";
-import EditorJS, { type OutputData } from "@editorjs/editorjs";
 
-import Header from "@editorjs/header";
-import List from "@editorjs/list";
-import Quote from "@editorjs/quote";
-import Code from "@editorjs/code";
-import Delimiter from "@editorjs/delimiter";
 import BaseElement from "../components/common/base_element";
-import PlanView from "../components/plan_view";
+import PlanView from "../components/item_view";
 import type AddItemScoped from "../components/add_item_scope";
+import ContentView from "../components/item/content_view";
+import ItemListView from "../components/item_list_view";
 
 class ItemScreen extends BaseElement<Item> {
     private last_loaded_title: string | null = null;
@@ -28,17 +24,20 @@ class ItemScreen extends BaseElement<Item> {
         }
 
         this.innerHTML = `
-        <div name="title_container">
+        <div class="title" name="title_container">
             <h1 name="title" contenteditable="true"></h1>
             <button name="delete_button" title="Delete Item"><img src="${DeleteIcon}" alt="Delete Button Icon"></button>
         </div>
         <div name="item_types" class="attribute"></div>
         <attributes-view></attributes-view>
-        <div id="content_holder"></div>
-        <div name="children">
-            <add-item-scoped></add-item-scoped>
-            <div name="children_container"></div>
-        </div>
+        <content-view></content-view>
+        <item-list-view style="padding-bottom: 1em;"></item-list-view>
+        <!--<div id="children_container" style="padding-top: 4em"></div>
+                    <div name="children">
+                <div>Children</div>
+                <add-item-scoped></add-item-scoped>
+                <div name="children_container"></div>
+            </div>-->
         `
 
         this.setup_title_view();
@@ -46,12 +45,12 @@ class ItemScreen extends BaseElement<Item> {
         this.setup_attributes_view();
         this.setup_content_view();
         this.render_children();        
-        
-        let add_child = this.querySelector('add-item-scoped')! as AddItemScoped;
-        add_child.init({
-            Parent: [this.data!.title]
-        })
-        add_child.listen_on_submit(() => {this.render_children()})
+    }
+
+    disconnectedCallback() {
+        // let right_sidebar = document.querySelector('#right-side-bar')!;
+        // right_sidebar.innerHTML = "";
+
     }
 
 
@@ -112,85 +111,62 @@ class ItemScreen extends BaseElement<Item> {
                 console.error(e)
             }
         })
+
+        let on: (i: string) => void = (i) => {
+            router.navigate(`/types/${i}`)
+        }
+        // @ts-ignore
+        input.OnClickItem = on;
     }    
     
     
     async setup_content_view() {
-        let data: OutputData | undefined = undefined;
-        try {
-            data = JSON.parse(this.data!.content) as OutputData;
-        } catch (e) {
-            console.error(e)
-        }
-
-        // Content
-        let content_view = new EditorJS({
-            holder: "content_holder",
-            // readOnly: !!opts.readOnly,
-            placeholder: "Write content here...",
-            data: data,
-            // data: this.item!.content,
-            // autofocus: !opts.readOnly,
-            inlineToolbar: ["bold", "italic", "link"],
-
-            tools: {
-            paragraph: {
-                // paragraph is built-in, no import needed
-
-            },
-            header: {
-                // @ts-ignore
-                class: Header,
-                inlineToolbar: true,
-                config: {
-                levels: [1, 2, 3, 4],
-                defaultLevel: 1,
-                },
-            },
-            list: {
-                class: List,
-                inlineToolbar: true,
-                config: {
-                defaultStyle: "unordered",
-                },
-            },
-            quote: {
-                class: Quote,
-                inlineToolbar: true,
-                config: {
-                quotePlaceholder: "Quote",
-                captionPlaceholder: "Source",
-                },
-            },
-            code: {
-                class: Code,
-            },
-            delimiter: {
-                class: Delimiter,
-            },
-            },
-
-            onChange: async () => {
-                let output = await content_view.save();
-                ItemAPI.update(this.data!.item_id, {content: JSON.stringify(output)})
-            },
-        });
+        let view = this.querySelector('content-view')! as ContentView;
+        view.init(this.data!);
     }    
 
     async render_children() {
         let item = this.data!;
-        let container = this.querySelector('[name="children_container"]')!;
+        let children_view = this.querySelector('item-list-view')! as ItemListView;
+
+        let children = await API.item.children(item.item_id);
+
+        children_view
+            .enable_add_item(
+                {Parent: [this.data!.title]},
+                async () => {
+                    children_view.data = await API.item.children(item.item_id);
+                }
+            )
+            .init(children);
+        // let right_sidebar = document.querySelector('#right-side-bar')!;
+        // right_sidebar.innerHTML = `
+        //     <div name="children">
+        //         <div>Children</div>
+        //         <add-item-scoped></add-item-scoped>
+        //         <div name="children_container"></div>
+        //     </div>
+        // `
+
+        // let container = right_sidebar.querySelector('[name="children_container"]')!;
+        // let container = this.querySelector('[name="children_container"]')!;
 
 
-        container.innerHTML = "";
+        // container.innerHTML = "";
 
-        // Get children
-        let children = await API.item.children(item.title);
-        children.forEach(child => {
-            let view = new PlanView();
-            view.item = child;
-            container.appendChild(view)
-        });
+        // // Get children
+        // let children = await API.item.children(item.title);
+        // children.forEach(child => {
+        //     let view = new PlanView().init(child);
+        //     container.appendChild(view)
+        // });
+
+        // // let add_child = right_sidebar.querySelector('add-item-scoped')! as AddItemScoped;
+        // let add_child = this.querySelector('add-item-scoped')! as AddItemScoped;
+        // add_child.init({
+        //     Parent: [this.data!.title]
+        // })
+        // add_child.listen_on_submit(() => {this.render_children()})
     }
     
     async render_empty_screen() {
@@ -215,6 +191,15 @@ class ItemScreen extends BaseElement<Item> {
             this.data = await ItemAPI.get_by_title(title);
         } catch (e) {
             this.innerHTML = "<div class='error'>Error loading item</div>";
+        }
+    }
+
+    public async LoadItemByID(item_id: number) {
+        this.last_loaded_title = null;
+        try {
+            this.data = await ItemAPI.get(item_id);
+        } catch (e) {
+            this.innerHTML = "<div class='error'>Error loading item</div>"
         }
     }
 }

@@ -1,0 +1,9 @@
+.attribute_kind {
+  display: grid;
+  grid-template-columns: 1fr 2fr auto auto;
+}
+
+.item_type {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr auto;
+}

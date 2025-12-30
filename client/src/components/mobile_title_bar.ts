@@ -18,6 +18,7 @@ import { router } from '../core/router';
 import commands from "../core/command_runner.ts";
 import BackButton from "../assets/icon/back.svg";
 import { BaseElementEmpty } from './common/base_element.ts';
+import { TableIcon } from '../assets/asset_map.ts';
 
 let mobile_menu_dropdown: MobileDropdown | null = null;
 // let mobile_menu_toggled = false;
@@ -72,6 +73,11 @@ class MobileDropdown extends BaseElementEmpty {
                 icon: LogoutIcon
             },
             {
+                name: "Types",
+                command: "Open Item Types",
+                TableIcon
+            },
+            {
                 name: "Back",
                 command: null,
                 icon: BackButton
@@ -99,6 +105,7 @@ class MobileDropdown extends BaseElementEmpty {
 
 class MobileTitleBar extends BaseElementEmpty {
     render() {
+        this.classList.add('box')
         // this.classList.add('mobile_only')
         this.innerHTML = `
             <div style="display: grid; grid-template-columns: auto 1fr auto auto auto" id="mobile_title_bar_top">

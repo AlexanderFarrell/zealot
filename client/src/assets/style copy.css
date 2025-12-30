@@ -422,7 +422,6 @@ mobile-dropdown > img {
 
 body {
   color: var(--text-0);
-  font-size: 14px;
   background:
     radial-gradient(1200px 700px at 10% -10%, #2b4168 0%, rgba(43, 65, 104, 0) 60%),
     radial-gradient(900px 600px at 90% 10%, #2f507f 0%, rgba(47, 80, 127, 0) 55%),
@@ -487,6 +486,12 @@ plan-view {
   background-color: var(--panel-1);
   border: 1px solid var(--border-0);
   box-shadow: var(--shadow-0);
+}
+
+side-buttons > button {
+  background: none;
+  box-shadow: none;
+  border: none;
 }
 
 content- {
