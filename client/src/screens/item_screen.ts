@@ -129,13 +129,13 @@ class ItemScreen extends BaseElement<Item> {
         let item = this.data!;
         let children_view = this.querySelector('item-list-view')! as ItemListView;
 
-        let children = await API.item.children(item.title);
+        let children = await API.item.children(item.item_id);
 
         children_view
             .enable_add_item(
                 {Parent: [this.data!.title]},
                 async () => {
-                    children_view.data = await API.item.children(item.title);
+                    children_view.data = await API.item.children(item.item_id);
                 }
             )
             .init(children);
@@ -191,6 +191,15 @@ class ItemScreen extends BaseElement<Item> {
             this.data = await ItemAPI.get_by_title(title);
         } catch (e) {
             this.innerHTML = "<div class='error'>Error loading item</div>";
+        }
+    }
+
+    public async LoadItemByID(item_id: number) {
+        this.last_loaded_title = null;
+        try {
+            this.data = await ItemAPI.get(item_id);
+        } catch (e) {
+            this.innerHTML = "<div class='error'>Error loading item</div>"
         }
     }
 }

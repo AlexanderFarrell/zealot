@@ -24,13 +24,14 @@ class NavViewItem extends BaseElement<Item> {
         let icon: string = this.data!.attributes!['Icon'] || "";
         title.innerText = icon + " " + this.data!.title;
         title.addEventListener('click', () => {
-            router.navigate(`/item/${this.data!.title}`)
+            router.navigate(`/item_id/${this.data!.item_id}`)
+            // router.navigate(`/item/${this.data!.title}`)
         })
 
         expand_button.addEventListener('click', async () => {
             expanded = !expanded;
             if (expanded) {
-                let children = await API.item.children(this.data!.title);
+                let children = await API.item.children(this.data!.item_id);
                 children.forEach(c => {
                     child_view.appendChild(new NavViewItem().init(c));
                 })

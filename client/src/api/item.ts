@@ -32,8 +32,8 @@ export const ItemAPI = {
         return (await fetch(`/api/item?type=${item_type}`)).json();
     },
 
-    children: async (parent_title: string): Promise<Item[]> => {
-        return (await fetch(`/api/item/children/${parent_title}`)).json()
+    children: async (parent_id: number): Promise<Item[]> => {
+        return (await fetch(`/api/item/children/${parent_id}`)).json()
     },
 
     add: async (item: Item): Promise<Item> => {

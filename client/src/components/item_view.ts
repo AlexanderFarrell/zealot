@@ -33,7 +33,8 @@ class ItemView extends BaseElement<Item> {
         set_attr(priority_view, "Priority")
 
         this.addEventListener('click', () => {
-            router.navigate(`/item/${encodeURIComponent(item.title)}`);
+            router.navigate(`/item_id/${item.item_id}`)
+            // router.navigate(`/item/${encodeURIComponent(item.title)}`);
         })
     }
 }

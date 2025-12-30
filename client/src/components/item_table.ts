@@ -141,7 +141,8 @@ class ItemTable extends BaseElement<ItemTableInfo> {
 			let title_link = document.createElement('a')
 			title_link.innerText = item.title;
 			td_first.addEventListener('click', () => {
-				router.navigate(`/item/${item.title}`)
+				router.navigate(`/item_id/${item.item_id}`)
+				// router.navigate(`/item/${item.title}`)
 			})
 			td_first.style.cursor = "pointer";
 			td_first.appendChild(title_link)

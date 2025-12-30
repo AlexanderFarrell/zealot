@@ -23,6 +23,12 @@ export function setup_router() {
             content_view!.appendChild(item_screen)
             item_screen.LoadItem('Home');
         },
+        "/item_id/:item_id": (params: any) => {
+            let item_screen = new ItemScreen()
+            content_view!.innerHTML = "";
+            content_view!.appendChild(item_screen)
+            item_screen.LoadItemByID(parseInt(params.data['item_id']))
+        },
         "/item/:title": (params: any) => {
             let item_screen = new ItemScreen();
             content_view!.innerHTML = "";
