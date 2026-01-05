@@ -1,6 +1,7 @@
 import { events } from "../core/events";
 import { router } from "../core/router";
-import {get_settings, set_settings } from "../core/settings";
+import { get_req, get_json, patch_req, post_req } from "../core/api_helper";
+import { get_settings, set_settings } from "../core/settings";
 
 type User = {
     username: string;
@@ -13,40 +14,26 @@ export const AuthAPI = {
     current_user: null as User | null,
 
     login: async (username: string, password: string) => {
-        const response = await fetch('/api/account/login', {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                username, 
-                password
-            })
-        })
+        const response = await post_req('/api/account/login', {
+            username,
+            password
+        });
         await AuthAPI.handle_response(response);
     },
 
     is_logged_in: async () => {
-        const response = await fetch('/api/account/is_logged_in', {
-            method: 'GET'
-        });
+        const response = await get_req('/api/account/is_logged_in');
         return response.ok || response.status == 201;
     },
 
     register: async (username: string, password: string, 
         confirm: string, name: string, email: string) => {
-        const response = await fetch('/api/account/register', {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                username,
-                password,
-                confirm,
-                name,
-                email
-            })
+        const response = await post_req('/api/account/register', {
+            username,
+            password,
+            confirm,
+            name,
+            email
         });
         events.emit('on_register_account');
         await AuthAPI.handle_response(response);
@@ -55,31 +42,17 @@ export const AuthAPI = {
 
     logout: async () => {
         // Let the server know, whether successful or not.
-        await fetch('/api/account/logout', {
-            method: "GET",
-        })
+        await get_req('/api/account/logout');
         events.emit('on_logout');
         AuthAPI.require_relogin();
     },
 
     sync_settings: async () => {
-        await fetch('/api/account/settings', {
-            method: 'PATCH',
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(get_settings())
-        })
+        await patch_req('/api/account/settings', get_settings())
     },
 
     get_user_details: async () => {
-        let response = await fetch('/api/account/details', {
-            method: "GET",
-            headers: {
-                "Content-Type": "application/json"
-            }
-        })
-        let data: any = await response.json();
+        let data: any = await get_json('/api/account/details');
         AuthAPI.current_user = {
             username: data['username'],
             email: data['email'],

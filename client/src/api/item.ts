@@ -1,4 +1,4 @@
-import { delete_req, post_req } from "../core/api_helper";
+import { delete_req, get_json, patch_req, post_json, post_req } from "../core/api_helper";
 import AttributeAPI from "./attribute";
 import AttributeKindAPI from "./attribute_kind";
 import { ItemTypeAPI, type ItemType } from "./item_type";
@@ -13,58 +13,40 @@ export interface Item {
 
 export const ItemAPI = {
     get: async (id: number): Promise<Item> => {
-        return (await fetch(`/api/item/id/${id}`)).json();
+        return get_json(`/api/item/id/${id}`);
     },
 
     get_by_title: async (title: string): Promise<Item> => {
-        return (await fetch(`/api/item/title/${title}`)).json();
+        return get_json(`/api/item/title/${title}`);
     },
 
     search: async (term: string): Promise<Item[]> => {
-        return (await fetch(`/api/item/search?term=${term}`)).json();
+        return get_json(`/api/item/search?term=${term}`);
     },
 
     root_items: async (): Promise<Item[]> => {
-        return (await fetch(`/api/item/`)).json();
+        return get_json(`/api/item/`);
     },
 
     get_by_type: async (item_type: string): Promise<Item[]> => {
-        return (await fetch(`/api/item?type=${item_type}`)).json();
+        return get_json(`/api/item?type=${item_type}`);
     },
 
     children: async (parent_id: number): Promise<Item[]> => {
-        return (await fetch(`/api/item/children/${parent_id}`)).json()
+        return get_json(`/api/item/children/${parent_id}`)
     },
 
     add: async (item: Item): Promise<Item> => {
-        let response = await fetch(`/api/item`, {
-            method: "POST",
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(item)
-        });
-        return response.json()
+        return post_json(`/api/item`, item)
     },
 
     update: async (item_id: number, fields: object) => {
-        let response = await fetch(`/api/item/${item_id}`, {
-            method: "PATCH",
-            headers: {
-                'Content-Type': "application/json"
-            },
-            body: JSON.stringify(fields)
-        })
+        let response = await patch_req(`/api/item/${item_id}`, fields);
         return response.ok;
     },
 
     remove: async (id: number) => {
-        let response = await fetch(`/api/item/${id}`, {
-            method: "DELETE",
-            headers: {
-                "Content-Type": "application/json"
-            },
-        })
+        let response = await delete_req(`/api/item/${id}`);
         return response.ok;
     },
 

@@ -106,12 +106,18 @@ tr {
   background-color: var(--bg-1);
 }
 
+
+
 thead > tr {
   background-color: var(--bg-2);
 }
 
 tbody > tr:nth-child(odd) {
   background-color: var(--bg-1);
+}
+
+tr.selected, tbody > tr:nth-child(odd).selected { 
+  background-color: var(--bg-3);
 }
 
 td {

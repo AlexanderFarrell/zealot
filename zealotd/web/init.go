@@ -1,25 +1,36 @@
 package web
 
 import (
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/helmet"
-	"github.com/gofiber/fiber/v2/middleware/limiter"
-	"github.com/gofiber/fiber/v2/middleware/logger"
 	"log"
 	"os"
 	"time"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/csrf"
+	"github.com/gofiber/fiber/v2/middleware/helmet"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
+	"github.com/gofiber/fiber/v2/middleware/logger"
 )
 
 func InitServer() *fiber.App {
 	app := fiber.New(fiber.Config{})
+	allowOrigins := GetEnvVar("CORS_ALLOW_ORIGINS", "http://localhost:3000")
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: "",
-		AllowHeaders: "Open, Content-Type, Accept",
+		AllowOrigins:     allowOrigins,
+		AllowHeaders:     "Open, Origin, Content-Type, Accept, X-Csrf-Token",
+		AllowMethods:     "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+		AllowCredentials: true,
 	}))
 	app.Use(helmet.New(helmet.Config{
 		CrossOriginResourcePolicy: "cross-origin",
 		CrossOriginEmbedderPolicy: "cross-origin",
+	}))
+	app.Use(csrf.New(csrf.Config{
+		KeyLookup:     "header:X-Csrf-Token",
+		CookieSameSite: GetEnvVar("CSRF_COOKIE_SAMESITE", "Lax"),
+		CookieSecure:   GetEnvVar("CSRF_COOKIE_SECURE", "false") == "true",
+		CookieHTTPOnly: false,
 	}))
 	app.Use(limiter.New(limiter.Config{
 		Max:        100,
