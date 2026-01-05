@@ -14,6 +14,7 @@ type FileStat struct {
 	Path string `json:"path"`
 	Size int64 `json:"size"`
 	IsFolder bool `json:"is_folder"`
+	Modified int64 `json:"modified_at"`
 }
 
 func InitRouter(app *fiber.App) fiber.Router {
@@ -69,10 +70,16 @@ func InitRouter(app *fiber.App) fiber.Router {
 			}
 			var fileStats []FileStat
 			for _, file := range files {
+				info, err := file.Info()
+				if err != nil {
+					fmt.Printf("Error getting file info: %v\n", err)
+					continue
+				}
 				var f FileStat = FileStat{
 					Path:     file.Name(),
-					Size:     0,
+					Size:     info.Size(),
 					IsFolder: file.IsDir(),
+					Modified: info.ModTime().Unix(),
 				}
 				fileStats = append(fileStats, f)
 			}
@@ -179,9 +186,81 @@ func InitRouter(app *fiber.App) fiber.Router {
 		return c.SendStatus(200)
 	})
 
+	api.Patch("/rename", func (c * fiber.Ctx) error {
+		username := web.GetKeyFromSession(c, "username")
+
+		payload := struct {
+			OldLocation string `json:"old_location"`
+			NewName string `json:"new_name"`
+		}{}
+
+		if err := c.BodyParser(&payload); err != nil {
+			fmt.Printf("%v\n", err)
+			return c.SendStatus(fiber.StatusBadRequest)
+		}
+
+		if payload.OldLocation == "" || payload.NewName == "" {
+			return c.SendStatus(fiber.StatusBadRequest)
+		}
+
+		// Resolve
+		oldPath, err := UserPath(username, payload.OldLocation)
+		if err != nil {
+			fmt.Printf("%v\n", err)
+			return c.SendStatus(fiber.StatusBadRequest)
+		}
+
+		// Keep rename in same folder
+		dir := filepath.Dir(payload.OldLocation)
+		cleanName := filepath.Base(payload.NewName)
+		if cleanName == "." || cleanName == string(os.PathSeparator) || cleanName == "" {
+			return c.SendStatus(fiber.StatusBadRequest)
+		}
+
+		newRel := filepath.Join(dir, cleanName)
+		newPath, err := UserPath(username, newRel)
+
+		if err != nil {
+			fmt.Printf("%v\n", err)
+			return c.SendStatus(fiber.StatusBadRequest)
+		}
+
+		if err := os.Rename(oldPath, newPath); err != nil {
+			fmt.Printf("%v\n", err)
+			return c.SendStatus(fiber.StatusInternalServerError)
+		}
+
+		return c.SendStatus(fiber.StatusOK)
+	})
+
 	// Delete file
 	api.Delete("/*", func (c * fiber.Ctx) error {
-		return c.SendStatus(fiber.StatusNotImplemented)
+		username := web.GetKeyFromSession(c, "username")
+
+		pathName := c.Params("*")
+		pathName, err := url.QueryUnescape(pathName)
+		if err != nil {
+			fmt.Printf("%v\n", err)
+			return c.SendStatus(fiber.StatusBadRequest)
+		}
+
+		if pathName == "" {
+			// If this happens, it will delete user root
+			return c.SendStatus(fiber.StatusBadRequest)
+		}
+
+		fullPath, err := UserPath(username, pathName)
+		if err != nil {
+			fmt.Printf("%v\n", err)
+			return c.SendStatus(fiber.StatusBadRequest)
+		}
+
+		if err := os.RemoveAll(fullPath); err != nil {
+			fmt.Printf("%v\n", err)
+			return c.SendStatus(fiber.StatusInternalServerError)
+		}
+
+		return c.SendStatus(fiber.StatusOK)
 	})
 
 	return api
