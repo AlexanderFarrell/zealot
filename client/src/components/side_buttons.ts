@@ -17,6 +17,8 @@ import LogoutIcon from "../assets/icon/logout.svg";
 
 import commands from "../core/command_runner.ts";
 import { TableIcon } from '../assets/asset_map.ts';
+import DragUtil from '../core/drag_helper.ts';
+import { DateTime } from 'luxon';
 
 class SideButtons extends HTMLElement {
 
@@ -115,6 +117,17 @@ class SideButtons extends HTMLElement {
                 this.appendChild(document.createElement('hr'))
             }
         })
+
+
+        // Set up drag
+        DragUtil.setup_drop(this.querySelector('[title="Daily Planner"]')!, 
+            {"Date": DateTime.now().toISODate()});
+        DragUtil.setup_drop(this.querySelector('[title="Weekly Planner"]')!, 
+            {"Week": DateTime.now().toISOWeekDate().substring(0, 8)});
+        DragUtil.setup_drop(this.querySelector('[title="Monthly Planner"]')!, 
+            {"Month": DateTime.now().month, "Year": DateTime.now().year});
+        DragUtil.setup_drop(this.querySelector('[title="Annual Planner"]')!, 
+            {"Year": DateTime.now().year});
     }
 }
 

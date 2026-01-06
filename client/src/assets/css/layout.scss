@@ -1,0 +1,10 @@
+mobile-dropdown {
+	display: grid;
+	grid-template-columns: 1fr 1fr 1fr;
+}
+
+#mobile_title_bar_top > button, mobile-dropdown > button {
+	background: none;
+	box-shadow: none;
+}
+

@@ -3,6 +3,7 @@ import type { Item } from "../../api/item";
 import { router } from "../../core/router";
 import BaseElement, { BaseElementEmpty } from "../common/base_element";
 import ArrowIcon from "../../assets/icon/expand.svg";
+import DragUtil from "../../core/drag_helper";
 
 class NavViewItem extends BaseElement<Item> {
     render() {
@@ -25,7 +26,6 @@ class NavViewItem extends BaseElement<Item> {
         title.innerText = icon + " " + this.data!.title;
         title.addEventListener('click', () => {
             router.navigate(`/item_id/${this.data!.item_id}`)
-            // router.navigate(`/item/${this.data!.title}`)
         })
 
         expand_button.addEventListener('click', async () => {
@@ -39,6 +39,8 @@ class NavViewItem extends BaseElement<Item> {
                 child_view.innerHTML = "";
             }
         })
+
+        DragUtil.setup_drop(this, {"Parent": [this.data!.title]});
     }
 }
 

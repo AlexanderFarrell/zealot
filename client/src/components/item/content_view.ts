@@ -14,6 +14,7 @@ import {exampleSetup} from "prosemirror-example-setup";
 
 import {schema, defaultMarkdownParser, defaultMarkdownSerializer} from "prosemirror-markdown";
 import API from "../../api/api";
+import Popups from "../../core/popups";
 
 
 class ContentView extends BaseElement<Item> {
@@ -43,11 +44,12 @@ class ContentView extends BaseElement<Item> {
 				view.updateState(next_state);
 
 				if (this.save_timer !== null) clearTimeout(this.save_timer);
-				this.save_timer = setTimeout(() => {
+				this.save_timer = setTimeout(async () => {
 					const next_markdown = defaultMarkdownSerializer.serialize(view.state.doc);
 					if (next_markdown !== this.data!.content) {
 						this.data!.content = next_markdown;
-						API.item.update(this.data!.item_id, {content: next_markdown});
+						await API.item.update(this.data!.item_id, {content: next_markdown});
+						Popups.add("Saved content", 'note', 2)
 					}
 				}, 1000)
 			}

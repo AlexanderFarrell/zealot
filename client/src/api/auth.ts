@@ -22,8 +22,12 @@ export const AuthAPI = {
     },
 
     is_logged_in: async () => {
-        const response = await get_req('/api/account/is_logged_in');
-        return response.ok || response.status == 201;
+        try {
+            const response = await get_req('/api/account/is_logged_in');
+            return response.ok || response.status == 201;
+        } catch (e) {
+            return false;
+        }
     },
 
     register: async (username: string, password: string, 

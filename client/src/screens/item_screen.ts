@@ -12,6 +12,7 @@ import PlanView from "../components/item_view";
 import type AddItemScoped from "../components/add_item_scope";
 import ContentView from "../components/item/content_view";
 import ItemListView from "../components/item_list_view";
+import Popups from "../core/popups";
 
 class ItemScreen extends BaseElement<Item> {
     private last_loaded_title: string | null = null;
@@ -67,6 +68,7 @@ class ItemScreen extends BaseElement<Item> {
         delete_button.addEventListener('click', async () => {
             if (confirm("Are you sure you want to delete this?")) {
                 await ItemAPI.remove(this.data!.item_id)
+                Popups.add(`Removed ${this.data!.title}`);
                 router.navigate('/')
             }
         })
@@ -95,6 +97,7 @@ class ItemScreen extends BaseElement<Item> {
             try {
                 items.forEach((item) => {
                     API.item.assign_type(this.data!.item_id, item)
+                    Popups.add(`Assigned type ${item} to ${this.data!.title}`)
                 })
             } catch (e) {
                 console.error(e)
@@ -106,6 +109,7 @@ class ItemScreen extends BaseElement<Item> {
             try {
                 items.forEach(item => {
                     API.item.unassign_type(this.data!.item_id, item)
+                    Popups.add(`Unassigned type ${item} to ${this.data!.title}`)
                 })
             } catch (e) {
                 console.error(e)

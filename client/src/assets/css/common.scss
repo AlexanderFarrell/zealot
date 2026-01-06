@@ -24,11 +24,35 @@ icon-button {
 	cursor: pointer
 }
 
+#popup_container {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  padding: 5px;
+}
+
+popup- {
+  padding: 5px;
+  border-radius: 5px;
+  background-color: var(--bg-3);
+}
+
+popup-.warning {
+  background-color: rgb(124, 124, 10);
+}
+
+popup-.error {
+  background-color: rgb(110, 0, 0);
+}
+
 side-bar {
 	@extend .box;
-	min-width: 200px;
+  width: 200px;
+  overflow-x: scroll;
+	// min-width: 200px;
 }
 content- {
+  width: 100%;
   padding: 5px;
   display: grid;
 }
@@ -224,6 +248,10 @@ mobile-title-bar {
 
     .row {
         display: block;
+    }
+
+    #main-display {
+      grid-template-columns: 1fr;
     }
 }
 
