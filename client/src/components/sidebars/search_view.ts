@@ -1,4 +1,5 @@
 import ItemAPI from "../../api/item";
+import DragUtil from "../../core/drag_helper";
 import { router } from "../../core/router";
 
 
@@ -6,6 +7,7 @@ class SearchView extends HTMLElement {
     public results: Array<any> = [];
     public result_views: Array<HTMLElement> = [];
     public result_index = 0;
+    public dismiss_on_click: boolean = false;
 
     connectedCallback() {
         let container = document.createElement('div')
@@ -28,12 +30,16 @@ class SearchView extends HTMLElement {
                     resultView.innerText = result.title;
                     resultView.addEventListener('click', () => {
                         router.navigate(`/item_id/${result.item_id}`)
+                        if (this.dismiss_on_click) {
+                            this.style.display = 'none';
+                        }
                         // router.navigate(`/item/${encodeURIComponent(result.title)}`)
                         this.result_index = index;
                         this.set_selected_result();
                     })
                     container.appendChild(resultView)
                     this.result_views.push(resultView);
+                    DragUtil.setup_drop(resultView, {"Parent": [result.title]})
                 })
                 this.set_selected_result();
             }
@@ -46,6 +52,9 @@ class SearchView extends HTMLElement {
             if (e.key == 'Enter') {
                 if (this.results.length > this.result_index && this.results.length != 0) {
                     router.navigate(`/item_id/${this.results[this.result_index].item_id}`)
+                    if (this.dismiss_on_click) {
+                        this.style.display = 'none';
+                    }
                     // router.navigate(`/item/${encodeURIComponent(this.results[this.result_index].title)}`)
                 }
             }

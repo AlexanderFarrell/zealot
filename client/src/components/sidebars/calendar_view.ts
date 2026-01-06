@@ -4,6 +4,8 @@ import { router } from "../../core/router";
 import HomeIcon from "../../assets/icon/home.svg";
 import PreviousIcon from "../../assets/icon/back.svg";
 import NextIcon from "../../assets/icon/forward.svg";
+import DragUtil from "../../core/drag_helper";
+import API from "../../api/api";
 
 class CalendarView extends HTMLElement {
     private start_date: DateTime = DateTime.fromObject({
@@ -15,6 +17,34 @@ class CalendarView extends HTMLElement {
     connectedCallback() {
         this.render();
     }
+
+    // private setup_drop(
+    //     element: HTMLElement,
+    //     attributes: Record<string, any>) 
+    // {
+    //     element.addEventListener('dragover', (e: DragEvent) => {
+    //         e.preventDefault();
+    //     })
+    //     element.addEventListener('drop', async (e: DragEvent) => {
+    //         e.preventDefault();
+    //         if (!DragUtil.item) {
+    //             return;
+    //         }
+    //         try {
+    //             for (let key of Object.keys(attributes)) {
+    //                 await API.item.Attributes.set_value(DragUtil.item.item_id,
+    //                     key,
+    //                     attributes[key]
+    //                 )
+    //             }
+    //         } catch (e) {
+    //             // TODO
+    //             console.error(e)
+    //         } finally {
+    //             DragUtil.item = null;
+    //         }
+    //     })
+    // }
 
     render() {
         
@@ -92,6 +122,9 @@ class CalendarView extends HTMLElement {
             week_view.addEventListener('click', () => {
                 router.navigate(`/planner/weekly/${str}`)
             })
+            DragUtil.setup_drop(week_view, {
+                Week: str
+            })
             calendar_items.appendChild(week_view);
         }
 
@@ -117,6 +150,9 @@ class CalendarView extends HTMLElement {
             let str = current_date.toISODate();
             view.addEventListener('click', () => {
                 router.navigate(`/planner/daily/${str}`)
+            })
+            DragUtil.setup_drop(view, {
+                Date: str
             })
 
             // if today, then emphasize

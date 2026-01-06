@@ -19,13 +19,13 @@ import commands from "../core/command_runner.ts";
 import BackButton from "../assets/icon/back.svg";
 import { BaseElementEmpty } from './common/base_element.ts';
 import { TableIcon } from '../assets/asset_map.ts';
+import SearchView from './sidebars/search_view.ts';
 
-let mobile_menu_dropdown: MobileDropdown | null = null;
+// let mobile_menu_dropdown: MobileDropdown | null = null;
 // let mobile_menu_toggled = false;
 
 class MobileDropdown extends BaseElementEmpty {
     render() {
-        mobile_menu_dropdown = this;
         let buttons = [
             {
                 name: "Home",
@@ -75,7 +75,7 @@ class MobileDropdown extends BaseElementEmpty {
             {
                 name: "Types",
                 command: "Open Item Types",
-                TableIcon
+                icon: TableIcon
             },
             {
                 name: "Back",
@@ -95,7 +95,6 @@ class MobileDropdown extends BaseElementEmpty {
                     commands.run(data.command!);
                 }
                 this.remove();
-                mobile_menu_dropdown = null;
                 // mobile_menu_toggled = false;
             })
             this.appendChild(button);
@@ -121,23 +120,45 @@ class MobileTitleBar extends BaseElementEmpty {
                     <img style="width: 2.5em" src="${HamburgerIcon}">
                 </button>
             </div>
+            <div name="open_screen">
+            </div>
 
         `
+
+        let screen_container = this.querySelector('[name="open_screen"]')! as HTMLDivElement;
+
         let home = (this.querySelector('[name="Home"]')! as HTMLButtonElement);
         home.addEventListener('click', () => {
             router.navigate('/');
         })
         let hamburger = (this.querySelector('[name="Hamburger"]')! as HTMLButtonElement);
         hamburger.addEventListener('click', () => {
-            let mobile_dropdown = this.querySelector('#mobile_dropdown')!;
-            if (mobile_menu_dropdown != null) {
-                mobile_menu_dropdown.remove();
-                mobile_menu_dropdown = null;
-                // mobile_dropdown.innerHTML = "";
+            let mobile_dropdown = this.querySelector('mobile-dropdown')!;
+            if (mobile_dropdown != null) {
+                mobile_dropdown.remove();
             } else {
-                this.appendChild(new MobileDropdown());
+                screen_container.innerHTML = "";
+                screen_container.appendChild(new MobileDropdown());
             }
         });
+
+        let daily_button = this.querySelector('[name="Daily"]')! as HTMLButtonElement
+        daily_button.addEventListener('click', () => {
+            commands.run("Open Daily Planner")
+        })
+
+        let search_button = this.querySelector('[name="Search"]')! as HTMLButtonElement;
+        search_button.addEventListener('click', () => {
+            let search = this.querySelector('search-view')! as SearchView;
+            if (search != null) {
+                search.remove();
+            } else {
+                screen_container.innerHTML = "";
+                search = new SearchView();
+                search.dismiss_on_click = true;
+                screen_container.appendChild(search)
+            }
+        })
     }
 }
 

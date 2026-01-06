@@ -46,7 +46,6 @@ class AddItemModal2 extends BaseElementEmpty {
         })
 
         title_input.addEventListener('keydown', (e: KeyboardEvent) => {
-            console.log(e.key)
             if (e.key == "Enter") {
                 submit.dispatchEvent(new Event('click'));
             }

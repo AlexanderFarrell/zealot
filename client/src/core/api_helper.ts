@@ -1,3 +1,5 @@
+import Popups from "./popups";
+
 const CSRF_COOKIE_NAME = "csrf_";
 const CSRF_READY_ENDPOINT = "/api/health";
 let csrfReadyPromise: Promise<void> | null = null;
@@ -39,116 +41,129 @@ async function ensureCsrfToken(): Promise<void> {
     return csrfReadyPromise;
 }
 
-export async function get_json(url: string) {
-    return (await fetch(url, {
-        method: "GET",
-        headers: {
+function needsCsrf(method: string): boolean {
+    return !["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase());
+}
+
+async function requestWithHandling<T>(
+    url: string,
+    init: RequestInit,
+    on_error: string,
+    parse: (response: Response) => Promise<T> | T,
+): Promise<T> {
+    try {
+        const response = await fetch(url, {
+            credentials: "include",
+            ...init,
+        });
+        if (!response.ok) {
+            const error = new Error(`${on_error} (status ${response.status})`);
+            (error as Error & { response?: Response }).response = response;
+            throw error;
+        }
+        return await parse(response);
+    } catch (e) {
+        console.error(e);
+        Popups.add_error(on_error);
+        throw e;
+    }
+}
+
+async function buildRequestInit(
+    method: string,
+    headers: Record<string, string> = {},
+    body?: BodyInit,
+): Promise<RequestInit> {
+    const finalHeaders = needsCsrf(method) ? withCsrf(headers) : headers;
+    if (needsCsrf(method)) {
+        await ensureCsrfToken();
+    }
+    return {
+        method,
+        headers: finalHeaders,
+        body,
+    };
+}
+
+export async function get_json(url: string, on_error: string = `Failed to get ${url}`) {
+    const init = await buildRequestInit("GET", {
+        "Content-Type": "application/json"
+    });
+    return requestWithHandling(url, init, on_error, (response) => response.json());
+}
+
+export async function get_blob(url: string, accept: string = "*/*", on_error: string = `Failed to download ${url}`) {
+    const init = await buildRequestInit("GET", {
+        Accept: accept
+    });
+    return requestWithHandling(url, init, on_error, (response) => response.blob());
+}
+
+export async function get_req(url: string, on_error: string = `Failed to request to ${url}`) {
+    const init = await buildRequestInit("GET", {
+        "Content-Type": "application/json"
+    });
+    return requestWithHandling(url, init, on_error, (response) => response);
+}
+
+export async function post_json(url: string, data: any, on_error: string = `Failed to post to ${url}`) {
+    const init = await buildRequestInit(
+        "POST",
+        {
             "Content-Type": "application/json"
         },
-        credentials: "include",
-    })).json()
+        JSON.stringify(data),
+    );
+    return requestWithHandling(url, init, on_error, (response) => response.json());
 }
 
-export async function get_blob(url: string, accept: string = "*/*") {
-    return (await fetch(url, {
-        method: "GET",
-        headers: {
-            Accept: accept
-        },
-        credentials: "include"
-    })).blob()
-}
-
-export async function get_req(url: string) {
-    return fetch(url, {
-        method: "GET",
-        headers: {
+export async function post_req(url: string, data: any, on_error: string = `Failed to post to ${url}`) {
+    const init = await buildRequestInit(
+        "POST",
+        {
             "Content-Type": "application/json"
         },
-        credentials: "include",
-    })
+        JSON.stringify(data),
+    );
+    return requestWithHandling(url, init, on_error, (response) => response);
 }
 
-export async function post_json(url: string, data: any) {
-    await ensureCsrfToken();
-    return (await fetch(url, {
-        method: "POST",
-        headers: {
-            ...withCsrf({
-                "Content-Type": "application/json"
-            })
-        },
-        body: JSON.stringify(data),
-        credentials: "include",
-    })).json()
+export async function post_req_form_data(url: string, data: FormData, on_error: string = `Failed to submit form to ${url}`) {
+    const init = await buildRequestInit("POST", {}, data);
+    return requestWithHandling(url, init, on_error, (response) => response);
 }
 
-export async function post_req(url: string, data: any) {
-    await ensureCsrfToken();
-    return (await fetch(url, {
-        method: "POST",
-        headers: {
-            ...withCsrf({
-                "Content-Type": "application/json"
-            })
+export async function patch_json(url: string, data: any, on_error: string = `Failed to patch ${url}`) {
+    const init = await buildRequestInit(
+        "PATCH",
+        {
+            "Content-Type": "application/json"
         },
-        body: JSON.stringify(data),
-        credentials: "include",
-    }))
+        JSON.stringify(data),
+    );
+    return requestWithHandling(url, init, on_error, (response) => response.json());
 }
 
-export async function post_req_form_data(url: string, data: FormData) {
-    await ensureCsrfToken();
-    return (await fetch(url, {
-        method: "POST",
-        headers: {
-            ...withCsrf()
+export async function patch_req(url: string, data: any, on_error: string = `Failed to patch ${url}`) {
+    const init = await buildRequestInit(
+        "PATCH",
+        {
+            "Content-Type": "application/json"
         },
-        body: data,
-        credentials: "include",
-    }))
+        JSON.stringify(data),
+    );
+    return requestWithHandling(url, init, on_error, (response) => response);
 }
 
-export async function patch_json(url: string, data: any) {
-    await ensureCsrfToken();
-    return (await fetch(url, {
-        method: "PATCH",
-        headers: {
-            ...withCsrf({
-                "Content-Type": "application/json"
-            })
+export async function delete_req(url: string, data: any = {}, on_error: string = `Failed to delete ${url}`) {
+    const init = await buildRequestInit(
+        "DELETE",
+        {
+            "Content-Type": "application/json"
         },
-        body: JSON.stringify(data),
-        credentials: "include",
-    })).json()
-}
-
-export async function patch_req(url: string, data: any) {
-    await ensureCsrfToken();
-    return (await fetch(url, {
-        method: "PATCH",
-        headers: {
-            ...withCsrf({
-                "Content-Type": "application/json"
-            })
-        },
-        body: JSON.stringify(data),
-        credentials: "include",
-    }))
-}
-
-export async function delete_req(url: string, data: any = {}) {
-    await ensureCsrfToken();
-    return (await fetch(url, {
-        method: "DELETE",
-        headers: {
-            ...withCsrf({
-                "Content-Type": "application/json"
-            })
-        },
-        body: JSON.stringify(data),
-        credentials: "include",
-    }))
+        JSON.stringify(data),
+    );
+    return requestWithHandling(url, init, on_error, (response) => response);
 }
 
 export class BasicAPI<T> {

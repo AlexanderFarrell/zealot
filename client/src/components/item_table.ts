@@ -1,5 +1,6 @@
 import API from "../api/api";
 import type { Item } from "../api/item";
+import DragUtil from "../core/drag_helper";
 import { router } from "../core/router";
 import BaseElement, { BaseAPIElement } from "./common/base_element";
 import { AttributeValueView } from "./item/attribute_item_view";
@@ -142,12 +143,13 @@ class ItemTable extends BaseElement<ItemTableInfo> {
 			title_link.innerText = item.title;
 			td_first.addEventListener('click', () => {
 				router.navigate(`/item_id/${item.item_id}`)
-				// router.navigate(`/item/${item.title}`)
 			})
 			td_first.style.cursor = "pointer";
+			DragUtil.setup_drag(td_first, item);
+			DragUtil.setup_drop(td_first, {"Parent": [item.title]})
+
 			td_first.appendChild(title_link)
 			element.appendChild(td_first)
-
 
 			// And then the attributes, with editable value views
 			this.data!.columns.forEach(attr => {

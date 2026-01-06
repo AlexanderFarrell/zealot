@@ -14,3 +14,16 @@ export function Title(value: string): string {
 
     return result;
 }
+
+export function ToConjunctionList(values: string[], conjunction = "and"): string {
+    if (values.length == 0) {
+        return ""
+    }
+    if (values.length == 1) {
+        return values[0]
+    }
+
+    values[values.length-1] = conjunction + " " + values[values.length-1];
+    return values.join(', ')
+}
+

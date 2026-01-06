@@ -27,7 +27,7 @@ item-view {
   border: 1px solid var(--bg-3);
   width: 100%;
   display: grid;
-  grid-template-columns: auto 1fr auto auto;
+  grid-template-columns: 1fr auto auto;
   grid-gap: 10px;
   justify-content: space-between;
   padding: 10px;

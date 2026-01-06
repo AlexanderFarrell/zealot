@@ -1,40 +1,48 @@
+import API from "../api/api";
 import type { Item } from "../api/item";
+import DragUtil from "../core/drag_helper";
 import { router } from "../core/router";
 import BaseElement from "./common/base_element";
+import type { AttributeValueView } from "./item/attribute_item_view";
 
 
 class ItemView extends BaseElement<Item> {
     async render() {
         let item = this.data!;
         this.innerHTML = `
-        <div name="icon"></div>
         <div name="title"></div>
-        <div name="status"></div>
-        <div name="priority"></div>
+        <attribute-value-view name="status"></attribute-value-view>
+        <attribute-value-view name="priority"></attribute-value-view>
         `
 
-        let icon_view = this.querySelector('[name="icon"]')! as HTMLElement;
         let title_view = this.querySelector('[name="title"]')! as HTMLElement;
-        let status_view = this.querySelector('[name="status"]')! as HTMLElement;
-        let priority_view = this.querySelector('[name="priority"]')! as HTMLElement;
+        let status_view = this.querySelector('[name="status"]')! as AttributeValueView;
+        let priority_view = this.querySelector('[name="priority"]')! as AttributeValueView;
 
-        title_view.innerText = item.title;
+        title_view.innerText = (item.attributes!['Icon'] || '🔵') + " " + item.title;
 
-        let set_attr = (view: HTMLElement, attribute: string) => {
-            if (item.attributes![attribute] != null) {
-                view.innerText = item.attributes![attribute];
-            } else {
-                view.innerHTML = "&nbsp;"
-            }
-        }
+        // Status
+        status_view.init({
+            key: "Status",
+            value: item.attributes!["Status"]
+        })
+        status_view.addEventListener('change', async () => {
+            await API.item.Attributes.set_value(item.item_id, 'Status', status_view.value);
+        })
 
-        set_attr(icon_view, "Icon")
-        set_attr(status_view, 'Status')
-        set_attr(priority_view, "Priority")
+        priority_view.init({
+            key: "Priority",
+            value: item.attributes!['Priority']
+        });
+        priority_view.addEventListener('change', async () => {
+            await API.item.Attributes.set_value(item.item_id, 'Priority', priority_view.value);
+        })
 
-        this.addEventListener('click', () => {
+        DragUtil.setup_drag(this, item);
+        DragUtil.setup_drop(this, {"Parent": [item.title]});
+
+        title_view.addEventListener('click', () => {
             router.navigate(`/item_id/${item.item_id}`)
-            // router.navigate(`/item/${encodeURIComponent(item.title)}`);
         })
     }
 }
