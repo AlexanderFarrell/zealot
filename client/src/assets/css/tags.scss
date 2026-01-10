@@ -13,7 +13,7 @@ body {
     	var(--bg-0);
 	font-family: "Segoe UI", sans-serif;
 	margin: 0;
-	min-height: 100vh;
+	height: 100vh;
 }
 
 h1, h2, h3, h4, h5 {
@@ -118,11 +118,22 @@ pre {
 	background-color: var(--bg--1);
 	padding: 10px;
 	border-radius: 3px;
+	overflow-x: auto;
+	max-width: 600px;
+	white-space: pre;
+	min-width: 0;
+	width: 100%;
+}
+
+pre.hljs {
+	background-color: var(--bg--1);
 }
 
 blockquote {
-	// background-color: var(--bg-2);
+	background-color: var(--bg-1);
 	margin-left: 0;
-	border-left: 4px solid var(--bg-2);
-	padding-left: 10px;
+	border-left: 10px solid var(--bg-2);
+	padding: 1px 10px;
+	border-radius: 3px;
+	margin-right: 0;
 }

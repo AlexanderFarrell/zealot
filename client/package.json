@@ -34,6 +34,8 @@
     "@editorjs/header": "^2.8.8",
     "@editorjs/list": "^2.0.9",
     "@editorjs/quote": "^2.7.6",
+    "chart.js": "^4.5.1",
+    "highlight.js": "^11.11.1",
     "luxon": "^3.7.2",
     "navigo": "^8.11.1",
     "prosemirror-example-setup": "^1.2.3",

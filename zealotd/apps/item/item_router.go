@@ -55,6 +55,21 @@ func InitRouter(app *fiber.App) fiber.Router {
 	})
 	router.Get("/search", searchTitle)
 	router.Get("/children/:item_id", getChildren)
+	router.Post("/filter", func (c *fiber.Ctx) error {
+		accountID := web.GetKeyFromSessionInt(c, "account_id")
+
+		payload := struct {
+			Filters []AttributeFilter `json:"filters"`
+		}{}
+
+		if err := c.BodyParser(&payload); err != nil {
+			fmt.Printf("Error parsing filter payload: %v\n", err)
+			return c.SendStatus(fiber.StatusBadRequest)
+		}
+
+		items, err := GetItemsByAttributeFilters(payload.Filters, accountID)
+		return web.SendJSONOrError(c, items, err, "filtering items")
+	})
 
 	router.Post("/", addItem)
 	router.Patch("/:item_id", updateItem)

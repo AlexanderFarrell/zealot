@@ -324,3 +324,13 @@ func toListAny(raw interface{}) ([]any, error) {
 	}
 }
 
+func ResolveColumnAndValue(kind *AttributeKind, raw interface{}) (string, interface{}, error) {
+	if kind == nil {
+		column, val := inferColumnFromValue(raw)
+		return column, val, nil
+	}
+	if kind.BaseType == "list" {
+		return prepareListItemValue(kind, raw)
+	}
+	return prepareAttrValueFromKind(kind, raw)
+}

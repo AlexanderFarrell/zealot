@@ -3,6 +3,7 @@ package item
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"zealotd/apps/item/attribute"
 	"zealotd/apps/item/itemtype"
 	"zealotd/web"
@@ -16,6 +17,218 @@ type Item struct {
 	Content    string              `json:"content"`
 	Attributes map[string]any      `json:"attributes"`
 	Types      []itemtype.ItemType `json:"types"`
+}
+
+type AttributeFilter struct {
+	Key string `json:"key"`
+	Op string `json:"op"`
+	Value interface{} `json:"value"`
+	ListMode string `json:"list_mode"` // any|all|none
+}
+
+func GetItemsByAttributeFilter(filter* AttributeFilter, accountID int) ([]Item, error) {
+	return GetItemsByAttributeFilters([]AttributeFilter{*filter}, accountID)
+}
+
+func GetItemsByAttributeFilters(filters []AttributeFilter, accountID int) ([]Item, error) {
+	if len(filters) == 0 {
+		return nil, fmt.Errorf("no filters provided")
+	}
+
+	var whereParts []string
+	var args []any
+	var argPos = 1
+
+	// First, filter on the accountID, always
+	args = append(args, accountID)
+	argPos++
+
+	for _, f := range filters {
+		if strings.TrimSpace(f.Key) == "" {
+			return nil, fmt.Errorf("filter key required")
+		}
+
+		op, err := normalizeAttrbiuteOp(f.Op)
+		if err != nil {
+			return nil, err
+		}
+
+		kind, err := attribute.GetAttributeKind(f.Key, accountID)
+		if err != nil {
+			return nil, err
+		}
+
+		col, val, err := attribute.ResolveColumnAndValue(kind, f.Value)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := validateAttributeOpForColumn(op, col); err != nil {
+			return nil, err
+		}
+
+		clause, clauseArgs, err := buildAttributeFilterClause(
+			f, kind, col, op, val, &argPos)
+		if err != nil {
+			return nil, err
+		}
+
+		whereParts = append(whereParts, clause)
+		args = append(args, clauseArgs...)
+	}
+
+	query := fmt.Sprintf(`%s
+	where i.account_id = $1
+	and %s;
+	`, ItemQuery, strings.Join(whereParts, " and "))
+
+	rows, err := web.Database.Query(query, args...)
+	return addAttrsTypesToItems(rows, err, accountID)
+}
+
+func normalizeAttrbiuteOp(op string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(op)) {
+	case "", "eq", "=":
+		return "=", nil
+	case "ne", "!=", "<>":
+		return "<>", nil
+	case "gt", ">":
+		return ">", nil
+	case "gte", ">=":
+		return ">=", nil
+	case "lt", "<":
+		return "<", nil
+	case "lte", "<=":
+		return "<=", nil
+	case "ilike":
+		return "ilike", nil
+	default:
+		return "", fmt.Errorf("unsupported op %q", op)
+	}
+}
+
+func validateAttributeOpForColumn(op string, col string) error {
+	switch col {
+	case "value_text":
+		if op == "ilike" || op == "=" || op == "<>" {
+			return nil
+		}
+		return fmt.Errorf("op %q not allowed for text, please use ilike, = or <>", op)
+	case "value_item_id":
+		if op == "=" || op == "<>" {
+			return nil
+		}
+		return fmt.Errorf("op %q not allowed for item id", op)
+	default:
+		return nil
+	}
+}
+
+func buildAttributeFilterClause(
+	filter AttributeFilter,
+	kind *attribute.AttributeKind,
+	col string,
+	op string,
+	val interface{},
+	argPos *int,
+) (string, []any, error) {
+	listMode := strings.ToLower(strings.TrimSpace(filter.ListMode))
+	if listMode == "" {
+		listMode = "any"
+	}
+
+	keyPos := *argPos
+	valPos := *argPos + 1
+	*argPos += 2
+
+	args := []any{filter.Key, val}
+
+	// If the kind is unknown, fall bck to scaler or list
+	if kind == nil {
+		if listMode != "any" {
+			return "", nil, fmt.Errorf("list_mode %q requires list kind", listMode)
+		}
+		clause := fmt.Sprintf(`
+		(
+			exists (
+				select 1
+				from attribute a
+				where a.item_id = i.item_id
+				and a.key = $%d
+				and a.%s %s $%d
+			)
+			or exists (
+				select 1
+				from attribute_list_value alv
+				where alv.item_id = i.item_id
+				and alv.key = $%d
+				and alv.%s %s $%d
+			)
+		)
+		`, keyPos, col, op, valPos, keyPos, col, op, valPos)
+		return clause, args, nil
+	}
+
+	if kind.BaseType == "list" {
+		switch listMode {
+		case "any":
+			clause := fmt.Sprintf(`
+				exists (
+					select 1
+					from attribute_list_value alv
+					where alv.item_id = i.item_id
+					and alv.key = $%d
+					and alv.%s %s $%d
+				)
+			`, keyPos, col, op, valPos)
+			return clause, args, nil
+		case "none":
+			clause := fmt.Sprintf(`
+				exists (
+					select 1
+					from attribute_list_value alv
+					where alv.item_id = i.item_id
+					and alv.key = $%d
+				)
+				and not exists (
+					select 1
+					from attribute_list_value alv
+					where alv.item_id = i.item_id
+					and alv.key = $%d
+					and alv.%s %s $%d
+				)
+			`, keyPos, keyPos, col, op, valPos)
+			return clause, args, nil
+		case "all":
+			clause := fmt.Sprintf(`
+				exists (
+					select 1
+					from attribute_list_value alv
+					where alv.item_id = i.item_id
+					and alv.key = $%d
+				)
+				and not exists (
+					select 1
+					from attribute_list_value alv
+					where alv.item_id = i.item_id
+					and alv.key = $%d
+					and not (alv.%s %s $%d)
+				)
+			`, keyPos, keyPos, col, op, valPos)
+			return clause, args, nil
+		}
+	}
+
+	clause := fmt.Sprintf(`
+		exists (
+			select 1
+			from attribute a
+			where a.item_id = i.item_id
+			and a.key = $%d
+			and a.%s %s $%d
+		)
+	`, keyPos, col, op, valPos)
+	return clause, args, nil
 }
 
 const (

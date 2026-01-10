@@ -11,6 +11,15 @@ export interface Item {
     types?: Array<ItemType>
 }
 
+export type AttributeFilter = {
+    key: string;
+    op?: "eq" | "ne" | "gt" | "gte" | "lt" | "lte"
+        | "ilike" | "=" | "<" | ">" | "<=" | ">=" 
+        | "<>" | "!=";
+    value: any;
+    list_mode?: "any" | "all" | "none";
+}
+
 export const ItemAPI = {
     get: async (id: number): Promise<Item> => {
         return get_json(`/api/item/id/${id}`);
@@ -30,6 +39,10 @@ export const ItemAPI = {
 
     get_by_type: async (item_type: string): Promise<Item[]> => {
         return get_json(`/api/item?type=${item_type}`);
+    },
+
+    filter: async (filters: AttributeFilter[]): Promise<Item[]> => {
+        return post_json(`/api/item/filter`, {filters});
     },
 
     children: async (parent_id: number): Promise<Item[]> => {

@@ -183,6 +183,18 @@ class AttributeItemView extends BaseElement<AttributeItem> {
 	get value() {
 		return this.data!.value;
 	}
+
+	reset() {        
+		let key_input: HTMLInputElement = 
+			this.querySelector('[name="key"]')!;
+		let value_view: AttributeValueView =
+			this.querySelector('attribute-value-view')!;
+		this.data = {
+			key: "",
+			value: ""
+		}
+
+	}
 }
 
 customElements.define('attribute-item-view', AttributeItemView)
