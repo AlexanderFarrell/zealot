@@ -54,9 +54,10 @@ class AttributesView extends BaseElement<Item> {
             attr_view.init({
                 key: "",
                 value: ""
-            })
+            });
             this.refresh_attribute_views();
         });
+        (attr_view.querySelector('[name="key"]')! as HTMLInputElement).placeholder = "";
 
         attr_view.addEventListener('attr-add', (e) => {
             let attr = e.detail.attr;
@@ -65,6 +66,19 @@ class AttributesView extends BaseElement<Item> {
             }
             this.data!.attributes![attr.key] = attr.value;
             this.refresh_attribute_views();
+        })
+        attr_view.addEventListener('attr-value-change', async (e) => {
+            if (e.detail.key == "" || e.detail.new_value == "") {
+                return;
+            }
+            await API.item.Attributes.set_value(item.item_id!,
+                e.detail.key,
+                e.detail.new_value
+            );
+            this.data!.attributes![e.detail.key] = e.detail.new_value;
+            this.refresh_attribute_views();
+            attr_view.reset();
+            (attr_view.querySelector('[name="key"]')! as HTMLInputElement).focus();
         })
         container.appendChild(attr_view);
         container.appendChild(submit)
@@ -102,6 +116,7 @@ class AttributesView extends BaseElement<Item> {
                 );
                 attr_item_view.remove();
                 submit.remove();
+                delete this.data!.attributes![key];
             });
 
             container.appendChild(attr_item_view);
