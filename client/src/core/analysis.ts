@@ -4,7 +4,7 @@ import API from "../api/api";
 
 export class Analysis {
 	static async get_items_days(days: number) {
-        const since = DateTime.now().minus({days: days}).toISODate();
+        const since = DateTime.now().minus({days: days-1}).toISODate();
 
         const filters: AttributeFilter[] = [
             {key: "Date", op: "gte", value: since},

@@ -13,8 +13,8 @@ class MediaScreen extends BaseElement<string> {
 
         this.innerHTML = `
         <h1>Media</h1>
-        <div class="media-header row">
-            <div class="media-toolbar row">
+        <div class="media-header row_all">
+            <div class="media-toolbar row_all">
                 <button name="new_folder">
                     <img style="height: 2em" src="${NewFolderIcon}">
                 </button>
@@ -253,7 +253,7 @@ class BreadcrumbView extends BaseElement<string> {
 
     render() {
         const parts = this.currentPath ? this.currentPath.split("/") : [];
-        this.classList.add('row');
+        this.classList.add('row_all');
 
         // Root
         let root = document.createElement('button');

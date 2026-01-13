@@ -48,6 +48,7 @@ class DragUtil {
 						return `${e[0]} to ${e[1]}`
 					}), "and")} for ${item.title}`
 				)
+				element.dispatchEvent(new Event("change", {bubbles: true}));
 
 			} catch (e) {
 				// TODO

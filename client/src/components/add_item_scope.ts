@@ -27,9 +27,7 @@ class AddItemScoped extends BaseElement<Record<string, any>> {
             })
             title.value = "";
 
-            this.events.forEach(e => {
-                e();
-            });
+            this.dispatchEvent(new Event('change', {bubbles: true}));
             title.focus();
         })
     }

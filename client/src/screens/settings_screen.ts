@@ -13,7 +13,7 @@ class SettingsScreen extends HTMLElement {
     connectedCallback() {
         this.classList.add('center');
         this.innerHTML = `
-        <div id="row_buttons" class="row gap"></div>
+        <div id="row_buttons" class="row_all gap"></div>
         <div id="screen_container"></div>
         `
         let row_buttons = this.querySelector("#row_buttons");

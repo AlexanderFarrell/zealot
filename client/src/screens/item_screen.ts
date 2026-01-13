@@ -17,7 +17,6 @@ import Popups from "../core/popups";
 class ItemScreen extends BaseElement<Item> {
     private last_loaded_title: string | null = null;
 
-
     async render() {
         if (this.data == null) {
             this.render_empty_screen()
@@ -33,12 +32,6 @@ class ItemScreen extends BaseElement<Item> {
         <attributes-view></attributes-view>
         <content-view></content-view>
         <item-list-view style="padding-bottom: 1em;"></item-list-view>
-        <!--<div id="children_container" style="padding-top: 4em"></div>
-                    <div name="children">
-                <div>Children</div>
-                <add-item-scoped></add-item-scoped>
-                <div name="children_container"></div>
-            </div>-->
         `
 
         this.setup_title_view();
@@ -139,38 +132,11 @@ class ItemScreen extends BaseElement<Item> {
             .enable_add_item(
                 {Parent: [this.data!.title]},
                 async () => {
+                    children_view.only_render_items = true;
                     children_view.data = await API.item.children(item.item_id);
                 }
             )
             .init(children);
-        // let right_sidebar = document.querySelector('#right-side-bar')!;
-        // right_sidebar.innerHTML = `
-        //     <div name="children">
-        //         <div>Children</div>
-        //         <add-item-scoped></add-item-scoped>
-        //         <div name="children_container"></div>
-        //     </div>
-        // `
-
-        // let container = right_sidebar.querySelector('[name="children_container"]')!;
-        // let container = this.querySelector('[name="children_container"]')!;
-
-
-        // container.innerHTML = "";
-
-        // // Get children
-        // let children = await API.item.children(item.title);
-        // children.forEach(child => {
-        //     let view = new PlanView().init(child);
-        //     container.appendChild(view)
-        // });
-
-        // // let add_child = right_sidebar.querySelector('add-item-scoped')! as AddItemScoped;
-        // let add_child = this.querySelector('add-item-scoped')! as AddItemScoped;
-        // add_child.init({
-        //     Parent: [this.data!.title]
-        // })
-        // add_child.listen_on_submit(() => {this.render_children()})
     }
     
     async render_empty_screen() {
@@ -194,7 +160,9 @@ class ItemScreen extends BaseElement<Item> {
         try {
             this.data = await ItemAPI.get_by_title(title);
         } catch (e) {
-            this.innerHTML = "<div class='error'>Error loading item</div>";
+            // @ts-ignore
+            this.data = null;
+            // this.innerHTML = "<div class='error'>Error loading item</div>";
         }
     }
 
