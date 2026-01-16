@@ -1,37 +1,12 @@
 import type {Node as PMNode, Schema} from "prosemirror-model";
 import { getCommandBlock } from "./commands/commands";
+import { makeParagraph, parseParagraphs } from "./parse/parse_paragraph";
+import { parseList } from "./parse/parse_list";
+import { parseCodeBlock } from "./parse/parse_code_block";
 
-type InlineToken = {text: string};
 
-const parseInline = (schema: Schema, text: string): PMNode => {
-	// Minimal 
-	return schema.nodes.paragraph.createAndFill({}, schema.text(text))!;
-}
 
-const parseParagraphs = (schema: Schema, lines: string[]): PMNode[] => {
-	const blocks: PMNode[] = [];
-	const buffer: string[] = [];
 
-	const flush = () => {
-		if (buffer.length === 0) return;
-		const text = buffer.join("\n").trimEnd();
-		if (text.trim().length > 0) {
-			blocks.push(parseInline(schema, text));
-		}
-		buffer.length = 0;
-	}
-
-	for (const line of lines) {
-		if (line.trim() === "") {
-			flush();
-		} else {
-			buffer.push(line);
-		}
-	}
-
-	flush();
-	return blocks;
-}
 
 const parseHeading = (schema: Schema, line: string): PMNode | null => {
 	const match = /^(#{1,6})\s+(.*)$/.exec(line);
@@ -42,10 +17,7 @@ const parseHeading = (schema: Schema, line: string): PMNode | null => {
 	return schema.nodes.heading.createAndFill({ level }, schema.text(text));
 }
 
-const makeParagraph = (schema: Schema, text: string) => {
-	if (text.trim().length === 0) return schema.nodes.paragraph.create();
-	return schema.nodes.paragraph.create(null, schema.text(text));
-}
+
 
 const parseBulletList = (schema: Schema, lines: string[], startIndex: number) => {
 	const items: PMNode[] = [];
@@ -53,7 +25,7 @@ const parseBulletList = (schema: Schema, lines: string[], startIndex: number) =>
 
 	while (index < lines.length) {
 		const line = lines[index];
-		const match = /^-\s+(.+)$/.exec(line);
+		const match = /^[-*]\s+(.+)$/.exec(line);
 		if (!match) break;
 
 		const paragraph = makeParagraph(schema, match[1]);
@@ -69,6 +41,7 @@ const parseBulletList = (schema: Schema, lines: string[], startIndex: number) =>
 		// items.push(listItem);
 		// index++;
 	}
+	if (items.length === 0) return null;
 
 	const list = schema.nodes.bullet_list.create(null, items);
 	if (!list) return null;
@@ -96,6 +69,8 @@ const parseOrderedList = (schema: Schema, lines: string[], startIndex: number) =
 		// index++;
 	}
 
+	if (items.length === 0) return null;
+
 	const list = schema.nodes.ordered_list.create(null, items);
 	if (!list) return null;
 
@@ -107,8 +82,10 @@ const blockTypes: Array<(schema: Schema, line: string) => PMNode | null> = [
 ]
 
 const multiblockTypes: Array<(schema: Schema, lines: string[], startIndex: number) => {node: PMNode, linesConsumed: number} | null> = [
-	parseBulletList,
-	parseOrderedList
+	// parseBulletList,
+	parseList,
+	parseCodeBlock
+	// parseOrderedList
 ]
 
 export const parseZealotScript = (schema: Schema, input: string): PMNode => {

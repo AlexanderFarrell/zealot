@@ -4,12 +4,24 @@ import { exampleSetup } from "prosemirror-example-setup";
 import ZealotSchema from "../core/zealotscript/schema";
 import { parseZealotScript } from "../core/zealotscript/parser";
 import { serializeZealotScript } from "../core/zealotscript/serializer";
+import { liftListItem, sinkListItem } from "prosemirror-schema-list";
 
 export type ZealotEditorOptions = {
 	content?: string;
 	onUpdate?: (value: string, view: EditorView) => void;
 	debounceMs?: number;
 	handleTab?: boolean;
+}
+
+const isInList = (state: EditorState) => {
+	const listItemType = state.schema.nodes.list_item;
+	if (!listItemType) return false;
+
+	const {$from} = state.selection;
+	for (let depth = $from.depth; depth > 0; depth--) {
+		if ($from.node(depth).type == listItemType) return true;
+	}
+	return false;
 }
 
 export const createZealotEditorState = (content: string) => {
@@ -33,8 +45,17 @@ export const createZealotEditorView = (
 		state,
 		handleKeyDown: (view, event) => {
 			if (!options.handleTab) return false;
-			if (event.key !== "tab") return false;
+			if (event.key !== "Tab") return false;
 			event.preventDefault();
+
+			const listItemType = view.state.schema.nodes.list_item;
+			if (listItemType && isInList(view.state)) {
+				const command = event.shiftKey 
+					? liftListItem(listItemType)
+					: sinkListItem(listItemType);
+				if (command(view.state, view.dispatch)) return true;
+			}
+
 			view.dispatch(view.state.tr.insertText("\t"));
 			return true;
 		},

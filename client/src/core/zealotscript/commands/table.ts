@@ -46,6 +46,7 @@ const parseTableBlock: ZCommandBlockInfo["parse"] = (schema, lines, startIndex) 
 			schema.nodes.table_cell.createAndFill({}, schema.nodes.paragraph.createAndFill({}, schema.text(c)!))
 		);
 
+		// @ts-ignore
 		const row = schema.nodes.table_row.createAndFill({}, cellNodes)!;
 		rows.push(row);
 		index++;

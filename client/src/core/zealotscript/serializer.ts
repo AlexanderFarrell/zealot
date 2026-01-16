@@ -16,15 +16,47 @@ const serializeHeading = (node: PMNode) => {
 	return `${"#".repeat(level)} ${node.textContent}`
 }
 
-const serializeList = (node: PMNode, ordered: boolean) => {
+const serializeCodeBlock = (node: PMNode) => {
+	const content = node.textContent || "";
+	return `\`\`\`\n${content}\n\`\`\``;
+}
+
+const serializeList = (node: PMNode, ordered: boolean, indentLevel = 0) => {
 	const lines: string[] = [];
+	const prefixBase = "\t".repeat(indentLevel);
 	let counter = 1;
 
 	node.forEach((item) => {
-		const text = item.textContent || "";
-		const prefix = ordered ? `${counter}. ` : "- ";
-		lines.push(prefix + text);
+		let text = "";
+		let nestedLists: PMNode[] = [];
+
+		item.forEach(child => {
+			if (child.type.name === "paragraph" && text === "") {
+				text = child.textContent || "";
+			} else if (
+				child.type.name === "bullet_list" ||
+				child.type.name === "ordered_list"
+			) {
+				nestedLists.push(child);
+			}
+		});
+
+		const bullet = ordered ? `${counter}. ` : "- ";
+		lines.push(prefixBase + bullet + text);
 		counter++;
+
+		for (const nested of nestedLists) {
+			const nestedOrdered = nested.type.name === "ordered_list";
+			const nestedText = serializeList(nested, nestedOrdered, indentLevel + 1);
+			if (nestedText.trim().length > 0) {
+				lines.push(nestedText);
+			}
+		}
+
+		// const text = item.textContent || "";
+		// const prefix = ordered ? `${counter}. ` : "- ";
+		// lines.push(prefix + text);
+		// counter++;
 	});
 
 	return lines.join("\n");
@@ -42,7 +74,8 @@ const nodeSerializers: Record<string, (node: PMNode) => string> = {
 	"paragraph": serializeParagraph,
 	"heading": serializeHeading,
 	"bullet_list": serializeUnorderedList,
-	"ordered_list": serializeOrderedList
+	"ordered_list": serializeOrderedList,
+	"code_block": serializeCodeBlock
 }
 
 export const serializeZealotScript = (doc: PMNode): string => {
