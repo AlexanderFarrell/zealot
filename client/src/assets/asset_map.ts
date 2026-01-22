@@ -61,6 +61,7 @@ import RepeatIcon from "./icon/repeat.svg";
 import ResourceIcon from "./icon/resource.svg";
 import RightIcon from "./icon/right.svg";
 import RulesIcon from "./icon/rules.svg";
+import RunIcon from "./icon/run.svg";
 import SaveIcon from "./icon/save.svg";
 import ScheduleIcon from "./icon/schedule.svg";
 import ScienceIcon from "./icon/science.svg";
@@ -151,6 +152,7 @@ export {
   ResourceIcon,
   RightIcon,
   RulesIcon,
+  RunIcon,
   SaveIcon,
   ScheduleIcon,
   ScienceIcon,

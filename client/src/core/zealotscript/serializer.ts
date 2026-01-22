@@ -9,11 +9,38 @@ const serializeCommandBlock = (node: PMNode): string | null => {
 	return null;
 }
 
-const serializeParagraph = (node: PMNode) => node.textContent;
+const serializeInline = (node: PMNode) => {
+	let out = "";
+	node.forEach(child => {
+		if (child.isText) {
+			const text = child.text || "";
+			const linkMark = child.marks.find(m => m.type.name === "link")
+			if (linkMark) {
+				const href = linkMark.attrs.href || "";
+				out += `[${text}](${href})`;
+			} else {
+				out += text;
+			}
+			return;
+		}
+
+		if (child.type.name === "itemlink") {
+			out += `[[${child.attrs.title || ""}]]`;
+			return;
+		}
+
+		out += child.textContent || "";
+	});
+	return out;
+}
+
+const serializeParagraph = (node: PMNode) => {
+	return serializeInline(node);
+};
 
 const serializeHeading = (node: PMNode) => {
 	const level = node.attrs.level || 1;
-	return `${"#".repeat(level)} ${node.textContent}`
+	return `${"#".repeat(level)} ${serializeInline(node)}`
 }
 
 const serializeCodeBlock = (node: PMNode) => {
@@ -32,7 +59,8 @@ const serializeList = (node: PMNode, ordered: boolean, indentLevel = 0) => {
 
 		item.forEach(child => {
 			if (child.type.name === "paragraph" && text === "") {
-				text = child.textContent || "";
+				text = serializeInline(child);
+				// text = child.textContent || "";
 			} else if (
 				child.type.name === "bullet_list" ||
 				child.type.name === "ordered_list"
@@ -79,11 +107,11 @@ const nodeSerializers: Record<string, (node: PMNode) => string> = {
 }
 
 export const serializeZealotScript = (doc: PMNode): string => {
-	const lines: string[] = [];
+	const blocks: string[] = [];
 	doc.forEach((node) => {
 		const command = serializeCommandBlock(node);
 		if (command) {
-			lines.push(command);
+			blocks.push(command);
 			return;
 		}
 
@@ -91,12 +119,27 @@ export const serializeZealotScript = (doc: PMNode): string => {
 		if (kind in nodeSerializers) {
 			const serializer = nodeSerializers[kind];
 			const text = serializer(node);
-			lines.push(text)
+			blocks.push(text)
 		} else {
 			// Default
-			lines.push(node.textContent || "");
+			blocks.push(node.textContent || "");
 		}
-	});
 
-	return lines.join("\n\n");
+
+
+	});
+	let out = "";
+	let prevEmpty = false;
+
+	for (const block of blocks) {
+		const isEmpty = block.length === 0;
+
+		if (out.length > 0) {
+			out += (prevEmpty || isEmpty) ? "\n" : "\n\n";
+		}
+
+		out += block;
+		prevEmpty = isEmpty;
+	}
+	return out;
 }

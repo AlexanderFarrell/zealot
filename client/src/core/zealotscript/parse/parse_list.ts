@@ -1,5 +1,6 @@
 import type {Node as PMNode, Schema} from "prosemirror-model";
 import { makeParagraph } from "./parse_paragraph";
+import { parseInline } from "./parse_inline";
 
 type ListType = "bullet" | "ordered";
 
@@ -53,7 +54,7 @@ const parseListLine = (line: string): ParsedListLine | null => {
 
 const buildListNode = (schema: Schema, info: ListInfo): PMNode => {
 	const items = info.items.map((item) => {
-		const content: PMNode[] = [makeParagraph(schema, item.text)];
+		const content: PMNode[] = [parseInline(schema, item.text)];
 		for (const child of item.children) {
 			content.push(buildListNode(schema, child));
 		}

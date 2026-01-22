@@ -10,13 +10,15 @@ export const parseParagraphs = (schema: Schema, lines: string[]): PMNode[] => {
 		const text = buffer.join("\n").trimEnd();
 		if (text.trim().length > 0) {
 			blocks.push(parseInline(schema, text));
-		}
+		} 
 		buffer.length = 0;
 	}
 
 	for (const line of lines) {
 		if (line.trim() === "") {
 			flush();
+			// Blank line
+			blocks.push(schema.nodes.paragraph.create())
 		} else {
 			buffer.push(line);
 		}

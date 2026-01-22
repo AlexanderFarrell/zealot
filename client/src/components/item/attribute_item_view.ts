@@ -82,13 +82,13 @@ export class AttributeValueView extends BaseElement<AttributeItem> {
 			value_input = new ChipsInput();
 
 			// Hack need to fix later
-			if (attr.key == "Parent") {
+			// if (attr.key == "Parent") {
 				let on: (i: string) => void = (i) => {
 					router.navigate(`/item/${i}`)
 				}
 				// @ts-ignore
 				(value_input as ChipsInput).OnClickItem = on;
-			}
+			// }
 		}
 		else {
 			this.innerText = "Error: Unknown Type";

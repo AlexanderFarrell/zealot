@@ -103,6 +103,39 @@ const tableHeaderSpec: NodeSpec = {
 	}
 }
 
+const itemLinkSpec: NodeSpec = {
+	inline: true,
+	group: "inline",
+	atom: true,
+	attrs: {
+		title: {default: ""},
+		href: {default: ""}
+	},
+	parseDOM: [
+		{
+			tag: "a[data-itemlink]",
+			getAttrs: (e) => {
+				const element = e as HTMLElement;
+				return {
+					title: element.textContent || "",
+					href: element.getAttribute("href")
+				}
+			}
+		}
+	],
+	toDOM(node) {
+		return [
+			"a",
+			{
+				href: node.attrs.href,
+				"data-itemlink": true,
+				class: "itemlink"
+			},
+			node.attrs.title
+		]
+	}
+}
+
 const strikeMark: MarkSpec = {
 	parseDOM: [{tag: "s"}, {tag: "del"}],
 	toDOM() {
@@ -138,12 +171,14 @@ const superscriptMark: MarkSpec = {
 	}
 }
 
+
 const nodes = addListNodes(baseSchema.spec.nodes, "paragraph block*", "block").append({
 	admonition: admonitionSpec,
 	table: tableSpec,
 	table_row: tableRowSpec,
 	table_cell: tableCellSpec,
-	table_header: tableHeaderSpec
+	table_header: tableHeaderSpec,
+	itemlink: itemLinkSpec
 })
 
 const marks = baseSchema.spec.marks.append({

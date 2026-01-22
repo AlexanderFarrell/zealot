@@ -45,6 +45,10 @@ export const ItemAPI = {
         return post_json(`/api/item/filter`, {filters});
     },
 
+    related: async (parent_id: number): Promise<Item[]> => {
+        return get_json(`/api/item/related/${parent_id}`)
+    },
+
     children: async (parent_id: number): Promise<Item[]> => {
         return get_json(`/api/item/children/${parent_id}`)
     },

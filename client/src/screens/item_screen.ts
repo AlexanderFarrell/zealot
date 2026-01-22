@@ -13,6 +13,7 @@ import type AddItemScoped from "../components/add_item_scope";
 import ContentView from "../components/item/content_view";
 import ItemListView from "../components/item_list_view";
 import Popups from "../core/popups";
+import runner from "../core/command_runner";
 
 class ItemScreen extends BaseElement<Item> {
     private last_loaded_title: string | null = null;
@@ -126,7 +127,7 @@ class ItemScreen extends BaseElement<Item> {
         let item = this.data!;
         let children_view = this.querySelector('item-list-view')! as ItemListView;
 
-        let children = await API.item.children(item.item_id);
+        let children = await API.item.related(item.item_id);
 
         children_view
             .enable_add_item(
@@ -152,7 +153,11 @@ class ItemScreen extends BaseElement<Item> {
             }
             await API.item.add(item)
             this.data = await API.item.get_by_title(this.last_loaded_title!);
+            setTimeout(() => {
+                runner.run('Focus Edit')
+            }, 200);
         })
+        this.querySelector('button')?.focus();
     }
     
     public async LoadItem(title: string) {

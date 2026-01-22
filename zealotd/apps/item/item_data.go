@@ -278,6 +278,21 @@ func GetItemsByType(kind string, accountID int) ([]Item, error) {
 	return addAttrsTypesToItems(rows, err, accountID)
 }
 
+func GetRelatedItems(toTitle string, accountID int) ([]Item, error) {
+	query := fmt.Sprintf(`%s
+	where i.account_id=$1
+	and exists (
+		select 1
+		from attribute_list_value alv
+		where alv.item_id = i.item_id
+		and alv.value_text = $2
+	);
+	`, ItemQuery)
+
+	rows, err := web.Database.Query(query, accountID, toTitle)
+	return addAttrsTypesToItems(rows, err, accountID)
+}
+
 func GetItemsByAttribute(key string, value interface{}, valueCol string, accountID int) ([]Item, error) {
 	if _, ok := acceptableAttributeColumns[valueCol]; !ok {
 		return nil, fmt.Errorf("invalid column passed")

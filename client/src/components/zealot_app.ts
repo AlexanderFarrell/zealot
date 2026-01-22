@@ -1,3 +1,4 @@
+import { DateTime } from 'luxon';
 import AuthAPI from '../api/auth.ts';
 import { events } from '../core/events';
 import { ALT_KEY, CTRL_OR_META_KEY, Hotkey, SHIFT_KEY } from '../core/hotkeys';
@@ -5,8 +6,10 @@ import { router, setup_router } from '../core/router.ts';
 import commands from './../core/command_runner.ts';
 import AddItemModal2 from './add_item_modal';
 import AddItemModal from './add_item_modal';
+import CommandModal from './command_modal.ts';
 import type ContentView from './item/content_view.ts';
 import MobileTitleBar from './mobile_title_bar.ts';
+import ItemSearchModal from './search_modal.ts';
 
 class ZealotApp extends HTMLElement {
     connectedCallback() {
@@ -44,12 +47,13 @@ class ZealotApp extends HTMLElement {
         commands.register('Search Items', 
             [new Hotkey('o', [CTRL_OR_META_KEY])],
             () => {
-                let left_sidebar = document.querySelector('#left-side-bar')!;
-                left_sidebar.innerHTML = "<search-view></search-view>";
+                document.body.appendChild(new ItemSearchModal());
+                // let left_sidebar = document.querySelector('#left-side-bar')!;
+                // left_sidebar.innerHTML = "<search-view></search-view>";
             });
-        commands.register('Run Command', 
-            [new Hotkey('p', [CTRL_OR_META_KEY])],
-            () => {});
+        // commands.register('Run Command', 
+        //     [new Hotkey('p', [CTRL_OR_META_KEY])],
+        //     () => {});
         commands.register('Open Nav Sidebar', 
             [new Hotkey('t', [CTRL_OR_META_KEY])],
             () => {
@@ -131,6 +135,18 @@ class ZealotApp extends HTMLElement {
             async () => {
                 await AuthAPI.logout();
                 events.emit('on_logout');
+            });
+        commands.register('Open Command Runner', 
+            [new Hotkey('p', [CTRL_OR_META_KEY])],
+            async () => {
+                document.body.appendChild(new CommandModal());
+            });
+
+        commands.register("Open Today's Note", 
+            [new Hotkey('d', [CTRL_OR_META_KEY, SHIFT_KEY])],
+            async () => {
+                let today = DateTime.now().toISODate();
+                router.navigate('/item/' + today);
             }
         )
     }

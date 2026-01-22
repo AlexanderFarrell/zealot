@@ -13,6 +13,7 @@ import BaseElement from "../components/common/base_element";
 import ButtonGroup, { ButtonDef } from "../components/common/button_group";
 import AddItemScoped from "../components/add_item_scope";
 import type ItemListView from "../components/item_list_view";
+import DragUtil from "../core/drag_helper";
 
 class DailyPlannerScreen extends BaseElement<DateTime> {
     async render() {
@@ -71,6 +72,11 @@ class DailyPlannerScreen extends BaseElement<DateTime> {
         } catch (e) {
             console.error(e)
         }
+
+        DragUtil.setup_drop(this.querySelector('[title="Previous Day"]')!, 
+            {"Date": this.data!.minus({days: 1}).toISODate()});
+        DragUtil.setup_drop(this.querySelector('[title="Next Day"]')!, 
+            {"Date": this.data!.plus({days: 1}).toISODate()});
     }
 }
 
