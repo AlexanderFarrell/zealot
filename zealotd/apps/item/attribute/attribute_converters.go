@@ -20,6 +20,9 @@ func prepareAttrValueFromKind(kind *AttributeKind, raw interface{}) (column stri
 		if err != nil {
 			return "", nil, fmt.Errorf("invalid integer value for %s: %v", kind.Key, &err)
 		}
+		if err := validateIntBounds(*kind, v); err != nil {
+			return "", nil, err
+		}
 		return column, v, nil
 	case "decimal":
 		column = "value_num"
@@ -27,12 +30,18 @@ func prepareAttrValueFromKind(kind *AttributeKind, raw interface{}) (column stri
 		if err != nil {
 			return "", nil, fmt.Errorf("invalid decimal value for %s: %v", kind.Key, &err)
 		}
+		if err := validateNumberBounds(*kind, v); err != nil {
+			return "", nil, err
+		}
 		return column, v, nil
 	case "text":
 		column = "value_text"
 		v, err := toString(raw)
 		if err != nil {
 			return "", nil, fmt.Errorf("invalid text value for %s: %v", kind.Key, err)
+		}
+		if err := validateTextConfig(kind, v); err != nil {
+			return "", nil, err
 		}
 		return column, v, nil
 	case "date":

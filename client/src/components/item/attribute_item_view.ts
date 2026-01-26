@@ -30,16 +30,26 @@ export class AttributeValueView extends BaseElement<AttributeItem> {
 	async render() {
 		let attr = this.data!;
 		let kind = await get_kind_for_key(attr.key);
+		const key = attr.key;
 
 		this.innerHTML = "";
 
 		let value_input: HTMLSelectElement | HTMLInputElement |
-			ChipsInput | null = null;
+			ChipsInput | ScheduleInput | null = null;
 
 		if (kind == undefined || kind.base_type == "text") {
-			// Text or default 
-			value_input = document.createElement('input')
-			value_input.type = 'text';
+			if (key == "Schedule") {
+				value_input = new ScheduleInput();
+			} else {
+				// Text or default 
+				value_input = document.createElement('input')
+				value_input.type = 'text';
+				if (key == "Email") {
+					value_input.type = "email";
+				} else if (key == "Phone") {
+					value_input.type = "tel";
+				}
+			}
 		}
 		else if (kind.base_type == 'integer' || kind.base_type == 'decimal') {
 			// Any number type
@@ -96,7 +106,9 @@ export class AttributeValueView extends BaseElement<AttributeItem> {
 		}
 
 		// Set value
-		if (kind?.base_type == 'date') {
+		if (value_input instanceof ScheduleInput) {
+			value_input.value = typeof attr.value === "string" ? attr.value : "";
+		} else if (kind?.base_type == 'date') {
 			value_input!.value = attr.value.substring(0, 10)
 		} else {
 			value_input!.value = attr.value;
@@ -125,6 +137,62 @@ export class AttributeValueView extends BaseElement<AttributeItem> {
 
 	focus() {
 		this.querySelector('input')?.focus();
+	}
+}
+
+class ScheduleInput extends HTMLElement {
+	private days = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+	private values: boolean[] = [false, false, false, false, false, false, false];
+	private buttons: HTMLButtonElement[] = [];
+
+	connectedCallback() {
+		if (this.buttons.length == 0) {
+			this.render();
+		}
+		this.syncButtons();
+	}
+
+	set value(v: string) {
+		let text = (v || "").trim();
+		if (text.length < 10) {
+			text = text.padEnd(10, "0");
+		}
+		for (let i = 0; i < 7; i++) {
+			this.values[i] = text[i] === "1";
+		}
+		this.syncButtons();
+	}
+
+	get value(): string {
+		const week = this.values.map(v => (v ? "1" : "0")).join("");
+		return `${week}000`;
+	}
+
+	private render() {
+		this.innerHTML = "";
+		this.classList.add("schedule-input");
+		this.buttons = [];
+
+		for (let i = 0; i < this.days.length; i++) {
+			const button = document.createElement("button");
+			button.type = "button";
+			button.classList.add("schedule-day");
+			button.dataset.dayIndex = String(i);
+			button.innerText = this.days[i];
+			button.addEventListener("click", () => {
+				this.values[i] = !this.values[i];
+				this.syncButtons();
+				this.dispatchEvent(new Event("change"));
+			});
+			this.buttons.push(button);
+			this.appendChild(button);
+		}
+	}
+
+	private syncButtons() {
+		for (let i = 0; i < this.buttons.length; i++) {
+			this.buttons[i].classList.toggle("active", this.values[i]);
+		}
 	}
 }
 
@@ -199,5 +267,6 @@ class AttributeItemView extends BaseElement<AttributeItem> {
 
 customElements.define('attribute-item-view', AttributeItemView)
 customElements.define('attribute-value-view', AttributeValueView)
+customElements.define('schedule-input', ScheduleInput)
 
 export default AttributeItemView;

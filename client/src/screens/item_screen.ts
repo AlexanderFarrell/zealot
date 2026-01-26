@@ -14,6 +14,8 @@ import ContentView from "../components/item/content_view";
 import ItemListView from "../components/item_list_view";
 import Popups from "../core/popups";
 import runner from "../core/command_runner";
+import ButtonGroup, { ButtonDef } from "../components/common/button_group";
+import { CopyIcon, DownloadIcon, EditIcon, ItemsIcon, LinkIcon, ScienceIcon, UpIcon } from "../assets/asset_map";
 
 class ItemScreen extends BaseElement<Item> {
     private last_loaded_title: string | null = null;
@@ -27,13 +29,75 @@ class ItemScreen extends BaseElement<Item> {
         this.innerHTML = `
         <div class="title" name="title_container">
             <h1 name="title" contenteditable="true"></h1>
-            <button name="delete_button" title="Delete Item"><img src="${DeleteIcon}" alt="Delete Button Icon"></button>
+
         </div>
         <div name="item_types" class="attribute"></div>
         <attributes-view></attributes-view>
         <content-view></content-view>
         <item-list-view style="padding-bottom: 1em;"></item-list-view>
         `
+        this.prepend(new ButtonGroup().init([
+            new ButtonDef(
+                UpIcon,
+                'To Parent',
+                () => {
+
+                }
+            ),
+            new ButtonDef(
+                EditIcon,
+                'Toggle Content Editor',
+                () => {
+                    // These could be global so that other items are with this view
+                }
+            ),
+            new ButtonDef(
+                ItemsIcon,
+                'Toggle Related Items',
+                () => {
+
+                }
+            ),
+            new ButtonDef(
+                ScienceIcon,
+                'Toggle Analysis',
+                () => {
+
+                }
+            ),
+            new ButtonDef(
+                LinkIcon,
+                'Copy Link',
+                () => {
+
+                }
+            ),
+            new ButtonDef(
+                DownloadIcon,
+                'Export',
+                () => {
+
+                }
+            ),
+            new ButtonDef(
+                CopyIcon,
+                'Copy as JSON',
+                () => {
+                    // Make this a command so that practically any page could be copied as JSON
+                }
+            ),
+            new ButtonDef(
+                DeleteIcon,
+                'Delete Item',
+                async () => {
+                    if (confirm('Are you sure you want to delete this?')) {
+                        await ItemAPI.remove(this.data!.item_id);
+                        Popups.add(`Removed ${this.data!.title}`)
+                        router.navigate('/')
+                    }
+                }
+            )
+        ]))
 
         this.setup_title_view();
         this.setup_types_view();
@@ -57,15 +121,15 @@ class ItemScreen extends BaseElement<Item> {
         })
         title.addEventListener('blur', () => {
             ItemAPI.update(this.data!.item_id, {title: this.data!.title})
-        })        
-        let delete_button = this.querySelector('[name="delete_button"]')!;
-        delete_button.addEventListener('click', async () => {
-            if (confirm("Are you sure you want to delete this?")) {
-                await ItemAPI.remove(this.data!.item_id)
-                Popups.add(`Removed ${this.data!.title}`);
-                router.navigate('/')
-            }
-        })
+        })       
+        // let delete_button = this.querySelector('[name="delete_button"]')!;
+        // delete_button.addEventListener('click', async () => {
+        //     if (confirm("Are you sure you want to delete this?")) {
+        //         await ItemAPI.remove(this.data!.item_id)
+        //         Popups.add(`Removed ${this.data!.title}`);
+        //         router.navigate('/')
+        //     }
+        // })
     }
 
 

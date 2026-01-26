@@ -19,6 +19,61 @@ values
 ('Parent', 'Creates hierarchical relationships', 'list', true,
     '{"list_type": "text"}');
 
+insert into attribute_kind (key, description, base_type, is_system, config)
+select
+    'Time of Day',
+    'The general time of day which something occurred.',
+    'dropdown',
+    true,
+    '{"values": ["Morning", "Afternoon", "Evening", "Anytime"]}'::jsonb
+where not exists (
+    select 1 from attribute_kind where key='Time of Day' and is_system
+);
+
+insert into attribute_kind (key, description, base_type, is_system, config)
+select
+    'Phone',
+    'International phone number (E.164).',
+    'text',
+    true,
+    '{"pattern": "[+][1-9][0-9]{1,14}"}'::jsonb
+where not exists (
+    select 1 from attribute_kind where key='Phone' and is_system
+);
+
+insert into attribute_kind (key, description, base_type, is_system, config)
+select
+    'Email',
+    'Email address.',
+    'text',
+    true,
+    '{"pattern": "[^@[:space:]]+@[^@[:space:]]+[.][^@[:space:]]+"}'::jsonb
+where not exists (
+    select 1 from attribute_kind where key='Email' and is_system
+);
+
+insert into attribute_kind (key, description, base_type, is_system, config)
+select
+    'Schedule',
+    'Configuration for how often something should happen',
+    'text',
+    true,
+    '{"pattern": "[0-1]{10}"}'::jsonb
+where not exists (
+    select 1 from attribute_kind where key='Schedule' and is_system
+);
+
+insert into attribute_kind (key, description, base_type, is_system, config)
+select
+    'End Date',
+    'The date at which something stops.',
+    'date',
+    true,
+    '{}'::jsonb
+where not exists (
+    select 1 from attribute_kind where key='End Date' and is_system
+);
+
 insert into item_type_attribute_kind_link (attribute_kind_id, item_type_id)
 values 
 (
@@ -28,4 +83,8 @@ values
 (
     (select kind_id from attribute_kind where key='Priority'),
     (select type_id from item_type where name='Plan')
+),
+(
+    (select kind_id from attribute_kind where key='Schedule'),
+    (select type_id from item_type where name='Repeat')
 );
