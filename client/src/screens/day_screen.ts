@@ -26,6 +26,22 @@ class DailyPlannerScreen extends BaseElement<DateTime> {
             <h2>Repeats</h2>
             <div name="repeat_list" style="display: grid; gap: 8px;"></div>
         </div>
+        <div class="tracker-planner">
+            <div style="display: grid; grid-template-columns: 1fr auto">
+                <h2>Tracker</h2>
+                <button type="button" name="tracker_toggle">Add</button>
+            </div>
+            <form name="tracker_form" style="display: none; gap: 8px;">
+                <div style="display: grid; grid-template-columns: 1fr 8em 6em 2fr 6em; gap: 8px; align-items: center;">
+                    <select name="tracker_item"></select>
+                    <input type="time" name="tracker_time">
+                    <input type="number" name="tracker_level" min="1" max="10" value="3">
+                    <input type="text" name="tracker_comment" placeholder="Comment">
+                    <button type="submit">Log</button>
+                </div>
+            </form>
+            <div name="tracker_list" style="display: grid; gap: 8px;"></div>
+        </div>
         <div name="items" style="display: grid; grid-gap: 10px"></div>`
 
         this.prepend(new ButtonGroup().init([
@@ -83,6 +99,7 @@ class DailyPlannerScreen extends BaseElement<DateTime> {
             {"Date": this.data!.plus({days: 1}).toISODate()});
 
         await this.render_repeats(date);
+        await this.render_tracker(date);
     }
 
     private async render_repeats(date: DateTime) {
@@ -185,6 +202,140 @@ class DailyPlannerScreen extends BaseElement<DateTime> {
                 container.appendChild(row);
             });
         });
+    }
+
+    private async render_tracker(date: DateTime) {
+        const list = this.querySelector('[name="tracker_list"]') as HTMLDivElement;
+        const form = this.querySelector('[name="tracker_form"]') as HTMLFormElement;
+        const itemSelect = this.querySelector('[name="tracker_item"]') as HTMLSelectElement;
+        const timeInput = this.querySelector('[name="tracker_time"]') as HTMLInputElement;
+        const levelInput = this.querySelector('[name="tracker_level"]') as HTMLInputElement;
+        const commentInput = this.querySelector('[name="tracker_comment"]') as HTMLInputElement;
+        const toggle = this.querySelector('[name="tracker_toggle"]') as HTMLButtonElement;
+
+        if (!list || !form || !itemSelect || !timeInput || !levelInput || !commentInput || !toggle) {
+            return;
+        }
+
+        if (toggle.dataset.bound !== "1") {
+            toggle.dataset.bound = "1";
+            toggle.addEventListener("click", () => {
+                const isHidden = form.style.display === "none";
+                form.style.display = isHidden ? "grid" : "none";
+                toggle.innerText = isHidden ? "Close" : "Add";
+            });
+        }
+
+        list.innerHTML = "";
+        itemSelect.innerHTML = "";
+
+        try {
+            const trackerItems = await API.item.get_by_type("Tracker");
+            trackerItems.forEach((it) => {
+                const opt = document.createElement("option");
+                opt.value = String(it.item_id);
+                opt.innerText = it.title;
+                itemSelect.appendChild(opt);
+            });
+        } catch (e) {
+            console.error(e);
+        }
+
+        if (!timeInput.value) {
+            const now = DateTime.now();
+            timeInput.value = now.toFormat("HH:mm");
+        }
+
+        const loadEntries = async () => {
+            list.innerHTML = "";
+            let entries = [];
+            try {
+                entries = await API.tracker.get_for_day(date);
+            } catch (e) {
+                console.error(e);
+                list.innerText = "Error loading tracker entries.";
+                return;
+            }
+
+            if (!entries || entries.length == 0) {
+                list.innerText = "No tracker entries.";
+                return;
+            }
+
+            entries.forEach((entry) => {
+                const row = document.createElement("div");
+                row.style.display = "grid";
+                row.style.gridTemplateColumns = "6em 1fr 4em 2fr 4em";
+                row.style.alignItems = "center";
+                row.style.gap = "8px";
+
+                const time = DateTime.fromISO(entry.timestamp).toFormat("HH:mm");
+                const timeLabel = document.createElement("div");
+                timeLabel.innerText = time;
+
+                const title = document.createElement("div");
+                title.innerText = entry.item.title;
+                title.style.cursor = "pointer";
+                title.addEventListener("click", () => {
+                    router.navigate(`/item/${entry.item.item_id}`);
+                });
+
+                const level = document.createElement("div");
+                level.innerText = String(entry.level);
+
+                const comment = document.createElement("div");
+                comment.innerText = entry.comment || "";
+
+                const del = document.createElement("button");
+                del.innerText = "Delete";
+                del.addEventListener("click", async () => {
+                    try {
+                        await API.tracker.delete_entry(entry.tracker_id);
+                        await loadEntries();
+                    } catch (e) {
+                        console.error(e);
+                    }
+                });
+
+                row.appendChild(timeLabel);
+                row.appendChild(title);
+                row.appendChild(level);
+                row.appendChild(comment);
+                row.appendChild(del);
+                list.appendChild(row);
+            });
+        };
+
+        if (form.dataset.bound !== "1") {
+            form.dataset.bound = "1";
+            form.addEventListener("submit", async (e) => {
+                e.preventDefault();
+                if (!itemSelect.value) {
+                    return;
+                }
+
+                const [hour, minute] = (timeInput.value || "00:00").split(":").map(Number);
+                const timestamp = date.set({
+                    hour: Number.isFinite(hour) ? hour : 0,
+                    minute: Number.isFinite(minute) ? minute : 0,
+                    second: 0,
+                    millisecond: 0
+                });
+
+                const level = Math.max(1, Math.min(10, parseInt(levelInput.value || "3", 10)));
+                const comment = commentInput.value || "";
+
+                try {
+                    await API.tracker.add_entry(parseInt(itemSelect.value, 10), timestamp, level, comment);
+                    commentInput.value = "";
+                    await loadEntries();
+                } catch (e) {
+                    console.error(e);
+                }
+            });
+        }
+
+        await loadEntries();
     }
 }
 

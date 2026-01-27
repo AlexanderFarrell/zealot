@@ -5,4 +5,5 @@ item/attributes.psql
 item/item_type.psql
 item/link.psql
 repeat/repeat.sql
+tracker/tracker.sql
 constants/constants.psql
