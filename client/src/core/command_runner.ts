@@ -1,11 +1,20 @@
 import { register_hotkey, type Hotkey } from "./hotkeys";
 
+export type UICommand = {
+    name: string,
+    hotkeys: Hotkey[],
+    func: Function
+}
 
 class CommandRunner {
-    public Commands: Map<string, Function> = new Map();
+    public Commands: Map<string, UICommand> = new Map();
 
     register(name: string, hotkeys: Hotkey[], on: Function) {
-        this.Commands.set(name, on);
+        this.Commands.set(name, {
+            name: name,
+            hotkeys: hotkeys,
+            func: on
+        });
         hotkeys.forEach(k => {
             k.func = () => {this.run(name)};
             register_hotkey(k)
@@ -18,18 +27,15 @@ class CommandRunner {
             return;
         }
 
-        let on = this.Commands.get(name)!;
-        on();
+        let c = this.Commands.get(name)!;
+        c.func();
     }
 
-    search_commands(term: string): Array<object> {
-        let retVal = [];
+    search_commands(term: string): Array<UICommand> {
+        let retVal: UICommand[] = [];
         for (const [key, value] of this.Commands.entries()) {
-            if (key.includes(term)) {
-                retVal.push({
-                    name: key,
-                    func: value
-                })
+            if (key.toLowerCase().includes(term.toLowerCase())) {
+                retVal.push(value)
             }
         }
         retVal.sort((a, b) => {
@@ -44,6 +50,6 @@ class CommandRunner {
     }
 }
 
-let runner = new CommandRunner();
+export let runner = new CommandRunner();
 
 export default runner;

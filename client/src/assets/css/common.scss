@@ -59,6 +59,16 @@ content- {
   height: 100vh;
 }
 
+content- {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+content-::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 auth-modal form {
   max-width: 500px;
 }
@@ -92,6 +102,10 @@ item-screen {
   display: flex;
 }
 
+.row_all {
+  display: flex;
+}
+
 .col1 {
   flex: 1;
 }
@@ -100,8 +114,13 @@ item-screen {
   gap: 5px;
 }
 
-.result_view.selected {
+.selected {
   font-weight: bold;
+}
+
+.command_result {
+  display: grid;
+  grid-template-columns: 1fr auto;
 }
 
 .modal_background {
@@ -132,6 +151,10 @@ tr {
   background-color: var(--bg-1);
 }
 
+*[name="generic_results"] {
+  height: 200px;
+  overflow-y: auto;
+}
 
 
 thead > tr {
@@ -255,8 +278,27 @@ mobile-title-bar {
     #main-display {
       grid-template-columns: 1fr;
     }
+    *[name="generic_results"] {
+      height: 100px;
+    }
+    content- {
+      height: auto;
+    }
 }
 
 nav-view-item {
   cursor: pointer;
+}
+.ProseMirror p {
+  margin: 0;
+}
+
+.ProseMirror ul,
+.ProseMirror ol {
+  margin: 0;
+  padding-left: 30px; /* keep your indent */
+}
+
+.ProseMirror li {
+  margin: 0;
 }

@@ -60,7 +60,10 @@ class WeeklyPlannerScreen extends BaseElement<DateTime> {
                         Priority: 3,
                         Icon: ''
                     },
-                    async () => {items_view.data = await API.planner.get_items_for_week(date!)}
+                    async () => {
+                        items_view.only_render_items = true;
+                        items_view.data = await API.planner.get_items_for_week(date!)
+                    }
                 )
                 .init(await API.planner.get_items_for_week(date!))
         } catch (e) {

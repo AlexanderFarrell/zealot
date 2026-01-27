@@ -39,6 +39,8 @@
     "luxon": "^3.7.2",
     "navigo": "^8.11.1",
     "prosemirror-example-setup": "^1.2.3",
+    "prosemirror-inputrules": "^1.5.1",
+    "prosemirror-keymap": "^1.2.3",
     "prosemirror-markdown": "^1.13.2",
     "prosemirror-model": "^1.25.4",
     "prosemirror-schema-basic": "^1.2.4",

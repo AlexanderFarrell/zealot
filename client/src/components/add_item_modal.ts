@@ -79,7 +79,9 @@ class AddItemModal2 extends BaseElementEmpty {
                     attributes: attrs
                 }
                 item = await API.item.add(item);
-                await API.item.assign_type(item.item_id, type_select.value);
+                if (type_select.value != "") {
+                    await API.item.assign_type(item.item_id, type_select.value);
+                }
                 router.navigate(`/item/${encodeURIComponent(title)}`);
                 this.remove();
                 // if (await ItemAPI.add(item)) {

@@ -3,6 +3,7 @@ package attribute
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 )
 
 type NumberConfig struct {
@@ -63,7 +64,7 @@ func validateIntBounds(kind AttributeKind, v int64) error {
 	return nil
 }
 
-func validateTextConfig(kind AttributeKind, v string) error {
+func validateTextConfig(kind *AttributeKind, v string) error {
 	if len(kind.Config) == 0 {
 		return nil
 	}
@@ -76,6 +77,15 @@ func validateTextConfig(kind AttributeKind, v string) error {
 	}
 	if cfg.MaxLen != nil && len(v) > *cfg.MaxLen {
 		return fmt.Errorf("%s above max length", kind.Key)
+	}
+	if cfg.Pattern != nil {
+		re, err := regexp.Compile(fullMatchPattern(*cfg.Pattern))
+		if err != nil {
+			return fmt.Errorf("invalid text pattern for %s: %w", kind.Key, err)
+		}
+		if !re.MatchString(v) {
+			return fmt.Errorf("%s does not match pattern", kind.Key)
+		}
 	}
 	return nil
 }
@@ -131,6 +141,11 @@ func validateAttributeKindConfig(kind *AttributeKind) error {
 		if cfg.MinLen != nil && cfg.MaxLen != nil && *cfg.MinLen > *cfg.MaxLen {
 			return fmt.Errorf("min_len greater than max_len")
 		}
+		if cfg.Pattern != nil {
+			if _, err := regexp.Compile(fullMatchPattern(*cfg.Pattern)); err != nil {
+				return fmt.Errorf("regex does not compile: %v", err)
+			}
+		}
 	case "dropdown":
 		var cfg DropdownConfig
 		if err := json.Unmarshal(kind.Config, &cfg); err != nil {
@@ -149,4 +164,8 @@ func validateAttributeKindConfig(kind *AttributeKind) error {
 		}
 	}
 	return nil
+}
+
+func fullMatchPattern(pattern string) string {
+	return fmt.Sprintf("^(?:%s)$", pattern)
 }

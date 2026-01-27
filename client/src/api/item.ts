@@ -8,7 +8,8 @@ export interface Item {
     title: string,
     content: string,
     attributes?: Record<string, any>,
-    types?: Array<ItemType>
+    types?: Array<ItemType>,
+    children?: Array<Item>
 }
 
 export type AttributeFilter = {
@@ -43,6 +44,10 @@ export const ItemAPI = {
 
     filter: async (filters: AttributeFilter[]): Promise<Item[]> => {
         return post_json(`/api/item/filter`, {filters});
+    },
+
+    related: async (parent_id: number): Promise<Item[]> => {
+        return get_json(`/api/item/related/${parent_id}`)
     },
 
     children: async (parent_id: number): Promise<Item[]> => {

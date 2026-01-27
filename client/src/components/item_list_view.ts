@@ -10,40 +10,49 @@ import ItemView from "./item_view";
 class ItemListView extends BaseElement<Item[]> {
 	private add_item_attrs: any | null = null;
 	private on_add: Function | null = null;
+	public only_render_items: boolean = false;
 
 	render() {
-		let items = this.data!;
-		items = items.sort((a, b) => {
-			let a_priority = (a.attributes) ? a.attributes['Priority'] || 0 : 0;
-			let b_priority = (b.attributes) ? b.attributes['Priority'] || 0 : 0;
-			return b_priority - a_priority;
-		})
-
+		if (this.only_render_items) {
+			this.render_items();
+			this.only_render_items = false;
+			return;
+		}
 		this.innerHTML = `
 		<add-item-scoped></add-item-scoped>
 		<item-analysis></item-analysis>
 		<div name="list_view"></div>
 		`;
 		let add_item_view = this.querySelector('add-item-scoped')! as AddItemScoped;
-		let analysis = this.querySelector('item-analysis')! as ItemAnalysis;
-		analysis.init(items);
-		// let filter_buttons = this.querySelector('button-group')! as ButtonGroup;
-		let list_view = this.querySelector('[name="list_view"]')! as HTMLDivElement;
 
 		// Setup add item scoped view		
 		if (this.add_item_attrs !== null) {
 			add_item_view.style.display = "block";
 			add_item_view.init(this.add_item_attrs);
-			add_item_view.listen_on_submit(() => {
+			add_item_view.addEventListener('change', () => {
 				if (this.on_add) {
 					this.on_add();
 				}
-				this.render();
+				// this.render();
+				this.render_items();
 			})
 		} else {
 			add_item_view.style.display = "none";
 		}
 
+		this.render_items();
+		this.only_render_items = false;
+	}
+
+	render_items() {		
+		let items = this.data!;
+		items = items.sort((a, b) => {
+			let a_priority = (a.attributes) ? a.attributes['Priority'] || 0 : 0;
+			let b_priority = (b.attributes) ? b.attributes['Priority'] || 0 : 0;
+			return b_priority - a_priority;
+		})
+		let analysis = this.querySelector('item-analysis')! as ItemAnalysis;
+		analysis.init(items);
 		// Setup filter buttons
 		// filter_buttons.init([
 		// 	new ButtonDef(
@@ -60,7 +69,8 @@ class ItemListView extends BaseElement<Item[]> {
 
 		let view_containers: Map<string, Item[]> = new Map();
 		let uncategorized: Item[] = []
-
+		let list_view = this.querySelector('[name="list_view"]')! as HTMLDivElement;
+		list_view.innerHTML = "";
 
 		// Setup list view
 
@@ -91,7 +101,14 @@ class ItemListView extends BaseElement<Item[]> {
 				if (isOpen) {
 					i_container.innerHTML = "";
 					view_containers.get(status)?.forEach(item => {
-						i_container.appendChild(new ItemView().init(item));
+						let view = new ItemView().init(item);
+						i_container.appendChild(view);
+						view.addEventListener('change', () => {
+							// this.render_items();
+							if (this.on_add) {
+								this.on_add();
+							}
+						})
 					})
 				} else {
 					i_container.innerText = view_containers.get(status)!.length.toString() + ' hidden';

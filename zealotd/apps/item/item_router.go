@@ -55,6 +55,26 @@ func InitRouter(app *fiber.App) fiber.Router {
 	})
 	router.Get("/search", searchTitle)
 	router.Get("/children/:item_id", getChildren)
+	router.Get("/related/:item_id", func (c *fiber.Ctx) error {
+		accountID := web.GetKeyFromSessionInt(c, "account_id")		
+		itemID, err := strconv.Atoi(c.Params("item_id"))
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).SendString("Unable to parse item_id")
+		}
+		item, err := GetItemByID(itemID, accountID)
+		if err != nil || item == nil {
+			fmt.Printf("Failed to get item for children: %v\n", err)
+			if err == nil {
+				return c.SendStatus(fiber.StatusNotFound)
+			} else {
+				return c.SendStatus(fiber.StatusInternalServerError)
+			}
+		}
+
+		items, err := GetRelatedItems(item.Title, accountID)
+		return web.SendJSONOrError(c, items, err, "getting related items")
+	})
+	
 	router.Post("/filter", func (c *fiber.Ctx) error {
 		accountID := web.GetKeyFromSessionInt(c, "account_id")
 

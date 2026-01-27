@@ -13,10 +13,15 @@ import type AddItemScoped from "../components/add_item_scope";
 import ContentView from "../components/item/content_view";
 import ItemListView from "../components/item_list_view";
 import Popups from "../core/popups";
+import runner from "../core/command_runner";
+import ButtonGroup, { ButtonDef } from "../components/common/button_group";
+import { CopyIcon, DownloadIcon, EditIcon, ItemsIcon, LinkIcon, ScienceIcon, UpIcon } from "../assets/asset_map";
+
+let content_visible = true;
+let related_visible = true;
 
 class ItemScreen extends BaseElement<Item> {
     private last_loaded_title: string | null = null;
-
 
     async render() {
         if (this.data == null) {
@@ -27,19 +32,86 @@ class ItemScreen extends BaseElement<Item> {
         this.innerHTML = `
         <div class="title" name="title_container">
             <h1 name="title" contenteditable="true"></h1>
-            <button name="delete_button" title="Delete Item"><img src="${DeleteIcon}" alt="Delete Button Icon"></button>
+
         </div>
         <div name="item_types" class="attribute"></div>
         <attributes-view></attributes-view>
         <content-view></content-view>
         <item-list-view style="padding-bottom: 1em;"></item-list-view>
-        <!--<div id="children_container" style="padding-top: 4em"></div>
-                    <div name="children">
-                <div>Children</div>
-                <add-item-scoped></add-item-scoped>
-                <div name="children_container"></div>
-            </div>-->
         `
+        this.prepend(new ButtonGroup().init([
+            new ButtonDef(
+                UpIcon,
+                'To Parent',
+                () => {
+                    if (this.data!.attributes!['Parent'] != null) {
+                        let first_parent = this.data!.attributes!['Parent'][0];
+                        router.navigate(`/item/${first_parent}`)
+                    } else {
+                        router.navigate('/')
+                    }
+                }
+            ),
+            new ButtonDef(
+                EditIcon,
+                'Toggle Content Editor',
+                () => {
+                    // These could be global so that other items are with this view
+                    content_visible = !content_visible;
+                    let view = this.querySelector('content-view')! as ContentView;
+                    view.style.display = (content_visible) ? 'block' : 'none';
+                }
+            ),
+            new ButtonDef(
+                ItemsIcon,
+                'Toggle Related Items',
+                () => {
+                    related_visible = !related_visible;
+                    let view = this.querySelector('content-view')! as ItemListView;
+                    view.style.display = (related_visible) ? 'block' : 'none';
+                }
+            ),
+            // new ButtonDef(
+            //     ScienceIcon,
+            //     'Toggle Analysis',
+            //     () => {
+
+            //     }
+            // ),
+            new ButtonDef(
+                LinkIcon,
+                'Copy Link',
+                () => {
+                    navigator.clipboard.writeText(window.location.href);
+                }
+            ),
+            new ButtonDef(
+                DownloadIcon,
+                'Export',
+                () => {
+
+                }
+            ),
+            new ButtonDef(
+                CopyIcon,
+                'Copy as JSON',
+                () => {
+                    navigator.clipboard.writeText(JSON.stringify(this.data!));
+                    // Make this a command so that practically any page could be copied as JSON
+                }
+            ),
+            new ButtonDef(
+                DeleteIcon,
+                'Delete Item',
+                async () => {
+                    if (confirm('Are you sure you want to delete this?')) {
+                        await ItemAPI.remove(this.data!.item_id);
+                        Popups.add(`Removed ${this.data!.title}`)
+                        router.navigate('/')
+                    }
+                }
+            )
+        ]))
 
         this.setup_title_view();
         this.setup_types_view();
@@ -63,15 +135,15 @@ class ItemScreen extends BaseElement<Item> {
         })
         title.addEventListener('blur', () => {
             ItemAPI.update(this.data!.item_id, {title: this.data!.title})
-        })        
-        let delete_button = this.querySelector('[name="delete_button"]')!;
-        delete_button.addEventListener('click', async () => {
-            if (confirm("Are you sure you want to delete this?")) {
-                await ItemAPI.remove(this.data!.item_id)
-                Popups.add(`Removed ${this.data!.title}`);
-                router.navigate('/')
-            }
-        })
+        })       
+        // let delete_button = this.querySelector('[name="delete_button"]')!;
+        // delete_button.addEventListener('click', async () => {
+        //     if (confirm("Are you sure you want to delete this?")) {
+        //         await ItemAPI.remove(this.data!.item_id)
+        //         Popups.add(`Removed ${this.data!.title}`);
+        //         router.navigate('/')
+        //     }
+        // })
     }
 
 
@@ -127,50 +199,26 @@ class ItemScreen extends BaseElement<Item> {
     async setup_content_view() {
         let view = this.querySelector('content-view')! as ContentView;
         view.init(this.data!);
+        view.style.display = (content_visible) ? 'block' : 'none';
     }    
 
     async render_children() {
         let item = this.data!;
         let children_view = this.querySelector('item-list-view')! as ItemListView;
 
-        let children = await API.item.children(item.item_id);
+        let children = await API.item.related(item.item_id);
 
         children_view
             .enable_add_item(
                 {Parent: [this.data!.title]},
                 async () => {
+                    children_view.only_render_items = true;
                     children_view.data = await API.item.children(item.item_id);
                 }
             )
             .init(children);
-        // let right_sidebar = document.querySelector('#right-side-bar')!;
-        // right_sidebar.innerHTML = `
-        //     <div name="children">
-        //         <div>Children</div>
-        //         <add-item-scoped></add-item-scoped>
-        //         <div name="children_container"></div>
-        //     </div>
-        // `
-
-        // let container = right_sidebar.querySelector('[name="children_container"]')!;
-        // let container = this.querySelector('[name="children_container"]')!;
-
-
-        // container.innerHTML = "";
-
-        // // Get children
-        // let children = await API.item.children(item.title);
-        // children.forEach(child => {
-        //     let view = new PlanView().init(child);
-        //     container.appendChild(view)
-        // });
-
-        // // let add_child = right_sidebar.querySelector('add-item-scoped')! as AddItemScoped;
-        // let add_child = this.querySelector('add-item-scoped')! as AddItemScoped;
-        // add_child.init({
-        //     Parent: [this.data!.title]
-        // })
-        // add_child.listen_on_submit(() => {this.render_children()})
+        this.data!.children = children;
+        children_view.style.display = (related_visible) ? 'block' : 'none';
     }
     
     async render_empty_screen() {
@@ -186,7 +234,11 @@ class ItemScreen extends BaseElement<Item> {
             }
             await API.item.add(item)
             this.data = await API.item.get_by_title(this.last_loaded_title!);
+            setTimeout(() => {
+                runner.run('Focus Edit')
+            }, 200);
         })
+        this.querySelector('button')?.focus();
     }
     
     public async LoadItem(title: string) {
@@ -194,7 +246,9 @@ class ItemScreen extends BaseElement<Item> {
         try {
             this.data = await ItemAPI.get_by_title(title);
         } catch (e) {
-            this.innerHTML = "<div class='error'>Error loading item</div>";
+            // @ts-ignore
+            this.data = null;
+            // this.innerHTML = "<div class='error'>Error loading item</div>";
         }
     }
 

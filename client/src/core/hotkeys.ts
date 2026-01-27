@@ -16,6 +16,21 @@ export class Hotkey {
         this.ctrl_or_meta_key = helper_keys.includes(CTRL_OR_META_KEY);
         this.func = func;
     }
+
+    toString() {
+        let s = "";
+        if (this.ctrl_or_meta_key) {
+            s += "CTRL+"
+        }
+        if (this.alt_key) {
+            s += "ALT+"
+        }
+        if (this.shift_key) {
+            s += "SHIFT+"
+        }
+        s += this.key;
+        return s.toUpperCase();
+    }
 }
 
 const keys = new Map<string, Hotkey>();

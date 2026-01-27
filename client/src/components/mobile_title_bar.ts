@@ -18,7 +18,7 @@ import { router } from '../core/router';
 import commands from "../core/command_runner.ts";
 import BackButton from "../assets/icon/back.svg";
 import { BaseElementEmpty } from './common/base_element.ts';
-import { TableIcon } from '../assets/asset_map.ts';
+import { AddIcon, RunIcon, TableIcon } from '../assets/asset_map.ts';
 import SearchView from './sidebars/search_view.ts';
 
 // let mobile_menu_dropdown: MobileDropdown | null = null;
@@ -61,6 +61,11 @@ class MobileDropdown extends BaseElementEmpty {
                 name: "Rules",
                 command: "Open Rules Editor",
                 icon: RulesIcon
+            },
+            {
+                name: "Media",
+                command: "Open Media",
+                icon: MediaIcon
             },
             {
                 name: "Settings",
@@ -107,11 +112,17 @@ class MobileTitleBar extends BaseElementEmpty {
         this.classList.add('box')
         // this.classList.add('mobile_only')
         this.innerHTML = `
-            <div style="display: grid; grid-template-columns: auto 1fr auto auto auto" id="mobile_title_bar_top">
+            <div style="display: grid; grid-template-columns: auto 1fr auto auto auto auto auto" id="mobile_title_bar_top">
                 <button name='Home' style="background: none;"><img style="width: 2.5em" src="${ZealotIcon}"></button>
                 <div>&nbsp;</div>
+                <button name="Add" style="background: none;">
+                    <img style="width: 2.5em" src="${AddIcon}">
+                </button>
                 <button name="Search" style="background: none;">
                     <img style="width: 2.5em" src="${SearchIcon}">
+                </button>
+                <button name="Command" style="background: none;">
+                    <img style="width: 2.5em" src="${RunIcon}">
                 </button>
                 <button name="Daily" style="background: none;">
                     <img style="width: 2.5em" src="${DailyIcon}">
@@ -142,9 +153,19 @@ class MobileTitleBar extends BaseElementEmpty {
             }
         });
 
+        let add_button = this.querySelector('[name="Add"]')! as HTMLButtonElement;
+        add_button.addEventListener('click', () => {
+            commands.run("New Item")
+        })
+
         let daily_button = this.querySelector('[name="Daily"]')! as HTMLButtonElement
         daily_button.addEventListener('click', () => {
             commands.run("Open Daily Planner")
+        })
+
+        let run_button = this.querySelector('[name="Command"]')! as HTMLButtonElement;
+        run_button.addEventListener('click', () => {
+            commands.run("Open Command Runner")
         })
 
         let search_button = this.querySelector('[name="Search"]')! as HTMLButtonElement;

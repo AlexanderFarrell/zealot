@@ -28,6 +28,7 @@ class ItemView extends BaseElement<Item> {
         })
         status_view.addEventListener('change', async () => {
             await API.item.Attributes.set_value(item.item_id, 'Status', status_view.value);
+            this.dispatchEvent(new Event('change', {bubbles: true}));
         })
 
         priority_view.init({
@@ -36,6 +37,7 @@ class ItemView extends BaseElement<Item> {
         });
         priority_view.addEventListener('change', async () => {
             await API.item.Attributes.set_value(item.item_id, 'Priority', priority_view.value);
+            this.dispatchEvent(new Event('change', {bubbles: true}));
         })
 
         DragUtil.setup_drag(this, item);

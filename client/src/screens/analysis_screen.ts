@@ -47,8 +47,8 @@ class AnalysisScreen extends BaseElementEmpty {
             <pie-chart name="priority"></pie-chart>
             <pie-chart name="action-points"></pie-chart>
         </div>
-        <line-graph name="completed"></line-graph>
         <line-graph name="score"></line-graph>
+        <line-graph name="completed"></line-graph>
         <div>
             <pie-chart name="parent"></pie-chart>
         </div>
@@ -78,17 +78,16 @@ class AnalysisScreen extends BaseElementEmpty {
             items: Analysis.group_by_sum(items, "Parent")
         })
 
-        completed_line.init({
-            caption: "Completed Goals",
-            x: days_x,
-            y: completed_y
-        })
-
         score_line.init({
             caption: "Scorecard",
             x: days_x,
             y: score_y
         });
+        completed_line.init({
+            caption: "Completed Goals",
+            x: days_x,
+            y: completed_y
+        })
     }
 }
 
