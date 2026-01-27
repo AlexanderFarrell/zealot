@@ -21,6 +21,7 @@ class DailyPlannerScreen extends BaseElement<DateTime> {
 
     async render() {
         let date = this.data!;
+        this.current.date = this.data!;
         this.classList.add('center')
         this.innerHTML = `
         <h1>${date.toFormat(`EEEE - d MMMM yyyy`)}</h1>
