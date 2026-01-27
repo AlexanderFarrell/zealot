@@ -8,7 +8,8 @@ export interface Item {
     title: string,
     content: string,
     attributes?: Record<string, any>,
-    types?: Array<ItemType>
+    types?: Array<ItemType>,
+    children?: Array<Item>
 }
 
 export type AttributeFilter = {

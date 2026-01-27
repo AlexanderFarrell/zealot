@@ -14,8 +14,11 @@ import ButtonGroup, { ButtonDef } from "../components/common/button_group";
 import AddItemScoped from "../components/add_item_scope";
 import type ItemListView from "../components/item_list_view";
 import DragUtil from "../core/drag_helper";
+import { CopyIcon } from "../assets/asset_map";
 
 class DailyPlannerScreen extends BaseElement<DateTime> {
+    private current: any = {}
+
     async render() {
         let date = this.data!;
         this.classList.add('center')
@@ -70,11 +73,15 @@ class DailyPlannerScreen extends BaseElement<DateTime> {
             }),
             new ButtonDef(DocIcon, 'Create Note', () => {
                 router.navigate(`/item/${date!.toISODate()}`)
+            }),
+            new ButtonDef(CopyIcon, 'Copy Data as JSON', () => {
+                navigator.clipboard.writeText(JSON.stringify(this.current));
             })
         ]))
 
         let items_view = this.querySelector('item-list-view')! as ItemListView;
         try {
+            let items = await API.planner.get_items_on_day(date!)
             items_view
                 .enable_add_item(
                     {
@@ -88,7 +95,8 @@ class DailyPlannerScreen extends BaseElement<DateTime> {
                         items_view.data = await API.planner.get_items_on_day(date!)
                     }
                 )
-                .init(await API.planner.get_items_on_day(date!))
+                .init(items);
+            this.current.assigned = items;
         } catch (e) {
             console.error(e)
         }
@@ -202,6 +210,7 @@ class DailyPlannerScreen extends BaseElement<DateTime> {
                 container.appendChild(row);
             });
         });
+        this.current.repeats = repeats;
     }
 
     private async render_tracker(date: DateTime) {
@@ -261,6 +270,7 @@ class DailyPlannerScreen extends BaseElement<DateTime> {
                 list.innerText = "No tracker entries.";
                 return;
             }
+            this.current.repeats = entries;
 
             entries.forEach((entry) => {
                 const row = document.createElement("div");

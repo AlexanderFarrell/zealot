@@ -17,6 +17,9 @@ import runner from "../core/command_runner";
 import ButtonGroup, { ButtonDef } from "../components/common/button_group";
 import { CopyIcon, DownloadIcon, EditIcon, ItemsIcon, LinkIcon, ScienceIcon, UpIcon } from "../assets/asset_map";
 
+let content_visible = true;
+let related_visible = true;
+
 class ItemScreen extends BaseElement<Item> {
     private last_loaded_title: string | null = null;
 
@@ -41,7 +44,12 @@ class ItemScreen extends BaseElement<Item> {
                 UpIcon,
                 'To Parent',
                 () => {
-
+                    if (this.data!.attributes!['Parent'] != null) {
+                        let first_parent = this.data!.attributes!['Parent'][0];
+                        router.navigate(`/item/${first_parent}`)
+                    } else {
+                        router.navigate('/')
+                    }
                 }
             ),
             new ButtonDef(
@@ -49,27 +57,32 @@ class ItemScreen extends BaseElement<Item> {
                 'Toggle Content Editor',
                 () => {
                     // These could be global so that other items are with this view
+                    content_visible = !content_visible;
+                    let view = this.querySelector('content-view')! as ContentView;
+                    view.style.display = (content_visible) ? 'block' : 'none';
                 }
             ),
             new ButtonDef(
                 ItemsIcon,
                 'Toggle Related Items',
                 () => {
-
+                    related_visible = !related_visible;
+                    let view = this.querySelector('content-view')! as ItemListView;
+                    view.style.display = (related_visible) ? 'block' : 'none';
                 }
             ),
-            new ButtonDef(
-                ScienceIcon,
-                'Toggle Analysis',
-                () => {
+            // new ButtonDef(
+            //     ScienceIcon,
+            //     'Toggle Analysis',
+            //     () => {
 
-                }
-            ),
+            //     }
+            // ),
             new ButtonDef(
                 LinkIcon,
                 'Copy Link',
                 () => {
-
+                    navigator.clipboard.writeText(window.location.href);
                 }
             ),
             new ButtonDef(
@@ -83,6 +96,7 @@ class ItemScreen extends BaseElement<Item> {
                 CopyIcon,
                 'Copy as JSON',
                 () => {
+                    navigator.clipboard.writeText(JSON.stringify(this.data!));
                     // Make this a command so that practically any page could be copied as JSON
                 }
             ),
@@ -185,6 +199,7 @@ class ItemScreen extends BaseElement<Item> {
     async setup_content_view() {
         let view = this.querySelector('content-view')! as ContentView;
         view.init(this.data!);
+        view.style.display = (content_visible) ? 'block' : 'none';
     }    
 
     async render_children() {
@@ -202,6 +217,8 @@ class ItemScreen extends BaseElement<Item> {
                 }
             )
             .init(children);
+        this.data!.children = children;
+        children_view.style.display = (related_visible) ? 'block' : 'none';
     }
     
     async render_empty_screen() {
