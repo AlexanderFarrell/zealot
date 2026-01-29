@@ -6,4 +6,5 @@ item/item_type.psql
 item/link.psql
 repeat/repeat.sql
 tracker/tracker.sql
+comments.sql
 constants/constants.psql
