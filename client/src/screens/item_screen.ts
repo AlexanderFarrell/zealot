@@ -6,6 +6,7 @@ import AttributesView from "../components/item/attributes_view";
 import { router } from "../core/router";
 import API from "../api/api";
 import type ChipsInput from "../components/common/chips_input";
+import { DateTime } from "luxon";
 
 import BaseElement from "../components/common/base_element";
 import PlanView from "../components/item_view";
@@ -16,6 +17,8 @@ import Popups from "../core/popups";
 import runner from "../core/command_runner";
 import ButtonGroup, { ButtonDef } from "../components/common/button_group";
 import { CopyIcon, DownloadIcon, EditIcon, ItemsIcon, LinkIcon, ScienceIcon, UpIcon } from "../assets/asset_map";
+import createZealotEditorView, { createZealotEditorState } from "../components/zealotscript_editor";
+import { serializeZealotScript } from "../core/zealotscript/serializer";
 
 let content_visible = true;
 let related_visible = true;
@@ -38,6 +41,20 @@ class ItemScreen extends BaseElement<Item> {
         <attributes-view></attributes-view>
         <content-view></content-view>
         <item-list-view style="padding-bottom: 1em;"></item-list-view>
+        <div class="item-comments comments-section">
+            <div style="display: grid; grid-template-columns: 1fr auto">
+                <h2>Comments</h2>
+                <button type="button" name="item_comments_toggle">Add</button>
+            </div>
+            <form name="item_comments_form" class="comments-form" style="display: none;">
+                <div class="comments-form-row">
+                    <input type="time" name="item_comments_time">
+                    <button type="submit">Log</button>
+                </div>
+                <div class="comments-form-editor" name="item_comments_editor"></div>
+            </form>
+            <div name="item_comments_list" style="display: grid; gap: 8px;"></div>
+        </div>
         `
         this.prepend(new ButtonGroup().init([
             new ButtonDef(
@@ -117,6 +134,7 @@ class ItemScreen extends BaseElement<Item> {
         this.setup_types_view();
         this.setup_attributes_view();
         this.setup_content_view();
+        await this.render_comments();
         this.render_children();        
     }
 
@@ -219,6 +237,148 @@ class ItemScreen extends BaseElement<Item> {
             .init(children);
         this.data!.children = children;
         children_view.style.display = (related_visible) ? 'block' : 'none';
+    }
+
+    async render_comments() {
+        const list = this.querySelector('[name="item_comments_list"]') as HTMLDivElement;
+        const form = this.querySelector('[name="item_comments_form"]') as HTMLFormElement;
+        const timeInput = this.querySelector('[name="item_comments_time"]') as HTMLInputElement;
+        const editorHost = this.querySelector('[name="item_comments_editor"]') as HTMLDivElement;
+        const toggle = this.querySelector('[name="item_comments_toggle"]') as HTMLButtonElement;
+
+        if (!list || !form || !timeInput || !editorHost || !toggle) {
+            return;
+        }
+
+        if (toggle.dataset.bound !== "1") {
+            toggle.dataset.bound = "1";
+            toggle.addEventListener("click", () => {
+                const isHidden = form.style.display === "none";
+                form.style.display = isHidden ? "grid" : "none";
+                toggle.innerText = isHidden ? "Close" : "Add";
+            });
+        }
+
+        if (!timeInput.value) {
+            const now = DateTime.now();
+            timeInput.value = now.toFormat("HH:mm");
+        }
+
+        const loadEntries = async () => {
+            list.innerHTML = "";
+            let entries = [];
+            try {
+                entries = await API.comments.get_for_item(this.data!.item_id);
+            } catch (e) {
+                console.error(e);
+                list.innerText = "Error loading comments.";
+                return;
+            }
+
+            if (!entries || entries.length == 0) {
+                list.innerText = "No comments.";
+                return;
+            }
+
+            entries.forEach((entry) => {
+                const row = document.createElement("div");
+                row.classList.add("comment-entry");
+
+                const time = DateTime.fromISO(entry.timestamp);
+                const timeInput = document.createElement("input");
+                timeInput.type = "datetime-local";
+                timeInput.step = "60";
+                timeInput.value = time.toFormat("yyyy-LL-dd'T'HH:mm");
+                timeInput.classList.add("comment-time");
+                timeInput.addEventListener("change", async () => {
+                    const nextTime = DateTime.fromISO(timeInput.value);
+                    if (!nextTime.isValid) {
+                        return;
+                    }
+                    try {
+                        await API.comments.update_entry(entry.comment_id, entry.content || "", nextTime);
+                    } catch (e) {
+                        console.error(e);
+                    }
+                });
+
+                const metaRow = document.createElement("div");
+                metaRow.classList.add("comment-meta");
+
+                const actions = document.createElement("div");
+                actions.classList.add("comment-actions");
+
+                const comment = document.createElement("div");
+                comment.classList.add("comment-editor");
+                createZealotEditorView(comment, {
+                    content: entry.content || "",
+                    debounceMs: 500,
+                    onUpdate: async (nextContent) => {
+                        try {
+                            entry.content = nextContent;
+                            await API.comments.update_entry(entry.comment_id, nextContent);
+                        } catch (e) {
+                            console.error(e);
+                        }
+                    }
+                });
+
+                const del = document.createElement("button");
+                del.innerText = "Delete";
+                del.addEventListener("click", async () => {
+                    try {
+                        await API.comments.delete_entry(entry.comment_id);
+                        await loadEntries();
+                    } catch (e) {
+                        console.error(e);
+                    }
+                });
+
+                actions.appendChild(del);
+                metaRow.appendChild(timeInput);
+                metaRow.appendChild(actions);
+
+                row.appendChild(metaRow);
+                row.appendChild(comment);
+                list.appendChild(row);
+            });
+        };
+
+        if (form.dataset.bound !== "1") {
+            form.dataset.bound = "1";
+            let newContent = "";
+            let editorView = createZealotEditorView(editorHost, {
+                content: "",
+                debounceMs: 200,
+                onUpdate: (nextContent) => {
+                    newContent = nextContent;
+                }
+            });
+            form.addEventListener("submit", async (e) => {
+                e.preventDefault();
+
+                const [hour, minute] = (timeInput.value || "00:00").split(":").map(Number);
+                const timestamp = DateTime.now().set({
+                    hour: Number.isFinite(hour) ? hour : 0,
+                    minute: Number.isFinite(minute) ? minute : 0,
+                    second: 0,
+                    millisecond: 0
+                });
+
+                const content = serializeZealotScript(editorView.state.doc);
+
+                try {
+                    await API.comments.add_entry(this.data!.item_id, timestamp, content);
+                    newContent = "";
+                    editorView.updateState(createZealotEditorState(""));
+                    await loadEntries();
+                } catch (e) {
+                    console.error(e);
+                }
+            });
+        }
+
+        await loadEntries();
     }
     
     async render_empty_screen() {

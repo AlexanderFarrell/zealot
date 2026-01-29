@@ -302,3 +302,102 @@ nav-view-item {
 .ProseMirror li {
   margin: 0;
 }
+
+.comments-section {
+  margin-top: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.comments-form {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--panel-1);
+}
+
+.comments-form-row {
+  display: grid;
+  grid-template-columns: 1fr 8em auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.item-comments .comments-form-row {
+  grid-template-columns: 8em auto;
+  justify-content: start;
+}
+
+.comments-form-editor {
+  padding: 6px;
+  border: 1px solid var(--border-0);
+  border-radius: 8px;
+  background: var(--bg-1);
+}
+
+.comment-entry {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--panel-1);
+}
+
+.comment-meta {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.comment-time {
+  color: var(--text-muted);
+  font-size: 0.9em;
+  min-width: 12em;
+}
+
+.comment-item {
+  font-weight: 600;
+}
+
+.comment-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.comment-actions button {
+  padding: 2px 8px;
+  font-size: 0.9em;
+  height: auto;
+}
+
+.comment-editor .ProseMirror {
+  min-height: 3em;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: var(--bg-1);
+}
+
+.comments-form-editor .ProseMirror {
+  min-height: 4em;
+}
+
+item-search-inline {
+  position: relative;
+  display: block;
+}
+
+item-search-inline *[name="generic_results"] {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  height: auto;
+  max-height: 200px;
+  z-index: 20;
+  background: var(--panel-1);
+  border: 1px solid var(--border-0);
+  border-radius: 8px;
+  padding: 4px;
+}

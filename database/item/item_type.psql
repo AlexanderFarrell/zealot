@@ -12,8 +12,7 @@ create table item_type (
 insert into item_type (name, description, account_id)
 values 
 ('Plan', 'Something to get done', null),
-('Repeat', 'A task which repeats', null),
-('Tracker', 'Something to log occurrences for', null);
+('Repeat', 'A task which repeats', null);
 
 create table item_item_type_link (
     item_id int not null references item(item_id)

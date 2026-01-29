@@ -3,7 +3,7 @@ import ItemAPI from "./item";
 import MediaAPI from "./media";
 import PlannerAPI from "./planner";
 import RepeatAPI from "./repeat";
-import TrackerAPI from "./tracker";
+import CommentsAPI from "./comments";
 
 const API = {
     item: ItemAPI,
@@ -11,7 +11,7 @@ const API = {
     planner: PlannerAPI,
     media: MediaAPI,
     repeat: RepeatAPI,
-    tracker: TrackerAPI,
+    comments: CommentsAPI,
 }
 
 export default API;
