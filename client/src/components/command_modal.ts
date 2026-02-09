@@ -16,6 +16,11 @@ export class CommandModal extends BaseElementEmpty {
 
 		let inner_window = this.querySelector('.inner_window')! as HTMLDivElement;
 		
+		this.addEventListener('keydown', (e: KeyboardEvent) => {
+			if (e.key == "Escape") {
+				this.remove();
+			}
+		})
 
 		inner_window.addEventListener('click', (e: MouseEvent) => {
 			e.stopPropagation();
@@ -29,6 +34,7 @@ export class CommandModal extends BaseElementEmpty {
 			on_search: async (term: string) => {
 				return commands.search_commands(term);
 			},
+			on_match_text: (item: UICommand) => item.name,
 			on_select: (item: UICommand) => {
 				commands.run(item.name);
 				this.remove();

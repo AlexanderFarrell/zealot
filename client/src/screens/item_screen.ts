@@ -324,6 +324,7 @@ class ItemScreen extends BaseElement<Item> {
                 createZealotEditorView(comment, {
                     content: entry.content || "",
                     debounceMs: 500,
+                    handleTab: true,
                     onUpdate: async (nextContent) => {
                         try {
                             entry.content = nextContent;
@@ -361,6 +362,7 @@ class ItemScreen extends BaseElement<Item> {
             let editorView = createZealotEditorView(editorHost, {
                 content: "",
                 debounceMs: 200,
+                handleTab: true,
                 onUpdate: (nextContent) => {
                     newContent = nextContent;
                 }

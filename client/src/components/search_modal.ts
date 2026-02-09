@@ -18,6 +18,11 @@ export class ItemSearchModal extends BaseElementEmpty {
 
 		let inner_window = this.querySelector('.inner_window')! as HTMLDivElement;
 		
+		this.addEventListener('keydown', (e: KeyboardEvent) => {
+			if (e.key == "Escape") {
+				this.remove();
+			}
+		})
 
 		inner_window.addEventListener('click', (e: MouseEvent) => {
 			e.stopPropagation();
@@ -31,6 +36,7 @@ export class ItemSearchModal extends BaseElementEmpty {
 			on_search: async (term: string) => {
 				return await ItemAPI.search(term) as Array<Item>;
 			},
+			on_match_text: (item: Item) => item.title,
 			on_select: (item: Item) => {
 				router.navigate(`/item_id/${item.item_id}`)
 				this.remove();

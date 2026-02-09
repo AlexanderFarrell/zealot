@@ -245,6 +245,7 @@ class DailyPlannerScreen extends BaseElement<DateTime> {
                 on_search: async (term: string) => {
                     return await API.item.search(term);
                 },
+                on_match_text: (item) => item.title,
                 on_select: (item) => {
                     itemSearch.setSelected(item);
                 },
@@ -331,6 +332,7 @@ class DailyPlannerScreen extends BaseElement<DateTime> {
                 createZealotEditorView(comment, {
                     content: entry.content || "",
                     debounceMs: 500,
+                    handleTab: true,
                     onUpdate: async (nextContent) => {
                         try {
                             entry.content = nextContent;
@@ -369,6 +371,7 @@ class DailyPlannerScreen extends BaseElement<DateTime> {
             let editorView = createZealotEditorView(editorHost, {
                 content: "",
                 debounceMs: 200,
+                handleTab: true,
                 onUpdate: (nextContent) => {
                     newContent = nextContent;
                 }

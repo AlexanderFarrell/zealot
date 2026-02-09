@@ -5,6 +5,7 @@ interface GenericSearchInfo<T> {
 	on_search: (term: string) => Promise<T[]>,
 	on_select: (item: T) => void,
 	on_make_view: (item: T) => HTMLElement,
+	on_match_text?: (item: T) => string,
 }
 
 export class GenericSearch<T> extends BaseElement<GenericSearchInfo<T>> {
@@ -13,7 +14,7 @@ export class GenericSearch<T> extends BaseElement<GenericSearchInfo<T>> {
 
 	async render() {
 		this.innerHTML = `
-		<input name="search" type="text" required>
+		<input name="search" type="text" autocomplete="nope" required>
 		<div name="generic_results">
 		&nbsp;
 		</div>
@@ -32,6 +33,17 @@ export class GenericSearch<T> extends BaseElement<GenericSearchInfo<T>> {
 					return;
 				}
 				results = await this.data!.on_search(search_input.value);
+				const normalizedTerm = term.trim().toLocaleLowerCase();
+				if (normalizedTerm !== "" && this.data!.on_match_text) {
+					results = [...results].sort((a, b) => {
+						const aExact = this.data!.on_match_text!(a).trim().toLocaleLowerCase() === normalizedTerm;
+						const bExact = this.data!.on_match_text!(b).trim().toLocaleLowerCase() === normalizedTerm;
+						if (aExact === bExact) {
+							return 0;
+						}
+						return aExact ? -1 : 1;
+					});
+				}
 
 			} catch (e) {
 				Popups.add_error(`Error getting results: ${e}`)
