@@ -124,7 +124,13 @@ class ItemScreen extends BaseElement<Item> {
                     if (confirm('Are you sure you want to delete this?')) {
                         await ItemAPI.remove(this.data!.item_id);
                         Popups.add(`Removed ${this.data!.title}`)
-                        router.navigate('/')
+                        // router.navigate('/')
+                        if (this.data!.attributes!['Parent'] != null) {
+                            let first_parent = this.data!.attributes!['Parent'][0];
+                            router.navigate(`/item/${first_parent}`)
+                        } else {
+                            router.navigate('/')
+                        }
                     }
                 }
             )
@@ -278,7 +284,12 @@ class ItemScreen extends BaseElement<Item> {
             if (!entries || entries.length == 0) {
                 list.innerText = "No comments.";
                 return;
-            }
+            }            
+            entries = entries.sort((a, b) => {
+                const aTime = DateTime.fromISO(a.timestamp).toMillis();
+                const bTime = DateTime.fromISO(b.timestamp).toMillis();
+                return bTime - aTime;
+            });
 
             entries.forEach((entry) => {
                 const row = document.createElement("div");

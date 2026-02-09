@@ -29,6 +29,15 @@ const serializeInline = (node: PMNode) => {
 			return;
 		}
 
+		if (child.type.name === "image") {
+			const src = child.attrs.src || "";
+			const alt = child.attrs.alt || "";
+			if (src.length > 0) {
+				out += `![${alt}](${src})`;
+			}
+			return;
+		}
+
 		out += child.textContent || "";
 	});
 	return out;

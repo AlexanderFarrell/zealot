@@ -9,6 +9,7 @@ import {keymap} from "prosemirror-keymap"
 import { router } from "../core/router";
 import {InputRule, inputRules, textblockTypeInputRule} from "prosemirror-inputrules";
 import { MarkType, Schema } from "prosemirror-model";
+import MediaAPI from "../api/media";
 
 export type ZealotEditorOptions = {
 	content?: string;
@@ -104,6 +105,63 @@ const removeLink = (state: EditorState, dispatch?: (tr: Transaction) => void) =>
 	return true;
 }
 
+const SCREENSHOT_FOLDER = "screenshots";
+
+const getImageExtension = (file: File): string => {
+	if (file.name && file.name.includes(".")) {
+		return file.name.slice(file.name.lastIndexOf(".") + 1).toLowerCase();
+	}
+	const type = file.type.toLowerCase();
+	if (type.endsWith("/png")) return "png";
+	if (type.endsWith("/jpeg")) return "jpg";
+	if (type.endsWith("/jpg")) return "jpg";
+	if (type.endsWith("/gif")) return "gif";
+	if (type.endsWith("/webp")) return "webp";
+	if (type.endsWith("/svg+xml")) return "svg";
+	return "png";
+}
+
+const buildScreenshotName = (file: File) => {
+	const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+	const ext = getImageExtension(file);
+	return `screenshot-${stamp}.${ext}`;
+}
+
+const handleImagePaste = (view: EditorView, event: ClipboardEvent) => {
+	const items = event.clipboardData?.items;
+	if (!items || items.length === 0) return false;
+
+	const imageItem = Array.from(items).find((item) => item.type.startsWith("image/"));
+	if (!imageItem) return false;
+
+	const rawFile = imageItem.getAsFile();
+	if (!rawFile) return false;
+
+	const filename = buildScreenshotName(rawFile);
+	const uploadFile = new File([rawFile], filename, {type: rawFile.type});
+	const bookmark = view.state.selection.getBookmark();
+
+	event.preventDefault();
+
+	MediaAPI.upload_file(uploadFile, SCREENSHOT_FOLDER)
+		.then(() => {
+			const src = `/api/media/${SCREENSHOT_FOLDER}/${filename}`;
+			const imageNode = view.state.schema.nodes.image;
+			if (!imageNode) return;
+			const selection = bookmark.resolve(view.state.doc);
+			const tr = view.state.tr.replaceRangeWith(selection.from, selection.to, imageNode.create({
+				src,
+				alt: filename
+			}));
+			view.dispatch(tr);
+		})
+		.catch((error) => {
+			console.error("Failed to upload pasted image", error);
+		});
+
+	return true;
+}
+
 export const createZealotEditorView = (
 	host: HTMLElement,
 	options: ZealotEditorOptions = {}
@@ -141,6 +199,9 @@ export const createZealotEditorView = (
 
 			view.dispatch(view.state.tr.insertText("\t"));
 			return true;
+		},
+		handlePaste: (view, event) => {
+			return handleImagePaste(view, event as ClipboardEvent);
 		},
 		dispatchTransaction: (tr) => {
 			const nextState = view.state.apply(tr);

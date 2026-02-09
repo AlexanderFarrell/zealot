@@ -4,7 +4,7 @@ export type InlineToken = {text: string};
 
 
 type InlineMatch = {
-	type: "itemlink" | "mdlink" | "cmdlink";
+	type: "itemlink" | "mdlink" | "cmdlink" | "image";
 	index: number;
 	full: string;
 	label?: string;
@@ -13,6 +13,7 @@ type InlineMatch = {
 
 const findNextMatch = (text: string, from: number): InlineMatch | null => {
 	const patterns = [
+		{type: "image" as const, re: /!\[([^\]]*)\]\(([^)]+)\)/g},
 		{type: "itemlink" as const, re: /\[\[([^\]]+)\]\]/g},
 		{type: "mdlink" as const, re: /\[([^\]]+)\]\(([^)]+)\)/g},
 		{type: "cmdlink" as const, re: /:::link\|([^|\n]*)\|([^|\n]+)/g}
@@ -58,6 +59,15 @@ const parseInlineContent = (schema: Schema, text: string): PMNode[] => {
 			const title = (match.label || "").trim();
 			const href = `/item/${title}`;
 			nodes.push(schema.nodes.itemlink.create({title, href}));
+		} else if (match.type === "image") {
+			const src = (match.href || "").trim();
+			const alt = (match.label || "").trim();
+			const imageNode = schema.nodes.image;
+			if (imageNode && src.length > 0) {
+				nodes.push(imageNode.create({src, alt}));
+			} else {
+				nodes.push(schema.text(match.full));
+			}
 		} else {
 			const href = (match.href || "").trim();
 			const label = (match.label || "").trim();

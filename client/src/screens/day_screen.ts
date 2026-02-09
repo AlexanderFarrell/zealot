@@ -281,6 +281,11 @@ class DailyPlannerScreen extends BaseElement<DateTime> {
                 list.innerText = "No comments.";
                 return;
             }
+            entries = entries.sort((a, b) => {
+                const aTime = DateTime.fromISO(a.timestamp).toMillis();
+                const bTime = DateTime.fromISO(b.timestamp).toMillis();
+                return bTime - aTime;
+            });
             this.current.comments = entries;
 
             entries.forEach((entry) => {
