@@ -1,4 +1,4 @@
-import { delete_req, patch_req } from "../core/api_helper";
+import { delete_req, patch_req } from "../shared/api_helper";
 
 const AttributeAPI = {
     rename: async (item_id: number, old_key: string, new_key: string) => {

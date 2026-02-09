@@ -1,7 +1,7 @@
-import { events } from "../core/events";
-import { router } from "../core/router";
-import { get_req, get_json, patch_req, post_req } from "../core/api_helper";
-import { get_settings, set_settings } from "../core/settings";
+import { events } from "../shared/events";
+import { router } from "../features/router/router";
+import { get_req, get_json, patch_req, post_req } from "../shared/api_helper";
+import { get_settings, set_settings } from "../shared/settings";
 
 type User = {
     username: string;

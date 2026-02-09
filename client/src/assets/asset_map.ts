@@ -13,6 +13,7 @@ import BrokenIcon from "./icon/broken.svg";
 import BrokenLabelIcon from "./icon/broken_label.svg";
 import BrokenLinkIcon from "./icon/broken_link.svg";
 import BubbleIcon from "./icon/bubble.svg";
+import CalendarIcon from "./icon/month.svg";
 import CenterIcon from "./icon/center.svg";
 import ChessIcon from "./icon/chess.svg";
 import CleanIcon from "./icon/clean.svg";
@@ -104,6 +105,7 @@ export {
   BrokenLabelIcon,
   BrokenLinkIcon,
   BubbleIcon,
+  CalendarIcon,
   CenterIcon,
   ChessIcon,
   CleanIcon,

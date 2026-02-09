@@ -1,4 +1,4 @@
-import { delete_req, get_json, patch_req, post_json, post_req } from "../core/api_helper";
+import { delete_req, get_json, patch_req, post_json, post_req } from "../shared/api_helper";
 import AttributeAPI from "./attribute";
 import AttributeKindAPI from "./attribute_kind";
 import { ItemTypeAPI, type ItemType } from "./item_type";
