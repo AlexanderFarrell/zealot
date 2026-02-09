@@ -1,0 +1,35 @@
+:root {
+  --bg--1: #0d1524;
+  --bg-0: #1b2a44;
+  --bg-1: #223454;
+  --bg-2: #2d4670;
+  --bg-3: #436aad;
+  --bg-glow-0: #25395c;
+  --bg-glow-0-fade: rgba(43, 65, 104, 0);
+  --bg-glow-1: #2f507f;
+  --bg-glow-1-fade: rgba(47, 80, 127, 0);
+  --panel-0: #1f3050;
+  --panel-1: #263b63;
+  --panel-2: #2c4777;
+  --border-0: rgba(130, 170, 230, 0.25);
+  --border-1: rgb(37, 74, 143, 0.1);
+  --text-0: #e7efff;
+  --text-1: #b8c7e6;
+  --text-inverse: white;
+  --accent-0: #60d3ff;
+  --accent-1: #7cf0c4;
+  --danger-0: #ff6b6b;
+  --warning-0: rgb(124, 124, 10);
+  --error-0: rgb(110, 0, 0);
+  --chip-0: rgba(0, 128, 255, 0.2);
+  --overlay-0: rgba(0, 0, 0, 0.5);
+  --transparent-0: rgba(0, 0, 0, 0);
+  --shadow-color-0: rgba(12, 22, 40, 0.35);
+  --shadow-color-1: rgba(0, 0, 0, 0.04);
+  --shadow-color-2: rgba(0, 0, 0, 0.199);
+  --shadow-color-3: rgba(14, 24, 42, 0.3);
+  --shadow-color-4: rgba(14, 24, 42, 0.4);
+  --focus-ring-0: rgba(124, 240, 196, 0.15);
+  --shadow-0: 0 10px 30px var(--shadow-color-0);
+  --wide_content_max: 1000px;
+}

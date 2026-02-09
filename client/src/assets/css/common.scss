@@ -38,11 +38,11 @@ popup- {
 }
 
 popup-.warning {
-  background-color: rgb(124, 124, 10);
+  background-color: var(--warning-0);
 }
 
 popup-.error {
-  background-color: rgb(110, 0, 0);
+  background-color: var(--error-0);
 }
 
 side-bar {
@@ -129,7 +129,7 @@ item-screen {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0,0,0,0.5);
+  background-color: var(--overlay-0);
   backdrop-filter: blur(10px);
   display: grid;
   place-items: center;
@@ -229,7 +229,7 @@ attribute-value-view > input, attribute-value-view > select, attribute-value-vie
 
 option {
   background-color: var(--bg-1);
-  color: white;
+  color: var(--text-inverse);
 }
 
 .today {
@@ -255,7 +255,7 @@ mobile-title-bar {
   position: fixed;
   width: 100%;
   background: var(--bg-2);
-  box-shadow: 1px 1px 4px rgba(0, 0, 0, 0.199);
+  box-shadow: 1px 1px 4px var(--shadow-color-2);
 }
 
 #mobile-title-bar-top > button {
