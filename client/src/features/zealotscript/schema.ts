@@ -45,7 +45,7 @@ const tableSpec: NodeSpec = {
 }
 
 const tableRowSpec: NodeSpec = {
-	content: "(table_cell | table_header)",
+	content: "(table_cell | table_header)+",
 	tableRole: "row",
 	parseDOM: [{tag: "tr"}],
 	toDOM() {
@@ -136,6 +136,37 @@ const itemLinkSpec: NodeSpec = {
 	}
 }
 
+const citationSpec: NodeSpec = {
+	inline: true,
+	group: "inline",
+	atom: true,
+	attrs: {
+		ref: {default: ""}
+	},
+	parseDOM: [
+		{
+			tag: "sup[data-citation]",
+			getAttrs: (e) => {
+				const element = e as HTMLElement;
+				return {
+					ref: element.getAttribute("data-citation") || ""
+				}
+			}
+		}
+	],
+	toDOM(node) {
+		const ref = node.attrs.ref || "";
+		return [
+			"sup",
+			{
+				"data-citation": ref,
+				class: "citation"
+			},
+			`[${ref}]`
+		]
+	}
+}
+
 const strikeMark: MarkSpec = {
 	parseDOM: [{tag: "s"}, {tag: "del"}],
 	toDOM() {
@@ -153,7 +184,7 @@ const underlineMark: MarkSpec = {
 const highlightMark: MarkSpec = {
 	parseDOM: [{tag: "mark"}],
 	toDOM() {
-		return ["sub", 0]
+		return ["mark", 0]
 	}
 }
 
@@ -178,7 +209,8 @@ const nodes = addListNodes(baseSchema.spec.nodes, "paragraph block*", "block").a
 	table_row: tableRowSpec,
 	table_cell: tableCellSpec,
 	table_header: tableHeaderSpec,
-	itemlink: itemLinkSpec
+	itemlink: itemLinkSpec,
+	citation: citationSpec
 })
 
 const marks = baseSchema.spec.marks.append({

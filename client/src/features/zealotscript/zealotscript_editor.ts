@@ -1,4 +1,4 @@
-import { EditorState, Transaction } from "prosemirror-state";
+import { EditorState, TextSelection, Transaction } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
 import { exampleSetup } from "prosemirror-example-setup";
 import ZealotSchema from "./schema";
@@ -8,7 +8,7 @@ import { router } from "../router/router";
 import API from "../../api/api";
 import { liftListItem, sinkListItem } from "prosemirror-schema-list";
 import {keymap} from "prosemirror-keymap"
-import {InputRule, inputRules, textblockTypeInputRule} from "prosemirror-inputrules";
+import {InputRule, inputRules} from "prosemirror-inputrules";
 import { MarkType, Schema } from "prosemirror-model";
 
 export type ZealotEditorOptions = {
@@ -18,11 +18,40 @@ export type ZealotEditorOptions = {
 	handleTab?: boolean;
 }
 
+const isZealotDebugEnabled = () => {
+	if (typeof window === "undefined") return false;
+	return window.localStorage.getItem("zealotscript_debug") === "1";
+}
+
+const debugZealot = (...args: unknown[]) => {
+	if (!isZealotDebugEnabled()) return;
+	console.debug("[ZealotScript]", ...args);
+}
+
 const buildInputRules = (schema: Schema) => {
-	const rules = [];
+	const rules: InputRule[] = [];
+
+	const addMarkRule = (markType: MarkType | undefined, regex: RegExp) => {
+		if (!markType) return;
+		rules.push(new InputRule(regex, (state, match, start, end) => {
+			const inner = match[1];
+			if (!inner || typeof inner !== "string") return null;
+			const node = schema.text(inner, [markType.create()]);
+			return state.tr.replaceWith(start, end, node);
+		}));
+	}
+
+	addMarkRule(schema.marks.strong, /\*\*([^*\n]+)\*\*$/);
+	addMarkRule(schema.marks.em, /(?<!\*)\*([^*\n]+)\*$/);
+	addMarkRule(schema.marks.strike, /~~([^~\n]+)~~$/);
+	addMarkRule(schema.marks.code, /`([^`\n]+)`$/);
+	addMarkRule(schema.marks.underline, /(?<![A-Za-z0-9_])_([^_\n]+)_$/);
+	addMarkRule(schema.marks.highlight, /<mark>([^<\n]+)<\/mark>$/i);
+	addMarkRule(schema.marks.subscript, /<sub>([^<\n]+)<\/sub>$/i);
+	addMarkRule(schema.marks.superscript, /<sup>([^<\n]+)<\/sup>$/i);
 
 	// [[Page Name]]
-	rules.push(new InputRule(/\[\[([^\]]+)\]\]/g, (state, match, start, end) => {
+	rules.push(new InputRule(/\[\[([^\]]+)\]\]$/, (state, match, start, end) => {
 		const title = match[1].trim();
 		const href = `/item/${title}`;
 		const node = schema.nodes.itemlink.create({title, href});
@@ -46,7 +75,7 @@ const buildInputRules = (schema: Schema) => {
 		}));
 	};
 
-	rules.push(new InputRule(/:::link\|([^|\n]*)\|([^|\n]+)/g, (state, match, start, end) => {
+	rules.push(new InputRule(/:::link\|([^|\n]*)\|([^|\n]+)$/, (state, match, start, end) => {
 		const label = match[1].trim();
 		const href = match[2].trim();
 		const text = label.length > 0 ? label : href;
@@ -70,7 +99,34 @@ const isInList = (state: EditorState) => {
 	return false;
 }
 
+const moveToLineBoundary = (
+	state: EditorState,
+	dispatch: ((tr: Transaction) => void) | undefined,
+	toEnd: boolean,
+	extendSelection: boolean
+) => {
+	const { $head, $anchor } = state.selection;
+	if (!$head.parent.isTextblock) return false;
+
+	const lineStart = $head.start();
+	const lineEnd = lineStart + $head.parent.content.size;
+	const target = toEnd ? lineEnd : lineStart;
+
+	let selection: TextSelection;
+	if (extendSelection) {
+		selection = TextSelection.create(state.doc, $anchor.pos, target);
+	} else {
+		selection = TextSelection.create(state.doc, target, target);
+	}
+
+	if (dispatch) {
+		dispatch(state.tr.setSelection(selection));
+	}
+	return true;
+}
+
 export const createZealotEditorState = (content: string) => {
+	debugZealot("create state with content", content);
 	return EditorState.create({
 		schema: ZealotSchema,
 		doc: parseZealotScript(ZealotSchema, content),
@@ -171,23 +227,51 @@ export const createZealotEditorView = (
 	let saveTimer: number | null = null;
 	let lastValue = initial;
 
-	const view = new EditorView(host, {
-		state,
-		handleClickOn: (view, pos, node, nodePos, event) => {
-			if (node.type.name !== "itemlink") return false;
+		const view = new EditorView(host, {
+			state,
+			handleClickOn: (view, pos, node, nodePos, event) => {
+				if (node.type.name !== "itemlink") return false;
 
-			event.preventDefault();
-			event.stopPropagation();
+				event.preventDefault();
+				event.stopPropagation();
 
-			const title = node.attrs.title || "";
-			const href = node.attrs.href || "";
+				const title = node.attrs.title || "";
+				router.navigate(`/item/${title}`);
+				return true;
+			},
+			handleClick: (view, pos, event) => {
+				const target = event.target as HTMLElement | null;
+				const anchor = target?.closest("a[href]") as HTMLAnchorElement | null;
+				if (!anchor) return false;
+				if (anchor.hasAttribute("data-itemlink")) return false;
 
-			router.navigate(`/item/${title}`);
-		},
-		handleKeyDown: (view, event) => {
-			if (!options.handleTab) return false;
-			if (event.key !== "Tab") return false;
-			event.preventDefault();
+				const href = anchor.getAttribute("href") || "";
+				if (href.trim().length === 0) return false;
+
+				event.preventDefault();
+				event.stopPropagation();
+
+				if (href.startsWith("/")) {
+					router.navigate(href);
+				} else {
+					window.open(href, "_blank", "noopener,noreferrer");
+				}
+				return true;
+			},
+			handleKeyDown: (view, event) => {
+				if (event.key === "Home") {
+					event.preventDefault();
+					return moveToLineBoundary(view.state, view.dispatch, false, event.shiftKey);
+				}
+
+				if (event.key === "End") {
+					event.preventDefault();
+					return moveToLineBoundary(view.state, view.dispatch, true, event.shiftKey);
+				}
+
+				if (!options.handleTab) return false;
+				if (event.key !== "Tab") return false;
+				event.preventDefault();
 
 			const listItemType = view.state.schema.nodes.list_item;
 			if (listItemType && isInList(view.state)) {
@@ -210,12 +294,13 @@ export const createZealotEditorView = (
 			if (!tr.docChanged || !options.onUpdate) return;
 			if (saveTimer !== null) window.clearTimeout(saveTimer);
 
-			const delay = options.debounceMs ?? 500;
-			saveTimer = window.setTimeout(() => {
-				const value = serializeZealotScript(view.state.doc);
-				if (value === lastValue) return;
-				lastValue = value;
-				options.onUpdate?.(value, view);
+				const delay = options.debounceMs ?? 500;
+				saveTimer = window.setTimeout(() => {
+					const value = serializeZealotScript(view.state.doc);
+					debugZealot("serialized update value", value);
+					if (value === lastValue) return;
+					lastValue = value;
+					options.onUpdate?.(value, view);
 			}, delay);
 		}
 	});

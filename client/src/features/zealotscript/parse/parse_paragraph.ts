@@ -1,5 +1,5 @@
 import type {Node as PMNode, Schema} from "prosemirror-model";
-import { parseInline } from "./parse_inline";
+import { parseInline, parseInlineNodes } from "./parse_inline";
 
 export const parseParagraphs = (schema: Schema, lines: string[]): PMNode[] => {
 	const blocks: PMNode[] = [];
@@ -30,5 +30,5 @@ export const parseParagraphs = (schema: Schema, lines: string[]): PMNode[] => {
 
 export const makeParagraph = (schema: Schema, text: string) => {
 	if (text.trim().length === 0) return schema.nodes.paragraph.create();
-	return schema.nodes.paragraph.create(null, schema.text(text));
+	return schema.nodes.paragraph.create(null, parseInlineNodes(schema, text));
 }

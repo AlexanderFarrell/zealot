@@ -1,61 +1,68 @@
 import type {Node as PMNode, Schema} from "prosemirror-model";
 import type { ZCommandBlockInfo } from "./types";
+import { parseInlineNodes } from "../parse/parse_inline";
+import { escapeTableCell, isMarkdownTableSeparator, splitTableRow } from "../table_utils";
 
-const splitTableRow = (line: string): string[] => {
-	const cells: string[] = [];
-	let current_cell = "";
-	let escaped = false;
-
-	for (const c of line) {
-		if (escaped) {
-			current_cell += c;
-			escaped = false;
-			continue;
-		}
-		if (c === "\\") {
-			escaped = true;
-			continue;
-		}
-		if (c === "|") {
-			cells.push(current_cell.trim());
-			current_cell = "";
-			continue;
-		}
-		current_cell += c;
-	}
-
-	// Push last one
-	cells.push(current_cell.trim());
-	return cells.map((c) => c.replace(/\\\|/g, "|"));
+const createCell = (schema: Schema, text: string, header: boolean): PMNode => {
+	const paragraph = schema.nodes.paragraph.create(null, parseInlineNodes(schema, text));
+	const cellType = header ? schema.nodes.table_header : schema.nodes.table_cell;
+	return cellType.create(null, [paragraph]);
 }
 
-const escapeTableCell = (text: string): string => {
-	return text.replace(/\|/g, "\\|");
+const createRow = (schema: Schema, cells: string[], header: boolean): PMNode => {
+	return schema.nodes.table_row.create(null, cells.map((cell) => createCell(schema, cell, header)));
 }
 
 const parseTableBlock: ZCommandBlockInfo["parse"] = (schema, lines, startIndex) => {
-	const rows: PMNode[] = [];
+	const contentLines: string[] = [];
 	let index = startIndex;
 
 	while (index < lines.length) {
 		const line = lines[index];
 		if (line.trim() === ":::") break;
-
-		const cells = splitTableRow(line);
-		const cellNodes = cells.map((c) => 
-			schema.nodes.table_cell.createAndFill({}, schema.nodes.paragraph.createAndFill({}, schema.text(c)!))
-		);
-
-		// @ts-ignore
-		const row = schema.nodes.table_row.createAndFill({}, cellNodes)!;
-		rows.push(row);
+		contentLines.push(line);
 		index++;
 	}
 
-	const table = schema.nodes.table.createAndFill({}, rows);
+	const rows: PMNode[] = [];
+	if (contentLines.length > 0) {
+		const firstRowCells = splitTableRow(contentLines[0]);
+		const hasMarkdownHeader =
+			contentLines.length > 1 &&
+			firstRowCells.length > 0 &&
+			isMarkdownTableSeparator(contentLines[1], firstRowCells.length);
+
+		let rowStartIndex = 0;
+		let expectedColumns: number | undefined = undefined;
+
+		if (hasMarkdownHeader) {
+			rows.push(createRow(schema, firstRowCells, true));
+			rowStartIndex = 2;
+			expectedColumns = firstRowCells.length;
+		}
+
+		for (let i = rowStartIndex; i < contentLines.length; i++) {
+			const cells = splitTableRow(contentLines[i]);
+			if (cells.length === 0) continue;
+			const normalized = expectedColumns
+				? Array.from({ length: expectedColumns }, (_, columnIndex) => cells[columnIndex] ?? "")
+				: cells;
+			rows.push(createRow(schema, normalized, false));
+		}
+	}
+
+	if (rows.length === 0) {
+		rows.push(createRow(schema, [""], false));
+	}
+
+	const table = schema.nodes.table.create(null, rows);
 	if (!table) return null;
 
-	return {node: table, linesConsumed: index - startIndex + 1};
+	const hasClosingFence = index < lines.length && lines[index].trim() === ":::";
+	return {
+		node: table,
+		linesConsumed: index - startIndex + (hasClosingFence ? 1 : 0)
+	};
 }
 
 const serializeTable: ZCommandBlockInfo["serialize"] = (node) => {

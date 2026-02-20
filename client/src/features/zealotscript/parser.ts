@@ -3,6 +3,18 @@ import { getCommandBlock } from "./commands/commands";
 import { makeParagraph, parseParagraphs } from "./parse/parse_paragraph";
 import { parseList } from "./parse/parse_list";
 import { parseCodeBlock } from "./parse/parse_code_block";
+import { parseInlineNodes } from "./parse/parse_inline";
+import { parseMarkdownTable } from "./parse/parse_table";
+
+const isZealotDebugEnabled = () => {
+	if (typeof window === "undefined") return false;
+	return window.localStorage.getItem("zealotscript_debug") === "1";
+}
+
+const debugZealot = (...args: unknown[]) => {
+	if (!isZealotDebugEnabled()) return;
+	console.debug("[ZealotScript]", ...args);
+}
 
 
 
@@ -14,7 +26,27 @@ const parseHeading = (schema: Schema, line: string): PMNode | null => {
 
 	const level = match[1].length;
 	const text = match[2];
-	return schema.nodes.heading.createAndFill({ level }, schema.text(text));
+	return schema.nodes.heading.create({ level }, parseInlineNodes(schema, text));
+}
+
+const parseBlockquote = (schema: Schema, lines: string[], startIndex: number) => {
+	const quoteLines: string[] = [];
+	let index = startIndex;
+
+	while (index < lines.length) {
+		const line = lines[index];
+		const match = /^[ \t]*>\s?(.*)$/.exec(line);
+		if (!match) break;
+		quoteLines.push(match[1]);
+		index++;
+	}
+
+	if (quoteLines.length === 0) return null;
+
+	const blocks = parseParagraphs(schema, quoteLines);
+	const content = blocks.length > 0 ? blocks : [schema.nodes.paragraph.create()];
+	const node = schema.nodes.blockquote.create(null, content);
+	return { node, linesConsumed: index - startIndex };
 }
 
 
@@ -82,6 +114,8 @@ const blockTypes: Array<(schema: Schema, line: string) => PMNode | null> = [
 ]
 
 const multiblockTypes: Array<(schema: Schema, lines: string[], startIndex: number) => {node: PMNode, linesConsumed: number} | null> = [
+	parseBlockquote,
+	parseMarkdownTable,
 	// parseBulletList,
 	parseList,
 	parseCodeBlock
@@ -89,6 +123,7 @@ const multiblockTypes: Array<(schema: Schema, lines: string[], startIndex: numbe
 ]
 
 export const parseZealotScript = (schema: Schema, input: string): PMNode => {
+	debugZealot("parse input", input);
 	const lines = input.replace(/\r\n/g, "\n").split('\n');
 	const blocks: PMNode[] = [];
 
@@ -102,7 +137,7 @@ export const parseZealotScript = (schema: Schema, input: string): PMNode => {
 			const blockDef = name ? getCommandBlock(name) : null;
 
 			if (blockDef) {
-				const result = blockDef.parse(schema, lines, index + 1, args);
+				const result = blockDef.parse(schema, lines, index + 1, [name, ...args]);
 				if (result) {
 					blocks.push(result.node);
 					index = index + 1 + result.linesConsumed;
@@ -147,5 +182,7 @@ export const parseZealotScript = (schema: Schema, input: string): PMNode => {
 		index++;
 	}
 
-	return schema.nodes.doc.createAndFill({}, blocks)!;
+	const doc = schema.nodes.doc.createAndFill({}, blocks)!;
+	debugZealot("parse output", JSON.stringify(doc.toJSON()));
+	return doc;
 }

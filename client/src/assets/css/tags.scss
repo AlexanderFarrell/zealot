@@ -28,6 +28,11 @@ a {
 	color: var(--accent-0);
 }
 
+.ProseMirror a[href],
+.ProseMirror a[data-itemlink] {
+	cursor: pointer;
+}
+
 input, textarea, select, chips-input {
 	background-color: var(--panel-0);
 	border: 1px solid var(--border-0);
@@ -131,12 +136,127 @@ pre.hljs {
 }
 
 blockquote {
-	background-color: var(--bg-1);
+	background: color-mix(in srgb, var(--bg-1) 86%, var(--accent-0) 14%);
+	border: 1px solid color-mix(in srgb, var(--accent-0) 34%, transparent);
+	border-left: 6px solid color-mix(in srgb, var(--accent-0) 70%, white 30%);
+	border-radius: 8px;
+	box-shadow: inset 0 1px 0 var(--shadow-color-1);
+	margin: 10px 0;
+	padding: 10px 14px;
 	margin-left: 0;
-	border-left: 10px solid var(--bg-2);
-	padding: 1px 10px;
-	border-radius: 3px;
 	margin-right: 0;
+}
+
+blockquote > :first-child {
+	margin-top: 0;
+}
+
+blockquote > :last-child {
+	margin-bottom: 0;
+}
+
+div[data-admonition] {
+	--admonition-accent: var(--accent-0);
+	--admonition-bg: var(--panel-1);
+	--admonition-icon: url("../icon/notes.svg");
+
+	background: var(--admonition-bg);
+	border: 1px solid color-mix(in srgb, var(--admonition-accent) 45%, transparent);
+	border-left: 4px solid var(--admonition-accent);
+	border-radius: 8px;
+	padding: 10px 12px;
+	margin: 8px 0;
+	box-shadow: inset 0 1px 0 var(--shadow-color-1);
+}
+
+div[data-admonition]::before {
+	content: attr(data-admonition);
+	display: block;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--admonition-accent);
+	margin-bottom: 6px;
+	padding-left: 22px;
+	background-image: var(--admonition-icon);
+	background-repeat: no-repeat;
+	background-position: left center;
+	background-size: 14px 14px;
+}
+
+div[data-admonition] > :first-child {
+	margin-top: 0;
+}
+
+div[data-admonition] > :last-child {
+	margin-bottom: 0;
+}
+
+div[data-admonition="note"],
+div[data-admonition="info"] {
+	--admonition-accent: var(--accent-0);
+	--admonition-bg: color-mix(in srgb, var(--bg-1) 80%, var(--accent-0) 20%);
+}
+
+div[data-admonition="info"] {
+	--admonition-accent: #6bc9ff;
+	--admonition-bg: color-mix(in srgb, var(--bg-1) 84%, #184c68 16%);
+	--admonition-icon: url("../icon/data.svg");
+}
+
+div[data-admonition="tip"] {
+	--admonition-accent: #3bd08f;
+	--admonition-bg: color-mix(in srgb, var(--bg-1) 82%, #1b6e4b 18%);
+	--admonition-icon: url("../icon/bolt.svg");
+}
+
+div[data-admonition="warning"] {
+	--admonition-accent: #f3b562;
+	--admonition-bg: color-mix(in srgb, var(--bg-1) 82%, #6b4a1a 18%);
+	--admonition-icon: url("../icon/priority.svg");
+}
+
+div[data-admonition="danger"] {
+	--admonition-accent: var(--danger-0);
+	--admonition-bg: color-mix(in srgb, var(--bg-1) 82%, #6e1537 18%);
+	--admonition-icon: url("../icon/broken.svg");
+}
+
+div[data-admonition="success"] {
+	--admonition-accent: #61d890;
+	--admonition-bg: color-mix(in srgb, var(--bg-1) 84%, #1a5a3e 16%);
+	--admonition-icon: url("../icon/clean.svg");
+}
+
+div[data-admonition="important"] {
+	--admonition-accent: #7fb5ff;
+	--admonition-bg: color-mix(in srgb, var(--bg-1) 84%, #2e3a69 16%);
+	--admonition-icon: url("../icon/pin.svg");
+}
+
+div[data-admonition="caution"] {
+	--admonition-accent: #ffce7a;
+	--admonition-bg: color-mix(in srgb, var(--bg-1) 84%, #6c4f1f 16%);
+	--admonition-icon: url("../icon/rules.svg");
+}
+
+div[data-admonition="example"] {
+	--admonition-accent: #b8a6ff;
+	--admonition-bg: color-mix(in srgb, var(--bg-1) 84%, #40306b 16%);
+	--admonition-icon: url("../icon/science.svg");
+}
+
+div[data-admonition="faq"] {
+	--admonition-accent: #7fded2;
+	--admonition-bg: color-mix(in srgb, var(--bg-1) 84%, #1f5457 16%);
+	--admonition-icon: url("../icon/speech.svg");
+}
+
+div[data-admonition="todo"] {
+	--admonition-accent: #ff9ec7;
+	--admonition-bg: color-mix(in srgb, var(--bg-1) 84%, #613053 16%);
+	--admonition-icon: url("../icon/add_note.svg");
 }
 
 @media only screen and (max-width: 768px) {
