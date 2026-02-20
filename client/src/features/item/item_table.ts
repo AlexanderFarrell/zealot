@@ -17,7 +17,7 @@ class ItemTable extends BaseElement<ItemTableInfo> {
 
 	render() {
 		this.innerHTML = `
-		<table name="items"></div>
+		<table name="items"></table>
 		`
 
 		let container = this.querySelector('[name="items"]')! as HTMLTableElement;

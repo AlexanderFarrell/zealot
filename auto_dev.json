@@ -1,0 +1,20 @@
+{
+	"cli": {
+		"type": "go",
+		"path": "./cli",
+		"output": "bin/zl"
+	},
+	"server": {
+		"type": "go",
+		"path": "./zealotd",
+		"output": "bin/zealotd",
+		"script": "bin/server.run.sh"
+	},
+	"client": {
+		"type": "vite",
+		"path": "client"
+	},
+	"docker": {
+
+	}
+}
