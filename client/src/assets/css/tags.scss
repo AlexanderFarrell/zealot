@@ -33,6 +33,66 @@ a {
 	cursor: pointer;
 }
 
+.zealot-code-block {
+	margin: 10px 0;
+}
+
+.zealot-code-block-toolbar {
+	display: none;
+	align-items: center;
+	gap: 8px;
+	margin: 0 0 6px 0;
+	padding: 6px 10px;
+	border: 1px solid color-mix(in srgb, var(--accent-0) 28%, transparent);
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--panel-0) 86%, var(--accent-0) 14%);
+	box-shadow: 0 8px 16px var(--shadow-color-3);
+	width: auto;
+	max-width: min(92%, 420px);
+}
+
+.zealot-code-block:hover .zealot-code-block-toolbar,
+.zealot-code-block:focus-within .zealot-code-block-toolbar {
+	display: flex;
+}
+
+.zealot-code-block-language-label {
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--text-1);
+	white-space: nowrap;
+}
+
+.zealot-code-block-language-input {
+	width: 220px;
+	max-width: 220px;
+	padding: 4px 8px;
+	height: 30px;
+	font-size: 13px;
+}
+
+.zealot-code-block pre {
+	margin: 0;
+}
+
+.zealot-code-block code {
+	width: 100%;
+}
+
+.zealot-code-block > pre:not(.zealot-code-block-preview) {
+	display: none;
+}
+
+.zealot-code-block:focus-within > pre:not(.zealot-code-block-preview) {
+	display: block;
+}
+
+.zealot-code-block:focus-within > .zealot-code-block-preview {
+	display: none;
+}
+
 input, textarea, select, chips-input {
 	background-color: var(--panel-0);
 	border: 1px solid var(--border-0);

@@ -1,6 +1,7 @@
 import { EditorState, TextSelection, Transaction } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
-import { exampleSetup } from "prosemirror-example-setup";
+import type { NodeView } from "prosemirror-view";
+import { buildKeymap } from "prosemirror-example-setup";
 import ZealotSchema from "./schema";
 import { parseZealotScript } from "./parser";
 import { serializeZealotScript } from "./serializer";
@@ -8,8 +9,28 @@ import { router } from "../router/router";
 import API from "../../api/api";
 import { liftListItem, sinkListItem } from "prosemirror-schema-list";
 import {keymap} from "prosemirror-keymap"
-import {InputRule, inputRules} from "prosemirror-inputrules";
-import { MarkType, Schema } from "prosemirror-model";
+import {InputRule, inputRules, textblockTypeInputRule} from "prosemirror-inputrules";
+import { MarkType, Node as PMNode, Schema } from "prosemirror-model";
+import { baseKeymap } from "prosemirror-commands";
+import { dropCursor } from "prosemirror-dropcursor";
+import { gapCursor } from "prosemirror-gapcursor";
+import { history } from "prosemirror-history";
+import hljs from "highlight.js/lib/core";
+import bash from "highlight.js/lib/languages/bash";
+import c from "highlight.js/lib/languages/c";
+import cpp from "highlight.js/lib/languages/cpp";
+import css from "highlight.js/lib/languages/css";
+import go from "highlight.js/lib/languages/go";
+import ini from "highlight.js/lib/languages/ini";
+import javascript from "highlight.js/lib/languages/javascript";
+import json from "highlight.js/lib/languages/json";
+import markdown from "highlight.js/lib/languages/markdown";
+import python from "highlight.js/lib/languages/python";
+import rust from "highlight.js/lib/languages/rust";
+import sql from "highlight.js/lib/languages/sql";
+import typescript from "highlight.js/lib/languages/typescript";
+import xml from "highlight.js/lib/languages/xml";
+import yaml from "highlight.js/lib/languages/yaml";
 
 export type ZealotEditorOptions = {
 	content?: string;
@@ -28,8 +49,66 @@ const debugZealot = (...args: unknown[]) => {
 	console.debug("[ZealotScript]", ...args);
 }
 
+hljs.registerLanguage("bash", bash);
+hljs.registerLanguage("sh", bash);
+hljs.registerLanguage("shell", bash);
+hljs.registerLanguage("zsh", bash);
+hljs.registerLanguage("c", c);
+hljs.registerLanguage("cpp", cpp);
+hljs.registerLanguage("c++", cpp);
+hljs.registerLanguage("css", css);
+hljs.registerLanguage("go", go);
+hljs.registerLanguage("ini", ini);
+hljs.registerLanguage("toml", ini);
+hljs.registerLanguage("javascript", javascript);
+hljs.registerLanguage("js", javascript);
+hljs.registerLanguage("json", json);
+hljs.registerLanguage("markdown", markdown);
+hljs.registerLanguage("md", markdown);
+hljs.registerLanguage("python", python);
+hljs.registerLanguage("py", python);
+hljs.registerLanguage("rust", rust);
+hljs.registerLanguage("rs", rust);
+hljs.registerLanguage("sql", sql);
+hljs.registerLanguage("typescript", typescript);
+hljs.registerLanguage("ts", typescript);
+hljs.registerLanguage("html", xml);
+hljs.registerLanguage("xml", xml);
+hljs.registerLanguage("yaml", yaml);
+hljs.registerLanguage("yml", yaml);
+hljs.registerLanguage("zig", cpp);
+
+const CODE_LANGUAGE_OPTIONS: Array<{ value: string; label: string }> = [
+	{ value: "", label: "Plain text" },
+	{ value: "ts", label: "TypeScript (ts)" },
+	{ value: "js", label: "JavaScript (js)" },
+	{ value: "json", label: "JSON" },
+	{ value: "html", label: "HTML" },
+	{ value: "css", label: "CSS" },
+	{ value: "md", label: "Markdown (md)" },
+	{ value: "py", label: "Python (py)" },
+	{ value: "go", label: "Go" },
+	{ value: "sql", label: "SQL" },
+	{ value: "yaml", label: "YAML" },
+	{ value: "toml", label: "TOML" },
+	{ value: "bash", label: "Bash" },
+	{ value: "zsh", label: "Zsh" },
+	{ value: "c", label: "C" },
+	{ value: "cpp", label: "C++ (cpp)" },
+	{ value: "rust", label: "Rust" },
+	{ value: "zig", label: "Zig" }
+];
+
 const buildInputRules = (schema: Schema) => {
 	const rules: InputRule[] = [];
+	const codeBlockType = schema.nodes.code_block;
+
+	if (codeBlockType) {
+		// Convert when user types a trailing space so language can be entered first: ```ts<space>
+		rules.push(textblockTypeInputRule(/^```([A-Za-z0-9_+-]*)\s$/, codeBlockType, (match) => {
+			return { language: (match[1] || "").trim() };
+		}));
+	}
 
 	const addMarkRule = (markType: MarkType | undefined, regex: RegExp) => {
 		if (!markType) return;
@@ -88,6 +167,21 @@ const buildInputRules = (schema: Schema) => {
 	return inputRules({rules});
 }
 
+const buildEditorPlugins = (schema: Schema) => {
+	return [
+		keymap(buildKeymap(schema)),
+		keymap(baseKeymap),
+		dropCursor(),
+		gapCursor(),
+		history(),
+		keymap({
+			"Mod-k": addLink,
+			"Mod-Shift-k": removeLink
+		}),
+		buildInputRules(schema)
+	];
+}
+
 const isInList = (state: EditorState) => {
 	const listItemType = state.schema.nodes.list_item;
 	if (!listItemType) return false;
@@ -130,14 +224,7 @@ export const createZealotEditorState = (content: string) => {
 	return EditorState.create({
 		schema: ZealotSchema,
 		doc: parseZealotScript(ZealotSchema, content),
-		plugins: [
-			...exampleSetup({ schema: ZealotSchema }),
-			keymap({
-				"Mod-k": addLink,
-				"Mod-Shift-k": removeLink
-			}),
-			buildInputRules(ZealotSchema)
-		]
+		plugins: buildEditorPlugins(ZealotSchema)
 	})
 }
 
@@ -218,6 +305,142 @@ const handleImagePaste = (view: EditorView, event: ClipboardEvent) => {
 	return true;
 }
 
+const buildCodeBlockNodeView = (node: PMNode, view: EditorView, getPos: (() => number | undefined) | boolean): NodeView => {
+	let currentNode = node;
+
+	const dom = document.createElement("div");
+	dom.className = "zealot-code-block";
+
+	const toolbar = document.createElement("div");
+	toolbar.className = "zealot-code-block-toolbar";
+
+	const label = document.createElement("label");
+	label.className = "zealot-code-block-language-label";
+	label.textContent = "Code language";
+	toolbar.appendChild(label);
+
+	const languageSelect = document.createElement("select");
+	languageSelect.className = "zealot-code-block-language-input";
+	for (const optionDef of CODE_LANGUAGE_OPTIONS) {
+		const option = document.createElement("option");
+		option.value = optionDef.value;
+		option.textContent = optionDef.label;
+		languageSelect.appendChild(option);
+	}
+	toolbar.appendChild(languageSelect);
+
+	let customLanguageOption: HTMLOptionElement | null = null;
+
+	const pre = document.createElement("pre");
+	const code = document.createElement("code");
+	pre.appendChild(code);
+
+	const previewPre = document.createElement("pre");
+	previewPre.className = "zealot-code-block-preview hljs";
+	previewPre.setAttribute("aria-hidden", "true");
+	const previewCode = document.createElement("code");
+	previewPre.appendChild(previewCode);
+
+	dom.appendChild(toolbar);
+	dom.appendChild(previewPre);
+	dom.appendChild(pre);
+
+	const syncLanguageUi = (targetNode: PMNode) => {
+		const language = (targetNode.attrs.language || "").trim();
+		const knownOption = CODE_LANGUAGE_OPTIONS.some((entry) => entry.value === language);
+
+		if (!knownOption && language.length > 0) {
+			if (!customLanguageOption) {
+				customLanguageOption = document.createElement("option");
+				languageSelect.appendChild(customLanguageOption);
+			}
+			customLanguageOption.value = language;
+			customLanguageOption.textContent = `${language} (custom)`;
+		} else if (customLanguageOption) {
+			customLanguageOption.remove();
+			customLanguageOption = null;
+		}
+
+		if (languageSelect.value !== language) {
+			languageSelect.value = language;
+		}
+		if (language.length > 0) {
+			pre.setAttribute("data-language", language);
+			code.className = `language-${language}`;
+		} else {
+			pre.removeAttribute("data-language");
+			code.removeAttribute("class");
+		}
+	};
+
+	const syncHighlightedPreview = (targetNode: PMNode) => {
+		const text = targetNode.textContent || "";
+		const language = (targetNode.attrs.language || "").trim().toLowerCase();
+
+		if (language.length > 0 && hljs.getLanguage(language)) {
+			const highlighted = hljs.highlight(text, {
+				language,
+				ignoreIllegals: true
+			}).value;
+			previewCode.innerHTML = highlighted;
+			previewCode.className = `language-${language}`;
+			return;
+		}
+
+		previewCode.textContent = text;
+		previewCode.removeAttribute("class");
+	};
+
+	const applyLanguage = () => {
+		if (typeof getPos !== "function") return;
+		const pos = getPos();
+		if (typeof pos !== "number") return;
+		const targetNode = view.state.doc.nodeAt(pos);
+		if (!targetNode || targetNode.type.name !== "code_block") return;
+
+		const nextLanguage = languageSelect.value.trim();
+		const currentLanguage = (targetNode.attrs.language || "").trim();
+		if (nextLanguage === currentLanguage) return;
+
+		const attrs = {
+			...targetNode.attrs,
+			language: nextLanguage
+		};
+		view.dispatch(view.state.tr.setNodeMarkup(pos, undefined, attrs, targetNode.marks));
+	};
+
+	languageSelect.addEventListener("mousedown", (event) => {
+		event.stopPropagation();
+	});
+
+	languageSelect.addEventListener("change", () => {
+		applyLanguage();
+	});
+
+	languageSelect.addEventListener("blur", () => {
+		applyLanguage();
+	});
+
+	syncLanguageUi(currentNode);
+	syncHighlightedPreview(currentNode);
+
+	return {
+		dom,
+		contentDOM: code,
+		update(nextNode) {
+			if (nextNode.type !== currentNode.type) return false;
+			currentNode = nextNode;
+			syncLanguageUi(currentNode);
+			syncHighlightedPreview(currentNode);
+			return true;
+		},
+		stopEvent(event) {
+			const target = event.target as HTMLElement | null;
+			return Boolean(target?.closest(".zealot-code-block-toolbar"));
+		}
+	};
+}
+
 export const createZealotEditorView = (
 	host: HTMLElement,
 	options: ZealotEditorOptions = {}
@@ -227,8 +450,11 @@ export const createZealotEditorView = (
 	let saveTimer: number | null = null;
 	let lastValue = initial;
 
-		const view = new EditorView(host, {
+	const view = new EditorView(host, {
 			state,
+			nodeViews: {
+				code_block: (node, view, getPos) => buildCodeBlockNodeView(node, view, getPos)
+			},
 			handleClickOn: (view, pos, node, nodePos, event) => {
 				if (node.type.name !== "itemlink") return false;
 

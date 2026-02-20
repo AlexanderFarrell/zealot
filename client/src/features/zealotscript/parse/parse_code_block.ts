@@ -2,7 +2,10 @@ import type {Node as PMNode, Schema} from "prosemirror-model";
 
 export const parseCodeBlock = (schema: Schema, lines: string[], startIndex: number) => {
 	const startLine = lines[startIndex];
-	if (!/^[ \t]*```/.test(startLine)) return null;
+	const openMatch = /^[ \t]*```([^\n`]*)$/.exec(startLine);
+	if (!openMatch) return null;
+
+	const language = (openMatch[1] || "").trim();
 
 	let index = startIndex + 1;
 	const contentLines: string[] = [];
@@ -20,8 +23,8 @@ export const parseCodeBlock = (schema: Schema, lines: string[], startIndex: numb
 	const content = contentLines.join('\n');
 	const node = 
 		content.length === 0
-			? schema.nodes.code_block.create()
-			: schema.nodes.code_block.create(null, schema.text(content));
+			? schema.nodes.code_block.create({language})
+			: schema.nodes.code_block.create({language}, schema.text(content));
 
 	return {node, linesConsumed: index - startIndex};
 }

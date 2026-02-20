@@ -1,4 +1,5 @@
 import './assets/css/main.scss';
+import "highlight.js/styles/github-dark.css";
 import "./element_map.ts";
 
 import AuthModal from './features/auth/auth_modal.ts';

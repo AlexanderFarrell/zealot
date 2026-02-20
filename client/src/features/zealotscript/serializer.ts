@@ -155,7 +155,9 @@ const serializeHeading = (node: PMNode) => {
 
 const serializeCodeBlock = (node: PMNode) => {
 	const content = node.textContent || "";
-	return `\`\`\`\n${content}\n\`\`\``;
+	const language = (node.attrs.language || "").trim();
+	const fence = language.length > 0 ? `\`\`\`${language}` : "```";
+	return `${fence}\n${content}\n\`\`\``;
 }
 
 const serializeBlockquote = (node: PMNode): string => {

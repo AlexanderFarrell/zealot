@@ -167,6 +167,47 @@ const citationSpec: NodeSpec = {
 	}
 }
 
+const getCodeBlockLanguage = (element: HTMLElement): string => {
+	const direct = element.getAttribute("data-language") || "";
+	if (direct.trim().length > 0) return direct.trim();
+
+	const className = element.getAttribute("class") || "";
+	const classMatch = /(?:^|\s)language-([A-Za-z0-9_+-]+)(?:\s|$)/.exec(className);
+	if (classMatch) return classMatch[1];
+
+	const codeElement = element.querySelector("code");
+	if (codeElement) {
+		const codeClassName = codeElement.getAttribute("class") || "";
+		const codeClassMatch = /(?:^|\s)language-([A-Za-z0-9_+-]+)(?:\s|$)/.exec(codeClassName);
+		if (codeClassMatch) return codeClassMatch[1];
+	}
+
+	return "";
+}
+
+const codeBlockSpec: NodeSpec = {
+	...baseSchema.spec.nodes.get("code_block"),
+	attrs: {
+		language: {default: ""}
+	},
+	parseDOM: [
+		{
+			tag: "pre",
+			preserveWhitespace: "full",
+			getAttrs: (e) => {
+				const element = e as HTMLElement;
+				return { language: getCodeBlockLanguage(element) };
+			}
+		}
+	],
+	toDOM(node) {
+		const language = (node.attrs.language || "").trim();
+		const codeAttrs = language.length > 0 ? {class: `language-${language}`} : {};
+		const preAttrs = language.length > 0 ? {"data-language": language} : {};
+		return ["pre", preAttrs, ["code", codeAttrs, 0]];
+	}
+}
+
 const strikeMark: MarkSpec = {
 	parseDOM: [{tag: "s"}, {tag: "del"}],
 	toDOM() {
@@ -202,8 +243,11 @@ const superscriptMark: MarkSpec = {
 	}
 }
 
-
-const nodes = addListNodes(baseSchema.spec.nodes, "paragraph block*", "block").append({
+const nodes = addListNodes(
+	baseSchema.spec.nodes.update("code_block", codeBlockSpec),
+	"paragraph block*",
+	"block"
+).append({
 	admonition: admonitionSpec,
 	table: tableSpec,
 	table_row: tableRowSpec,

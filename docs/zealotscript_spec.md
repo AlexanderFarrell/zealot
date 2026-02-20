@@ -71,9 +71,35 @@ code here
 ```
 ```
 
+Language tag form:
+````
+```ts
+const x = 1
+```
+````
+
 Rules:
 - Triple backticks open and close.
-- Language tags after opening fence are currently ignored.
+- Language tag after opening fence is parsed and preserved (e.g., `ts`, `js`, `go`).
+- In-editor rendering uses syntax highlighting for recognized language tags.
+
+Current highlight language support includes:
+- `c`
+- `cpp` / `c++`
+- `bash` / `sh` / `shell` / `zsh`
+- `rust` / `rs`
+- `zig` (rendered via `cpp` grammar fallback)
+- `go`
+- `javascript` / `js`
+- `typescript` / `ts`
+- `json`
+- `html` / `xml`
+- `css`
+- `markdown` / `md`
+- `python` / `py`
+- `sql`
+- `yaml` / `yml`
+- `ini` / `toml`
 
 ### 2.6 Tables
 
@@ -219,8 +245,15 @@ While typing in editor, these patterns auto-convert to marks/nodes:
 - `[[...]]`
 - `[...](...)` (on trailing whitespace)
 - `:::link|label|url`
+- Code block fence with optional language on trailing space:
+  - ``` + space -> code block
+  - ```ts + space -> code block with `language=ts`
 
 Note: Input rules affect typing-time conversion only. Parsing on load is handled by parser rules.
+
+Behavior note:
+- Typing raw ``` alone no longer instantly converts to a code block.
+- This allows language-first typing before conversion.
 
 ## 7. Editor Key Behavior
 
@@ -228,6 +261,8 @@ Note: Input rules affect typing-time conversion only. Parsing on load is handled
 - `End` moves caret to end of current text block line.
 - `Shift+Home` / `Shift+End` extend selection to those boundaries.
 - This is enforced in editor key handling to normalize macOS behavior with Linux/Windows expectations.
+- When selection is inside a code block, a small inline language editor is shown above the editor surface.
+- Updating that field changes `code_block.attrs.language` and is preserved by serializer/parsers.
 
 ## 8. Visual Conventions (Current Theme)
 
@@ -250,7 +285,6 @@ These are presentational defaults from SCSS and are not part of the wire syntax.
 
 ## 9. Known Limitations
 
-- Fenced code block language tags are not preserved.
 - Citation tokens are preserved but not resolved to URLs.
 - Serializer may normalize some source formatting (e.g., table layout style).
 - Escaping semantics are pragmatic and implementation-driven, not full CommonMark compliance.
