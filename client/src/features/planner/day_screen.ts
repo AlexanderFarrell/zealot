@@ -1,5 +1,6 @@
 import { DateTime } from "luxon";
 import API from "../../api/api";
+import type { CommentEntry } from "../../api/comment";
 import { router } from "../router/router";
 
 import { HomeIcon, BackIcon, ForwardIcon, WeekIcon, MoonIcon, SunIcon, DocIcon } from "../../assets/asset_map";
@@ -9,9 +10,7 @@ import ButtonGroup, {ButtonDef} from "../../shared/button_group";
 import type ItemListView from "../item/item_list_view";
 import DragUtil from "../item/drag_helper";
 import { CopyIcon } from "../../assets/asset_map";
-import ItemSearchInline from "../item/item_search_inline";
-import createZealotEditorView, {createZealotEditorState} from "../zealotscript/zealotscript_editor";
-import { serializeZealotScript } from "../zealotscript/serializer";
+import CommentsView from "../comments/comments_view";
 
 class DailyPlannerScreen extends BaseElement<DateTime> {
     private current: any = {}
@@ -27,21 +26,7 @@ class DailyPlannerScreen extends BaseElement<DateTime> {
             <h2>Repeats</h2>
             <div name="repeat_list" style="display: grid; gap: 8px;"></div>
         </div>
-        <div class="comments-planner comments-section">
-            <div style="display: grid; grid-template-columns: 1fr auto">
-                <h2>Comments</h2>
-                <button type="button" name="comments_toggle">Add</button>
-            </div>
-            <form name="comments_form" class="comments-form" style="display: none;">
-                <div class="comments-form-row">
-                    <item-search-inline name="comments_item_search"></item-search-inline>
-                    <input type="time" name="comments_time">
-                    <button type="submit">Log</button>
-                </div>
-                <div class="comments-form-editor" name="comments_editor"></div>
-            </form>
-            <div name="comments_list" style="display: grid; gap: 8px;"></div>
-        </div>
+        <comments-view name="day_comments"></comments-view>
         <div name="items" style="display: grid; grid-gap: 10px"></div>`
 
         this.prepend(new ButtonGroup().init([
@@ -104,7 +89,14 @@ class DailyPlannerScreen extends BaseElement<DateTime> {
             {"Date": this.data!.plus({days: 1}).toISODate()});
 
         await this.render_repeats(date);
-        await this.render_comments(date);
+        const commentsView = this.querySelector('[name="day_comments"]') as CommentsView | null;
+        if (commentsView) {
+            commentsView.addEventListener("comments-loaded", (e: Event) => {
+                const event = e as CustomEvent<{ entries: CommentEntry[] }>;
+                this.current.comments = event.detail.entries;
+            });
+            commentsView.init({ date });
+        }
     }
 
     private async render_repeats(date: DateTime) {
@@ -210,197 +202,6 @@ class DailyPlannerScreen extends BaseElement<DateTime> {
         this.current.repeats = repeats;
     }
 
-    private async render_comments(date: DateTime) {
-        const list = this.querySelector('[name="comments_list"]') as HTMLDivElement;
-        const form = this.querySelector('[name="comments_form"]') as HTMLFormElement;
-        const itemSearch = this.querySelector('[name="comments_item_search"]') as ItemSearchInline;
-        const timeInput = this.querySelector('[name="comments_time"]') as HTMLInputElement;
-        const editorHost = this.querySelector('[name="comments_editor"]') as HTMLDivElement;
-        const toggle = this.querySelector('[name="comments_toggle"]') as HTMLButtonElement;
-
-        if (!list || !form || !itemSearch || !timeInput || !editorHost || !toggle) {
-            return;
-        }
-
-        if (toggle.dataset.bound !== "1") {
-            toggle.dataset.bound = "1";
-            toggle.addEventListener("click", () => {
-                const isHidden = form.style.display === "none";
-                form.style.display = isHidden ? "grid" : "none";
-                toggle.innerText = isHidden ? "Close" : "Add";
-            });
-        }
-
-        list.innerHTML = "";
-
-        if (itemSearch.dataset.bound !== "1") {
-            itemSearch.dataset.bound = "1";
-            itemSearch.init({
-                on_search: async (term: string) => {
-                    return await API.item.search(term);
-                },
-                on_match_text: (item) => item.title,
-                on_select: (item) => {
-                    itemSearch.setSelected(item);
-                },
-                on_make_view: (item) => {
-                    const div = document.createElement("div");
-                    div.innerText = `${item.attributes?.["Icon"] || ""} ${item.title}`.trim();
-                    return div;
-                }
-            });
-        }
-
-        const searchInput = itemSearch.querySelector('[name="search"]') as HTMLInputElement | null;
-        if (searchInput && !searchInput.placeholder) {
-            searchInput.placeholder = "Search items...";
-        }
-
-        if (!timeInput.value) {
-            const now = DateTime.now();
-            timeInput.value = now.toFormat("HH:mm");
-        }
-
-        const loadEntries = async () => {
-            list.innerHTML = "";
-            let entries = [];
-            try {
-                entries = await API.comment.get_for_day(date);
-            } catch (e) {
-                console.error(e);
-                list.innerText = "Error loading comments.";
-                return;
-            }
-
-            if (!entries || entries.length == 0) {
-                list.innerText = "No comments.";
-                return;
-            }
-            entries = entries.sort((a, b) => {
-                const aTime = DateTime.fromISO(a.timestamp).toMillis();
-                const bTime = DateTime.fromISO(b.timestamp).toMillis();
-                return bTime - aTime;
-            });
-            this.current.comments = entries;
-
-            entries.forEach((entry) => {
-                const row = document.createElement("div");
-                row.classList.add("comment-entry");
-
-                const time = DateTime.fromISO(entry.timestamp);
-                const timeInput = document.createElement("input");
-                timeInput.type = "time";
-                timeInput.value = time.toFormat("HH:mm");
-                timeInput.classList.add("comment-time");
-                timeInput.addEventListener("change", async () => {
-                    const [hour, minute] = (timeInput.value || "00:00").split(":").map(Number);
-                    const nextTimestamp = time.set({
-                        hour: Number.isFinite(hour) ? hour : 0,
-                        minute: Number.isFinite(minute) ? minute : 0,
-                        second: 0,
-                        millisecond: 0
-                    });
-                    try {
-                        await API.comment.update_entry(entry.comment_id, entry.content || "", nextTimestamp);
-                    } catch (e) {
-                        console.error(e);
-                    }
-                });
-
-                const title = document.createElement("div");
-                title.innerText = entry.item.title;
-                title.style.cursor = "pointer";
-                title.classList.add("comment-item");
-                title.addEventListener("click", () => {
-                    router.navigate(`/item_id/${entry.item.item_id}`);
-                });
-
-                const metaRow = document.createElement("div");
-                metaRow.classList.add("comment-meta");
-
-                const actions = document.createElement("div");
-                actions.classList.add("comment-actions");
-
-                const comment = document.createElement("div");
-                comment.classList.add("comment-editor");
-                createZealotEditorView(comment, {
-                    content: entry.content || "",
-                    debounceMs: 500,
-                    handleTab: true,
-                    onUpdate: async (nextContent) => {
-                        try {
-                            entry.content = nextContent;
-                            await API.comment.update_entry(entry.comment_id, nextContent);
-                        } catch (e) {
-                            console.error(e);
-                        }
-                    }
-                });
-
-                const del = document.createElement("button");
-                del.innerText = "Delete";
-                del.addEventListener("click", async () => {
-                    try {
-                        await API.comment.delete_entry(entry.comment_id);
-                        await loadEntries();
-                    } catch (e) {
-                        console.error(e);
-                    }
-                });
-
-                actions.appendChild(del);
-                metaRow.appendChild(timeInput);
-                metaRow.appendChild(title);
-                metaRow.appendChild(actions);
-
-                row.appendChild(metaRow);
-                row.appendChild(comment);
-                list.appendChild(row);
-            });
-        };
-
-        if (form.dataset.bound !== "1") {
-            form.dataset.bound = "1";
-            let newContent = "";
-            let editorView = createZealotEditorView(editorHost, {
-                content: "",
-                debounceMs: 200,
-                handleTab: true,
-                onUpdate: (nextContent) => {
-                    newContent = nextContent;
-                }
-            });
-            form.addEventListener("submit", async (e) => {
-                e.preventDefault();
-                const selectedItem = itemSearch.value;
-                if (!selectedItem) {
-                    return;
-                }
-
-                const [hour, minute] = (timeInput.value || "00:00").split(":").map(Number);
-                const timestamp = date.set({
-                    hour: Number.isFinite(hour) ? hour : 0,
-                    minute: Number.isFinite(minute) ? minute : 0,
-                    second: 0,
-                    millisecond: 0
-                });
-
-                const content = serializeZealotScript(editorView.state.doc);
-
-                try {
-                    await API.comment.add_entry(selectedItem.item_id, timestamp, content);
-                    newContent = "";
-                    editorView.updateState(createZealotEditorState(""));
-                    itemSearch.clear();
-                    await loadEntries();
-                } catch (e) {
-                    console.error(e);
-                }
-            });
-        }
-
-        await loadEntries();
-    }
 }
 
 customElements.define('daily-planner-screen', DailyPlannerScreen)

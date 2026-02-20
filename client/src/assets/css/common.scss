@@ -324,9 +324,17 @@ nav-view-item {
   align-items: center;
 }
 
+.comments-form-row.comments-form-row-datetime {
+  grid-template-columns: 1fr 14em auto;
+}
+
 .item-comments .comments-form-row {
   grid-template-columns: 8em auto;
   justify-content: start;
+}
+
+.item-comments .comments-form-row.comments-form-row-datetime {
+  grid-template-columns: 14em auto;
 }
 
 .comments-form-editor {
@@ -349,6 +357,11 @@ nav-view-item {
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 8px;
+}
+
+.comment-meta.comment-meta-no-title {
+  grid-template-columns: auto auto;
+  justify-content: space-between;
 }
 
 .comment-time {
