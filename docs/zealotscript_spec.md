@@ -248,6 +248,9 @@ While typing in editor, these patterns auto-convert to marks/nodes:
 - Code block fence with optional language on trailing space:
   - ``` + space -> code block
   - ```ts + space -> code block with `language=ts`
+- Wiki-link suggestion UX:
+  - typing `[[query` opens an inline item suggestion popup
+  - arrow keys + Enter/Tab select result and insert item link
 
 Note: Input rules affect typing-time conversion only. Parsing on load is handled by parser rules.
 

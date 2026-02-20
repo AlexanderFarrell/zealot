@@ -31,6 +31,8 @@ import sql from "highlight.js/lib/languages/sql";
 import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
+import Popups from "../../shared/popups";
+import type { Item } from "../../api/item";
 
 export type ZealotEditorOptions = {
 	content?: string;
@@ -329,7 +331,14 @@ const buildCodeBlockNodeView = (node: PMNode, view: EditorView, getPos: (() => n
 	}
 	toolbar.appendChild(languageSelect);
 
+	const copyButton = document.createElement("button");
+	copyButton.className = "zealot-code-block-copy";
+	copyButton.type = "button";
+	copyButton.textContent = "Copy";
+	toolbar.appendChild(copyButton);
+
 	let customLanguageOption: HTMLOptionElement | null = null;
+	let copyTimer: number | null = null;
 
 	const pre = document.createElement("pre");
 	const code = document.createElement("code");
@@ -421,6 +430,48 @@ const buildCodeBlockNodeView = (node: PMNode, view: EditorView, getPos: (() => n
 		applyLanguage();
 	});
 
+	copyButton.addEventListener("mousedown", (event) => {
+		event.stopPropagation();
+	});
+
+	copyButton.addEventListener("click", async (event) => {
+		event.preventDefault();
+		event.stopPropagation();
+
+		const codeText = currentNode.textContent || "";
+		try {
+			if (navigator.clipboard?.writeText) {
+				await navigator.clipboard.writeText(codeText);
+			} else {
+				const textarea = document.createElement("textarea");
+				textarea.value = codeText;
+				textarea.style.position = "fixed";
+				textarea.style.opacity = "0";
+				document.body.appendChild(textarea);
+				textarea.focus();
+				textarea.select();
+				document.execCommand("copy");
+				textarea.remove();
+			}
+
+			copyButton.textContent = "Copied";
+			Popups.add("Copied code to clipboard")
+			if (copyTimer !== null) window.clearTimeout(copyTimer);
+			copyTimer = window.setTimeout(() => {
+				copyButton.textContent = "Copy";
+				copyTimer = null;
+			}, 1200);
+		} catch (error) {
+			console.error("Failed to copy code block", error);
+			copyButton.textContent = "Failed";
+			if (copyTimer !== null) window.clearTimeout(copyTimer);
+			copyTimer = window.setTimeout(() => {
+				copyButton.textContent = "Copy";
+				copyTimer = null;
+			}, 1200);
+		}
+	});
+
 	syncLanguageUi(currentNode);
 	syncHighlightedPreview(currentNode);
 
@@ -441,6 +492,34 @@ const buildCodeBlockNodeView = (node: PMNode, view: EditorView, getPos: (() => n
 	};
 }
 
+type WikiSuggestionContext = {
+	from: number;
+	to: number;
+	query: string;
+	anchorPos: number;
+};
+
+const getWikiSuggestionContext = (state: EditorState): WikiSuggestionContext | null => {
+	if (!state.selection.empty) return null;
+
+	const { $from } = state.selection;
+	if (!$from.parent.isTextblock) return null;
+	if ($from.parent.type.name === "code_block") return null;
+
+	const textBefore = $from.parent.textBetween(0, $from.parentOffset, undefined, "\uFFFC");
+	const match = /\[\[([^\]\n]*)$/.exec(textBefore);
+	if (!match) return null;
+
+	const query = (match[1] || "").trim();
+	if (query.length === 0) return null;
+
+	const startInParent = textBefore.length - match[0].length;
+	const from = $from.start() + startInParent;
+	const to = $from.pos;
+
+	return { from, to, query, anchorPos: to };
+}
+
 export const createZealotEditorView = (
 	host: HTMLElement,
 	options: ZealotEditorOptions = {}
@@ -449,6 +528,126 @@ export const createZealotEditorView = (
 	const state = createZealotEditorState(initial);
 	let saveTimer: number | null = null;
 	let lastValue = initial;
+	let wikiSuggestContext: WikiSuggestionContext | null = null;
+	let wikiSuggestItems: Item[] = [];
+	let wikiSuggestIndex = 0;
+	let wikiSuggestReqId = 0;
+	let wikiSuggestTimer: number | null = null;
+
+	const wikiSuggest = document.createElement("div");
+	wikiSuggest.className = "zealot-wiki-suggest";
+	wikiSuggest.hidden = true;
+
+	const wikiSuggestList = document.createElement("div");
+	wikiSuggestList.className = "zealot-wiki-suggest-list";
+	wikiSuggest.appendChild(wikiSuggestList);
+
+	if (window.getComputedStyle(host).position === "static") {
+		host.style.position = "relative";
+	}
+	host.appendChild(wikiSuggest);
+
+	const closeWikiSuggest = () => {
+		wikiSuggest.hidden = true;
+		wikiSuggestContext = null;
+		wikiSuggestItems = [];
+		wikiSuggestIndex = 0;
+		wikiSuggestList.innerHTML = "";
+	}
+
+	const applyWikiSuggestion = (index: number) => {
+		if (!wikiSuggestContext) return false;
+		if (index < 0 || index >= wikiSuggestItems.length) return false;
+
+		const item = wikiSuggestItems[index];
+		const title = (item.title || "").trim();
+		if (title.length === 0) return false;
+
+		const href = `/item/${title}`;
+		const node = view.state.schema.nodes.itemlink.create({ title, href });
+		const tr = view.state.tr.replaceWith(wikiSuggestContext.from, wikiSuggestContext.to, node);
+		const insertPos = tr.mapping.map(wikiSuggestContext.from) + node.nodeSize;
+		view.dispatch(tr.insertText(" ", insertPos));
+		closeWikiSuggest();
+		return true;
+	}
+
+	const renderWikiSuggest = () => {
+		if (!wikiSuggestContext || wikiSuggestItems.length === 0) {
+			closeWikiSuggest();
+			return;
+		}
+
+		wikiSuggestList.innerHTML = "";
+		wikiSuggestItems.forEach((item, index) => {
+			const row = document.createElement("button");
+			row.type = "button";
+			row.className = "zealot-wiki-suggest-item";
+			if (index === wikiSuggestIndex) {
+				row.classList.add("selected");
+			}
+
+			const icon = (item.attributes?.["Icon"] || "").trim();
+			const label = icon.length > 0 ? `${icon} ${item.title}` : item.title;
+			row.textContent = label;
+
+			row.addEventListener("mousedown", (event) => {
+				event.preventDefault();
+			});
+			row.addEventListener("click", () => {
+				applyWikiSuggestion(index);
+				view.focus();
+			});
+			wikiSuggestList.appendChild(row);
+		});
+
+		const coords = view.coordsAtPos(wikiSuggestContext.anchorPos);
+		const hostRect = host.getBoundingClientRect();
+		const top = coords.bottom - hostRect.top + host.scrollTop + 6;
+		const left = coords.left - hostRect.left + host.scrollLeft;
+		wikiSuggest.style.top = `${top}px`;
+		wikiSuggest.style.left = `${Math.max(0, left)}px`;
+		wikiSuggest.hidden = false;
+	}
+
+	const scheduleWikiSuggestSearch = (term: string) => {
+		if (wikiSuggestTimer !== null) {
+			window.clearTimeout(wikiSuggestTimer);
+			wikiSuggestTimer = null;
+		}
+
+		wikiSuggestTimer = window.setTimeout(async () => {
+			wikiSuggestTimer = null;
+			const reqId = ++wikiSuggestReqId;
+			try {
+				const results = await API.item.search(term);
+				if (reqId !== wikiSuggestReqId) return;
+
+				wikiSuggestItems = (results || []).slice(0, 8);
+				wikiSuggestIndex = 0;
+				renderWikiSuggest();
+			} catch (error) {
+				console.error("Failed wiki item search", error);
+				closeWikiSuggest();
+			}
+		}, 120);
+	}
+
+	const refreshWikiSuggest = () => {
+		const context = getWikiSuggestionContext(view.state);
+		if (!context || !view.hasFocus()) {
+			closeWikiSuggest();
+			return;
+		}
+
+		const queryChanged = context.query !== wikiSuggestContext?.query;
+		wikiSuggestContext = context;
+		if (queryChanged || wikiSuggestItems.length === 0) {
+			scheduleWikiSuggestSearch(context.query);
+			return;
+		}
+		renderWikiSuggest();
+	}
 
 	const view = new EditorView(host, {
 			state,
@@ -485,6 +684,30 @@ export const createZealotEditorView = (
 				return true;
 			},
 			handleKeyDown: (view, event) => {
+				if (!wikiSuggest.hidden && wikiSuggestItems.length > 0) {
+					if (event.key === "ArrowDown") {
+						event.preventDefault();
+						wikiSuggestIndex = Math.min(wikiSuggestIndex + 1, wikiSuggestItems.length - 1);
+						renderWikiSuggest();
+						return true;
+					}
+					if (event.key === "ArrowUp") {
+						event.preventDefault();
+						wikiSuggestIndex = Math.max(wikiSuggestIndex - 1, 0);
+						renderWikiSuggest();
+						return true;
+					}
+					if (event.key === "Enter" || event.key === "Tab") {
+						event.preventDefault();
+						return applyWikiSuggestion(wikiSuggestIndex);
+					}
+					if (event.key === "Escape") {
+						event.preventDefault();
+						closeWikiSuggest();
+						return true;
+					}
+				}
+
 				if (event.key === "Home") {
 					event.preventDefault();
 					return moveToLineBoundary(view.state, view.dispatch, false, event.shiftKey);
@@ -516,6 +739,7 @@ export const createZealotEditorView = (
 		dispatchTransaction: (tr) => {
 			const nextState = view.state.apply(tr);
 			view.updateState(nextState);
+			refreshWikiSuggest();
 
 			if (!tr.docChanged || !options.onUpdate) return;
 			if (saveTimer !== null) window.clearTimeout(saveTimer);
@@ -529,6 +753,21 @@ export const createZealotEditorView = (
 					options.onUpdate?.(value, view);
 			}, delay);
 		}
+	});
+
+	view.dom.addEventListener("focusin", () => {
+		refreshWikiSuggest();
+	});
+
+	view.dom.addEventListener("focusout", () => {
+		window.setTimeout(() => {
+			if (!view.hasFocus()) closeWikiSuggest();
+		}, 0);
+	});
+
+	host.addEventListener("scroll", () => {
+		if (wikiSuggest.hidden) return;
+		renderWikiSuggest();
 	});
 
 	view.dom.setAttribute("name", "editor_prose");

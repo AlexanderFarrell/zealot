@@ -33,27 +33,76 @@ a {
 	cursor: pointer;
 }
 
+.zealot-wiki-suggest {
+	position: absolute;
+	z-index: 9;
+	min-width: 240px;
+	max-width: min(420px, 92%);
+	background: var(--panel-0);
+	border: 1px solid var(--border-0);
+	border-radius: 8px;
+	box-shadow: 0 10px 24px var(--shadow-color-4);
+	overflow: hidden;
+}
+
+.zealot-wiki-suggest-list {
+	display: grid;
+	max-height: 220px;
+	overflow-y: auto;
+}
+
+.zealot-wiki-suggest-item {
+	width: 100%;
+	text-align: left;
+	border-radius: 0;
+	padding: 7px 10px;
+	background: transparent;
+	box-shadow: none;
+	filter: none;
+	transition: background 100ms ease;
+}
+
+.zealot-wiki-suggest-item:hover,
+.zealot-wiki-suggest-item.selected {
+	background: color-mix(in srgb, var(--bg-3) 72%, var(--accent-0) 28%);
+	box-shadow: none;
+	filter: none;
+}
+
 .zealot-code-block {
 	margin: 10px 0;
+	position: relative;
 }
 
 .zealot-code-block-toolbar {
-	display: none;
+	position: absolute;
+	top: 0;
+	left: 8px;
+	z-index: 3;
+	display: flex;
 	align-items: center;
 	gap: 8px;
-	margin: 0 0 6px 0;
+	margin: 0;
 	padding: 6px 10px;
 	border: 1px solid color-mix(in srgb, var(--accent-0) 28%, transparent);
 	border-radius: 8px;
-	background: color-mix(in srgb, var(--panel-0) 86%, var(--accent-0) 14%);
+	background: color-mix(in srgb, var(--panel-0) 80%, var(--accent-0) 20%);
 	box-shadow: 0 8px 16px var(--shadow-color-3);
 	width: auto;
 	max-width: min(92%, 420px);
+	opacity: 0;
+	pointer-events: none;
+	transform: translateY(calc(-100% - 4px));
+	transition: opacity 120ms ease, transform 120ms ease;
 }
 
 .zealot-code-block:hover .zealot-code-block-toolbar,
-.zealot-code-block:focus-within .zealot-code-block-toolbar {
-	display: flex;
+.zealot-code-block:focus-within .zealot-code-block-toolbar,
+.zealot-code-block-toolbar:hover,
+.zealot-code-block-toolbar:focus-within {
+	opacity: 1;
+	pointer-events: auto;
+	transform: translateY(calc(-100% + 2px));
 }
 
 .zealot-code-block-language-label {
@@ -71,6 +120,15 @@ a {
 	padding: 4px 8px;
 	height: 30px;
 	font-size: 13px;
+}
+
+.zealot-code-block-copy {
+	width: auto;
+	padding: 6px 10px;
+	font-size: 12px;
+	line-height: 1;
+	border: 1px solid color-mix(in srgb, var(--accent-0) 35%, transparent);
+	background: color-mix(in srgb, var(--panel-0) 74%, var(--accent-0) 26%);
 }
 
 .zealot-code-block pre {
