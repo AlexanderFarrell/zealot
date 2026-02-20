@@ -4,10 +4,10 @@ import (
 	_ "embed"
 	"zealotd/apps/account"
 	"zealotd/apps/item"
+	"zealotd/apps/item/comments"
 	"zealotd/apps/media"
 	"zealotd/apps/planner"
 	"zealotd/apps/repeat"
-	"zealotd/apps/tracker"
 	"zealotd/apps/settings"
 	"zealotd/web"
 )
@@ -27,7 +27,7 @@ func main() {
 	planner.InitRouter(app)
 	media.InitRouter(app)
 	repeat.InitRouter(app)
-	tracker.InitRouter(app)
+	comments.InitRouter(app)
 
 	web.RunServer(app)
 }

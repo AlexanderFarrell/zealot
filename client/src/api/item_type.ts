@@ -1,5 +1,5 @@
-import { BasicAPI, delete_req, post_req } from "../core/api_helper";
-import { events } from "../core/events";
+import { BasicAPI, delete_req, post_req } from "../shared/api_helper";
+import { events } from "../shared/events";
 
 export interface ItemType {
     type_id?: number,

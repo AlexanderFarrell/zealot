@@ -5,4 +5,6 @@
 \i item/item_type.sql;
 \i item/link.sql;
 \i repeat/repeat.sql;
+\i tracker/tracker.sql;
+\i comments.sql;
 \i constants/constants.sql;

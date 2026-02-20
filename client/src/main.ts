@@ -1,11 +1,12 @@
 import './assets/css/main.scss';
+import "highlight.js/styles/github-dark.css";
 import "./element_map.ts";
 
-import AuthModal from './components/auth_modal.ts';
+import AuthModal from './features/auth/auth_modal.ts';
 import AuthAPI from './api/auth.ts';
-import ZealotApp from './components/zealot_app.ts';
-import { events } from './core/events.ts';
-import { set_settings_validator } from './core/settings.ts';
+import ZealotApp from './app/zealot_app.ts';
+import { events } from './shared/events.ts';
+import { set_settings_validator } from './shared/settings.ts';
 
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `Loading Zealot...`

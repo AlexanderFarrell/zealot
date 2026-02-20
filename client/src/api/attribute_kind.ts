@@ -1,5 +1,5 @@
-import { BasicAPI, patch_json } from "../core/api_helper";
-import { events } from "../core/events";
+import { BasicAPI, patch_json } from "../shared/api_helper";
+import { events } from "../shared/events";
 
 export const AttributeKindsBaseTypes = [
     'text',
