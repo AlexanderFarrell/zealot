@@ -12,6 +12,10 @@ export class GenericSearch<T> extends BaseElement<GenericSearchInfo<T>> {
 	private results_views: HTMLElement[] = []
 	private result_index: number = -1;
 
+	protected searchOnEmpty(): boolean {
+		return false;
+	}
+
 	async render() {
 		this.innerHTML = `
 		<input name="search" type="text" autocomplete="nope" required>
@@ -29,7 +33,7 @@ export class GenericSearch<T> extends BaseElement<GenericSearchInfo<T>> {
 			try {
 				let term = search_input.value;
 				results_view.innerHTML = '';
-				if (term === "") {
+				if (term === "" && !this.searchOnEmpty()) {
 					return;
 				}
 				results = await this.data!.on_search(search_input.value);
@@ -50,7 +54,7 @@ export class GenericSearch<T> extends BaseElement<GenericSearchInfo<T>> {
 				return;
 			}
 
-			results.forEach((result, index) => {
+			results.forEach((result) => {
 				let view = this.data!.on_make_view(result);
 				view.addEventListener('click', () => {
 					this.data!.on_select(result);
@@ -93,6 +97,9 @@ export class GenericSearch<T> extends BaseElement<GenericSearchInfo<T>> {
 	focus() {
 		let input = this.querySelector('[name="search"]')! as HTMLInputElement;
 		input.focus();
+		if (this.searchOnEmpty() && input.value.trim() === "") {
+			input.dispatchEvent(new Event("input"));
+		}
 	}
 
 	set_selected_result() {
