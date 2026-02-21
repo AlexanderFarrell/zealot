@@ -4,7 +4,11 @@ import { BaseElementEmpty } from "../../shared/base_element";
 import { GenericSearch } from "../../shared/generic_search";
 import { router } from "../router/router";
 
-class ItemSearch extends GenericSearch<Item>{}
+class ItemSearch extends GenericSearch<Item>{
+	protected searchOnEmpty(): boolean {
+		return true;
+	}
+}
 
 export class ItemSearchModal extends BaseElementEmpty {
 	render() {

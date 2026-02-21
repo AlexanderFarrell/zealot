@@ -20,13 +20,13 @@ type Item struct {
 }
 
 type AttributeFilter struct {
-	Key string `json:"key"`
-	Op string `json:"op"`
-	Value interface{} `json:"value"`
-	ListMode string `json:"list_mode"` // any|all|none
+	Key      string      `json:"key"`
+	Op       string      `json:"op"`
+	Value    interface{} `json:"value"`
+	ListMode string      `json:"list_mode"` // any|all|none
 }
 
-func GetItemsByAttributeFilter(filter* AttributeFilter, accountID int) ([]Item, error) {
+func GetItemsByAttributeFilter(filter *AttributeFilter, accountID int) ([]Item, error) {
 	return GetItemsByAttributeFilters([]AttributeFilter{*filter}, accountID)
 }
 
@@ -237,10 +237,10 @@ const (
 
 var (
 	acceptableAttributeColumns = map[string]int{
-		"value_int":  0,
-		"value_date": 0,
-		"value_text": 0,
-		"value_num":  0,
+		"value_int":     0,
+		"value_date":    0,
+		"value_text":    0,
+		"value_num":     0,
 		"value_item_id": 0,
 	}
 )
@@ -430,13 +430,13 @@ func addAttrsTypesToItems(rows *sql.Rows, err error, accountID int) ([]Item, err
 
 	for rows.Next() {
 		var (
-			itemID int
-			key    string
-			vInt   sql.NullInt64
-			vDate  sql.NullTime
-			vText  sql.NullString
-			vNum   sql.NullFloat64
-			vItem  sql.NullInt64
+			itemID  int
+			key     string
+			vInt    sql.NullInt64
+			vDate   sql.NullTime
+			vText   sql.NullString
+			vNum    sql.NullFloat64
+			vItem   sql.NullInt64
 			ordinal int
 		)
 		if err := rows.Scan(&itemID, &key, &vInt, &vDate, &vText, &vNum, &vItem, &ordinal); err != nil {
@@ -505,6 +505,17 @@ func addAttrsTypesToItems(rows *sql.Rows, err error, accountID int) ([]Item, err
 }
 
 func SearchByTitle(title string, account_id int) ([]Item, error) {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		query := fmt.Sprintf(`%s
+		where i.account_id = $1
+		order by i.item_id desc
+		limit 20;
+		`, ItemQuery)
+		rows, err := web.Database.Query(query, account_id)
+		return addAttrsTypesToItems(rows, err, account_id)
+	}
+
 	query := fmt.Sprintf(`%s
 	where i.title ilike '%%' || $1 || '%%'
 	and i.account_id = $2

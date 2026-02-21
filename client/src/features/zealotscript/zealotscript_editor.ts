@@ -511,7 +511,6 @@ const getWikiSuggestionContext = (state: EditorState): WikiSuggestionContext | n
 	if (!match) return null;
 
 	const query = (match[1] || "").trim();
-	if (query.length === 0) return null;
 
 	const startInParent = textBefore.length - match[0].length;
 	const from = $from.start() + startInParent;

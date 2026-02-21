@@ -31,7 +31,7 @@ export const ItemAPI = {
     },
 
     search: async (term: string): Promise<Item[]> => {
-        return get_json(`/api/item/search?term=${term}`);
+        return get_json(`/api/item/search?term=${encodeURIComponent(term)}`);
     },
 
     root_items: async (): Promise<Item[]> => {

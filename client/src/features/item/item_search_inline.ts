@@ -6,6 +6,10 @@ class ItemSearchInline extends GenericSearch<Item> {
 	private input: HTMLInputElement | null = null;
 	private resultsView: HTMLDivElement | null = null;
 
+	protected searchOnEmpty(): boolean {
+		return true;
+	}
+
 	async render() {
 		await super.render();
 		this.input = this.querySelector('[name="search"]') as HTMLInputElement;
@@ -14,6 +18,11 @@ class ItemSearchInline extends GenericSearch<Item> {
 			this.input.addEventListener("keydown", (e: KeyboardEvent) => {
 				if (e.key === "Enter") {
 					e.preventDefault();
+				}
+			});
+			this.input.addEventListener("focus", () => {
+				if (this.input && this.input.value.trim() === "") {
+					this.input.dispatchEvent(new Event("input"));
 				}
 			});
 		}

@@ -1,4 +1,4 @@
-
+package rules
 
 func AddScript() {
 
