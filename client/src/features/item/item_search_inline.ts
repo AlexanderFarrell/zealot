@@ -12,7 +12,7 @@ class ItemSearchInline extends GenericSearch<Item> {
 
 	async render() {
 		await super.render();
-		this.input = this.querySelector('[name="search"]') as HTMLInputElement;
+		this.input = this.querySelector('[data-role="generic-search-input"]') as HTMLInputElement;
 		this.resultsView = this.querySelector('[name="generic_results"]') as HTMLDivElement;
 		if (this.input) {
 			this.input.addEventListener("keydown", (e: KeyboardEvent) => {

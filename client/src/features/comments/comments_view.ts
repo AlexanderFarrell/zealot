@@ -106,7 +106,7 @@ class CommentsView extends BaseElement<CommentsViewScope> {
 				});
 			}
 
-			const searchInput = itemSearch.querySelector('[name="search"]') as HTMLInputElement | null;
+			const searchInput = itemSearch.querySelector('[data-role="generic-search-input"]') as HTMLInputElement | null;
 			if (searchInput && !searchInput.placeholder) {
 				searchInput.placeholder = "Search items...";
 			}
