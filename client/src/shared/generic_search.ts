@@ -18,14 +18,21 @@ export class GenericSearch<T> extends BaseElement<GenericSearchInfo<T>> {
 
 	async render() {
 		this.innerHTML = `
-		<input name="search" type="text" autocomplete="nope" required>
+		<input
+			data-role="generic-search-input"
+			type="text"
+			autocomplete="off"
+			autocorrect="off"
+			autocapitalize="off"
+			spellcheck="false"
+		>
 		<div name="generic_results">
 		&nbsp;
 		</div>
 		`
 
 		let results: T[] = [];
-		let search_input = this.querySelector('[name="search"]')! as HTMLInputElement;
+		let search_input = this.querySelector('[data-role="generic-search-input"]')! as HTMLInputElement;
 		let results_view = this.querySelector('[name="generic_results"]')! as HTMLDivElement;
 
 		search_input.addEventListener('input', async () => {
@@ -95,7 +102,7 @@ export class GenericSearch<T> extends BaseElement<GenericSearchInfo<T>> {
 	}
 
 	focus() {
-		let input = this.querySelector('[name="search"]')! as HTMLInputElement;
+		let input = this.querySelector('[data-role="generic-search-input"]')! as HTMLInputElement;
 		input.focus();
 		if (this.searchOnEmpty() && input.value.trim() === "") {
 			input.dispatchEvent(new Event("input"));
