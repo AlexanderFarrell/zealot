@@ -9,7 +9,7 @@ import { router } from "../router/router";
 import API from "../../api/api";
 import { liftListItem, sinkListItem } from "prosemirror-schema-list";
 import {keymap} from "prosemirror-keymap"
-import {InputRule, inputRules, textblockTypeInputRule} from "prosemirror-inputrules";
+import {InputRule, inputRules, textblockTypeInputRule, wrappingInputRule} from "prosemirror-inputrules";
 import { MarkType, Node as PMNode, Schema } from "prosemirror-model";
 import { baseKeymap } from "prosemirror-commands";
 import { dropCursor } from "prosemirror-dropcursor";
@@ -110,6 +110,26 @@ const buildInputRules = (schema: Schema) => {
 		rules.push(textblockTypeInputRule(/^```([A-Za-z0-9_+-]*)\s$/, codeBlockType, (match) => {
 			return { language: (match[1] || "").trim() };
 		}));
+	}
+
+	const blockquoteType = schema.nodes.blockquote;
+	if (blockquoteType) {
+		rules.push(wrappingInputRule(/^\s*>\s$/, blockquoteType));
+	}
+
+	const orderedListType = schema.nodes.ordered_list;
+	if (orderedListType) {
+		rules.push(wrappingInputRule(
+			/^(\d+)\.\s$/,
+			orderedListType,
+			(match) => ({ order: +match[1] }),
+			(match, node) => node.childCount + node.attrs.order === +match[1]
+		));
+	}
+
+	const bulletListType = schema.nodes.bullet_list;
+	if (bulletListType) {
+		rules.push(wrappingInputRule(/^\s*([-+*])\s$/, bulletListType));
 	}
 
 	const addMarkRule = (markType: MarkType | undefined, regex: RegExp) => {
@@ -221,6 +241,34 @@ const moveToLineBoundary = (
 	return true;
 }
 
+const convertFenceToCodeBlock = (
+	state: EditorState,
+	dispatch: ((tr: Transaction) => void) | undefined
+) => {
+	const codeBlockType = state.schema.nodes.code_block;
+	const paragraphType = state.schema.nodes.paragraph;
+	if (!codeBlockType || !paragraphType) return false;
+	if (!state.selection.empty) return false;
+
+	const { $from } = state.selection;
+	if ($from.parent.type !== paragraphType) return false;
+	if ($from.parentOffset !== $from.parent.content.size) return false;
+
+	const match = /^\s*```([A-Za-z0-9_+-]*)\s*$/.exec($from.parent.textContent);
+	if (!match) return false;
+
+	if (!dispatch) return true;
+
+	const language = (match[1] || "").trim();
+	const from = $from.before();
+	const to = $from.after();
+	const node = codeBlockType.create({ language });
+	let tr = state.tr.replaceWith(from, to, node);
+	tr = tr.setSelection(TextSelection.create(tr.doc, from + 1));
+	dispatch(tr.scrollIntoView());
+	return true;
+}
+
 export const createZealotEditorState = (content: string) => {
 	debugZealot("create state with content", content);
 	return EditorState.create({
@@ -315,6 +363,9 @@ const buildCodeBlockNodeView = (node: PMNode, view: EditorView, getPos: (() => n
 
 	const toolbar = document.createElement("div");
 	toolbar.className = "zealot-code-block-toolbar";
+	toolbar.addEventListener("keydown", (event) => {
+		event.stopPropagation();
+	});
 
 	const label = document.createElement("label");
 	label.className = "zealot-code-block-language-label";
@@ -424,6 +475,9 @@ const buildCodeBlockNodeView = (node: PMNode, view: EditorView, getPos: (() => n
 
 	languageSelect.addEventListener("change", () => {
 		applyLanguage();
+		window.setTimeout(() => {
+			view.focus();
+		}, 0);
 	});
 
 	languageSelect.addEventListener("blur", () => {
@@ -431,6 +485,7 @@ const buildCodeBlockNodeView = (node: PMNode, view: EditorView, getPos: (() => n
 	});
 
 	copyButton.addEventListener("mousedown", (event) => {
+		event.preventDefault();
 		event.stopPropagation();
 	});
 
@@ -465,12 +520,15 @@ const buildCodeBlockNodeView = (node: PMNode, view: EditorView, getPos: (() => n
 			console.error("Failed to copy code block", error);
 			copyButton.textContent = "Failed";
 			if (copyTimer !== null) window.clearTimeout(copyTimer);
-			copyTimer = window.setTimeout(() => {
-				copyButton.textContent = "Copy";
-				copyTimer = null;
-			}, 1200);
-		}
-	});
+				copyTimer = window.setTimeout(() => {
+					copyButton.textContent = "Copy";
+					copyTimer = null;
+				}, 1200);
+			}
+			window.setTimeout(() => {
+				view.focus();
+			}, 0);
+		});
 
 	syncLanguageUi(currentNode);
 	syncHighlightedPreview(currentNode);
@@ -683,6 +741,11 @@ export const createZealotEditorView = (
 				return true;
 			},
 			handleKeyDown: (view, event) => {
+				const target = event.target as HTMLElement | null;
+				if (target?.closest(".zealot-code-block-toolbar")) {
+					return false;
+				}
+
 				if (!wikiSuggest.hidden && wikiSuggestItems.length > 0) {
 					if (event.key === "ArrowDown") {
 						event.preventDefault();
@@ -703,6 +766,13 @@ export const createZealotEditorView = (
 					if (event.key === "Escape") {
 						event.preventDefault();
 						closeWikiSuggest();
+						return true;
+					}
+				}
+
+				if (event.key === "Enter") {
+					if (convertFenceToCodeBlock(view.state, view.dispatch)) {
+						event.preventDefault();
 						return true;
 					}
 				}

@@ -140,14 +140,23 @@ a {
 }
 
 .zealot-code-block > pre:not(.zealot-code-block-preview) {
-	display: none;
-}
-
-.zealot-code-block:focus-within > pre:not(.zealot-code-block-preview) {
+	position: relative;
+	z-index: 1;
 	display: block;
 }
 
+.zealot-code-block > .zealot-code-block-preview {
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	pointer-events: none;
+}
+
 .zealot-code-block:focus-within > .zealot-code-block-preview {
+	display: none;
+}
+
+.ProseMirror-focused .zealot-code-block > .zealot-code-block-preview {
 	display: none;
 }
 
@@ -259,6 +268,8 @@ hr {
 	box-shadow: none;
 	font-size: inherit;
 	line-height: inherit;
+	tab-size: 4;
+	-moz-tab-size: 4;
 }
 
 pre {
