@@ -1,7 +1,10 @@
 package account
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,8 +23,89 @@ type AccountDetails struct {
 }
 
 func IsLoggedIn(c *fiber.Ctx) bool {
+	if c.Locals("account_id") != nil {
+		return true
+	}
 	sess := web.GetSessionStore(c)
 	return sess.Get("account_id") != nil
+}
+
+const apiKeyPrefix = "zl_"
+
+// GenerateAPIKey creates a new API key for the account, storing only its
+// SHA-256 hash. Returns the plaintext key — shown once and never stored.
+func GenerateAPIKey(accountID int) (string, error) {
+	b := make([]byte, 24)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generating random bytes: %w", err)
+	}
+	plaintext := apiKeyPrefix + hex.EncodeToString(b)
+
+	hash := sha256.Sum256([]byte(plaintext))
+	hashHex := hex.EncodeToString(hash[:])
+
+	_, err := web.Database.Exec(`
+		insert into api_key (account_id, key_hash)
+		values ($1, $2)
+		on conflict (account_id)
+		do update set key_hash = $2, created_at = now()
+	`, accountID, hashHex)
+	if err != nil {
+		return "", fmt.Errorf("storing api key: %w", err)
+	}
+	return plaintext, nil
+}
+
+// GetAccountFromAPIKey looks up the account_id and username for the given
+// plaintext key. Returns zero/empty with no error when the key is not found.
+func GetAccountFromAPIKey(key string) (int, string, error) {
+	hash := sha256.Sum256([]byte(key))
+	hashHex := hex.EncodeToString(hash[:])
+
+	var accountID int
+	var username string
+	err := web.Database.QueryRow(`
+		select a.account_id, a.username
+		from api_key ak
+		join account a on a.account_id = ak.account_id
+		where ak.key_hash = $1
+	`, hashHex).Scan(&accountID, &username)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, "", nil
+	}
+	if err != nil {
+		return 0, "", fmt.Errorf("looking up api key: %w", err)
+	}
+	return accountID, username, nil
+}
+
+// RevokeAPIKey deletes the API key for the given account.
+func RevokeAPIKey(accountID int) error {
+	_, err := web.Database.Exec("delete from api_key where account_id=$1", accountID)
+	return err
+}
+
+// HasAPIKey reports whether the account currently has an API key.
+func HasAPIKey(accountID int) (bool, error) {
+	var exists bool
+	err := web.Database.QueryRow(
+		"select exists(select 1 from api_key where account_id=$1)", accountID,
+	).Scan(&exists)
+	return exists, err
+}
+
+// GetAccountDetailsByID retrieves account information by account_id.
+func GetAccountDetailsByID(accountID int) (AccountDetails, error) {
+	row := web.Database.QueryRow(
+		"select account_id, username, email, full_name, settings from account where account_id=$1",
+		accountID,
+	)
+	var details AccountDetails
+	if err := row.Scan(&details.AccountID, &details.Username, &details.Email, &details.Name, &details.Settings); err != nil {
+		fmt.Printf("Error scanning account details for account_id %d: %v\n", accountID, err)
+		return AccountDetails{}, errors.New("issue getting account details")
+	}
+	return details, nil
 }
 
 func CreateAccount(username string, password string,

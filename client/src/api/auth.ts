@@ -1,6 +1,6 @@
 import { events } from "../shared/events";
 import { router } from "../features/router/router";
-import { get_req, get_json, patch_req, post_req } from "../shared/api_helper";
+import { get_req, get_json, patch_req, post_req, delete_req } from "../shared/api_helper";
 import { get_settings, set_settings } from "../shared/settings";
 
 type User = {
@@ -53,6 +53,19 @@ export const AuthAPI = {
 
     sync_settings: async () => {
         await patch_req('/api/account/settings', get_settings())
+    },
+
+    get_api_key_status: async (): Promise<{ exists: boolean }> => {
+        return get_json('/api/account/api-key', 'Failed to get API key status');
+    },
+
+    generate_api_key: async (): Promise<{ key: string }> => {
+        const response = await post_req('/api/account/api-key', {}, 'Failed to generate API key');
+        return response.json();
+    },
+
+    revoke_api_key: async (): Promise<void> => {
+        await delete_req('/api/account/api-key', {}, 'Failed to revoke API key');
     },
 
     get_user_details: async () => {

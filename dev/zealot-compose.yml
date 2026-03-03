@@ -65,7 +65,7 @@ services:
     depends_on:
      - zealot
     ports:
-     - "8080:80"
+     - "8080:8083"
     networks:
      - zealot_net
     

@@ -10,9 +10,12 @@ import (
 )
 
 func HandleUpdateRoute(c *fiber.Ctx, tableName string, identifierName string, allowedFields map[string]int) error {
-	account_id := GetKeyFromSessionInt(c, "account_id")
+	account_id, err := GetAccountID(c)
+	if err != nil {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
 	identifier := c.Params(identifierName)
-	identifier, err := url.QueryUnescape(identifier)
+	identifier, err = url.QueryUnescape(identifier)
 	if err != nil {
 		fmt.Printf("Error unescaping %s\n", identifierName)
 		return c.SendStatus(400)
@@ -52,9 +55,12 @@ func HandleUpdateRoute(c *fiber.Ctx, tableName string, identifierName string, al
 // }
 
 func HandleDeleteRoute(c *fiber.Ctx, tableName string, identifierName string) error {
-	account_id := GetKeyFromSessionInt(c, "account_id")
+	account_id, err := GetAccountID(c)
+	if err != nil {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
 	identifier := c.Params(identifierName)
-	identifier, err := url.QueryUnescape(identifier)
+	identifier, err = url.QueryUnescape(identifier)
 	if err != nil {
 		fmt.Printf("Error unescaping %s\n", identifierName)
 		return c.SendStatus(400)

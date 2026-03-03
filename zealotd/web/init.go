@@ -3,6 +3,7 @@ package web
 import (
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -27,10 +28,14 @@ func InitServer() *fiber.App {
 		CrossOriginEmbedderPolicy: "cross-origin",
 	}))
 	app.Use(csrf.New(csrf.Config{
-		KeyLookup:     "header:X-Csrf-Token",
+		KeyLookup:      "header:X-Csrf-Token",
 		CookieSameSite: GetEnvVar("CSRF_COOKIE_SAMESITE", "Lax"),
 		CookieSecure:   GetEnvVar("CSRF_COOKIE_SECURE", "false") == "true",
 		CookieHTTPOnly: false,
+		Next: func(c *fiber.Ctx) bool {
+			// API key requests come from non-browser clients; CSRF doesn't apply.
+			return strings.HasPrefix(c.Get("Authorization"), "Bearer ")
+		},
 	}))
 	app.Use(limiter.New(limiter.Config{
 		Max:        100,

@@ -39,6 +39,9 @@ func InitRouter(app *fiber.App, settingsHandler SettingsHandler) fiber.Router {
 	})
 	api.Get("/details", getAccountDetails)
 	api.Get("/logout", logout)
+	api.Post("/api-key", generateAPIKey)
+	api.Delete("/api-key", revokeAPIKey)
+	api.Get("/api-key", getAPIKeyStatus)
 
 	return api
 }
@@ -52,13 +55,12 @@ func isLoggedIn(c *fiber.Ctx) error {
 }
 
 func getAccountDetails(c *fiber.Ctx) error {
-	if !IsLoggedIn(c) {
+	accountID, err := web.GetAccountID(c)
+	if err != nil {
 		return c.SendStatus(fiber.StatusUnauthorized)
 	}
 
-	username := web.GetKeyFromSession(c, "username")
-
-	details, err := GetAccountDetails(username)
+	details, err := GetAccountDetailsByID(accountID)
 	if err != nil {
 		fmt.Printf("Error getting account details: %v\n", err)
 		return c.SendStatus(fiber.StatusInternalServerError)
@@ -160,16 +162,18 @@ func usernameExists(c *fiber.Ctx) error {
 }
 
 func logout(c *fiber.Ctx) error {
-	// Protects session management
 	if !IsLoggedIn(c) {
 		return c.SendStatus(fiber.StatusUnauthorized)
 	}
-	username := web.GetKeyFromSession(c, "username")
+	username, _ := web.GetUsername(c)
 	fmt.Printf("User %s logged out\n", username)
 
-	sess := web.GetSessionStore(c)
-	sess.Delete("account_id")
-	web.SaveSession(sess)
+	// Only destroy the session when using session-based auth.
+	if c.Locals("account_id") == nil {
+		sess := web.GetSessionStore(c)
+		sess.Delete("account_id")
+		web.SaveSession(sess)
+	}
 	return c.SendStatus(fiber.StatusOK)
 }
 
@@ -186,11 +190,11 @@ func changeAccountDetails(c *fiber.Ctx) error {
 }
 
 func updateSettings(c *fiber.Ctx, handler SettingsHandler) error {
-	if !IsLoggedIn(c) {
+	accountID, err := web.GetAccountID(c)
+	if err != nil {
 		return c.SendStatus(fiber.StatusUnauthorized)
 	}
 	raw := json.RawMessage(c.Body())
-	accountID := web.GetKeyFromSessionInt(c, "account_id")
 
 	if handler == nil {
 		return c.SendStatus(fiber.StatusNotImplemented)
@@ -202,6 +206,44 @@ func updateSettings(c *fiber.Ctx, handler SettingsHandler) error {
 	}
 
 	return c.SendStatus(fiber.StatusOK)
+}
+
+func generateAPIKey(c *fiber.Ctx) error {
+	accountID, err := web.GetAccountID(c)
+	if err != nil {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
+	key, err := GenerateAPIKey(accountID)
+	if err != nil {
+		fmt.Printf("Error generating API key: %v\n", err)
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+	return c.JSON(fiber.Map{"key": key})
+}
+
+func revokeAPIKey(c *fiber.Ctx) error {
+	accountID, err := web.GetAccountID(c)
+	if err != nil {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
+	if err := RevokeAPIKey(accountID); err != nil {
+		fmt.Printf("Error revoking API key: %v\n", err)
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+	return c.SendStatus(fiber.StatusOK)
+}
+
+func getAPIKeyStatus(c *fiber.Ctx) error {
+	accountID, err := web.GetAccountID(c)
+	if err != nil {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
+	exists, err := HasAPIKey(accountID)
+	if err != nil {
+		fmt.Printf("Error checking API key status: %v\n", err)
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+	return c.JSON(fiber.Map{"exists": exists})
 }
 
 func initEnvVariables() {

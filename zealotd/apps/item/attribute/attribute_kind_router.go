@@ -16,14 +16,20 @@ func InitRouter(parent fiber.Router) fiber.Router {
 
 	// Gets all attribute kinds, system and account specific.
 	router.Get("/", func(c *fiber.Ctx) error {
-		account_id := web.GetKeyFromSessionInt(c, "account_id")
+		account_id, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 		kinds, err := GetAllAttributeKinds(account_id)
 		return web.SendJSONOrError(c, kinds, err, "getting attribute kinds")
 	})
 
 	// Adds a new attribute kind
 	router.Post("/", func(c *fiber.Ctx) error {
-		account_id := web.GetKeyFromSessionInt(c, "account_id")
+		account_id, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 		var kind AttributeKind
 		if err := c.BodyParser(&kind); err != nil {
 			fmt.Printf("Unable to parse new kind: %v", err)
@@ -42,7 +48,10 @@ func InitRouter(parent fiber.Router) fiber.Router {
 
 		// Updates the config
 	router.Patch("/:kind_id/config", func(c *fiber.Ctx) error {
-		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		accountID, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 		kindID, err := strconv.Atoi(c.Params("kind_id"))
 		if err != nil {
 			return c.SendStatus(fiber.StatusBadRequest)
@@ -61,7 +70,10 @@ func InitRouter(parent fiber.Router) fiber.Router {
 
 	// Deletes a non-system attribute kind
 	router.Delete("/:kind_id", func(c *fiber.Ctx) error {
-		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		accountID, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 		kindID, err := strconv.Atoi(c.Params("kind_id"))
 		if err != nil {
 			return c.SendStatus(fiber.StatusBadRequest)

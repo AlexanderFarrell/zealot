@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -82,4 +83,43 @@ func DestroySession(s *session.Session) {
 	if err := s.Destroy(); err != nil {
 		panic(err)
 	}
+}
+
+// GetAccountID returns the authenticated account_id for this request.
+// It checks Fiber locals first (set by API key middleware), then falls back
+// to the session. Returns an error if neither is present.
+func GetAccountID(c *fiber.Ctx) (int, error) {
+	if id, ok := c.Locals("account_id").(int); ok {
+		return id, nil
+	}
+	sess := GetSessionStore(c)
+	v := sess.Get("account_id")
+	if v == nil {
+		return 0, errors.New("not authenticated")
+	}
+	switch val := v.(type) {
+	case int:
+		return val, nil
+	case int64:
+		return int(val), nil
+	case float64:
+		return int(val), nil
+	default:
+		return 0, fmt.Errorf("cannot convert account_id (type %T) to int", v)
+	}
+}
+
+// GetUsername returns the authenticated username for this request.
+// It checks Fiber locals first (set by API key middleware), then falls back
+// to the session. Returns an error if neither is present.
+func GetUsername(c *fiber.Ctx) (string, error) {
+	if username, ok := c.Locals("username").(string); ok && username != "" {
+		return username, nil
+	}
+	sess := GetSessionStore(c)
+	v := sess.Get("username")
+	if v == nil {
+		return "", errors.New("not authenticated")
+	}
+	return fmt.Sprintf("%v", v), nil
 }

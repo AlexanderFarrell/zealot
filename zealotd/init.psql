@@ -188,6 +188,19 @@ create table tracker_entry (
 
 
 
+create table api_key (
+    api_key_id serial primary key,
+    account_id int not null references account(account_id) on delete cascade,
+    key_hash varchar(256) not null,
+    created_at timestamptz not null default now(),
+    constraint u_account_api_key unique (account_id)
+);
+comment on table api_key is
+    'Stores one hashed API key per user for bearer token authentication';
+comment on column api_key.key_hash is
+    'SHA-256 hex hash of the plaintext key; the plaintext is never stored';
+
+
 create table comment(
 	comment_id bigserial primary key,
 	item_id int not null references item(item_id),
