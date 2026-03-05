@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+	"zealotd/apps/account"
 	"zealotd/apps/item"
 	"zealotd/apps/item/attribute"
 	"zealotd/web"
@@ -13,6 +14,7 @@ import (
 
 func InitRouter(app *fiber.App) {
 	router := app.Group("/planner")
+	router.Use(account.RequireLoginMiddleware)
 
 	// Get on day
 	router.Get("/day/:date", func(c *fiber.Ctx) error {
