@@ -12,14 +12,20 @@ func InitRouter(parent fiber.Router) fiber.Router {
 
 	// Gets all item types
 	router.Get("/", func(c *fiber.Ctx) error {
-		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		accountID, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 		types, err := GetItemTypes(accountID)
 		return web.SendJSONOrError(c, types, err, "retrieving attribute types")
 	})
 
 	// Adds a new item type
 	router.Post("/", func(c *fiber.Ctx) error {
-		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		accountID, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 		var itemType ItemType
 		if err := c.BodyParser(&itemType); err != nil {
 			return c.SendStatus(fiber.StatusBadRequest)
@@ -29,7 +35,10 @@ func InitRouter(parent fiber.Router) fiber.Router {
 	})
 
 	router.Post("/assign/:item_name", func(c *fiber.Ctx) error {
-		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		accountID, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 		payload := struct {
 			AttributeKinds []string `json:"attribute_kinds"`
 		}{}
@@ -43,7 +52,10 @@ func InitRouter(parent fiber.Router) fiber.Router {
 	})
 
 	router.Delete("/assign/:item_name", func(c *fiber.Ctx) error {
-		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		accountID, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 		payload := struct {
 			AttributeKinds []string `json:"attribute_kinds"`
 		}{}

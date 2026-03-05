@@ -7,4 +7,5 @@
 /dev/.db.env
 /dev/.zealot.env
 /bin/
+/mcp/zealot-mcp
 .DS_Store

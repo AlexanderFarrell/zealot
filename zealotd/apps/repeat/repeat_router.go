@@ -15,7 +15,10 @@ func InitRouter(app *fiber.App) fiber.Router {
 	router.Use(account.RequireLoginMiddleware)
 
 	router.Get("/day/:date", func(c *fiber.Ctx) error {
-		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		accountID, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 		dateStr := c.Params("date")
 		day, err := time.Parse(time.DateOnly, dateStr)
 		if err != nil {
@@ -28,7 +31,10 @@ func InitRouter(app *fiber.App) fiber.Router {
 	})
 
 	router.Patch("/:item_id/day/:date", func(c *fiber.Ctx) error {
-		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		accountID, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 		itemID, err := strconv.Atoi(c.Params("item_id"))
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).SendString("Unable to parse item_id")

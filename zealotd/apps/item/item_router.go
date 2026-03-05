@@ -35,7 +35,10 @@ func InitRouter(app *fiber.App) fiber.Router {
 	router.Get("/", getRootItems)
 	router.Get("/title/:title", getByTitle)
 	router.Get("/id/:item_id", func (c *fiber.Ctx) error {
-		account_id := web.GetKeyFromSessionInt(c, "account_id")
+		account_id, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 		itemID, err := strconv.Atoi(c.Params("item_id"))
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).SendString("Unable to parse item_id")
@@ -56,7 +59,10 @@ func InitRouter(app *fiber.App) fiber.Router {
 	router.Get("/search", searchTitle)
 	router.Get("/children/:item_id", getChildren)
 	router.Get("/related/:item_id", func (c *fiber.Ctx) error {
-		accountID := web.GetKeyFromSessionInt(c, "account_id")		
+		accountID, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}		
 		itemID, err := strconv.Atoi(c.Params("item_id"))
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).SendString("Unable to parse item_id")
@@ -76,7 +82,10 @@ func InitRouter(app *fiber.App) fiber.Router {
 	})
 	
 	router.Post("/filter", func (c *fiber.Ctx) error {
-		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		accountID, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 
 		payload := struct {
 			Filters []AttributeFilter `json:"filters"`
@@ -100,7 +109,10 @@ func InitRouter(app *fiber.App) fiber.Router {
 	router.Delete("/:item_id/attr/:key", deleteAttribute)
 
 	router.Post("/:item_id/assign_type/:type_name", func(c *fiber.Ctx) error {
-		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		accountID, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 		itemID, err := strconv.Atoi(c.Params("item_id"))
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).SendString("Unable to parse item_id")
@@ -111,7 +123,10 @@ func InitRouter(app *fiber.App) fiber.Router {
 	})
 
 	router.Delete("/:item_id/assign_type/:type_name", func(c *fiber.Ctx) error {
-		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		accountID, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 		itemID, err := strconv.Atoi(c.Params("item_id"))
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).SendString("Unable to parse item_id")
@@ -134,8 +149,11 @@ func InitRouter(app *fiber.App) fiber.Router {
 }
 
 func getRootItems(c *fiber.Ctx) error {
-	accountID := web.GetKeyFromSessionInt(c, "account_id");
-	
+	accountID, authErr := web.GetAccountID(c)
+	if authErr != nil {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
+
 	// See if type is passed, if so do that:
 	kind := c.Query("type", "")
 	var items []Item
@@ -152,7 +170,10 @@ func getRootItems(c *fiber.Ctx) error {
 }
 
 func getChildren(c *fiber.Ctx) error {
-	accountID := web.GetKeyFromSessionInt(c, "account_id")		
+	accountID, authErr := web.GetAccountID(c)
+	if authErr != nil {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
 	itemID, err := strconv.Atoi(c.Params("item_id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).SendString("Unable to parse item_id")
@@ -178,7 +199,10 @@ func getChildren(c *fiber.Ctx) error {
 }
 
 func getByTitle(c *fiber.Ctx) error {
-	account_id := web.GetKeyFromSessionInt(c, "account_id")
+	account_id, authErr := web.GetAccountID(c)
+	if authErr != nil {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
 	title := c.Params("title")
 	title, err := url.QueryUnescape(title)
 	if err != nil {
@@ -204,7 +228,10 @@ func getByTitle(c *fiber.Ctx) error {
 }
 
 func searchTitle(c *fiber.Ctx) error {
-	account_id := web.GetKeyFromSessionInt(c, "account_id")
+	account_id, authErr := web.GetAccountID(c)
+	if authErr != nil {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
 	title := c.Query("term")
 	items, err := SearchByTitle(title, account_id)
 	if err != nil {
@@ -215,7 +242,10 @@ func searchTitle(c *fiber.Ctx) error {
 }
 
 func addItem(c *fiber.Ctx) error {
-	account_id := web.GetKeyFromSessionInt(c, "account_id")
+	account_id, authErr := web.GetAccountID(c)
+	if authErr != nil {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
 	var payload Item
 
 	if err := c.BodyParser(&payload); err != nil {
@@ -232,7 +262,10 @@ func updateItem(c *fiber.Ctx) error {
 }
 
 func deleteItem(c *fiber.Ctx) error {
-	account_id := web.GetKeyFromSessionInt(c, "account_id")
+	account_id, authErr := web.GetAccountID(c)
+	if authErr != nil {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
 	item_id, err := strconv.Atoi(c.Params("item_id"))
 
 	if err != nil {
@@ -249,7 +282,10 @@ func deleteItem(c *fiber.Ctx) error {
 }
 
 func deleteAttribute(c *fiber.Ctx) error {
-	account_id := web.GetKeyFromSessionInt(c, "account_id")
+	account_id, authErr := web.GetAccountID(c)
+	if authErr != nil {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
 	item_id, err := strconv.Atoi(c.Params("item_id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).SendString("Unable to convert item_id to number")
@@ -264,7 +300,10 @@ func deleteAttribute(c *fiber.Ctx) error {
 }
 
 func renameAttribute(c *fiber.Ctx) error {
-	account_id := web.GetKeyFromSessionInt(c, "account_id")
+	account_id, authErr := web.GetAccountID(c)
+	if authErr != nil {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
 	item_id, err := strconv.Atoi(c.Params("item_id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).SendString("Unable to convert item_id to number")
@@ -288,7 +327,10 @@ func renameAttribute(c *fiber.Ctx) error {
 }
 
 func setAttributes(c *fiber.Ctx) error {
-	account_id := web.GetKeyFromSessionInt(c, "account_id")
+	account_id, authErr := web.GetAccountID(c)
+	if authErr != nil {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
 	item_id, err := strconv.Atoi(c.Params("item_id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).SendString("Unable to convert item_id to number")

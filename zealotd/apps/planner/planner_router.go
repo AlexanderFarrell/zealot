@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+	"zealotd/apps/account"
 	"zealotd/apps/item"
 	"zealotd/apps/item/attribute"
 	"zealotd/web"
@@ -13,10 +14,14 @@ import (
 
 func InitRouter(app *fiber.App) {
 	router := app.Group("/planner")
+	router.Use(account.RequireLoginMiddleware)
 
 	// Get on day
 	router.Get("/day/:date", func(c *fiber.Ctx) error {
-		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		accountID, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 		dateStr := c.Params("date")
 		t, err := time.Parse(time.DateOnly, dateStr)
 		if err != nil {
@@ -28,7 +33,10 @@ func InitRouter(app *fiber.App) {
 	})
 
 	router.Get("/week/:week", func(c *fiber.Ctx) error {
-		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		accountID, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 		week, err := attribute.ToWeekCode(c.Params("week"))
 		if err != nil {
 			return c.SendStatus(fiber.StatusBadRequest)
@@ -38,7 +46,10 @@ func InitRouter(app *fiber.App) {
 	})
 
 	router.Get("/month/:month/year/:year", func(c *fiber.Ctx) error {
-		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		accountID, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 		month, err := strconv.Atoi(c.Params("month"))
 		if err != nil {
 			return c.SendStatus(fiber.StatusBadRequest)
@@ -69,7 +80,10 @@ func InitRouter(app *fiber.App) {
 	})
 
 	router.Get("/year/:year", func(c *fiber.Ctx) error {
-		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		accountID, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 		year, err := strconv.Atoi(c.Params("year"))
 		if err != nil {
 			return c.SendStatus(fiber.StatusBadRequest)

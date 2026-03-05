@@ -25,7 +25,10 @@ func InitRouter(app *fiber.App) fiber.Router {
 
 	// Get media
 	api.Get("/*", func (c * fiber.Ctx) error {
-		username := web.GetKeyFromSession(c, "username")
+		username, authErr := web.GetUsername(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 
 		basePath, err := UserPath(username, "")
 		if err != nil {
@@ -107,7 +110,10 @@ func InitRouter(app *fiber.App) fiber.Router {
 
 	// Make folder
 	api.Post("/mkdir", func (c *fiber.Ctx) error {
-		username := web.GetKeyFromSession(c, "username")
+		username, authErr := web.GetUsername(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 
 		payload := struct {
 			Folder string `json:"folder"`
@@ -138,7 +144,10 @@ func InitRouter(app *fiber.App) fiber.Router {
 
 	// Upload file
 	api.Post("/*", func (c * fiber.Ctx) error {
-		username := web.GetKeyFromSession(c, "username")
+		username, authErr := web.GetUsername(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 
 		file, err := c.FormFile("file")
 		if err != nil {
@@ -187,7 +196,10 @@ func InitRouter(app *fiber.App) fiber.Router {
 	})
 
 	api.Patch("/rename", func (c * fiber.Ctx) error {
-		username := web.GetKeyFromSession(c, "username")
+		username, authErr := web.GetUsername(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 
 		payload := struct {
 			OldLocation string `json:"old_location"`
@@ -235,7 +247,10 @@ func InitRouter(app *fiber.App) fiber.Router {
 
 	// Delete file
 	api.Delete("/*", func (c * fiber.Ctx) error {
-		username := web.GetKeyFromSession(c, "username")
+		username, authErr := web.GetUsername(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 
 		pathName := c.Params("*")
 		pathName, err := url.QueryUnescape(pathName)

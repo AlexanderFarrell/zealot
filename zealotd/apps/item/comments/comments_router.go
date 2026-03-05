@@ -15,7 +15,10 @@ func InitRouter(app *fiber.App) fiber.Router {
 	router.Use(account.RequireLoginMiddleware)
 
 	router.Get("/day/:date", func(c *fiber.Ctx) error {
-		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		accountID, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 		dateStr := c.Params("date")
 		day, err := time.Parse(time.DateOnly, dateStr)
 		if err != nil {
@@ -28,7 +31,10 @@ func InitRouter(app *fiber.App) fiber.Router {
 	})
 
 	router.Get("/item/:item_id", func(c *fiber.Ctx) error {
-		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		accountID, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 		itemID, err := strconv.Atoi(c.Params("item_id"))
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).SendString("Unable to parse item_id")
@@ -39,7 +45,10 @@ func InitRouter(app *fiber.App) fiber.Router {
 	})
 
 	router.Post("/", func(c *fiber.Ctx) error {
-		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		accountID, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 		payload := struct {
 			ItemID    int    `json:"item_id"`
 			Timestamp string `json:"timestamp"`
@@ -68,7 +77,10 @@ func InitRouter(app *fiber.App) fiber.Router {
 	})
 
 	router.Patch("/:comment_id", func(c *fiber.Ctx) error {
-		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		accountID, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 		commentID, err := strconv.ParseInt(c.Params("comment_id"), 10, 64)
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).SendString("Unable to parse comment_id")
@@ -96,7 +108,10 @@ func InitRouter(app *fiber.App) fiber.Router {
 	})
 
 	router.Delete("/:comment_id", func(c *fiber.Ctx) error {
-		accountID := web.GetKeyFromSessionInt(c, "account_id")
+		accountID, authErr := web.GetAccountID(c)
+		if authErr != nil {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
 		commentID, err := strconv.ParseInt(c.Params("comment_id"), 10, 64)
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).SendString("Unable to parse comment_id")
