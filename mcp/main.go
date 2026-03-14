@@ -17,7 +17,7 @@ import (
 
 const (
 	defaultZealotAPIURL = "https://zealot.alexanderfarrell.net"
-	defaultTransport    = "http"
+	defaultTransport    = "auto"
 	defaultListenAddr   = ":8080"
 	defaultBasePath     = "/mcp"
 	defaultSSEEndpoint  = "/sse"
@@ -71,11 +71,43 @@ func endpointPath(basePath, endpoint string) string {
 	return strings.TrimSuffix(basePath, "/") + endpoint
 }
 
+func isCharDevice(file *os.File) bool {
+	if file == nil {
+		return false
+	}
+	info, err := file.Stat()
+	if err != nil {
+		return false
+	}
+	return info.Mode()&os.ModeCharDevice != 0
+}
+
+func chooseAutoTransport() string {
+	// MCP hosts typically launch servers with piped stdin/stdout (non-TTY), which
+	// indicates stdio transport. Interactive terminal runs default to HTTP.
+	if !isCharDevice(os.Stdin) || !isCharDevice(os.Stdout) {
+		return "stdio"
+	}
+	return "http"
+}
+
+func normalizeTransport(raw string) string {
+	transport := strings.ToLower(strings.TrimSpace(raw))
+	switch transport {
+	case "", "auto":
+		return chooseAutoTransport()
+	case "sse":
+		return "http"
+	default:
+		return transport
+	}
+}
+
 func readConfig() config {
 	cfg := config{
 		apiURL:          getenvOrDefault("ZEALOT_API_URL", defaultZealotAPIURL),
 		apiToken:        strings.TrimSpace(os.Getenv("ZEALOT_API_TOKEN")),
-		transport:       strings.ToLower(getenvOrDefault("MCP_TRANSPORT", defaultTransport)),
+		transport:       getenvOrDefault("MCP_TRANSPORT", defaultTransport),
 		listenAddr:      getenvOrDefault("MCP_LISTEN_ADDR", defaultListenAddr),
 		basePath:        getenvOrDefault("MCP_BASE_PATH", defaultBasePath),
 		sseEndpoint:     getenvOrDefault("MCP_SSE_ENDPOINT", defaultSSEEndpoint),
@@ -84,7 +116,7 @@ func readConfig() config {
 
 	flag.StringVar(&cfg.apiURL, "api-url", cfg.apiURL, "Zealot API base URL")
 	flag.StringVar(&cfg.apiToken, "api-token", cfg.apiToken, "Zealot API token")
-	flag.StringVar(&cfg.transport, "transport", cfg.transport, "MCP transport: http or stdio")
+	flag.StringVar(&cfg.transport, "transport", cfg.transport, "MCP transport: auto, http, or stdio")
 	flag.StringVar(&cfg.listenAddr, "listen", cfg.listenAddr, "HTTP listen address (http transport)")
 	flag.StringVar(&cfg.basePath, "base-path", cfg.basePath, "HTTP base path for MCP endpoints")
 	flag.StringVar(&cfg.sseEndpoint, "sse-endpoint", cfg.sseEndpoint, "SSE endpoint path")
@@ -93,7 +125,7 @@ func readConfig() config {
 
 	cfg.apiURL = strings.TrimSpace(cfg.apiURL)
 	cfg.apiToken = strings.TrimSpace(cfg.apiToken)
-	cfg.transport = strings.ToLower(strings.TrimSpace(cfg.transport))
+	cfg.transport = normalizeTransport(cfg.transport)
 	cfg.basePath = normalizeBasePath(cfg.basePath, defaultBasePath)
 	cfg.sseEndpoint = normalizePath(cfg.sseEndpoint, defaultSSEEndpoint)
 	cfg.messageEndpoint = normalizePath(cfg.messageEndpoint, defaultMsgEndpoint)
@@ -177,15 +209,16 @@ func main() {
 
 	client := NewZealotClient(cfg.apiURL, cfg.apiToken)
 	mcpServer := buildMCPServer(client)
+	log.Printf("MCP transport mode: %s", cfg.transport)
 
 	var err error
 	switch cfg.transport {
-	case "", "http", "sse":
+	case "http":
 		err = runHTTP(mcpServer, cfg)
 	case "stdio":
 		err = runStdio(mcpServer)
 	default:
-		log.Fatalf("unsupported MCP_TRANSPORT %q (expected http or stdio)", cfg.transport)
+		log.Fatalf("unsupported MCP_TRANSPORT %q (expected auto, http, or stdio)", cfg.transport)
 	}
 
 	if err != nil {

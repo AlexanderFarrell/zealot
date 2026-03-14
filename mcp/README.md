@@ -11,7 +11,17 @@ go build -o zealot-mcp .
 
 ## Runtime Modes
 
-### HTTP (default)
+### Auto (default)
+
+```bash
+./zealot-mcp
+```
+
+Auto mode behavior:
+- Uses `stdio` when stdin/stdout are piped (typical MCP client launch)
+- Uses `http` when run interactively in a terminal
+
+### HTTP
 
 ```bash
 ./zealot-mcp --transport=http --listen=:8080 --base-path=/mcp
@@ -38,7 +48,7 @@ export ZEALOT_API_TOKEN=your_token_here
 Optional environment variables:
 
 - `ZEALOT_API_URL` (default: `https://zealot.alexanderfarrell.net`)
-- `MCP_TRANSPORT` (default: `http`, options: `http`, `stdio`)
+- `MCP_TRANSPORT` (default: `auto`, options: `auto`, `http`, `stdio`)
 - `MCP_LISTEN_ADDR` (default: `:8080`)
 - `MCP_BASE_PATH` (default: `/mcp`)
 - `MCP_SSE_ENDPOINT` (default: `/sse`)

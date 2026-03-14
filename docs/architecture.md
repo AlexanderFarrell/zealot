@@ -79,6 +79,7 @@ We also have the following libraries/modules:
 
 - Core - Stores ports (how we interface) and abstract business logic
 - Engine - Implementations of Services such as rules engine
-- Store - Individual storage implementations (PostgreSQL, SQLite, etc.)
-- Transport - How do we interact with Zealot externally?
+    - Store - Individual storage implementations (PostgreSQL, SQLite, etc.)
+    - Transport - How do we interact with Zealot externally?
+    - 
 - Test - Integration and E2E tests
