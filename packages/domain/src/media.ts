@@ -1,7 +1,6 @@
 import { DateTime } from "luxon";
 import { FileSize } from "./common";
 
-
 export class FileStat {
     public Path: string;
     public Size: FileSize;
@@ -40,6 +39,40 @@ export class FileStat {
 
     public get ModifiedDateStr(): string {
         return this.ModifiedAt.toLocaleString(DateTime.DATETIME_MED);
+    }
+
+    public get IsImage(): boolean {
+        return this.Extension in [
+            '.png',
+            '.jpg',
+            '.jpeg',
+            '.gif',
+            '.webp',
+            '.tga',
+            '.svg',
+            '.avif'
+        ]
+    }
+
+    public get IsVideo(): boolean {
+        return this.Extension in [
+            '.mp4',
+            '.mov',
+            '.mkv',
+            '.webm',
+            '.avi'
+        ]
+    }
+
+    public get IsAudio(): boolean {
+        return this.Extension in [
+            '.mp3',
+            '.wav',
+            '.aac',
+            '.m4a',
+            '.ogg',
+            '.flac'
+        ]
     }
 }
 
