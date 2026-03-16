@@ -1,0 +1,20 @@
+{
+    "name": "@zealot/domain",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "main": "./src/main.ts",
+    "types": "./src/main.ts",
+    "scripts": {
+        "typecheck": "tsc --noEmit",
+        "lint": "eslint src"
+    },
+    "dependencies": {
+        "luxon": "^3.7.2"
+    },
+    "devDependencies": {
+        "@types/luxon": "^3.7.1",
+        "typescript": "^5.9.3",
+        "eslint": "^10.0.3"
+    }
+}
