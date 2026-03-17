@@ -1,14 +1,14 @@
 
 
-export class User {
-    public readonly UserID: number;
+export class Account {
+    public readonly AccountID: number;
     public Username: string;
     public Email: string;
     public GivenName: string;
     public Surname: string;
 
-    public constructor(dto: UserDto) {
-        this.UserID = dto.user_id;
+    public constructor(dto: AccountDto) {
+        this.AccountID = dto.account_id;
         this.Username = dto.username;
         this.Email = dto.email;
         this.GivenName = dto.given_name;
@@ -24,8 +24,8 @@ export class User {
     }
 }
 
-export interface UserDto {
-    user_id: number;
+export interface AccountDto {
+    account_id: number;
     username: string;
     email: string;
     given_name: string;

@@ -58,7 +58,7 @@ export interface AddAttributeKindDto {
     config: AttributeConfig;
 }
 
-export interface UpdateAttributeKind {
+export interface UpdateAttributeKindDto {
     kind_id: number;
     key?: string;
     description?: string;

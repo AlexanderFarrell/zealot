@@ -9,6 +9,10 @@
         "preview": "vite preview"
     },
     "dependencies": {
-        "@zealot/content": "file:../../packages/content"
+        "@zealot/api": "file:../../packages/api",
+        "@zealot/content": "file:../../packages/content",
+        "@zealot/domain": "file:../../packages/domain",
+        "@zealot/ui": "file:../../packages/ui",
+        "vite": "^7.1.7"
     }
 }

@@ -66,3 +66,7 @@ export class FileSize {
         return `${value.toFixed(decimals)} ${units[i]}`;
     }
 }
+
+type ActionResult = 
+    | {ok: true}
+    | {ok: false, message: string};

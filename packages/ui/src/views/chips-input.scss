@@ -1,0 +1,34 @@
+chips-input {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: flex-start;
+}
+chips-input [type="items"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+chips-input input[type="text"] {
+  width: auto;
+  flex: 1 1 auto;
+  min-width: 160px;
+  height: auto;
+  box-shadow: none;
+  /* min-height: 32px; */
+}
+
+.chip_item {
+  display: flex;
+  gap: 2px;
+  place-items: center;
+}
+
+.chip_item > button {
+  border-radius: 50%;
+  padding: 2px;
+}
+
+.chip_item > img {
+  width: 0.5em !important;
+}

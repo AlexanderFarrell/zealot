@@ -89,6 +89,7 @@ import UploadIcon from "./icon/upload.svg";
 import ViewIcon from "./icon/view.svg";
 import WeekIcon from "./icon/week.svg";
 import Stylesheet from "./css/main.scss";
+import ZealotIcon from "./img/zealot.webp";
 
 const icons = {
   account: AccountIcon,
@@ -192,6 +193,7 @@ export {
   Stylesheet,
   icons,
   content,
+  ZealotIcon
 };
 
 export default content;
