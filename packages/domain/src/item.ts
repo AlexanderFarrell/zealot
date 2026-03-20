@@ -1,4 +1,4 @@
-import type { ItemType } from "./item_type";
+import { ItemType, type ItemTypeDto } from "./item_type";
 
 export class Item {
     public readonly ItemID: number;
@@ -13,8 +13,12 @@ export class Item {
         this.Title = dto.title;
         this.Content = dto.content;
         this.Attributes = dto.attributes || {};
-        this.Types = dto.types || [];
-        this.Related = dto.related || [];
+        this.Types = dto.types?.map(r => {
+            return new ItemType(r)
+        }) || [];
+        this.Related = dto.related?.map(r => {
+            return new Item(r);
+        }) || [];
     }
 
     public get DisplayTitle(): string {
@@ -48,8 +52,8 @@ export interface ItemDto {
     title: string,
     content: string,
     attributes?: Record<string, any>,
-    types?: Array<ItemType>,
-    related?: Array<Item>    
+    types?: Array<ItemTypeDto>,
+    related?: Array<ItemDto>    
 }
 
 export interface AddItemDto {

@@ -1,0 +1,40 @@
+[workspace]
+members = [
+    "apps/server",
+    "apps/cli",
+    "apps/tui",
+    "apps/mcp",
+    "crates/zealot-domain",
+    "crates/zealot-app",
+    "crates/zealot-infra",
+    "crates/zealot-api"
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+
+[workspace.dependencies]
+# Core async + web
+tokio = {version = "*", features = ["full"]}
+axum = "0.9"
+tower = "0.4"
+tower-http = {version = "*", features = ["trace", "cors"]}
+
+# Serialization
+serde = {version = "1", features = ["derive"]}
+serde_json = "1"
+
+# Database
+sqlx = {version = "*", features = ["runtime-tokio", "postgres", "uuid", "chrono"]}
+
+# Utilities
+thiserror = "1"
+anyhow = "1"
+uuid = {version = "1", features = ["serde", "v4"]}
+chrono = {version = "0.4", features = ["serde"]}
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = "0.3"

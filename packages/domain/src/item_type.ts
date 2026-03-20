@@ -35,3 +35,4 @@ export interface UpdateItemTypeDto {
     description?: string;
     required_attributes?: string[];
 }
+
