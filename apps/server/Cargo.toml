@@ -6,3 +6,4 @@ edition.workspace = true
 
 [dependencies]
 zealot-domain = {path = "../../crates/zealot-domain"}
+tokio.workspace = true

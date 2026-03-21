@@ -477,7 +477,7 @@ impl TryFrom<&str> for AttributeFilterOp {
             "gte" => Ok(Self::GreaterThanOrEqualTo),
             ">=" => Ok(Self::GreaterThanOrEqualTo),
             "lte" => Ok(Self::LessThanOrEqualTo),
-            "<=" => Ok(Self::LessThanOrEqualTo)
+            "<=" => Ok(Self::LessThanOrEqualTo),
             _ => Err(format!("{} operation not supported", value))
         }
     }

@@ -16,10 +16,10 @@ pub enum MetaDownloadTarget {
 
 pub trait MetaRepo {
     // TODO: Figure out this structure.
-    async fn backup() -> Result<(), RepoError<MetaRepoError>>;
+     fn backup(&self) -> Result<(), RepoError<MetaRepoError>>;
 
-    async fn download(target: MetaDownloadTarget) -> Result<(), RepoError<MetaRepoError>>;
+     fn download(&self, target: MetaDownloadTarget) -> Result<(), RepoError<MetaRepoError>>;
 
     // TODO: How will we upload everything?
-    async fn upload() -> Result<(), RepoError<MetaRepoError>>;
+     fn upload(&self) -> Result<(), RepoError<MetaRepoError>>;
 }
