@@ -18,7 +18,7 @@ version = "0.1.0"
 [workspace.dependencies]
 # Core async + web
 tokio = {version = "*", features = ["full"]}
-axum = "0.9"
+axum = "0.8"
 tower = "0.4"
 tower-http = {version = "*", features = ["trace", "cors"]}
 

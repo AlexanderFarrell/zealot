@@ -7,5 +7,7 @@ edition.workspace = true
 sqlx.workspace = true
 tokio.workspace = true
 uuid.workspace = true
+axum.workspace = true
 
 zealot-domain = {"path" = "../zealot-domain"}
+zealot-app = {"path" = "../zealot-app"}

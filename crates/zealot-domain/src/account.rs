@@ -44,6 +44,14 @@ pub struct RegisterBasicDto {
     pub surname: String,
 }
 
+pub struct InsertAccountDto {
+    pub username: String,
+    pub hash: String,
+    pub email: String,
+    pub given_name: String,
+    pub surname: String,
+}
+
 // Errors
 
 #[derive(Debug, thiserror::Error)]
