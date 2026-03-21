@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use chrono::NaiveDate;
+use serde::{Deserialize, Serialize};
 
 use crate::item::{Item, ItemDto};
 
@@ -21,6 +22,7 @@ pub enum RepeatStatus {
 
 // Send DTOs
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RepeatEntryDto {
     status: String,
     item: ItemDto,
@@ -30,6 +32,7 @@ pub struct RepeatEntryDto {
 
 // Update DTOs
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct UpdateRepeatEntryDto {
     pub item_id: i64,
     pub date: String,

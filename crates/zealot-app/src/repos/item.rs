@@ -1,8 +1,6 @@
-use zealot_domain::{account::Account, attribute::AttributeFilter, common::id::Id, item::{self, AddItemDto, Item, ItemError}};
+use zealot_domain::{account::Account, attribute::AttributeFilter, common::id::Id, item::{AddItemDto, Item, ItemError}};
 
 use crate::repos::common::RepoError;
-
-
 
 pub trait ItemRepo {
     // Getters TODO: Add paging
