@@ -3,11 +3,12 @@ use serde::{Deserialize, Serialize};
 
 
 
+#[derive(Debug, Clone)]
 pub struct ItemType {
 
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ItemTypeDto {
 
 }

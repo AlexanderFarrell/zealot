@@ -1,5 +1,6 @@
 pub mod account;
 pub mod attribute;
+pub mod comment;
 pub mod common;
 pub mod item_type;
 pub mod item;

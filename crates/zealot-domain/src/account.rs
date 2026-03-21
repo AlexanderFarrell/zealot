@@ -16,7 +16,7 @@ pub struct Account {
     pub surname: String,
 }
 
-// DTOs
+// Send DTOs
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccountDto {
@@ -27,10 +27,21 @@ pub struct AccountDto {
     pub surname: String,
 }
 
+// Receive DTOs
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoginBasicDto {
     pub username: String,
     pub password: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegisterBasicDto {
+    pub username: String,
+    pub password: String,
+    pub email: String,
+    pub given_name: String,
+    pub surname: String,
 }
 
 // Errors
@@ -72,6 +83,18 @@ impl TryFrom<AccountDto> for Account {
             given_name: dto.given_name,
             surname: dto.surname
         })
+    }
+}
+
+impl From<&Account> for AccountDto {
+    fn from(value: &Account) -> Self {
+        Self {
+            account_id: value.account_id.into(),
+            username: value.username.clone(),
+            email: value.email.to_string(),
+            given_name: value.given_name.clone(),
+            surname: value.surname.clone(),
+        }
     }
 }
 

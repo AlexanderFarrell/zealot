@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Email(String);
@@ -32,5 +34,11 @@ impl TryFrom<String> for Email {
 impl From<Email> for String {
     fn from(value: Email) -> Self {
         value.0
+    }
+}
+
+impl Display for Email {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }

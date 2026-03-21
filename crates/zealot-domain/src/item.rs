@@ -1,12 +1,13 @@
-use std::{any, collections::HashMap};
+use std::{collections::HashMap};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{attribute::{Attribute, AttributeError}, common::{id::{Id, IdError}, strings::StringsError}, item_type::{ItemType, ItemTypeDto, ItemTypeError}};
+use crate::{attribute::{Attribute, AttributeError, AttributeScalar}, common::{id::{Id, IdError}, strings::StringsError}, item_type::{ItemType, ItemTypeDto, ItemTypeError}};
 
 // Domain
 
+#[derive(Debug, Clone)]
 pub struct Item {
     pub item_id: Id,
     pub title: String,
@@ -18,20 +19,14 @@ pub struct Item {
 
 // DTOs
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ItemDto {
     pub item_id: i64,
     pub title: String,
     pub content: String,
-
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub attributes: Option<HashMap<String, Value>>,
-
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub types: Option<Vec<ItemTypeDto>>,
-
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub related: Option<Vec<ItemDto>>,
+    pub attributes: Value,
+    pub types: Vec<ItemTypeDto>,
+    pub related: Vec<ItemDto>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -83,9 +78,34 @@ pub enum ItemError {
 // Impls
 
 impl Item {
+    // // I think we want the repository to make items. We cannot just hydrate the item
+    // // without some queries.
+    // pub fn from_dto(dto: ItemDto, kinds: &HashMap<String, AttributeKind>) -> Result<Self, ItemError> {
+    //     if dto.title.len() == 0 {
+    //         return Err(ItemError::InvalidTitle { err: StringsError::IsEmpty });
+    //     }
+
+    //     Ok(Self { 
+    //         item_id: Id::try_from(dto.item_id)
+    //             .map_err(|err| ItemError::InvalidId { err })?, 
+    //         title: dto.title, 
+    //         content: dto.content, 
+    //         attributes: (match dto.attributes {
+    //             Some(json) => {
+    //                 Attribute::from_json(&json, kinds)
+    //             },
+    //             None => {
+    //                 Ok(HashMap::new())
+    //             }
+    //         }).map_err(|err| ItemError::InvalidAttribute { err })?, 
+    //         types: (), 
+    //         related: () 
+    //     })
+    // }
+
     pub fn display_title(&self) -> String {
         if let Some(icon) = self.attributes.get("Icon") {
-            if let Attribute::Text(icon) = icon {
+            if let Attribute::Scalar(AttributeScalar::Text(icon)) = icon {
                 return format!("{} {}", icon, self.title)
             } else {
                 return format!("?Unknown Icon? {}", self.title)
@@ -104,38 +124,37 @@ impl Item {
             .iter()
             .filter(|item| {
                 match item.attributes.get(relation) {
-                    Some(Attribute::ListText(value)) => value.contains(&self.title),
-                    Some(Attribute::ListItem(value)) => {
-                        return value
-                            .iter()
-                            .find(|i| i.item_id == self.item_id)
-                            .is_some()
-                    }
-                    _ => false
+                    Some(Attribute::List(list)) => {
+                        for item in list {
+                            match item {
+                                AttributeScalar::Item(item_id) => {
+                                    return *item_id == self.item_id
+                                },
+                                _ => return false
+                            }
+                        }
+                        return false
+                    },
+                    Some(Attribute::Scalar(AttributeScalar::Item(item_id))) => {
+                        return *item_id == self.item_id
+                    },
+                    _ => return false,
                 }
             })
             .collect()
     }
 }
 
-impl TryFrom<ItemDto> for Item {
-    type Error = ItemError;
-
-    fn try_from(dto: ItemDto) -> Result<Self, Self::Error> {
-        if dto.title.len() == 0 {
-            return Err(ItemError::InvalidTitle { err: StringsError::IsEmpty });
-        }
-
-        
-
-        Ok(Self { 
-            item_id: Id::try_from(dto.item_id)
-                .map_err(|err| ItemError::InvalidId { err })?, 
-            title: dto.title, 
-            content: dto.content, 
-            attributes: , 
-            types: (), 
-            related: () 
+impl From<&Item> for ItemDto {
+    fn from(value: &Item) -> Result<Self, String> {
+        Ok(ItemDto {
+            item_id: value.item_id.into(),
+            title: value.title.clone(),
+            content: value.content.clone(),
+            attributes: serde_json::to_value(&value.attributes)
+                .map_err(|e| Err(e.to_string()))?,
+            types: value.types.clone(),
+            related: value.related.clone(),
         })
     }
 }

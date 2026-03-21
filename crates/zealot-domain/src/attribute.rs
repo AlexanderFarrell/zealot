@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use chrono::{NaiveDate, Weekday};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -34,6 +36,7 @@ pub enum AttributeBaseType {
     List(AttributeBaseScalarType),
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub enum AttributeScalar {
     Text(String),
     Integer(i64),
@@ -51,6 +54,7 @@ pub struct Week {
     pub week: u8,
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub enum Attribute {
     Scalar(AttributeScalar),
     List(Vec<AttributeScalar>),
@@ -78,24 +82,23 @@ pub enum AttributeKindSpec {
     },
     Boolean,
     List {
-        list_type: AttributeBaseType
-    }
+        list_type: AttributeBaseType,
+    },
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum AttributeError {
-
     #[error("value must be a boolean 'true' or 'false'")]
     InvalidBoolean,
 
     #[error("invalid value: {err_str:?}")]
-    InvalidValue{err_str: String},
+    InvalidValue { err_str: String },
 
     #[error("value not in dropdown")]
     ValueNotInDropdown,
 
     #[error("kind not correctly configured")]
-    KindError{err_str: String},
+    KindError { err_str: String },
 
     #[error("value is not an integer")]
     NotAnInteger,
@@ -109,141 +112,249 @@ pub enum AttributeError {
     #[error("not a floating point number")]
     NotAFloat,
 
+    #[error("value must be a JSON array")]
+    NotAList,
+
     #[error("not a week")]
     NotAWeek,
 
     #[error("not a valid item id: {err:?}")]
-    NotAValidItemId{err: IdError},
+    NotAValidItemId { err: IdError },
+
+    #[error("please create an attribute kind to support this: {err_str:?}")]
+    RequestToMakeAttributeKind{err_str: String},
+
+    #[error("type is not supported: {err_str:?}")]
+    NotSupported {err_str: String},
 }
 
 impl Attribute {
-    pub fn from_json(value: &Value, kind: &AttributeKind) -> Result<Self, AttributeError> {
-        match kind.base_type {
-            AttributeBaseType::Scalar(AttributeBaseScalarType::Text) => {
-                return Ok(Attribute::Scalar(AttributeScalar::Text(format!("{}", value))))
-            },
+    pub fn from_json(value: &Value, kinds: &HashMap<String, AttributeKind>) 
+        -> Result<HashMap<String, Attribute>, AttributeError> {
+        // Takes all attribute kinds for current user 
+        // and parses each attribute
+        let mut ret: HashMap<String, Attribute> = HashMap::new();
 
-            AttributeBaseType::Scalar(AttributeBaseScalarType::Boolean) => {
-                match value {
-                    Value::Bool(v) => return Ok(Attribute::Scalar(AttributeScalar::Boolean(*v))),
-                    _ => Err(AttributeError::InvalidBoolean)
-                }
-            },
-
-            AttributeBaseType::Scalar(AttributeBaseScalarType::Date) => {
-                match value {
-                    Value::String(v) => {
-                        match chrono::NaiveDate::parse_from_str(v.as_str(), "%Y-%m-%d") {
-                            Ok(d) => Ok(Attribute::Scalar(AttributeScalar::Date(d))),
-                            Err(e) => Err(AttributeError::InvalidValue { err_str: format!("Error parsing date: {}", e.to_string()) })
+        // We must have an object with flat keys
+        if let Value::Object(obj) = value {
+            for (key, value) in obj {
+                if kinds.contains_key(key) {
+                    match Attribute::single_from_json(value, kinds.get(key).unwrap()) {
+                        Ok(v ) => {
+                            ret.insert(key.clone(), v);
+                        },
+                        Err(err) => {
+                            return Err(err)
                         }
-                    },
-                    _ => Err(AttributeError::InvalidValue{err_str: String::from("Date must be a string with format YYYY-MM-DD")})
-                }
-            },
-
-            AttributeBaseType::Scalar(AttributeBaseScalarType::Dropdown) => {
-                match value {
-                    Value::String(v) => {
-                        // Must be within the values
-                        match &kind.spec {
-                            AttributeKindSpec::Dropdown { values } => {
-                                if values.contains(v) {
-                                    Ok(Attribute::Scalar(
-                                        AttributeScalar::Dropdown(v.clone())
-                                    ))
-                                } else {
-                                    Err(AttributeError::ValueNotInDropdown)
-                                }
-                            },
-                            _ => {
-                                Err(AttributeError::KindError { err_str: String::from(
-                                    "Kind does not contain dropdown spec") })
-                            }
+                    }
+                } else {
+                    match Attribute::single_from_json_without_kind(value) {
+                        Ok(v) => {
+                            ret.insert(key.clone(), v);
+                        },
+                        Err(err) => {
+                            return Err(err)
                         }
-                    },
-                    _ => Err(AttributeError::InvalidValue { err_str: String::from("Must be a string of an accepted value") })
+                    }
                 }
-            },
-
-            AttributeBaseType::Scalar(AttributeBaseScalarType::Integer) => {
-                match value {
-                    Value::Number(n) => {
-                        let int = n.as_i64()
-                            .ok_or_else(|| AttributeError::NotAnInteger)?;
-
-                        // Not required but check
-                        if let AttributeKindSpec::Integer { min, max } = &kind.spec {
-                            if min.is_some() && min.unwrap() > int {
-                                return Err(AttributeError::BelowMin)
-                            }
-
-                            if max.is_some() && max.unwrap() < int {
-                                return Err(AttributeError::AboveMax)
-                            }
-                        }
-
-                        return Ok(Attribute::Scalar(AttributeScalar::Integer(int)))
-                    },
-                    _ => Err(AttributeError::NotAnInteger)
-                }
-            },
-
-            AttributeBaseType::Scalar(AttributeBaseScalarType::Decimal) => {
-                match value {
-                    Value::Number(n) => {
-                        let float = n.as_f64()
-                            .ok_or_else(|| AttributeError::NotAFloat)?;
-
-                        if let AttributeKindSpec::Decimal { min, max } = &kind.spec {
-                            if min.is_some() && min.unwrap() > float {
-                                return Err(AttributeError::BelowMin);
-                            }
-
-                            if max.is_some() && max.unwrap() < float {
-                                return Err(AttributeError::AboveMax);
-                            }
-                        }
-                        return Ok(Attribute::Scalar(AttributeScalar::Decimal(float)));
-                    },
-                    _ => Err(AttributeError::NotAFloat)
-                }
-            },
-
-            AttributeBaseType::Scalar(AttributeBaseScalarType::Week) => {
-                match value {
-                    Value::String(n) => {
-                        let week = Week::try_from(n.as_str())?;
-                        Ok(Attribute::Scalar(AttributeScalar::Week(week)))
-                    },
-                    _ => Err(AttributeError::NotAWeek)
-                }
-            },
-
-            AttributeBaseType::Scalar(AttributeBaseScalarType::Item) => {
-                match value {
-                    // Match on ID
-                    Value::Number(n) => {
-                        let int = n.as_i64()
-                            .ok_or_else(|| AttributeError::InvalidValue
-                                 { err_str: String::from("must be an id") })?;
-
-                        let id: Id = int.try_into()
-                            .map_err(|e| AttributeError::NotAValidItemId { err: e })?;
-
-                        Ok(Attribute::Scalar(AttributeScalar::Item(id)))
-                    },
-                    _ => Err(AttributeError::InvalidValue { err_str: String::from("must be an integer") })
-                }
-            },
-
-            AttributeBaseType::List(_) => {
-                Err(AttributeError::KindError {
-                    err_str: String::from("List attributes are not yet supported"),
-                })
-            },
-            
+            }
+        } else {
+            return Err(AttributeError::InvalidValue { err_str: String::from("must pass an object of attributes") })
         }
+
+        return Ok(ret);
+    }
+
+    pub fn single_from_json(value: &Value, kind: &AttributeKind) -> Result<Self, AttributeError> {
+        match &kind.base_type {
+            AttributeBaseType::Scalar(scalar_type) => {
+                Self::parse_scalar(value, scalar_type, &kind.spec).map(Attribute::Scalar)
+            }
+            AttributeBaseType::List(scalar_type) => {
+                let values = value.as_array().ok_or(AttributeError::NotAList)?;
+                values
+                    .iter()
+                    .map(|value| Self::parse_scalar(value, scalar_type, &kind.spec))
+                    .collect::<Result<Vec<_>, _>>()
+                    .map(Attribute::List)
+            }
+        }
+    }
+
+    pub fn single_from_json_without_kind(value: &Value) -> Result<Self, AttributeError> {
+        match value {
+            Value::Array(_) => {
+                Err(AttributeError::RequestToMakeAttributeKind { err_str: String::from("array type requires attribute kind 'list'") })
+            },
+            Value::Bool(b) => {
+                Ok(Attribute::Scalar(AttributeScalar::Boolean(*b)))
+            },
+            Value::Null => {
+                Err(AttributeError::InvalidValue { err_str: String::from("cannot add null") })
+            },
+            Value::Number(n) => {
+                // First try int
+                if n.is_i64() {
+                    return Ok(Attribute::Scalar(AttributeScalar::Integer(n.as_i64().unwrap())))
+                }
+
+                if n.is_f64() {
+                    return Ok(Attribute::Scalar(AttributeScalar::Decimal(n.as_f64().unwrap())))
+                }
+
+                Err(AttributeError::InvalidValue { err_str: String::from("could not convert to number") })
+            },
+            Value::Object(_) => {
+                Err(AttributeError::NotSupported { err_str: String::from("object types not supported") })
+            },
+            Value::String(s) => {
+                Ok(Attribute::Scalar(AttributeScalar::Text(s.clone())))
+            },
+
+        }
+    }
+
+    fn parse_scalar(
+        value: &Value,
+        scalar_type: &AttributeBaseScalarType,
+        spec: &AttributeKindSpec,
+    ) -> Result<AttributeScalar, AttributeError> {
+        match scalar_type {
+            AttributeBaseScalarType::Text => Self::parse_text(value),
+            AttributeBaseScalarType::Integer => Self::parse_integer(value, spec),
+            AttributeBaseScalarType::Decimal => Self::parse_decimal(value, spec),
+            AttributeBaseScalarType::Date => Self::parse_date(value),
+            AttributeBaseScalarType::Week => Self::parse_week(value),
+            AttributeBaseScalarType::Dropdown => Self::parse_dropdown(value, spec),
+            AttributeBaseScalarType::Boolean => Self::parse_boolean(value),
+            AttributeBaseScalarType::Item => Self::parse_item(value),
+        }
+    }
+
+    fn parse_text(value: &Value) -> Result<AttributeScalar, AttributeError> {
+        match value {
+            Value::String(text) => Ok(AttributeScalar::Text(text.clone())),
+            _ => Err(AttributeError::InvalidValue {
+                err_str: String::from("must be a string"),
+            }),
+        }
+    }
+
+    fn parse_boolean(value: &Value) -> Result<AttributeScalar, AttributeError> {
+        match value {
+            Value::Bool(boolean) => Ok(AttributeScalar::Boolean(*boolean)),
+            _ => Err(AttributeError::InvalidBoolean),
+        }
+    }
+
+    fn parse_date(value: &Value) -> Result<AttributeScalar, AttributeError> {
+        match value {
+            Value::String(date) => chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")
+                .map(AttributeScalar::Date)
+                .map_err(|err| AttributeError::InvalidValue {
+                    err_str: format!("error parsing date: {err}"),
+                }),
+            _ => Err(AttributeError::InvalidValue {
+                err_str: String::from("date must be a string with format YYYY-MM-DD"),
+            }),
+        }
+    }
+
+    fn parse_dropdown(
+        value: &Value,
+        spec: &AttributeKindSpec,
+    ) -> Result<AttributeScalar, AttributeError> {
+        let selected = match value {
+            Value::String(selected) => selected,
+            _ => {
+                return Err(AttributeError::InvalidValue {
+                    err_str: String::from("must be a string of an accepted value"),
+                });
+            }
+        };
+
+        match spec {
+            AttributeKindSpec::Dropdown { values } => {
+                if values.contains(selected) {
+                    Ok(AttributeScalar::Dropdown(selected.clone()))
+                } else {
+                    Err(AttributeError::ValueNotInDropdown)
+                }
+            }
+            _ => Err(AttributeError::KindError {
+                err_str: String::from("kind does not contain dropdown spec"),
+            }),
+        }
+    }
+
+    fn parse_integer(
+        value: &Value,
+        spec: &AttributeKindSpec,
+    ) -> Result<AttributeScalar, AttributeError> {
+        let int = match value {
+            Value::Number(number) => number.as_i64().ok_or(AttributeError::NotAnInteger)?,
+            _ => return Err(AttributeError::NotAnInteger),
+        };
+
+        if let AttributeKindSpec::Integer { min, max } = spec {
+            if min.is_some_and(|min| min > int) {
+                return Err(AttributeError::BelowMin);
+            }
+
+            if max.is_some_and(|max| max < int) {
+                return Err(AttributeError::AboveMax);
+            }
+        }
+
+        Ok(AttributeScalar::Integer(int))
+    }
+
+    fn parse_decimal(
+        value: &Value,
+        spec: &AttributeKindSpec,
+    ) -> Result<AttributeScalar, AttributeError> {
+        let float = match value {
+            Value::Number(number) => number.as_f64().ok_or(AttributeError::NotAFloat)?,
+            _ => return Err(AttributeError::NotAFloat),
+        };
+
+        if let AttributeKindSpec::Decimal { min, max } = spec {
+            if min.is_some_and(|min| min > float) {
+                return Err(AttributeError::BelowMin);
+            }
+
+            if max.is_some_and(|max| max < float) {
+                return Err(AttributeError::AboveMax);
+            }
+        }
+
+        Ok(AttributeScalar::Decimal(float))
+    }
+
+    fn parse_week(value: &Value) -> Result<AttributeScalar, AttributeError> {
+        match value {
+            Value::String(week) => Week::try_from(week.as_str()).map(AttributeScalar::Week),
+            _ => Err(AttributeError::NotAWeek),
+        }
+    }
+
+    fn parse_item(value: &Value) -> Result<AttributeScalar, AttributeError> {
+        let id = match value {
+            Value::Number(number) => number.as_i64().ok_or(AttributeError::InvalidValue {
+                err_str: String::from("must be an id"),
+            })?,
+            _ => {
+                return Err(AttributeError::InvalidValue {
+                    err_str: String::from("must be an integer"),
+                });
+            }
+        };
+
+        let id: Id = id
+            .try_into()
+            .map_err(|err| AttributeError::NotAValidItemId { err })?;
+
+        Ok(AttributeScalar::Item(id))
     }
 }
 
@@ -252,9 +363,7 @@ impl TryFrom<&str> for Week {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let trimmed = value.trim();
-        let (year_str, week_str) = trimmed
-            .split_once("-W")
-            .ok_or(AttributeError::NotAWeek)?;
+        let (year_str, week_str) = trimmed.split_once("-W").ok_or(AttributeError::NotAWeek)?;
 
         if year_str.len() != 4 || week_str.len() != 2 {
             return Err(AttributeError::NotAWeek);
@@ -277,5 +386,117 @@ impl TryFrom<&str> for Week {
             .ok_or(AttributeError::NotAWeek)?;
 
         Ok(Self { year, week })
+    }
+}
+
+#[cfg(test)]
+mod attribute_tests {
+    use serde_json::json;
+
+    use super::*;
+
+    fn kind(base_type: AttributeBaseType, spec: AttributeKindSpec) -> AttributeKind {
+        AttributeKind {
+            kind_id: Id::try_from(1).unwrap(),
+            is_system: false,
+            key: String::from("test"),
+            description: String::from("test"),
+            base_type,
+            spec,
+        }
+    }
+
+    #[test]
+    fn parses_list_values_with_scalar_rules() {
+        let kind = kind(
+            AttributeBaseType::List(AttributeBaseScalarType::Integer),
+            AttributeKindSpec::Integer {
+                min: Some(1),
+                max: Some(5),
+            },
+        );
+
+        let value = json!([1, 2, 5]);
+
+        let attribute = Attribute::single_from_json(&value, &kind).unwrap();
+
+        assert_eq!(
+            attribute,
+            Attribute::List(vec![
+                AttributeScalar::Integer(1),
+                AttributeScalar::Integer(2),
+                AttributeScalar::Integer(5),
+            ])
+        );
+    }
+
+    #[test]
+    fn rejects_non_arrays_for_list_values() {
+        let kind = kind(
+            AttributeBaseType::List(AttributeBaseScalarType::Boolean),
+            AttributeKindSpec::Boolean,
+        );
+
+        let err = Attribute::single_from_json(&json!(true), &kind).unwrap_err();
+
+        assert!(matches!(err, AttributeError::NotAList));
+    }
+
+    #[test]
+    fn rejects_invalid_list_elements_using_scalar_validation() {
+        let kind = kind(
+            AttributeBaseType::List(AttributeBaseScalarType::Integer),
+            AttributeKindSpec::Integer {
+                min: Some(1),
+                max: Some(5),
+            },
+        );
+
+        let err = Attribute::single_from_json(&json!([1, 6]), &kind).unwrap_err();
+
+        assert!(matches!(err, AttributeError::AboveMax));
+    }
+
+    #[test]
+    fn parses_text_without_json_quoting() {
+        let kind = kind(
+            AttributeBaseType::Scalar(AttributeBaseScalarType::Text),
+            AttributeKindSpec::Text {
+                min_len: None,
+                max_len: None,
+                pattern: None,
+            },
+        );
+
+        let attribute = Attribute::single_from_json(&json!("hello"), &kind).unwrap();
+
+        assert_eq!(
+            attribute,
+            Attribute::Scalar(AttributeScalar::Text(String::from("hello")))
+        );
+    }
+}
+
+impl Serialize for Attribute {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer {
+        match self {
+            Attribute::Scalar(s) => {
+                match s {
+                    AttributeScalar::Text(v) => s,
+                    AttributeScalar::Integer(_) => todo!(),
+                    AttributeScalar::Decimal(_) => todo!(),
+                    AttributeScalar::Date(naive_date) => todo!(),
+                    AttributeScalar::Week(week) => todo!(),
+                    AttributeScalar::Dropdown(_) => todo!(),
+                    AttributeScalar::Boolean(_) => todo!(),
+                    AttributeScalar::Item(id) => todo!(),
+                }
+            },
+            Attribute::List(l) => {
+
+            },
+        }
     }
 }
