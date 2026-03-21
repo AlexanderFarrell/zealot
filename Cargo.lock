@@ -1115,6 +1115,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "size"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b6709c7b6754dca1311b3c73e79fcce40dd414c782c66d88e8823030093b02b"
+
+[[package]]
 name = "slab"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2000,6 +2006,8 @@ dependencies = [
 name = "zealot-app"
 version = "0.1.0"
 dependencies = [
+ "chrono",
+ "thiserror 1.0.69",
  "zealot-domain",
 ]
 
@@ -2017,6 +2025,7 @@ dependencies = [
  "chrono",
  "serde",
  "serde_json",
+ "size",
  "thiserror 1.0.69",
  "uuid",
 ]

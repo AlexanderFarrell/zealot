@@ -30,7 +30,38 @@ export const AttributeBaseTypesArray = [
     'list'
 ]
 
+export const AttributeOpsArray = [
+    "eq",
+    "=",
+
+    "ne",
+    "!=",
+    "<>",
+
+    "gt",
+    ">",
+
+    "lt",
+    "<",
+
+    "gte",
+    ">=",
+
+    "lte",
+    "<=",
+    
+    "ilike"
+]
+
+export const AttributeListModeArray = [
+    "any",
+    "all",
+    "none"
+]
+
 export type AttributeBaseType = typeof AttributeBaseTypesArray[number];
+export type AttributeOp = typeof AttributeOpsArray[number];
+export type AttributeListMode = typeof AttributeListModeArray[number];
 
 export interface AttributeConfig {
     min?: number;
@@ -64,4 +95,11 @@ export interface UpdateAttributeKindDto {
     description?: string;
     base_type?: AttributeBaseType;
     config?: AttributeConfig;
+}
+
+export interface AttributeFilterDto {
+    key: String,
+    op: AttributeOp,
+    value: any,
+    list_mode?: AttributeListMode,
 }

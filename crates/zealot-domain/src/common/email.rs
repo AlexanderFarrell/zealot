@@ -1,6 +1,5 @@
 use std::fmt::Display;
 
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Email(String);
 

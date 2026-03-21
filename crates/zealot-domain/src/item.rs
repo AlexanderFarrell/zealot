@@ -1,9 +1,16 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{attribute::{Attribute, AttributeError, AttributeScalar}, common::{id::{Id, IdError}, strings::StringsError}, item_type::{ItemType, ItemTypeDto, ItemTypeError}};
+use crate::{
+    attribute::{Attribute, AttributeError, AttributeScalar},
+    common::{
+        id::{Id, IdError},
+        strings::StringsError,
+    },
+    item_type::{ItemType, ItemTypeDto, ItemTypeError},
+};
 
 // Domain
 
@@ -17,7 +24,7 @@ pub struct Item {
     pub related: Vec<Item>,
 }
 
-// DTOs
+// Send DTOs
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ItemDto {
@@ -28,6 +35,8 @@ pub struct ItemDto {
     pub types: Vec<ItemTypeDto>,
     pub related: Vec<ItemDto>,
 }
+
+// Receive DTOs
 
 #[derive(Serialize, Deserialize)]
 pub struct AddItemDto {
@@ -60,19 +69,19 @@ pub struct UpdateItemDto {
 #[derive(Debug, thiserror::Error)]
 pub enum ItemError {
     #[error("invalid item id: {err:?}")]
-    InvalidId{err: IdError},
+    InvalidId { err: IdError },
 
     #[error("invalid title: {err:?}")]
-    InvalidTitle{err: StringsError},
+    InvalidTitle { err: StringsError },
 
     #[error("invalid content: {err:?}")]
-    InvalidContent{err: StringsError},
+    InvalidContent { err: StringsError },
 
     #[error("invalid attribute: {err:?}")]
-    InvalidAttribute{err: AttributeError},
+    InvalidAttribute { err: AttributeError },
 
     #[error("invalid attribute: {err:?}")]
-    InvalidItemType{err: ItemTypeError},
+    InvalidItemType { err: ItemTypeError },
 }
 
 // Impls
@@ -80,16 +89,19 @@ pub enum ItemError {
 impl Item {
     // // I think we want the repository to make items. We cannot just hydrate the item
     // // without some queries.
-    // pub fn from_dto(dto: ItemDto, kinds: &HashMap<String, AttributeKind>) -> Result<Self, ItemError> {
+    // pub fn from_dto(dto: ItemDto,
+    //         kinds: &HashMap<String, AttributeKind>,
+    //         types: Vec<Ite>
+    //     ) -> Result<Self, ItemError> {
     //     if dto.title.len() == 0 {
     //         return Err(ItemError::InvalidTitle { err: StringsError::IsEmpty });
     //     }
 
-    //     Ok(Self { 
+    //     Ok(Self {
     //         item_id: Id::try_from(dto.item_id)
-    //             .map_err(|err| ItemError::InvalidId { err })?, 
-    //         title: dto.title, 
-    //         content: dto.content, 
+    //             .map_err(|err| ItemError::InvalidId { err })?,
+    //         title: dto.title,
+    //         content: dto.content,
     //         attributes: (match dto.attributes {
     //             Some(json) => {
     //                 Attribute::from_json(&json, kinds)
@@ -97,18 +109,18 @@ impl Item {
     //             None => {
     //                 Ok(HashMap::new())
     //             }
-    //         }).map_err(|err| ItemError::InvalidAttribute { err })?, 
-    //         types: (), 
-    //         related: () 
+    //         }).map_err(|err| ItemError::InvalidAttribute { err })?,
+    //         types: (),
+    //         related: ()
     //     })
     // }
 
     pub fn display_title(&self) -> String {
         if let Some(icon) = self.attributes.get("Icon") {
             if let Attribute::Scalar(AttributeScalar::Text(icon)) = icon {
-                return format!("{} {}", icon, self.title)
+                return format!("{} {}", icon, self.title);
             } else {
-                return format!("?Unknown Icon? {}", self.title)
+                return format!("?Unknown Icon? {}", self.title);
             }
         }
 
@@ -122,39 +134,42 @@ impl Item {
     pub fn where_this_is_a(&self, relation: &str) -> Vec<&Item> {
         self.related
             .iter()
-            .filter(|item| {
-                match item.attributes.get(relation) {
-                    Some(Attribute::List(list)) => {
-                        for item in list {
-                            match item {
-                                AttributeScalar::Item(item_id) => {
-                                    return *item_id == self.item_id
-                                },
-                                _ => return false
-                            }
+            .filter(|item| match item.attributes.get(relation) {
+                Some(Attribute::List(list)) => {
+                    for item in list {
+                        match item {
+                            AttributeScalar::Item(item_id) => return *item_id == self.item_id,
+                            _ => return false,
                         }
-                        return false
-                    },
-                    Some(Attribute::Scalar(AttributeScalar::Item(item_id))) => {
-                        return *item_id == self.item_id
-                    },
-                    _ => return false,
+                    }
+                    return false;
                 }
+                Some(Attribute::Scalar(AttributeScalar::Item(item_id))) => {
+                    return *item_id == self.item_id;
+                }
+                _ => return false,
             })
             .collect()
     }
 }
 
 impl From<&Item> for ItemDto {
-    fn from(value: &Item) -> Result<Self, String> {
-        Ok(ItemDto {
+    fn from(value: &Item) -> ItemDto {
+        ItemDto {
             item_id: value.item_id.into(),
             title: value.title.clone(),
             content: value.content.clone(),
-            attributes: serde_json::to_value(&value.attributes)
-                .map_err(|e| Err(e.to_string()))?,
-            types: value.types.clone(),
-            related: value.related.clone(),
-        })
+            attributes: serde_json::to_value(&value.attributes).unwrap(), // Serde JSON serialization failure is not expected.
+            types: value
+                .types
+                .iter()
+                .map(|it| return ItemTypeDto::from(it))
+                .collect(),
+            related: value
+                .related
+                .iter()
+                .map(|i| return ItemDto::from(i))
+                .collect(),
+        }
     }
 }

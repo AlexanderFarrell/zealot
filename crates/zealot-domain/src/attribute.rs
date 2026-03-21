@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 use chrono::{NaiveDate, Weekday};
 use serde::{Deserialize, Serialize};
@@ -60,6 +60,23 @@ pub enum Attribute {
     List(Vec<AttributeScalar>),
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct AddAttributeKindDto {
+    key: String,
+    description: String,
+    base_type: String,
+    config: Value,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct UpdateAttributeKindDto {
+    kind_id: i64,
+    key: Option<String>,
+    description: Option<String>,
+    base_type: Option<String>,
+    config: Option<Value>,
+}
+
 #[derive(Debug, Clone)]
 pub enum AttributeKindSpec {
     Text {
@@ -84,6 +101,38 @@ pub enum AttributeKindSpec {
     List {
         list_type: AttributeBaseType,
     },
+}
+
+#[derive(Debug, Clone)]
+pub enum AttributeFilterOp {
+    Equal,
+    NotEqual,
+    GreaterThan,
+    LessThan,
+    GreaterThanOrEqualTo,
+    LessThanOrEqualTo,
+    LikeCaseInsensitive,
+}
+
+#[derive(Debug, Clone)]
+pub enum AttributeListMode {
+    Any, All, None
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct AttributeFilterDto {
+    pub key: String,
+    pub op: String,
+    pub value: Value,
+    pub list_mode: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct AttributeFilter {
+    pub key: String,
+    pub op: AttributeFilterOp,
+    pub value: Value,
+    pub list_mode: AttributeListMode,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -122,16 +171,18 @@ pub enum AttributeError {
     NotAValidItemId { err: IdError },
 
     #[error("please create an attribute kind to support this: {err_str:?}")]
-    RequestToMakeAttributeKind{err_str: String},
+    RequestToMakeAttributeKind { err_str: String },
 
     #[error("type is not supported: {err_str:?}")]
-    NotSupported {err_str: String},
+    NotSupported { err_str: String },
 }
 
 impl Attribute {
-    pub fn from_json(value: &Value, kinds: &HashMap<String, AttributeKind>) 
-        -> Result<HashMap<String, Attribute>, AttributeError> {
-        // Takes all attribute kinds for current user 
+    pub fn from_json(
+        value: &Value,
+        kinds: &HashMap<String, AttributeKind>,
+    ) -> Result<HashMap<String, Attribute>, AttributeError> {
+        // Takes all attribute kinds for current user
         // and parses each attribute
         let mut ret: HashMap<String, Attribute> = HashMap::new();
 
@@ -140,26 +191,24 @@ impl Attribute {
             for (key, value) in obj {
                 if kinds.contains_key(key) {
                     match Attribute::single_from_json(value, kinds.get(key).unwrap()) {
-                        Ok(v ) => {
+                        Ok(v) => {
                             ret.insert(key.clone(), v);
-                        },
-                        Err(err) => {
-                            return Err(err)
                         }
+                        Err(err) => return Err(err),
                     }
                 } else {
                     match Attribute::single_from_json_without_kind(value) {
                         Ok(v) => {
                             ret.insert(key.clone(), v);
-                        },
-                        Err(err) => {
-                            return Err(err)
                         }
+                        Err(err) => return Err(err),
                     }
                 }
             }
         } else {
-            return Err(AttributeError::InvalidValue { err_str: String::from("must pass an object of attributes") })
+            return Err(AttributeError::InvalidValue {
+                err_str: String::from("must pass an object of attributes"),
+            });
         }
 
         return Ok(ret);
@@ -183,34 +232,35 @@ impl Attribute {
 
     pub fn single_from_json_without_kind(value: &Value) -> Result<Self, AttributeError> {
         match value {
-            Value::Array(_) => {
-                Err(AttributeError::RequestToMakeAttributeKind { err_str: String::from("array type requires attribute kind 'list'") })
-            },
-            Value::Bool(b) => {
-                Ok(Attribute::Scalar(AttributeScalar::Boolean(*b)))
-            },
-            Value::Null => {
-                Err(AttributeError::InvalidValue { err_str: String::from("cannot add null") })
-            },
+            Value::Array(_) => Err(AttributeError::RequestToMakeAttributeKind {
+                err_str: String::from("array type requires attribute kind 'list'"),
+            }),
+            Value::Bool(b) => Ok(Attribute::Scalar(AttributeScalar::Boolean(*b))),
+            Value::Null => Err(AttributeError::InvalidValue {
+                err_str: String::from("cannot add null"),
+            }),
             Value::Number(n) => {
                 // First try int
                 if n.is_i64() {
-                    return Ok(Attribute::Scalar(AttributeScalar::Integer(n.as_i64().unwrap())))
+                    return Ok(Attribute::Scalar(AttributeScalar::Integer(
+                        n.as_i64().unwrap(),
+                    )));
                 }
 
                 if n.is_f64() {
-                    return Ok(Attribute::Scalar(AttributeScalar::Decimal(n.as_f64().unwrap())))
+                    return Ok(Attribute::Scalar(AttributeScalar::Decimal(
+                        n.as_f64().unwrap(),
+                    )));
                 }
 
-                Err(AttributeError::InvalidValue { err_str: String::from("could not convert to number") })
-            },
-            Value::Object(_) => {
-                Err(AttributeError::NotSupported { err_str: String::from("object types not supported") })
-            },
-            Value::String(s) => {
-                Ok(Attribute::Scalar(AttributeScalar::Text(s.clone())))
-            },
-
+                Err(AttributeError::InvalidValue {
+                    err_str: String::from("could not convert to number"),
+                })
+            }
+            Value::Object(_) => Err(AttributeError::NotSupported {
+                err_str: String::from("object types not supported"),
+            }),
+            Value::String(s) => Ok(Attribute::Scalar(AttributeScalar::Text(s.clone()))),
         }
     }
 
@@ -389,6 +439,63 @@ impl TryFrom<&str> for Week {
     }
 }
 
+impl Display for Week {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}-W{}", self.year, self.week)
+    }
+}
+
+impl TryFrom<&AttributeFilterDto> for AttributeFilter {
+    type Error = String;
+
+    fn try_from(value: &AttributeFilterDto) -> Result<Self, Self::Error> {
+        Ok(Self {
+            key: value.key.clone(),
+            op: AttributeFilterOp::try_from(value.op.as_str())
+                .map_err(|e| e)?,
+            value: value.value.clone(),
+            list_mode: AttributeListMode::try_from(value.list_mode.as_str())
+                .map_err(|e| e)?,
+        })
+    }
+}
+
+impl TryFrom<&str> for AttributeFilterOp {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "eq" => Ok(Self::Equal),
+            "=" => Ok(Self::Equal),
+            "ne" => Ok(Self::NotEqual),
+            "!=" => Ok(Self::NotEqual),
+            "<>" => Ok(Self::NotEqual),
+            "gt" => Ok(Self::GreaterThan),
+            ">" => Ok(Self::GreaterThan),
+            "lt" => Ok(Self::LessThan),
+            "<" => Ok(Self::LessThan),
+            "gte" => Ok(Self::GreaterThanOrEqualTo),
+            ">=" => Ok(Self::GreaterThanOrEqualTo),
+            "lte" => Ok(Self::LessThanOrEqualTo),
+            "<=" => Ok(Self::LessThanOrEqualTo)
+            _ => Err(format!("{} operation not supported", value))
+        }
+    }
+}
+
+impl TryFrom<&str> for AttributeListMode {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "any" => Ok(Self::Any),
+            "all" => Ok(Self::All),
+            "none" => Ok(Self::None),
+            _ => Err(format!("{} list mode not supported", value))
+        }
+    }
+}
+
 #[cfg(test)]
 mod attribute_tests {
     use serde_json::json;
@@ -479,24 +586,53 @@ mod attribute_tests {
 
 impl Serialize for Attribute {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: serde::Serializer {
+    where
+        S: serde::Serializer,
+    {
         match self {
-            Attribute::Scalar(s) => {
-                match s {
-                    AttributeScalar::Text(v) => s,
-                    AttributeScalar::Integer(_) => todo!(),
-                    AttributeScalar::Decimal(_) => todo!(),
-                    AttributeScalar::Date(naive_date) => todo!(),
-                    AttributeScalar::Week(week) => todo!(),
-                    AttributeScalar::Dropdown(_) => todo!(),
-                    AttributeScalar::Boolean(_) => todo!(),
-                    AttributeScalar::Item(id) => todo!(),
+            Attribute::Scalar(value) => match value {
+                AttributeScalar::Text(text) => serializer.serialize_str(text),
+                AttributeScalar::Integer(integer) => serializer.serialize_i64(*integer),
+                AttributeScalar::Decimal(decimal) => serializer.serialize_f64(*decimal),
+                AttributeScalar::Date(date) => {
+                    let formatted = date.format("%Y-%m-%d").to_string();
+                    serializer.serialize_str(&formatted)
                 }
+                AttributeScalar::Week(week) => {
+                    let formatted = format!("{:04}-W{:02}", week.year, week.week);
+                    serializer.serialize_str(&formatted)
+                }
+                AttributeScalar::Dropdown(selected) => serializer.serialize_str(selected),
+                AttributeScalar::Boolean(boolean) => serializer.serialize_bool(*boolean),
+                AttributeScalar::Item(id) => serializer.serialize_i64((*id).into()),
             },
-            Attribute::List(l) => {
+            Attribute::List(values) => {
+                use serde::ser::SerializeSeq;
 
-            },
+                let mut seq = serializer.serialize_seq(Some(values.len()))?;
+                for value in values {
+                    match value {
+                        AttributeScalar::Text(text) => seq.serialize_element(text)?,
+                        AttributeScalar::Integer(integer) => seq.serialize_element(integer)?,
+                        AttributeScalar::Decimal(decimal) => seq.serialize_element(decimal)?,
+                        AttributeScalar::Date(date) => {
+                            let formatted = date.format("%Y-%m-%d").to_string();
+                            seq.serialize_element(&formatted)?;
+                        }
+                        AttributeScalar::Week(week) => {
+                            let formatted = format!("{:04}-W{:02}", week.year, week.week);
+                            seq.serialize_element(&formatted)?;
+                        }
+                        AttributeScalar::Dropdown(selected) => seq.serialize_element(selected)?,
+                        AttributeScalar::Boolean(boolean) => seq.serialize_element(boolean)?,
+                        AttributeScalar::Item(id) => {
+                            let item_id: i64 = (*id).into();
+                            seq.serialize_element(&item_id)?;
+                        }
+                    }
+                }
+                seq.end()
+            }
         }
     }
 }

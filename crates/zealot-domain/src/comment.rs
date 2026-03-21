@@ -1,8 +1,10 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
-use crate::{common::id::Id, item::{Item, ItemDto, ItemError}};
-
+use crate::{
+    common::id::Id,
+    item::{Item, ItemDto, ItemError},
+};
 
 #[derive(Debug, Clone)]
 pub struct Comment {
@@ -43,11 +45,21 @@ pub struct UpdateCommentDto {
 #[derive(Debug, thiserror::Error)]
 pub enum CommentError {
     #[error("error with item: {err:?}")]
-    ItemError{err: ItemError},
+    ItemError { err: ItemError },
 
     #[error("error with date: {err_str:?}")]
-    DateError{err_str: String},
+    DateError { err_str: String },
 }
 
 // Impl
 
+impl From<Comment> for CommentDto {
+    fn from(dto: Comment) -> Self {
+        Self {
+            comment_id: dto.comment_id.into(),
+            item: ItemDto::from(&dto.item),
+            timestamp: dto.timestamp.format("%Y-%m-%d %H:%M:%S").to_string(),
+            content: dto.content.clone(),
+        }
+    }
+}

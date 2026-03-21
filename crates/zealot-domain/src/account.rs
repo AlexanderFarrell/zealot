@@ -2,8 +2,8 @@ use std::fmt::format;
 
 use serde::{Deserialize, Serialize};
 
-use crate::common::id::{Id, IdError};
 use crate::common::email::{Email, EmailError};
+use crate::common::id::{Id, IdError};
 
 // Domain
 
@@ -15,6 +15,8 @@ pub struct Account {
     pub given_name: String,
     pub surname: String,
 }
+
+pub struct APIKey(String);
 
 // Send DTOs
 
@@ -49,24 +51,33 @@ pub struct RegisterBasicDto {
 #[derive(Debug, thiserror::Error)]
 pub enum AccountError {
     #[error("invalid account id: {err:?}")]
-    InvalidId{err: IdError},
+    InvalidId { err: IdError },
 
     #[error("invalid username")]
     InvalidUsername,
 
     #[error("invalid email")]
-    InvalidEmail{err: EmailError},
+    InvalidEmail { err: EmailError },
+
+    #[error("error generating api key")]
+    APIKeyGenError {err: String},
+
+    #[error("not found")]
+    NotFound,
+
+    #[error("username already taken")]
+    UsernameAlreadyTaken,
 }
 
 // Impls
 
 impl Account {
     pub fn full_name_eng(&self) -> String {
-        return format!("{} {}", self.given_name, self.surname)
+        return format!("{} {}", self.given_name, self.surname);
     }
 
     pub fn full_name_formal_eng(&self) -> String {
-        return format!("{}, {}", self.surname, self.given_name)
+        return format!("{}, {}", self.surname, self.given_name);
     }
 }
 
@@ -74,14 +85,13 @@ impl TryFrom<AccountDto> for Account {
     type Error = AccountError;
 
     fn try_from(dto: AccountDto) -> Result<Self, Self::Error> {
-        Ok(Self{
+        Ok(Self {
             account_id: Id::try_from(dto.account_id)
                 .map_err(|err| AccountError::InvalidId { err })?,
             username: dto.username,
-            email: Email::try_from(dto.email)
-                .map_err(|err| AccountError::InvalidEmail { err })?,
+            email: Email::try_from(dto.email).map_err(|err| AccountError::InvalidEmail { err })?,
             given_name: dto.given_name,
-            surname: dto.surname
+            surname: dto.surname,
         })
     }
 }
@@ -98,6 +108,18 @@ impl From<&Account> for AccountDto {
     }
 }
 
+impl From<APIKey> for String {
+    fn from(value: APIKey) -> Self {
+        String::from(&value)
+    }
+} 
+
+impl From<&APIKey> for String {
+    fn from(value: &APIKey) -> Self {
+        value.0.clone()
+    }
+}
+
 // Tests
 
 #[cfg(test)]
@@ -105,15 +127,15 @@ mod account_tests {
     use super::*;
 
     fn get_test_account() -> Account {
-        Account { 
-            account_id: Id::try_from(5).unwrap(), 
-            username: String::from("Albert"), 
-            email: Email::try_from(String::from("a@a.com")).unwrap(), 
-            given_name: String::from("Albert"), 
+        Account {
+            account_id: Id::try_from(5).unwrap(),
+            username: String::from("Albert"),
+            email: Email::try_from(String::from("a@a.com")).unwrap(),
+            given_name: String::from("Albert"),
             surname: String::from("Smith"),
         }
     }
-    
+
     #[test]
     fn full_name_test() {
         let account = get_test_account();
@@ -123,7 +145,9 @@ mod account_tests {
     #[test]
     fn full_name_formal_test() {
         let account = get_test_account();
-        assert_eq!(account.full_name_formal_eng(), 
-            String::from("Smith, Albert"));
+        assert_eq!(
+            account.full_name_formal_eng(),
+            String::from("Smith, Albert")
+        );
     }
 }
