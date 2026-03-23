@@ -1,6 +1,2 @@
-
-
 #[derive(Debug, Clone)]
-pub struct ZealotPorts {
-    
-}
+pub struct ZealotPorts {}

@@ -1,4 +1,4 @@
-use crate::{services::ZealotServices};
+use crate::services::ZealotServices;
 
 #[derive(Debug, Clone)]
 pub struct AppState {

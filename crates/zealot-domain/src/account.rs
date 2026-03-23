@@ -66,7 +66,7 @@ pub enum AccountError {
     InvalidEmail { err: EmailError },
 
     #[error("error generating api key")]
-    APIKeyGenError {err: String},
+    APIKeyGenError { err: String },
 
     #[error("not found")]
     NotFound,
@@ -118,7 +118,7 @@ impl From<APIKey> for String {
     fn from(value: APIKey) -> Self {
         String::from(&value)
     }
-} 
+}
 
 impl From<&APIKey> for String {
     fn from(value: &APIKey) -> Self {

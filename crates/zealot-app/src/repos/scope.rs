@@ -2,6 +2,4 @@
 
 use std::fmt::Debug;
 
-pub trait ScopeRepo: Debug + Send + Sync {
-
-}
+pub trait ScopeRepo: Debug + Send + Sync {}

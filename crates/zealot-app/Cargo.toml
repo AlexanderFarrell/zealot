@@ -8,3 +8,4 @@ edition.workspace = true
 zealot-domain = {"path" = "../zealot-domain"}
 thiserror.workspace = true
 chrono.workspace = true
+sqlx.workspace = true

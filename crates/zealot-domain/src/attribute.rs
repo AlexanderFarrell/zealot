@@ -116,7 +116,9 @@ pub enum AttributeFilterOp {
 
 #[derive(Debug, Clone)]
 pub enum AttributeListMode {
-    Any, All, None
+    Any,
+    All,
+    None,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -451,11 +453,9 @@ impl TryFrom<&AttributeFilterDto> for AttributeFilter {
     fn try_from(value: &AttributeFilterDto) -> Result<Self, Self::Error> {
         Ok(Self {
             key: value.key.clone(),
-            op: AttributeFilterOp::try_from(value.op.as_str())
-                .map_err(|e| e)?,
+            op: AttributeFilterOp::try_from(value.op.as_str()).map_err(|e| e)?,
             value: value.value.clone(),
-            list_mode: AttributeListMode::try_from(value.list_mode.as_str())
-                .map_err(|e| e)?,
+            list_mode: AttributeListMode::try_from(value.list_mode.as_str()).map_err(|e| e)?,
         })
     }
 }
@@ -478,7 +478,7 @@ impl TryFrom<&str> for AttributeFilterOp {
             ">=" => Ok(Self::GreaterThanOrEqualTo),
             "lte" => Ok(Self::LessThanOrEqualTo),
             "<=" => Ok(Self::LessThanOrEqualTo),
-            _ => Err(format!("{} operation not supported", value))
+            _ => Err(format!("{} operation not supported", value)),
         }
     }
 }
@@ -491,7 +491,7 @@ impl TryFrom<&str> for AttributeListMode {
             "any" => Ok(Self::Any),
             "all" => Ok(Self::All),
             "none" => Ok(Self::None),
-            _ => Err(format!("{} list mode not supported", value))
+            _ => Err(format!("{} list mode not supported", value)),
         }
     }
 }

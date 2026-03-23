@@ -41,9 +41,7 @@ pub struct UpdateRepeatEntryDto {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum RepeatError {
-    
-}
+pub enum RepeatError {}
 
 impl TryFrom<&str> for RepeatStatus {
     type Error = String;

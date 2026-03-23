@@ -6,4 +6,8 @@ edition.workspace = true
 
 [dependencies]
 zealot-domain = {path = "../../crates/zealot-domain"}
+zealot-api = {path = "../../crates/zealot-api"}
+zealot-app = {path = "../../crates/zealot-app"}
+zealot-infra = {path = "../../crates/zealot-infra"}
 tokio.workspace = true
+sqlx.workspace = true

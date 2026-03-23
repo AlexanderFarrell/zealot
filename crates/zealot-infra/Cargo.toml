@@ -9,3 +9,4 @@ tokio.workspace = true
 uuid.workspace = true
 
 zealot-domain = {"path" = "../zealot-domain"}
+zealot-app = {"path" = "../zealot-app"}
