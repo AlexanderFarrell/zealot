@@ -5,7 +5,7 @@ use zealot_domain::{attribute::{AddAttributeKindDto, AttributeError, AttributeKi
 use crate::{repos::attribute::AttributeRepo, services::common::ServiceError};
 
 
-
+#[derive(Debug)]
 pub struct AttributeService {
     repo: Arc<dyn AttributeRepo>,
 }

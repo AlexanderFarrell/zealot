@@ -1,5 +1,7 @@
 // use crate::repos::common::RepoError;
 
-pub trait ScopeRepo {
+use std::fmt::Debug;
+
+pub trait ScopeRepo: Debug + Send + Sync {
 
 }

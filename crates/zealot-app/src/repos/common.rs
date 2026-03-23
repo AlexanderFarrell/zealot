@@ -1,4 +1,3 @@
-use std::error::Error;
 
 #[derive(Debug, thiserror::Error)]
 pub enum RepoError {

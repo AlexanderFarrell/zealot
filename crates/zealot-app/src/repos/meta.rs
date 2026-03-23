@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use crate::repos::common::RepoError;
 
 
@@ -14,12 +16,12 @@ pub enum MetaDownloadTarget {
     Rules,
 }
 
-pub trait MetaRepo {
+pub trait MetaRepo: Debug + Send + Sync {
     // TODO: Figure out this structure.
-     fn backup(&self) -> Result<(), RepoError<MetaRepoError>>;
+     fn backup(&self) -> Result<(), RepoError>;
 
-     fn download(&self, target: MetaDownloadTarget) -> Result<(), RepoError<MetaRepoError>>;
+     fn download(&self, target: MetaDownloadTarget) -> Result<(), RepoError>;
 
     // TODO: How will we upload everything?
-     fn upload(&self) -> Result<(), RepoError<MetaRepoError>>;
+     fn upload(&self) -> Result<(), RepoError>;
 }

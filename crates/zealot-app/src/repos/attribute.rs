@@ -1,10 +1,10 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Debug};
 
 use zealot_domain::{attribute::{AddAttributeKindDto, AttributeKind, UpdateAttributeKindDto}, common::id::Id};
 
 use crate::repos::common::RepoError;
 
-pub trait AttributeRepo {
+pub trait AttributeRepo: Debug + Send + Sync {
      fn get_attribute_kind(&self, key: &str, account_id: &Id) -> Result<Option<AttributeKind>, RepoError>;
      fn get_attribute_kind_by_id(&self, id: &Id, account_id: &Id) -> Result<Option<AttributeKind>, RepoError>;
      fn get_attribute_kinds_for_user(&self, account_id: &Id) -> Result<HashMap<String, AttributeKind>, RepoError>;

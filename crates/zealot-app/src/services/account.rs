@@ -4,6 +4,7 @@ use zealot_domain::{account::{APIKey, Account, AccountError, LoginBasicDto, Regi
 
 use crate::{repos::account::AccountRepo, services::common::ServiceError};
 
+#[derive(Debug, Clone)]
 pub struct AccountService {
     repo: Arc<dyn AccountRepo>,
 }

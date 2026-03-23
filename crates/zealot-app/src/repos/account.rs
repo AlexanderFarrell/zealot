@@ -1,10 +1,10 @@
-
+use std::fmt::Debug;
 
 use zealot_domain::{account::{Account, InsertAccountDto}, common::id::Id};
 
 use crate::repos::common::RepoError;
 
-pub trait AccountRepo {
+pub trait AccountRepo: Debug + Send + Sync {
      fn get_hash_by_username(&self, username: &str) -> Result<Option<String>, RepoError>;
      fn get_account_by_id(&self, id: &Id) -> Result<Option<Account>, RepoError>;
      fn get_account_by_title(&self, title: &str) -> Result<Option<Account>, RepoError>;

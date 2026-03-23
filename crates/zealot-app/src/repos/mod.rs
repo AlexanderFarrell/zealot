@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::repos::{account::AccountRepo, 
     attribute::AttributeRepo, comment::CommentRepo, item::ItemRepo, item_type::ItemTypeRepo, media::MediaRepo, meta::MetaRepo, repeat::RepeatRepo, rule::RuleRepo, scope::ScopeRepo};
 
@@ -13,15 +15,16 @@ pub mod repeat;
 pub mod rule;
 pub mod scope;
 
+#[derive(Debug, Clone)]
 pub struct ZealotRepos {
-    pub account: Box<dyn AccountRepo>,
-    pub attribute: Box<dyn AttributeRepo>,
-    pub comment: Box<dyn CommentRepo>,
-    pub item: Box<dyn ItemRepo>,
-    pub item_type: Box<dyn ItemTypeRepo>,
-    pub media: Box<dyn MediaRepo>,
-    pub meta: Box<dyn MetaRepo>,
-    pub repeat: Box<dyn RepeatRepo>,
-    pub rule: Box<dyn RuleRepo>,
-    pub scope: Box<dyn ScopeRepo>,
+    pub account: Arc<dyn AccountRepo>,
+    pub attribute: Arc<dyn AttributeRepo>,
+    pub comment: Arc<dyn CommentRepo>,
+    pub item: Arc<dyn ItemRepo>,
+    pub item_type: Arc<dyn ItemTypeRepo>,
+    pub media: Arc<dyn MediaRepo>,
+    pub meta: Arc<dyn MetaRepo>,
+    pub repeat: Arc<dyn RepeatRepo>,
+    pub rule: Arc<dyn RuleRepo>,
+    pub scope: Arc<dyn ScopeRepo>,
 }

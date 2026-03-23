@@ -1,5 +1,7 @@
+use std::fmt::Debug;
 
 
-pub trait RuleRepo {
+
+pub trait RuleRepo: Debug + Send + Sync {
     
 }

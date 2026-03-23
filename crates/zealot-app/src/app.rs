@@ -1,7 +1,6 @@
-use crate::{ports::ZealotPorts, repos::ZealotRepos, services::ZealotServices};
+use crate::{services::ZealotServices};
 
+#[derive(Debug, Clone)]
 pub struct AppState {
-    pub repos: ZealotRepos,
     pub services: ZealotServices,
-    pub ports: ZealotPorts,
 }
