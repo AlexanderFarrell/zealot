@@ -2,8 +2,7 @@ use std::sync::Arc;
 
 use crate::repos::{
     account::AccountRepo, attribute::AttributeRepo, comment::CommentRepo, item::ItemRepo,
-    item_type::ItemTypeRepo, media::MediaRepo, meta::MetaRepo, repeat::RepeatRepo, rule::RuleRepo,
-    scope::ScopeRepo,
+    item_type::ItemTypeRepo, meta::MetaRepo, repeat::RepeatRepo, rule::RuleRepo, scope::ScopeRepo,
 };
 
 pub mod account;
@@ -12,7 +11,6 @@ pub mod comment;
 pub mod common;
 pub mod item;
 pub mod item_type;
-pub mod media;
 pub mod meta;
 pub mod repeat;
 pub mod rule;
