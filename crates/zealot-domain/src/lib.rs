@@ -1,5 +1,6 @@
 pub mod account;
 pub mod attribute;
+pub mod auth;
 pub mod comment;
 pub mod common;
 pub mod item;

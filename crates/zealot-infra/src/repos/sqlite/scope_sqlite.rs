@@ -12,6 +12,4 @@ impl ScopeSqliteRepo {
     }
 }
 
-impl ScopeRepo for ScopeSqliteRepo {
-    
-}
+impl ScopeRepo for ScopeSqliteRepo {}

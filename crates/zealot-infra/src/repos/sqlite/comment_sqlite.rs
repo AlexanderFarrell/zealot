@@ -1,7 +1,6 @@
 use sqlx::SqlitePool;
 use zealot_app::repos::comment::CommentRepo;
 
-
 #[derive(Debug)]
 pub struct CommentSqliteRepo {
     pool: SqlitePool,
@@ -14,11 +13,19 @@ impl CommentSqliteRepo {
 }
 
 impl CommentRepo for CommentSqliteRepo {
-    fn get_for_day(&self, day: &sqlx::types::chrono::NaiveDate, account_id: &zealot_domain::common::id::Id) -> Result<Vec<zealot_domain::comment::Comment>, zealot_app::repos::common::RepoError> {
+    fn get_for_day(
+        &self,
+        day: &sqlx::types::chrono::NaiveDate,
+        account_id: &zealot_domain::common::id::Id,
+    ) -> Result<Vec<zealot_domain::comment::Comment>, zealot_app::repos::common::RepoError> {
         todo!()
     }
 
-    fn get_for_item(&self, item_id: &zealot_domain::common::id::Id, account_id: &zealot_domain::common::id::Id) -> Result<Vec<zealot_domain::comment::Comment>, zealot_app::repos::common::RepoError> {
+    fn get_for_item(
+        &self,
+        item_id: &zealot_domain::common::id::Id,
+        account_id: &zealot_domain::common::id::Id,
+    ) -> Result<Vec<zealot_domain::comment::Comment>, zealot_app::repos::common::RepoError> {
         todo!()
     }
 
@@ -38,7 +45,11 @@ impl CommentRepo for CommentSqliteRepo {
         todo!()
     }
 
-    fn delete_comment(&self, comment_id: &zealot_domain::common::id::Id, account_id: &zealot_domain::common::id::Id) -> Result<(), zealot_app::repos::common::RepoError> {
+    fn delete_comment(
+        &self,
+        comment_id: &zealot_domain::common::id::Id,
+        account_id: &zealot_domain::common::id::Id,
+    ) -> Result<(), zealot_app::repos::common::RepoError> {
         todo!()
     }
 }

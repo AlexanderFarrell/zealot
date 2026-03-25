@@ -1,7 +1,6 @@
 use sqlx::SqlitePool;
 use zealot_app::repos::repeat::RepeatRepo;
 
-
 #[derive(Debug)]
 pub struct RepeatSqliteRepo {
     pool: SqlitePool,
@@ -22,7 +21,11 @@ impl RepeatRepo for RepeatSqliteRepo {
         todo!()
     }
 
-    fn set_status(&self, dto: &zealot_domain::repeat::RepeatEntryDto, account: &zealot_domain::account::Account) -> Result<(), zealot_app::repos::common::RepoError> {
+    fn set_status(
+        &self,
+        dto: &zealot_domain::repeat::RepeatEntryDto,
+        account: &zealot_domain::account::Account,
+    ) -> Result<(), zealot_app::repos::common::RepoError> {
         todo!()
     }
 }

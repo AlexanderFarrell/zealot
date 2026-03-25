@@ -3,7 +3,7 @@ use zealot_app::repos::rule::RuleRepo;
 
 #[derive(Debug)]
 pub struct RuleSqliteRepo {
-    pool: SqlitePool
+    pool: SqlitePool,
 }
 
 impl RuleSqliteRepo {
@@ -12,6 +12,4 @@ impl RuleSqliteRepo {
     }
 }
 
-impl RuleRepo for RuleSqliteRepo {
-    
-}
+impl RuleRepo for RuleSqliteRepo {}

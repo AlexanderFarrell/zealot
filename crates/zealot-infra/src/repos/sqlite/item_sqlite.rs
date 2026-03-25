@@ -1,7 +1,6 @@
 use sqlx::SqlitePool;
 use zealot_app::repos::item::ItemRepo;
 
-
 #[derive(Debug)]
 pub struct ItemSqliteRepo {
     pool: SqlitePool,
@@ -9,29 +8,48 @@ pub struct ItemSqliteRepo {
 
 impl ItemSqliteRepo {
     pub fn new(pool: SqlitePool) -> Self {
-        Self {pool}
+        Self { pool }
     }
 }
 
 impl ItemRepo for ItemSqliteRepo {
-    fn get_item_by_id(&self, item_id: &zealot_domain::common::id::Id, account: &zealot_domain::account::Account) -> Result<Option<zealot_domain::item::Item>, zealot_app::repos::common::RepoError> {
+    fn get_item_by_id(
+        &self,
+        item_id: &zealot_domain::common::id::Id,
+        account: &zealot_domain::account::Account,
+    ) -> Result<Option<zealot_domain::item::Item>, zealot_app::repos::common::RepoError> {
         todo!()
     }
 
-    fn get_items_by_title(&self, title: &str, account: &zealot_domain::account::Account) -> Result<Vec<zealot_domain::item::Item>, zealot_app::repos::common::RepoError> {
+    fn get_items_by_title(
+        &self,
+        title: &str,
+        account: &zealot_domain::account::Account,
+    ) -> Result<Vec<zealot_domain::item::Item>, zealot_app::repos::common::RepoError> {
         todo!()
     }
 
-    fn search_items_by_title(&self, term: &str, account: &zealot_domain::account::Account) -> Result<Vec<zealot_domain::item::Item>, zealot_app::repos::common::RepoError> {
+    fn search_items_by_title(
+        &self,
+        term: &str,
+        account: &zealot_domain::account::Account,
+    ) -> Result<Vec<zealot_domain::item::Item>, zealot_app::repos::common::RepoError> {
         todo!()
     }
 
-    fn regex_items_by_title(&self, term: &str, account: &zealot_domain::account::Account) -> Result<Vec<zealot_domain::item::Item>, zealot_app::repos::common::RepoError> {
+    fn regex_items_by_title(
+        &self,
+        term: &str,
+        account: &zealot_domain::account::Account,
+    ) -> Result<Vec<zealot_domain::item::Item>, zealot_app::repos::common::RepoError> {
         todo!()
     }
 
-    fn get_items_by_type(&self, type_name: &str, account: &zealot_domain::account::Account)
-    -> Result<Vec<zealot_domain::item::Item>, zealot_app::repos::common::RepoError> {
+    fn get_items_by_type(
+        &self,
+        type_name: &str,
+        account: &zealot_domain::account::Account,
+    ) -> Result<Vec<zealot_domain::item::Item>, zealot_app::repos::common::RepoError> {
         todo!()
     }
 
@@ -51,15 +69,27 @@ impl ItemRepo for ItemSqliteRepo {
         todo!()
     }
 
-    fn get_related_items(&self, item_id: &zealot_domain::common::id::Id, account: &zealot_domain::account::Account) -> Result<Vec<zealot_domain::item::Item>, zealot_app::repos::common::RepoError> {
+    fn get_related_items(
+        &self,
+        item_id: &zealot_domain::common::id::Id,
+        account: &zealot_domain::account::Account,
+    ) -> Result<Vec<zealot_domain::item::Item>, zealot_app::repos::common::RepoError> {
         todo!()
     }
 
-    fn add_item(&self, dto: &zealot_domain::item::AddItemDto, account: &zealot_domain::account::Account) -> Result<Option<zealot_domain::item::Item>, zealot_app::repos::common::RepoError> {
+    fn add_item(
+        &self,
+        dto: &zealot_domain::item::AddItemDto,
+        account: &zealot_domain::account::Account,
+    ) -> Result<Option<zealot_domain::item::Item>, zealot_app::repos::common::RepoError> {
         todo!()
     }
 
-    fn delete_item(&self, item_id: &zealot_domain::common::id::Id, account: &zealot_domain::account::Account) -> Result<(), zealot_app::repos::common::RepoError> {
+    fn delete_item(
+        &self,
+        item_id: &zealot_domain::common::id::Id,
+        account: &zealot_domain::account::Account,
+    ) -> Result<(), zealot_app::repos::common::RepoError> {
         todo!()
     }
 

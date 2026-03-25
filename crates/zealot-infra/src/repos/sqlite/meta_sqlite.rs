@@ -1,7 +1,6 @@
 use sqlx::SqlitePool;
 use zealot_app::repos::meta::MetaRepo;
 
-
 #[derive(Debug)]
 pub struct MetaSqliteRepo {
     pool: SqlitePool,
@@ -9,7 +8,7 @@ pub struct MetaSqliteRepo {
 
 impl MetaSqliteRepo {
     pub fn new(pool: SqlitePool) -> Self {
-        Self {pool}
+        Self { pool }
     }
 }
 
@@ -18,7 +17,10 @@ impl MetaRepo for MetaSqliteRepo {
         todo!()
     }
 
-    fn download(&self, target: zealot_app::repos::meta::MetaDownloadTarget) -> Result<(), zealot_app::repos::common::RepoError> {
+    fn download(
+        &self,
+        target: zealot_app::repos::meta::MetaDownloadTarget,
+    ) -> Result<(), zealot_app::repos::common::RepoError> {
         todo!()
     }
 

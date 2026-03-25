@@ -1,4 +1,8 @@
-use sqlx::{PgPool, SqlitePool, postgres::PgConnectOptions, sqlite::{SqliteConnectOptions, SqlitePoolOptions}};
+use sqlx::{
+    PgPool, SqlitePool,
+    postgres::PgConnectOptions,
+    sqlite::{SqliteConnectOptions, SqlitePoolOptions},
+};
 use zealot_app::{config::ZealotConfig, repos::ZealotRepos};
 
 use crate::repos::{postgres::get_postgres_repos, sqlite::get_sqlite_repos};
@@ -17,7 +21,7 @@ pub async fn get_repo_from_config(config: &ZealotConfig) -> Result<ZealotRepos, 
                 Ok(pool) => Ok(get_postgres_repos(pool)),
                 Err(err) => Err(format!("Error connecting to postgres: {}", err)),
             }
-        },
+        }
         "sqlite" => {
             let options = SqliteConnectOptions::new()
                 .filename(&config.db_filename.clone())
@@ -26,11 +30,13 @@ pub async fn get_repo_from_config(config: &ZealotConfig) -> Result<ZealotRepos, 
 
             match SqlitePoolOptions::new()
                 .max_connections(5)
-                .connect_with(options).await {
-                    Ok(pool) => Ok(get_sqlite_repos(pool)),
-                    Err(err) => Err(format!("Error connecting to sqlite: {}", err))
+                .connect_with(options)
+                .await
+            {
+                Ok(pool) => Ok(get_sqlite_repos(pool)),
+                Err(err) => Err(format!("Error connecting to sqlite: {}", err)),
             }
-        },
+        }
         value => Err(format!("{} is not a supported database", value)),
     }
 }

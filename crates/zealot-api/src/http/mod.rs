@@ -1,5 +1,7 @@
-mod account;
+mod auth;
 mod health;
+pub mod common;
+mod middleware;
 
 use axum::Router;
 use zealot_app::{

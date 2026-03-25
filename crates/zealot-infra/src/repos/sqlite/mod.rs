@@ -3,7 +3,12 @@ use std::sync::Arc;
 use sqlx::SqlitePool;
 use zealot_app::repos::ZealotRepos;
 
-use crate::repos::sqlite::{account_sqlite::AccountSqliteRepo, attribute_sqlite::AttributeSqliteRepo, comment_sqlite::CommentSqliteRepo, item_sqlite::ItemSqliteRepo, item_type_sqlite::ItemTypeSqliteRepo, meta_sqlite::MetaSqliteRepo, repeat_sqlite::RepeatSqliteRepo, rule_sqlite::RuleSqliteRepo, scope_sqlite::ScopeSqliteRepo};
+use crate::repos::sqlite::{
+    account_sqlite::AccountSqliteRepo, attribute_sqlite::AttributeSqliteRepo,
+    comment_sqlite::CommentSqliteRepo, item_sqlite::ItemSqliteRepo,
+    item_type_sqlite::ItemTypeSqliteRepo, meta_sqlite::MetaSqliteRepo,
+    repeat_sqlite::RepeatSqliteRepo, rule_sqlite::RuleSqliteRepo, scope_sqlite::ScopeSqliteRepo,
+};
 
 pub mod account_sqlite;
 pub mod attribute_sqlite;

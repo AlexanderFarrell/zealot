@@ -44,6 +44,7 @@ pub struct RegisterBasicDto {
     pub surname: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InsertAccountDto {
     pub username: String,
     pub hash: String,
