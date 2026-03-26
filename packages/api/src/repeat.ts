@@ -1,6 +1,7 @@
 import { DateTime } from "luxon";
 import { BaseAPI } from "./common";
-import { RepeatEntry, RepeatEntryDto, UpdateRepeatEntryDto } from "@zealot/domain/src/repeat";
+import { RepeatEntry } from "@zealot/domain/src/repeat";
+import type { RepeatEntryDto, UpdateRepeatEntryDto } from "@zealot/domain/src/repeat";
 import { get_json, patch_json } from "@websoil/engine";
 
 export class RepeatAPI extends BaseAPI {

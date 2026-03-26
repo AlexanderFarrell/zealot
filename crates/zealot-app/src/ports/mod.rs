@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use crate::ports::media::MediaPort;
 
-pub mod auth;
 pub mod clock;
 pub mod common;
 pub mod desktop;

@@ -22,7 +22,7 @@ impl IntoResponse for HttpError {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal error").into_response()
             },
             HttpError::UserError { err } => {
-                (StatusCode::BAD_REQUEST, err.as_str()).into_response()
+                (StatusCode::BAD_REQUEST, err).into_response()
             }
         }
     }

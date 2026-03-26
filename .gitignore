@@ -10,3 +10,7 @@
 /mcp/zealot-mcp
 .DS_Store
 /node_modules/
+/apps/web/dist/
+.pytest_cache/
+.venv/
+__pycache__/

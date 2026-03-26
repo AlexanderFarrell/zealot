@@ -88,8 +88,10 @@ import UpdateIcon from "./icon/update.svg";
 import UploadIcon from "./icon/upload.svg";
 import ViewIcon from "./icon/view.svg";
 import WeekIcon from "./icon/week.svg";
-import Stylesheet from "./css/main.scss";
+import "./css/main.scss";
 import ZealotIcon from "./img/zealot.webp";
+
+const Stylesheet = "";
 
 const icons = {
   account: AccountIcon,

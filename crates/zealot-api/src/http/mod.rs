@@ -1,4 +1,3 @@
-mod auth;
 mod health;
 pub mod common;
 mod middleware;

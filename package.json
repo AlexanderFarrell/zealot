@@ -7,7 +7,8 @@
     ],
     "scripts": {
         "dev:web": "npm run dev -w @zealot/web",
-        "build:web": "npm run dev -w @zealot/web",
+        "build:web": "npm run build -w @zealot/web",
+        "test:e2e": "./test/e2e/run.sh",
         "typecheck": "npm run typecheck --workspaces --if-present",
         "lint": "npm run lint --workspaces --if-present",
         "test": "npm run test --workspaces --if-present"

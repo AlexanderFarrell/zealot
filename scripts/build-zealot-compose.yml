@@ -1,0 +1,12 @@
+services:
+  server:
+    image: zealot-server:local
+    build:
+      context: ..
+      dockerfile: apps/server/Dockerfile
+
+  web:
+    image: zealot-web:local
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile

@@ -1,0 +1,14 @@
+.git
+.github
+.venv
+.pytest_cache
+__pycache__
+target
+node_modules
+dist
+coverage
+*.pyc
+*.pyo
+*.pyd
+*.log
+test-results

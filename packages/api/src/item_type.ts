@@ -1,6 +1,7 @@
 import { BasicAPI } from "@websoil/engine";
 import { delete_req, LazyData, post_req } from "@websoil/engine/src/api/api_helper";
-import { AddItemTypeDto, ItemType, ItemTypeDto, UpdateItemTypeDto } from "@zealot/domain/src/item_type";
+import { ItemType } from "@zealot/domain/src/item_type";
+import type { AddItemTypeDto, ItemTypeDto, UpdateItemTypeDto } from "@zealot/domain/src/item_type";
 
 
 export class ItemTypeAPI extends BasicAPI<ItemType, ItemTypeDto, 

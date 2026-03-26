@@ -1,8 +1,12 @@
 import { BasicAPI, patch_json } from "@websoil/engine";
 import { LazyData } from "@websoil/engine/src/api/api_helper";
-import { AddAttributeKindDto, AttributeConfig, 
-    AttributeKind, 
-    AttributeKindDto, UpdateAttributeKindDto } from "@zealot/domain/src/attribute";
+import { AttributeKind } from "@zealot/domain/src/attribute";
+import type {
+    AddAttributeKindDto,
+    AttributeConfig,
+    AttributeKindDto,
+    UpdateAttributeKindDto,
+} from "@zealot/domain/src/attribute";
 
 export class AttributeKindAPI extends BasicAPI<AttributeKind, AttributeKindDto, AddAttributeKindDto, UpdateAttributeKindDto> {
     public Kinds: LazyData<Record<string, AttributeKind>>;

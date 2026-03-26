@@ -1,5 +1,6 @@
 import { delete_req, get_json, patch_req } from "@websoil/engine";
-import { Comment, CommentDto, UpdateCommentDto } from "@zealot/domain/src/comment";
+import { Comment } from "@zealot/domain/src/comment";
+import type { CommentDto, UpdateCommentDto } from "@zealot/domain/src/comment";
 import { DateTime } from "luxon";
 import { BaseAPI } from "./common";
 

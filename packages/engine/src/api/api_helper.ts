@@ -82,11 +82,14 @@ async function buildRequestInit(
     if (needsCsrf(method)) {
         await ensureCsrfToken();
     }
-    return {
+    const init: RequestInit = {
         method,
         headers: finalHeaders,
-        body,
     };
+    if (body !== undefined) {
+        init.body = body;
+    }
+    return init;
 }
 
 export async function get_json(url: string, on_error: string = `Failed to get ${url}`) {
