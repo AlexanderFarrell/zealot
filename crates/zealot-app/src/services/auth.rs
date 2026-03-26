@@ -47,6 +47,13 @@ impl AuthService {
     ) -> Result<Account, AuthError> {
         todo!()
     }
+
+    pub async fn logout_account(
+        &self,
+        actor: &Actor,
+    ) -> Result<(), AuthError> {
+        todo!()
+    }
 }
 
 #[derive(Debug, thiserror::Error)]

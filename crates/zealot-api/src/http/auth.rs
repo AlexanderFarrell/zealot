@@ -10,6 +10,7 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .route("/is_logged_in", get(is_logged_in))
         .route("/register", post(register_basic))
         .route("/login", post(login_basic))
+        .route("/logout", get(logout_basic))
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
         .with_state(state)
 }
@@ -60,5 +61,19 @@ async fn login_basic(
             AuthError::ServerError => Err(HttpError::Internal),
             _ => Err(HttpError::Internal) // TODO: I don't like this, handle another way.
         },
+    }
+}
+
+async fn logout_basic(
+    State(state): State<AppState>,
+    actor: Actor
+) -> Result<(), HttpError> {
+    if !actor.is_authenticated() {
+        return Err(HttpError::UserError { err: String::from("Not logged in") });
+    }
+
+    match state.services.auth.logout_account(&actor).await {
+        Ok(_) => Ok(()),
+        Err(_) => Err(HttpError::Internal),
     }
 }
