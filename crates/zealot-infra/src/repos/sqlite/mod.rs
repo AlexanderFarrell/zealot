@@ -8,6 +8,7 @@ use crate::repos::sqlite::{
     comment_sqlite::CommentSqliteRepo, item_sqlite::ItemSqliteRepo,
     item_type_sqlite::ItemTypeSqliteRepo, meta_sqlite::MetaSqliteRepo,
     repeat_sqlite::RepeatSqliteRepo, rule_sqlite::RuleSqliteRepo, scope_sqlite::ScopeSqliteRepo,
+    session_sqlite::SessionSqliteRepo,
 };
 
 pub mod account_sqlite;
@@ -19,6 +20,7 @@ pub mod meta_sqlite;
 pub mod repeat_sqlite;
 pub mod rule_sqlite;
 pub mod scope_sqlite;
+pub mod session_sqlite;
 
 pub fn get_sqlite_repos(pool: SqlitePool) -> ZealotRepos {
     ZealotRepos {
@@ -31,5 +33,6 @@ pub fn get_sqlite_repos(pool: SqlitePool) -> ZealotRepos {
         repeat: Arc::new(RepeatSqliteRepo::new(pool.clone())),
         rule: Arc::new(RuleSqliteRepo::new(pool.clone())),
         scope: Arc::new(ScopeSqliteRepo::new(pool.clone())),
+        session: Arc::new(SessionSqliteRepo::new(pool.clone())),
     }
 }

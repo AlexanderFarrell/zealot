@@ -9,6 +9,7 @@ tokio.workspace = true
 uuid.workspace = true
 axum.workspace = true
 axum-extra.workspace = true
+time.workspace = true
 
 zealot-domain = {"path" = "../zealot-domain"}
 zealot-app = {"path" = "../zealot-app"}

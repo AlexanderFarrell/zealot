@@ -1,4 +1,7 @@
+use chrono::{DateTime, Utc};
+
 use crate::account::Account;
+use crate::common::id::Id;
 
 #[derive(Debug, Clone)]
 pub enum AuthSource {
@@ -6,6 +9,21 @@ pub enum AuthSource {
     PlainLogin,
     OAuthJwt,
     ApiKey,
+    Session,
+}
+
+#[derive(Debug, Clone)]
+pub struct Session {
+    pub token_hash: String,
+    pub account_id: Id,
+    pub expires_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CreateSessionDto {
+    pub token_hash: String,
+    pub account_id: Id,
+    pub expires_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone)]

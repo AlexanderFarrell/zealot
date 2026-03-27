@@ -1,0 +1,14 @@
+create table if not exists session (
+    token_hash  text        primary key,
+    account_id  bigint      not null references account(account_id) on delete cascade,
+    expires_at  timestamptz not null
+);
+
+comment on table session is
+    'Stores hashed session tokens. Raw tokens live only in client cookies.';
+comment on column session.token_hash is
+    'SHA-256 hex digest of the raw session token stored in the cookie';
+comment on column session.expires_at is
+    'Absolute expiry; server rejects sessions past this time';
+
+create index if not exists idx_session_account_id on session(account_id);

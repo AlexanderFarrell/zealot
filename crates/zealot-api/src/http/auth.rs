@@ -1,4 +1,6 @@
 use axum::{Extension, Json, Router, extract::State, middleware, routing::{get, post}};
+use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
+use time::Duration;
 use zealot_app::{app::AppState, services::auth::AuthError};
 use zealot_domain::{account::{AccountDto, LoginBasicDto, RegisterBasicDto}, auth::Actor};
 
@@ -47,14 +49,24 @@ async fn register_basic(
 async fn login_basic(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
-    Json(dto): Json<LoginBasicDto>
-) -> Result<Json<AccountDto>, HttpError> {
+    jar: CookieJar,
+    Json(dto): Json<LoginBasicDto>,
+) -> Result<(CookieJar, Json<AccountDto>), HttpError> {
     if actor.is_authenticated() {
         return Err(HttpError::UserError { err: String::from("Already logged in") });
     }
 
     match state.services.auth.login_account(&dto).await {
-        Ok(account) => Ok(Json(account.into())),
+        Ok((account, raw_token)) => {
+            let cookie = Cookie::build(("session_id", raw_token))
+                .http_only(true)
+                .secure(true)
+                .same_site(SameSite::Lax)
+                .path("/")
+                .max_age(Duration::days(30))
+                .build();
+            Ok((jar.add(cookie), Json(account.into())))
+        }
         Err(error) => match error {
             AuthError::LoginError { err } => Err(HttpError::UserError { err }),
             AuthError::ServerError => Err(HttpError::Internal),
@@ -65,14 +77,23 @@ async fn login_basic(
 
 async fn logout_basic(
     State(state): State<AppState>,
-    Extension(actor): Extension<Actor>
-) -> Result<(), HttpError> {
+    Extension(actor): Extension<Actor>,
+    jar: CookieJar,
+) -> Result<CookieJar, HttpError> {
     if !actor.is_authenticated() {
         return Err(HttpError::UserError { err: String::from("Not logged in") });
     }
 
-    match state.services.auth.logout_account(&actor).await {
-        Ok(_) => Ok(()),
+    let session_token = jar.get("session_id").map(|c| c.value().to_string());
+
+    match state.services.auth.logout_account(&actor, session_token.as_deref()).await {
+        Ok(_) => {
+            let cleared = Cookie::build(("session_id", ""))
+                .path("/")
+                .max_age(Duration::ZERO)
+                .build();
+            Ok(jar.remove(cleared))
+        }
         Err(_) => Err(HttpError::Internal),
     }
 }

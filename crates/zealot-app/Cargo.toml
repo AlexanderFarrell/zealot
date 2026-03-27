@@ -9,3 +9,6 @@ zealot-domain = {"path" = "../zealot-domain"}
 thiserror.workspace = true
 chrono.workspace = true
 sqlx.workspace = true
+uuid.workspace = true
+sha2.workspace = true
+hex.workspace = true

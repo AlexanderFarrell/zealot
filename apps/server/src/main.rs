@@ -5,7 +5,10 @@ use zealot_app::{
     ports::ZealotPorts,
 };
 use zealot_infra::{
-    ports::media::filesystem::MediaFilesystemPort,
+    ports::{
+        media::filesystem::MediaFilesystemPort,
+        password::bcrypt_password::BcryptPasswordPort,
+    },
     repos::get_repo_from_config,
 };
 
@@ -18,6 +21,7 @@ async fn main() -> Result<(), String> {
 
     let ports = ZealotPorts {
         media: Arc::new(MediaFilesystemPort::new(&config)),
+        password: Arc::new(BcryptPasswordPort::new()),
     };
 
     let state = AppState::new(repos, ports);

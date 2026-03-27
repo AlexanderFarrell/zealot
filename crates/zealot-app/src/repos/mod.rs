@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::repos::{
     account::AccountRepo, attribute::AttributeRepo, comment::CommentRepo, item::ItemRepo,
     item_type::ItemTypeRepo, meta::MetaRepo, repeat::RepeatRepo, rule::RuleRepo, scope::ScopeRepo,
+    session::SessionRepo,
 };
 
 pub mod account;
@@ -15,6 +16,7 @@ pub mod meta;
 pub mod repeat;
 pub mod rule;
 pub mod scope;
+pub mod session;
 
 #[derive(Debug, Clone)]
 pub struct ZealotRepos {
@@ -28,4 +30,5 @@ pub struct ZealotRepos {
     pub repeat: Arc<dyn RepeatRepo>,
     pub rule: Arc<dyn RuleRepo>,
     pub scope: Arc<dyn ScopeRepo>,
+    pub session: Arc<dyn SessionRepo>,
 }
