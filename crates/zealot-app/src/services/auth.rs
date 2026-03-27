@@ -151,7 +151,7 @@ impl AuthService {
     pub async fn register_account(
         &self,
         dto: &RegisterBasicDto,
-    ) -> Result<Account, AuthError> {
+    ) -> Result<(Account, String), AuthError> {
         let username = dto.username.trim();
         let given_name = dto.given_name.trim();
         let surname = dto.surname.trim();
@@ -203,9 +203,23 @@ impl AuthService {
             surname: surname.to_string(),
         };
 
-        self.repo
+        let account = self
+            .repo
             .add_account(&create_dto)
-            .map_err(|_| AuthError::ServerError)
+            .map_err(|_| AuthError::ServerError)?;
+
+        let (raw_token, token_hash) = Self::generate_session_token();
+        let expires_at = Utc::now() + Duration::days(30);
+
+        self.session
+            .create_session(&CreateSessionDto {
+                token_hash,
+                account_id: account.account_id,
+                expires_at,
+            })
+            .map_err(|_| AuthError::ServerError)?;
+
+        Ok((account, raw_token))
     }
 
     /// Returns the account and the raw session token to be stored in the cookie.

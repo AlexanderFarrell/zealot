@@ -18,7 +18,13 @@ pub async fn get_repo_from_config(config: &ZealotConfig) -> Result<ZealotRepos, 
                 .host(&config.db_host.clone().unwrap_or(String::from("localhost")));
 
             match PgPool::connect_with(options).await {
-                Ok(pool) => Ok(get_postgres_repos(pool)),
+                Ok(pool) => {
+                    sqlx::migrate!("migrations/postgres")
+                        .run(&pool)
+                        .await
+                        .map_err(|e| format!("Postgres migration failed: {}", e))?;
+                    Ok(get_postgres_repos(pool))
+                }
                 Err(err) => Err(format!("Error connecting to postgres: {}", err)),
             }
         }
@@ -33,7 +39,13 @@ pub async fn get_repo_from_config(config: &ZealotConfig) -> Result<ZealotRepos, 
                 .connect_with(options)
                 .await
             {
-                Ok(pool) => Ok(get_sqlite_repos(pool)),
+                Ok(pool) => {
+                    sqlx::migrate!("migrations/sqlite")
+                        .run(&pool)
+                        .await
+                        .map_err(|e| format!("SQLite migration failed: {}", e))?;
+                    Ok(get_sqlite_repos(pool))
+                }
                 Err(err) => Err(format!("Error connecting to sqlite: {}", err)),
             }
         }

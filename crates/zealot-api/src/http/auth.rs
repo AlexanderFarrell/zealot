@@ -30,14 +30,23 @@ async fn is_logged_in(
 async fn register_basic(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
-    Json(dto): Json<RegisterBasicDto>
-) -> Result<Json<AccountDto>, HttpError> {
+    jar: CookieJar,
+    Json(dto): Json<RegisterBasicDto>,
+) -> Result<(CookieJar, Json<AccountDto>), HttpError> {
     if actor.is_authenticated() {
         return Err(HttpError::UserError { err: String::from("Already logged in") });
     }
 
     match state.services.auth.register_account(&dto).await {
-        Ok(account) => Ok(Json(account.into())),
+        Ok((account, raw_token)) => {
+            let cookie = Cookie::build(("session_id", raw_token))
+                .http_only(true)
+                .same_site(SameSite::Lax)
+                .path("/")
+                .max_age(Duration::days(30))
+                .build();
+            Ok((jar.add(cookie), Json(account.into())))
+        }
         Err(error) => match error {
             AuthError::RegisterError { err } => Err(HttpError::UserError { err }),
             AuthError::ServerError => Err(HttpError::Internal),
@@ -60,7 +69,6 @@ async fn login_basic(
         Ok((account, raw_token)) => {
             let cookie = Cookie::build(("session_id", raw_token))
                 .http_only(true)
-                .secure(true)
                 .same_site(SameSite::Lax)
                 .path("/")
                 .max_age(Duration::days(30))

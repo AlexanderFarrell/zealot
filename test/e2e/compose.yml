@@ -15,7 +15,7 @@ services:
     ports:
       - "127.0.0.1:18456:8456"
     volumes:
-      - zealot_e2e_data:/data
+      - ./zealot_data:/data
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8456/health"]
       interval: 5s
@@ -39,6 +39,3 @@ services:
       timeout: 3s
       retries: 20
       start_period: 5s
-
-volumes:
-  zealot_e2e_data:
