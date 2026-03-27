@@ -45,9 +45,9 @@ pub struct RegisterBasicDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InsertAccountDto {
+pub struct CreateAccountDto {
     pub username: String,
-    pub hash: String,
+    pub password_hash: String,
     pub email: String,
     pub given_name: String,
     pub surname: String,
@@ -103,8 +103,8 @@ impl TryFrom<AccountDto> for Account {
     }
 }
 
-impl From<&Account> for AccountDto {
-    fn from(value: &Account) -> Self {
+impl From<Account> for AccountDto {
+    fn from(value: Account) -> Self {
         Self {
             account_id: value.account_id.into(),
             username: value.username.clone(),

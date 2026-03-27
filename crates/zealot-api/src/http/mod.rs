@@ -1,10 +1,11 @@
 mod health;
 pub mod common;
 mod middleware;
+mod auth;
 
 use axum::Router;
 use zealot_app::{
-    app::{self, AppState},
+    app::{AppState},
     config::ZealotConfig,
 };
 
@@ -23,5 +24,6 @@ pub async fn run_http(state: AppState, config: ZealotConfig) -> Result<(), Strin
 fn build_router(state: AppState) -> Router {
     Router::new()
         .nest("/health", health::routes())
+        .nest("/auth", auth::routes(state.clone()))
         .with_state(state)
 }

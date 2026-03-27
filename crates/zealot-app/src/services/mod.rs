@@ -38,7 +38,7 @@ impl ZealotServices {
             account: Arc::new(AccountService::new(&repos.account)),
             analysis: Arc::new(AnalysisService::new(&repos.item)),
             attribute: Arc::new(AttributeService::new(&repos.attribute)),
-            auth: Arc::new(AuthService::new(&repos.account)),
+            auth: Arc::new(AuthService::new(&repos.account, &ports.password)),
             repos,
             ports
         }

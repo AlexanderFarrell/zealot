@@ -1,8 +1,8 @@
-use axum::{Json, Router, extract::State, middleware, routing::{get, post}};
-use zealot_app::{app::AppState, repos::account, services::{auth::AuthError, common::ServiceError}};
+use axum::{Extension, Json, Router, extract::State, middleware, routing::{get, post}};
+use zealot_app::{app::AppState, services::auth::AuthError};
 use zealot_domain::{account::{AccountDto, LoginBasicDto, RegisterBasicDto}, auth::Actor};
 
-use crate::http::common::HttpError;
+use crate::http::{common::HttpError, middleware::auth_middleware};
 
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
@@ -10,17 +10,16 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .route("/is_logged_in", get(is_logged_in))
         .route("/register", post(register_basic))
         .route("/login", post(login_basic))
-        .route("/logout", get(logout_basic))
-        .layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
+        .route("/logout", post(logout_basic))
+        .route_layer(middleware::map_request_with_state(state.clone(), auth_middleware))
         .with_state(state)
 }
 
 async fn is_logged_in(
-    State(state): State<AppState>,
-    actor: Actor,
+    Extension(actor): Extension<Actor>,
 ) -> Result<Json<AccountDto>, HttpError> {
     if actor.is_authenticated() && let Some(account) = actor.account {
-        Ok(Json(account))
+        Ok(Json(account.into()))
     } else {
         Err(HttpError::Unauthorized)
     }
@@ -28,7 +27,7 @@ async fn is_logged_in(
 
 async fn register_basic(
     State(state): State<AppState>,
-    actor: Actor,
+    Extension(actor): Extension<Actor>,
     Json(dto): Json<RegisterBasicDto>
 ) -> Result<Json<AccountDto>, HttpError> {
     if actor.is_authenticated() {
@@ -40,14 +39,14 @@ async fn register_basic(
         Err(error) => match error {
             AuthError::RegisterError { err } => Err(HttpError::UserError { err }),
             AuthError::ServerError => Err(HttpError::Internal),
-            _ => Err(HttpError::Internal) // TODO: I don't like this, handle another way
+            AuthError::LoginError { .. } => Err(HttpError::Internal),
         }
     }
 }
 
 async fn login_basic(
     State(state): State<AppState>,
-    actor: Actor,
+    Extension(actor): Extension<Actor>,
     Json(dto): Json<LoginBasicDto>
 ) -> Result<Json<AccountDto>, HttpError> {
     if actor.is_authenticated() {
@@ -59,14 +58,14 @@ async fn login_basic(
         Err(error) => match error {
             AuthError::LoginError { err } => Err(HttpError::UserError { err }),
             AuthError::ServerError => Err(HttpError::Internal),
-            _ => Err(HttpError::Internal) // TODO: I don't like this, handle another way.
+            AuthError::RegisterError { .. } => Err(HttpError::Internal),
         },
     }
 }
 
 async fn logout_basic(
     State(state): State<AppState>,
-    actor: Actor
+    Extension(actor): Extension<Actor>
 ) -> Result<(), HttpError> {
     if !actor.is_authenticated() {
         return Err(HttpError::UserError { err: String::from("Not logged in") });
