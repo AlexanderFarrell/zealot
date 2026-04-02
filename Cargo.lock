@@ -2328,6 +2328,8 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "axum-extra",
+ "serde",
+ "serde_json",
  "sqlx",
  "time",
  "tokio",
@@ -2342,6 +2344,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "hex",
+ "serde_json",
  "sha2",
  "sqlx",
  "thiserror 1.0.69",
@@ -2373,6 +2376,9 @@ name = "zealot-infra"
 version = "0.1.0"
 dependencies = [
  "bcrypt",
+ "chrono",
+ "serde",
+ "serde_json",
  "sqlx",
  "tokio",
  "uuid",

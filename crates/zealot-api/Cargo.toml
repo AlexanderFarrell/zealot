@@ -10,6 +10,8 @@ uuid.workspace = true
 axum.workspace = true
 axum-extra.workspace = true
 time.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 
 zealot-domain = {"path" = "../zealot-domain"}
 zealot-app = {"path" = "../zealot-app"}

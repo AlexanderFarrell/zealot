@@ -1,10 +1,10 @@
-use std::fmt::Debug;
+use std::{collections::HashMap, fmt::Debug};
 
 use zealot_domain::{
     account::Account,
-    attribute::AttributeFilter,
+    attribute::{Attribute, AttributeFilter},
     common::id::Id,
-    item::{AddItemDto, Item},
+    item::{AddItemParsedDto, Item, UpdateItemParsedDto},
 };
 
 use crate::repos::common::RepoError;
@@ -30,8 +30,29 @@ pub trait ItemRepo: Debug + Send + Sync {
     ) -> Result<Vec<Item>, RepoError>;
     fn get_related_items(&self, item_id: &Id, account: &Account) -> Result<Vec<Item>, RepoError>;
 
-    fn add_item(&self, dto: &AddItemDto, account: &Account) -> Result<Option<Item>, RepoError>;
+    fn add_item(&self, dto: &AddItemParsedDto, account: &Account) -> Result<Option<Item>, RepoError>;
+    fn update_item(&self, dto: &UpdateItemParsedDto, account: &Account) -> Result<Option<Item>, RepoError>;
     fn delete_item(&self, item_id: &Id, account: &Account) -> Result<(), RepoError>;
+
+    fn set_item_attributes(
+        &self,
+        item_id: &Id,
+        attributes: &HashMap<String, Attribute>,
+        account: &Account,
+    ) -> Result<(), RepoError>;
+    fn rename_item_attribute(
+        &self,
+        item_id: &Id,
+        old_key: &str,
+        new_key: &str,
+        account: &Account,
+    ) -> Result<(), RepoError>;
+    fn delete_item_attribute(
+        &self,
+        item_id: &Id,
+        key: &str,
+        account: &Account,
+    ) -> Result<(), RepoError>;
 
     fn assign_item_types(
         &self,

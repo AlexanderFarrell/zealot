@@ -62,19 +62,19 @@ pub enum Attribute {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AddAttributeKindDto {
-    key: String,
-    description: String,
-    base_type: String,
-    config: Value,
+    pub key: String,
+    pub description: String,
+    pub base_type: String,
+    pub config: Value,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct UpdateAttributeKindDto {
-    kind_id: i64,
-    key: Option<String>,
-    description: Option<String>,
-    base_type: Option<String>,
-    config: Option<Value>,
+    pub kind_id: i64,
+    pub key: Option<String>,
+    pub description: Option<String>,
+    pub base_type: Option<String>,
+    pub config: Option<Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -98,6 +98,7 @@ pub enum AttributeKindSpec {
         values: Vec<String>,
     },
     Boolean,
+    Item,
     List {
         list_type: AttributeBaseType,
     },

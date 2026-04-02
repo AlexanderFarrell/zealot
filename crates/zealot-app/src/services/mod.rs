@@ -3,7 +3,14 @@ use std::sync::Arc;
 use crate::{
     ports::ZealotPorts,
     repos::ZealotRepos,
-    services::{account::AccountService, analysis::AnalysisService, attribute::AttributeService, auth::AuthService},
+    services::{
+        account::AccountService,
+        analysis::AnalysisService,
+        attribute::AttributeService,
+        auth::AuthService,
+        item::ItemService,
+        item_type::ItemTypeService,
+    },
 };
 
 pub mod account;
@@ -27,6 +34,8 @@ pub struct ZealotServices {
     pub analysis: Arc<AnalysisService>,
     pub attribute: Arc<AttributeService>,
     pub auth: Arc<AuthService>,
+    pub item: Arc<ItemService>,
+    pub item_type: Arc<ItemTypeService>,
 
     pub ports: ZealotPorts,
     pub repos: ZealotRepos,
@@ -39,8 +48,10 @@ impl ZealotServices {
             analysis: Arc::new(AnalysisService::new(&repos.item)),
             attribute: Arc::new(AttributeService::new(&repos.attribute)),
             auth: Arc::new(AuthService::new(&repos.account, &ports.password, &repos.session)),
+            item: Arc::new(ItemService::new(&repos.item, &repos.attribute)),
+            item_type: Arc::new(ItemTypeService::new(&repos.item_type)),
             repos,
-            ports
+            ports,
         }
-    } 
+    }
 }

@@ -64,6 +64,24 @@ pub struct UpdateItemDto {
     pub attributes: Option<HashMap<String, Value>>,
 }
 
+/// Pre-parsed version of `AddItemDto` — used internally between service and repo.
+/// The `attributes` field already contains typed `Attribute` values (validated against kinds).
+pub struct AddItemParsedDto {
+    pub title: String,
+    pub content: String,
+    pub attributes: HashMap<String, Attribute>,
+    /// Type names to assign on creation.
+    pub types: Option<Vec<String>>,
+}
+
+/// Pre-parsed version of `UpdateItemDto` — used internally between service and repo.
+pub struct UpdateItemParsedDto {
+    pub item_id: Id,
+    pub title: Option<String>,
+    pub content: Option<String>,
+    pub attributes: Option<HashMap<String, Attribute>>,
+}
+
 // Errors
 
 #[derive(Debug, thiserror::Error)]
