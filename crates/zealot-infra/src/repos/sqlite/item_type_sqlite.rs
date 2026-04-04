@@ -1,10 +1,10 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use sqlx::SqlitePool;
 use zealot_app::repos::{common::RepoError, item_type::ItemTypeRepo};
 use zealot_domain::{
     common::id::Id,
-    item_type::{AddItemTypeDto, ItemType, UpdateItemTypeDto},
+    item_type::{AddItemTypeDto, ItemType, ItemTypeRef, UpdateItemTypeDto},
 };
 
 #[derive(Debug)]
@@ -27,15 +27,24 @@ struct ItemTypeWithRequiredRow {
     required_key: Option<String>,
 }
 
+#[derive(sqlx::FromRow)]
+struct ItemTypeRefRow {
+    item_id: i64,
+    type_id: i64,
+    name: String,
+    account_id: Option<i64>,
+}
+
 fn rows_to_item_types(rows: Vec<ItemTypeWithRequiredRow>) -> Result<Vec<ItemType>, RepoError> {
     let mut map: BTreeMap<i64, ItemType> = BTreeMap::new();
 
     for row in rows {
-        let entry = map.entry(row.type_id).or_insert_with(|| ItemType {
-            type_id: Id::try_from(row.type_id).unwrap_or(Id::try_from(0).unwrap()),
+        let entry = map.entry(row.type_id).or_insert(ItemType {
+            type_id: Id::try_from(row.type_id)
+                .map_err(|err| RepoError::DatabaseError { err: err.to_string() })?,
             is_system: row.account_id.is_none(),
-            name: row.name,
-            description: row.description,
+            name: row.name.clone(),
+            description: row.description.clone(),
             required_attributes: Vec::new(),
         });
 
@@ -110,23 +119,80 @@ impl ItemTypeRepo for ItemTypeSqliteRepo {
         })
     }
 
-    fn get_item_types_for_item(&self, item_id: &Id, account_id: &Id) -> Result<Vec<ItemType>, RepoError> {
-        let item_id_val = i64::from(*item_id);
+    fn get_item_type_refs_for_items(
+        &self,
+        item_ids: &Vec<Id>,
+        account_id: &Id,
+    ) -> Result<HashMap<Id, Vec<ItemTypeRef>>, RepoError> {
+        let item_ids = item_ids.clone();
         let account_id_val = i64::from(*account_id);
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
-                let rows = sqlx::query_as::<_, ItemTypeWithRequiredRow>(&format!(
-                    "{} INNER JOIN item_item_type_link iitl ON iitl.type_id = it.type_id
-                     WHERE iitl.item_id = ? AND (it.account_id = ? OR it.account_id IS NULL)
-                     ORDER BY it.type_id",
-                    ITEM_TYPE_SELECT
-                ))
-                .bind(item_id_val)
+                if item_ids.is_empty() {
+                    return Ok(HashMap::new());
+                }
+
+                let placeholders = item_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+                let sql = format!(
+                    "SELECT lnk.item_id, it.type_id, it.name, it.account_id
+                     FROM item_item_type_link lnk
+                     JOIN item_type it ON it.type_id = lnk.type_id
+                     WHERE lnk.item_id IN ({}) AND (it.account_id = ? OR it.account_id IS NULL)
+                     ORDER BY lnk.item_id, it.type_id",
+                    placeholders
+                );
+                let mut query = sqlx::query_as::<_, ItemTypeRefRow>(&sql);
+                for item_id in &item_ids {
+                    query = query.bind(i64::from(*item_id));
+                }
+                query = query.bind(account_id_val);
+                let rows = query.fetch_all(&self.pool).await.map_err(RepoError::from)?;
+
+                let mut refs_by_item = HashMap::new();
+                for row in rows {
+                    let item_id = Id::try_from(row.item_id)
+                        .map_err(|err| RepoError::DatabaseError { err: err.to_string() })?;
+                    let type_id = Id::try_from(row.type_id)
+                        .map_err(|err| RepoError::DatabaseError { err: err.to_string() })?;
+                    refs_by_item.entry(item_id).or_insert_with(Vec::new).push(ItemTypeRef {
+                        type_id,
+                        is_system: row.account_id.is_none(),
+                        name: row.name,
+                    });
+                }
+
+                Ok(refs_by_item)
+            })
+        })
+    }
+
+    fn get_item_ids_for_type_name(&self, name: &str, account_id: &Id) -> Result<Vec<Id>, RepoError> {
+        let account_id_val = i64::from(*account_id);
+        let name = name.to_string();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                let item_ids = sqlx::query_scalar::<_, i64>(
+                    "SELECT lnk.item_id
+                     FROM item_item_type_link lnk
+                     JOIN item_type it ON it.type_id = lnk.type_id
+                     JOIN item i ON i.item_id = lnk.item_id
+                     WHERE it.name = ? AND i.account_id = ? AND (it.account_id = ? OR it.account_id IS NULL)
+                     ORDER BY lnk.item_id",
+                )
+                .bind(&name)
+                .bind(account_id_val)
                 .bind(account_id_val)
                 .fetch_all(&self.pool)
                 .await
                 .map_err(RepoError::from)?;
-                rows_to_item_types(rows)
+
+                item_ids
+                    .into_iter()
+                    .map(|item_id| {
+                        Id::try_from(item_id)
+                            .map_err(|err| RepoError::DatabaseError { err: err.to_string() })
+                    })
+                    .collect()
             })
         })
     }
@@ -254,6 +320,71 @@ impl ItemTypeRepo for ItemTypeSqliteRepo {
                     )
                     .bind(type_id_val)
                     .bind(key)
+                    .bind(account_id_val)
+                    .execute(&self.pool)
+                    .await
+                    .map_err(RepoError::from)?;
+                }
+                Ok(())
+            })
+        })
+    }
+
+    fn assign_item_types(
+        &self,
+        type_names: &Vec<String>,
+        item_id: &Id,
+        account_id: &Id,
+    ) -> Result<(), RepoError> {
+        let item_id_val = i64::from(*item_id);
+        let account_id_val = i64::from(*account_id);
+        let names = type_names.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                for name in &names {
+                    sqlx::query(
+                        "INSERT OR IGNORE INTO item_item_type_link (item_id, type_id)
+                         SELECT i.item_id, it.type_id
+                         FROM item i
+                         JOIN item_type it
+                         WHERE i.item_id = ? AND i.account_id = ? AND it.name = ?
+                           AND (it.account_id = ? OR it.account_id IS NULL)",
+                    )
+                    .bind(item_id_val)
+                    .bind(account_id_val)
+                    .bind(name)
+                    .bind(account_id_val)
+                    .execute(&self.pool)
+                    .await
+                    .map_err(RepoError::from)?;
+                }
+                Ok(())
+            })
+        })
+    }
+
+    fn unassign_item_types(
+        &self,
+        type_names: &Vec<String>,
+        item_id: &Id,
+        account_id: &Id,
+    ) -> Result<(), RepoError> {
+        let item_id_val = i64::from(*item_id);
+        let account_id_val = i64::from(*account_id);
+        let names = type_names.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                for name in &names {
+                    sqlx::query(
+                        "DELETE FROM item_item_type_link
+                         WHERE item_id = ? AND type_id IN (
+                             SELECT it.type_id
+                             FROM item_type it
+                             WHERE it.name = ? AND (it.account_id = ? OR it.account_id IS NULL)
+                         )",
+                    )
+                    .bind(item_id_val)
+                    .bind(name)
                     .bind(account_id_val)
                     .execute(&self.pool)
                     .await

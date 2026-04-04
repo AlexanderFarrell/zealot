@@ -1,8 +1,10 @@
 use std::fmt::Debug;
 
+use std::collections::HashMap;
+
 use zealot_domain::{
     common::id::Id,
-    item_type::{AddItemTypeDto, ItemType, UpdateItemTypeDto},
+    item_type::{AddItemTypeDto, ItemType, ItemTypeRef, UpdateItemTypeDto},
 };
 
 use crate::repos::common::RepoError;
@@ -19,11 +21,12 @@ pub trait ItemTypeRepo: Debug + Send + Sync {
         name: &str,
         account_id: &Id,
     ) -> Result<Option<ItemType>, RepoError>;
-    fn get_item_types_for_item(
+    fn get_item_type_refs_for_items(
         &self,
-        item_id: &Id,
+        item_ids: &Vec<Id>,
         account_id: &Id,
-    ) -> Result<Vec<ItemType>, RepoError>;
+    ) -> Result<HashMap<Id, Vec<ItemTypeRef>>, RepoError>;
+    fn get_item_ids_for_type_name(&self, name: &str, account_id: &Id) -> Result<Vec<Id>, RepoError>;
     fn add_item_type(
         &self,
         dto: &AddItemTypeDto,
@@ -44,6 +47,18 @@ pub trait ItemTypeRepo: Debug + Send + Sync {
         &self,
         attr_kinds: &Vec<String>,
         item_type_id: &Id,
+        account_id: &Id,
+    ) -> Result<(), RepoError>;
+    fn assign_item_types(
+        &self,
+        type_names: &Vec<String>,
+        item_id: &Id,
+        account_id: &Id,
+    ) -> Result<(), RepoError>;
+    fn unassign_item_types(
+        &self,
+        type_names: &Vec<String>,
+        item_id: &Id,
         account_id: &Id,
     ) -> Result<(), RepoError>;
 }

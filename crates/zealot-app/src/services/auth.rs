@@ -1,3 +1,5 @@
+//! Provides proof of identity throughout the application.
+
 use std::sync::Arc;
 
 use chrono::{Duration, Utc};
@@ -15,6 +17,7 @@ use crate::{
     services::common::ServiceError,
 };
 
+/// Provides proof of identity throughout the application, such as login, registration, etc.
 #[derive(Debug, Clone)]
 pub struct AuthService {
     repo: Arc<dyn AccountRepo>,

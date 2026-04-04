@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use crate::repos::{
     account::AccountRepo, attribute::AttributeRepo, comment::CommentRepo, item::ItemRepo,
-    item_type::ItemTypeRepo, meta::MetaRepo, repeat::RepeatRepo, rule::RuleRepo, scope::ScopeRepo,
-    session::SessionRepo,
+    item_attribute_value::ItemAttributeValueRepo, item_link::ItemLinkRepo, item_type::ItemTypeRepo,
+    meta::MetaRepo, repeat::RepeatRepo, rule::RuleRepo, scope::ScopeRepo, session::SessionRepo,
 };
 
 pub mod account;
@@ -11,6 +11,8 @@ pub mod attribute;
 pub mod comment;
 pub mod common;
 pub mod item;
+pub mod item_attribute_value;
+pub mod item_link;
 pub mod item_type;
 pub mod meta;
 pub mod repeat;
@@ -24,6 +26,8 @@ pub struct ZealotRepos {
     pub attribute: Arc<dyn AttributeRepo>,
     pub comment: Arc<dyn CommentRepo>,
     pub item: Arc<dyn ItemRepo>,
+    pub item_attribute_value: Arc<dyn ItemAttributeValueRepo>,
+    pub item_link: Arc<dyn ItemLinkRepo>,
     pub item_type: Arc<dyn ItemTypeRepo>,
     // pub media: Arc<dyn MediaRepo>,
     pub meta: Arc<dyn MetaRepo>,

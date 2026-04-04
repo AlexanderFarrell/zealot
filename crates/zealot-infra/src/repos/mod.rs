@@ -1,5 +1,5 @@
 use sqlx::{
-    PgPool, SqlitePool,
+    PgPool,
     postgres::PgConnectOptions,
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
 };

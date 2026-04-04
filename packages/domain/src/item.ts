@@ -1,12 +1,22 @@
-import { ItemType, type ItemTypeDto } from "./item_type";
+import { ItemTypeRef, type ItemTypeRefDto } from "./item_type";
+
+export class ItemLink {
+    public readonly OtherItemID: number;
+    public Relationship: ItemRelationship;
+
+    public constructor(dto: ItemLinkDto) {
+        this.OtherItemID = dto.other_item_id;
+        this.Relationship = dto.relationship;
+    }
+}
 
 export class Item {
     public readonly ItemID: number;
     public Title: string;
     public Content: string;
     public Attributes: Record<string, any>;
-    public Types: Array<ItemType>;
-    public Related: Array<Item>;
+    public Types: Array<ItemTypeRef>;
+    public Links: Array<ItemLink>;
 
     public constructor(dto: ItemDto) {
         this.ItemID = dto.item_id;
@@ -14,10 +24,10 @@ export class Item {
         this.Content = dto.content;
         this.Attributes = dto.attributes || {};
         this.Types = dto.types?.map(r => {
-            return new ItemType(r)
+            return new ItemTypeRef(r)
         }) || [];
-        this.Related = dto.related?.map(r => {
-            return new Item(r);
+        this.Links = dto.links?.map(r => {
+            return new ItemLink(r);
         }) || [];
     }
 
@@ -29,22 +39,6 @@ export class Item {
         title += this.Title;
         return title;
     }
-
-    public get Children(): Array<Item> {
-        return this.WhereThisIsA('Parent');
-    }
-
-    public WhereThisIsA(relation: string): Array<Item> {
-        return this.Related.filter(i => {
-            if (!(relation in i.Attributes)) {
-                return false;
-            }
-            if (!Array.isArray(i.Attributes[relation])) {
-                return false;
-            }
-            return this.Title in i.Attributes[relation]
-        })
-    }
 }
 
 export interface ItemDto {
@@ -52,20 +46,34 @@ export interface ItemDto {
     title: string,
     content: string,
     attributes?: Record<string, any>,
-    types?: Array<ItemTypeDto>,
-    related?: Array<ItemDto>    
+    types?: Array<ItemTypeRefDto>,
+    links?: Array<ItemLinkDto>
+}
+
+export type ItemRelationship =
+    | 'parent'
+    | 'blocks'
+    | 'tag'
+    | 'topic'
+    | 'other';
+
+export interface ItemLinkDto {
+    other_item_id: number;
+    relationship: ItemRelationship;
 }
 
 export interface AddItemDto {
     title: string;
     content?: string;
     attributes?: Record<string, any>;
-    types?: Array<String>;
+    types?: Array<string>;
+    links?: Array<ItemLinkDto>;
 }
 
 export interface UpdateItemDto {
     item_id: number;
     title?: string;
     content?: string;
-    attributes?: Record<string, any>
+    attributes?: Record<string, any>;
+    links?: Array<ItemLinkDto>;
 }

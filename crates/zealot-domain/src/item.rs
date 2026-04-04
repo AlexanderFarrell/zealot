@@ -9,10 +9,17 @@ use crate::{
         id::{Id, IdError},
         strings::StringsError,
     },
-    item_type::{ItemType, ItemTypeDto, ItemTypeError},
+    item_type::{ItemTypeError, ItemTypeRef, ItemTypeRefDto},
 };
 
 // Domain
+
+#[derive(Debug, Clone)]
+pub struct ItemCore {
+    pub item_id: Id,
+    pub title: String,
+    pub content: String,
+}
 
 #[derive(Debug, Clone)]
 pub struct Item {
@@ -20,8 +27,24 @@ pub struct Item {
     pub title: String,
     pub content: String,
     pub attributes: HashMap<String, Attribute>,
-    pub types: Vec<ItemType>,
-    pub related: Vec<Item>,
+    pub types: Vec<ItemTypeRef>,
+    pub links: Vec<ItemLink>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ItemRelationship {
+    Parent,
+    Blocks,
+    Tag,
+    Topic,
+    Other,
+}
+
+#[derive(Debug, Clone)]
+pub struct ItemLink {
+    pub other_item_id: Id,
+    pub relationship: ItemRelationship,
 }
 
 // Send DTOs
@@ -32,8 +55,14 @@ pub struct ItemDto {
     pub title: String,
     pub content: String,
     pub attributes: Value,
-    pub types: Vec<ItemTypeDto>,
-    pub related: Vec<ItemDto>,
+    pub types: Vec<ItemTypeRefDto>,
+    pub links: Vec<ItemLinkDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ItemLinkDto {
+    pub other_item_id: i64,
+    pub relationship: ItemRelationship,
 }
 
 // Receive DTOs
@@ -47,7 +76,10 @@ pub struct AddItemDto {
     pub attributes: Option<HashMap<String, Value>>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub types: Option<Vec<ItemTypeDto>>,
+    pub types: Option<Vec<String>>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub links: Option<Vec<ItemLinkDto>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -62,24 +94,20 @@ pub struct UpdateItemDto {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attributes: Option<HashMap<String, Value>>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub links: Option<Vec<ItemLinkDto>>,
 }
 
-/// Pre-parsed version of `AddItemDto` — used internally between service and repo.
-/// The `attributes` field already contains typed `Attribute` values (validated against kinds).
-pub struct AddItemParsedDto {
+pub struct AddItemCoreDto {
     pub title: String,
     pub content: String,
-    pub attributes: HashMap<String, Attribute>,
-    /// Type names to assign on creation.
-    pub types: Option<Vec<String>>,
 }
 
-/// Pre-parsed version of `UpdateItemDto` — used internally between service and repo.
-pub struct UpdateItemParsedDto {
+pub struct UpdateItemCoreDto {
     pub item_id: Id,
     pub title: Option<String>,
     pub content: Option<String>,
-    pub attributes: Option<HashMap<String, Attribute>>,
 }
 
 // Errors
@@ -145,29 +173,25 @@ impl Item {
         self.title.clone()
     }
 
-    pub fn children(&self) -> Vec<&Item> {
-        return self.where_this_is_a("Parent");
+    pub fn linked_item_ids(&self, relationship: ItemRelationship) -> Vec<Id> {
+        self.links
+            .iter()
+            .filter(|link| link.relationship == relationship)
+            .map(|link| link.other_item_id)
+            .collect()
     }
 
-    pub fn where_this_is_a(&self, relation: &str) -> Vec<&Item> {
-        self.related
-            .iter()
-            .filter(|item| match item.attributes.get(relation) {
-                Some(Attribute::List(list)) => {
-                    for item in list {
-                        match item {
-                            AttributeScalar::Item(item_id) => return *item_id == self.item_id,
-                            _ => return false,
-                        }
-                    }
-                    return false;
-                }
-                Some(Attribute::Scalar(AttributeScalar::Item(item_id))) => {
-                    return *item_id == self.item_id;
-                }
-                _ => return false,
-            })
-            .collect()
+    pub fn parent_ids(&self) -> Vec<Id> {
+        self.linked_item_ids(ItemRelationship::Parent)
+    }
+}
+
+impl From<&ItemLink> for ItemLinkDto {
+    fn from(value: &ItemLink) -> Self {
+        Self {
+            other_item_id: value.other_item_id.into(),
+            relationship: value.relationship,
+        }
     }
 }
 
@@ -181,12 +205,12 @@ impl From<&Item> for ItemDto {
             types: value
                 .types
                 .iter()
-                .map(|it| return ItemTypeDto::from(it))
+                .map(ItemTypeRefDto::from)
                 .collect(),
-            related: value
-                .related
+            links: value
+                .links
                 .iter()
-                .map(|i| return ItemDto::from(i))
+                .map(ItemLinkDto::from)
                 .collect(),
         }
     }

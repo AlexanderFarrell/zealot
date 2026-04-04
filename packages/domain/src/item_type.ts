@@ -15,12 +15,30 @@ export class ItemType {
     }
 }
 
+export class ItemTypeRef {
+    public readonly TypeID: number;
+    public readonly IsSystem: boolean;
+    public Name: string;
+
+    public constructor(dto: ItemTypeRefDto) {
+        this.TypeID = dto.type_id;
+        this.IsSystem = dto.is_system;
+        this.Name = dto.name;
+    }
+}
+
 export interface ItemTypeDto {
     type_id: number;
     name: string;
     description: string;
     is_system: boolean;
     required_attributes: string[];
+}
+
+export interface ItemTypeRefDto {
+    type_id: number;
+    name: string;
+    is_system: boolean;
 }
 
 export interface AddItemTypeDto {
@@ -35,4 +53,3 @@ export interface UpdateItemTypeDto {
     description?: string;
     required_attributes?: string[];
 }
-

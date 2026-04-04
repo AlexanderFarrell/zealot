@@ -1,5 +1,11 @@
+use std::collections::HashMap;
+
 use sqlx::PgPool;
-use zealot_app::repos::item_type::ItemTypeRepo;
+use zealot_app::repos::{common::RepoError, item_type::ItemTypeRepo};
+use zealot_domain::{
+    common::id::Id,
+    item_type::{AddItemTypeDto, ItemType, ItemTypeRef, UpdateItemTypeDto},
+};
 
 #[derive(Debug)]
 pub struct ItemTypePostgresRepo {
@@ -13,72 +19,82 @@ impl ItemTypePostgresRepo {
 }
 
 impl ItemTypeRepo for ItemTypePostgresRepo {
-    fn get_item_types(
-        &self,
-        account_id: &zealot_domain::common::id::Id,
-    ) -> Result<Vec<zealot_domain::item_type::ItemType>, zealot_app::repos::common::RepoError> {
+    fn get_item_types(&self, _account_id: &Id) -> Result<Vec<ItemType>, RepoError> {
+        let _ = &self.pool;
         todo!()
     }
 
-    fn get_item_type(
-        &self,
-        item_type_id: &zealot_domain::common::id::Id,
-        account_id: &zealot_domain::common::id::Id,
-    ) -> Result<Option<zealot_domain::item_type::ItemType>, zealot_app::repos::common::RepoError>
-    {
+    fn get_item_type(&self, _item_type_id: &Id, _account_id: &Id) -> Result<Option<ItemType>, RepoError> {
+        let _ = &self.pool;
         todo!()
     }
 
-    fn get_item_type_by_name(
-        &self,
-        name: &str,
-        account_id: &zealot_domain::common::id::Id,
-    ) -> Result<Option<zealot_domain::item_type::ItemType>, zealot_app::repos::common::RepoError>
-    {
+    fn get_item_type_by_name(&self, _name: &str, _account_id: &Id) -> Result<Option<ItemType>, RepoError> {
+        let _ = &self.pool;
         todo!()
     }
 
-    fn get_item_types_for_item(
+    fn get_item_type_refs_for_items(
         &self,
-        item_id: &zealot_domain::common::id::Id,
-        account_id: &zealot_domain::common::id::Id,
-    ) -> Result<Vec<zealot_domain::item_type::ItemType>, zealot_app::repos::common::RepoError> {
+        _item_ids: &Vec<Id>,
+        _account_id: &Id,
+    ) -> Result<HashMap<Id, Vec<ItemTypeRef>>, RepoError> {
+        let _ = &self.pool;
         todo!()
     }
 
-    fn add_item_type(
-        &self,
-        dto: &zealot_domain::item_type::AddItemTypeDto,
-        account_id: &zealot_domain::common::id::Id,
-    ) -> Result<Option<zealot_domain::item_type::ItemType>, zealot_app::repos::common::RepoError>
-    {
+    fn get_item_ids_for_type_name(&self, _name: &str, _account_id: &Id) -> Result<Vec<Id>, RepoError> {
+        let _ = &self.pool;
         todo!()
     }
 
-    fn update_item_type(
-        &self,
-        dto: &zealot_domain::item_type::UpdateItemTypeDto,
-        account_id: &zealot_domain::common::id::Id,
-    ) -> Result<Option<zealot_domain::item_type::ItemType>, zealot_app::repos::common::RepoError>
-    {
+    fn add_item_type(&self, _dto: &AddItemTypeDto, _account_id: &Id) -> Result<Option<ItemType>, RepoError> {
+        let _ = &self.pool;
+        todo!()
+    }
+
+    fn update_item_type(&self, _dto: &UpdateItemTypeDto, _account_id: &Id) -> Result<Option<ItemType>, RepoError> {
+        let _ = &self.pool;
         todo!()
     }
 
     fn add_attr_kinds_to_item_type(
         &self,
-        attr_kinds: &Vec<String>,
-        item_type_id: &zealot_domain::common::id::Id,
-        account_id: &zealot_domain::common::id::Id,
-    ) -> Result<(), zealot_app::repos::common::RepoError> {
+        _attr_kinds: &Vec<String>,
+        _item_type_id: &Id,
+        _account_id: &Id,
+    ) -> Result<(), RepoError> {
+        let _ = &self.pool;
         todo!()
     }
 
     fn remove_attr_kinds_from_item_type(
         &self,
-        attr_kinds: &Vec<String>,
-        item_type_id: &zealot_domain::common::id::Id,
-        account_id: &zealot_domain::common::id::Id,
-    ) -> Result<(), zealot_app::repos::common::RepoError> {
+        _attr_kinds: &Vec<String>,
+        _item_type_id: &Id,
+        _account_id: &Id,
+    ) -> Result<(), RepoError> {
+        let _ = &self.pool;
+        todo!()
+    }
+
+    fn assign_item_types(
+        &self,
+        _type_names: &Vec<String>,
+        _item_id: &Id,
+        _account_id: &Id,
+    ) -> Result<(), RepoError> {
+        let _ = &self.pool;
+        todo!()
+    }
+
+    fn unassign_item_types(
+        &self,
+        _type_names: &Vec<String>,
+        _item_id: &Id,
+        _account_id: &Id,
+    ) -> Result<(), RepoError> {
+        let _ = &self.pool;
         todo!()
     }
 }
