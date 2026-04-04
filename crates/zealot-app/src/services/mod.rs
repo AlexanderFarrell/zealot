@@ -8,6 +8,7 @@ use crate::{
         analysis::AnalysisService,
         attribute::AttributeService,
         auth::AuthService,
+        comment::CommentService,
         item::ItemService,
         item_type::ItemTypeService,
     },
@@ -34,6 +35,7 @@ pub struct ZealotServices {
     pub analysis: Arc<AnalysisService>,
     pub attribute: Arc<AttributeService>,
     pub auth: Arc<AuthService>,
+    pub comment: Arc<CommentService>,
     pub item: Arc<ItemService>,
     pub item_type: Arc<ItemTypeService>,
 
@@ -43,18 +45,22 @@ pub struct ZealotServices {
 
 impl ZealotServices {
     pub fn new(ports: ZealotPorts, repos: ZealotRepos) -> Self {
+        let item = Arc::new(ItemService::new(
+            &repos.item,
+            &repos.item_attribute_value,
+            &repos.item_link,
+            &repos.item_type,
+            &repos.attribute,
+        ));
+        let comment = Arc::new(CommentService::new(&repos.comment, &item));
+
         Self {
             account: Arc::new(AccountService::new(&repos.account)),
             analysis: Arc::new(AnalysisService::new(&repos.item)),
             attribute: Arc::new(AttributeService::new(&repos.attribute)),
             auth: Arc::new(AuthService::new(&repos.account, &ports.password, &repos.session)),
-            item: Arc::new(ItemService::new(
-                &repos.item,
-                &repos.item_attribute_value,
-                &repos.item_link,
-                &repos.item_type,
-                &repos.attribute,
-            )),
+            comment,
+            item,
             item_type: Arc::new(ItemTypeService::new(&repos.item_type)),
             repos,
             ports,

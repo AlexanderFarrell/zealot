@@ -15,13 +15,6 @@ use crate::{
 // Domain
 
 #[derive(Debug, Clone)]
-pub struct ItemCore {
-    pub item_id: Id,
-    pub title: String,
-    pub content: String,
-}
-
-#[derive(Debug, Clone)]
 pub struct Item {
     pub item_id: Id,
     pub title: String,
@@ -29,6 +22,13 @@ pub struct Item {
     pub attributes: HashMap<String, Attribute>,
     pub types: Vec<ItemTypeRef>,
     pub links: Vec<ItemLink>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ItemCore {
+    pub item_id: Id,
+    pub title: String,
+    pub content: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

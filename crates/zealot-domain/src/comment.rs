@@ -6,6 +6,17 @@ use crate::{
     item::{Item, ItemDto, ItemError},
 };
 
+/// Lightweight comment as returned directly by the repo.
+/// The `item_id` is used by the service layer to hydrate the full `Item`.
+#[derive(Debug, Clone)]
+pub struct CommentCore {
+    pub comment_id: Id,
+    pub item_id: Id,
+    pub timestamp: NaiveDateTime,
+    pub content: String,
+}
+
+/// Fully hydrated comment with the associated `Item`.
 #[derive(Debug, Clone)]
 pub struct Comment {
     pub comment_id: Id,

@@ -3,6 +3,7 @@ pub mod common;
 mod middleware;
 mod auth;
 mod attribute;
+mod comment;
 mod item;
 mod item_type;
 
@@ -28,6 +29,7 @@ fn build_router(state: AppState) -> Router {
     Router::new()
         .nest("/health", health::routes())
         .nest("/auth", auth::routes(state.clone()))
+        .nest("/comment", comment::routes(state.clone()))
         .nest("/item", item::routes(state.clone()))
         .nest("/item_type", item_type::routes(state.clone()))
         .nest("/attribute", attribute::routes(state.clone()))
