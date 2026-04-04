@@ -3,11 +3,24 @@ use std::fmt::Display;
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
-use crate::item::{Item, ItemDto};
+use crate::{
+    common::id::Id,
+    item::{Item, ItemDto},
+};
 
 pub struct RepeatEntry {
     pub status: RepeatStatus,
     pub item: Item,
+    pub date: NaiveDate,
+    pub comment: String,
+}
+
+/// Lightweight repeat entry returned directly by the repo.
+/// The service layer hydrates the full Item.
+#[derive(Debug, Clone)]
+pub struct RepeatEntryCore {
+    pub item_id: Id,
+    pub status: RepeatStatus,
     pub date: NaiveDate,
     pub comment: String,
 }
@@ -75,6 +88,17 @@ impl Display for RepeatStatus {
         };
 
         write!(f, "{value}")
+    }
+}
+
+impl From<RepeatEntry> for RepeatEntryDto {
+    fn from(e: RepeatEntry) -> Self {
+        Self {
+            status: e.status.to_string(),
+            item: ItemDto::from(&e.item),
+            date: e.date.format("%Y-%m-%d").to_string(),
+            comment: e.comment,
+        }
     }
 }
 

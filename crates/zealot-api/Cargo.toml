@@ -13,5 +13,9 @@ time.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
+mime_guess.workspace = true
+sha2.workspace = true
+hex.workspace = true
+
 zealot-domain = {"path" = "../zealot-domain"}
 zealot-app = {"path" = "../zealot-app"}

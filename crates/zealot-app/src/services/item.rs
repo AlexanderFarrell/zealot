@@ -95,6 +95,14 @@ impl ItemService {
         self.hydrate_items(items, &account.account_id)
     }
 
+    pub fn get_items_by_ids(
+        &self,
+        item_ids: &Vec<Id>,
+        account: &Account,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        self.hydrate_item_ids(item_ids, account)
+    }
+
     pub fn search_items_by_title(
         &self,
         term: &str,

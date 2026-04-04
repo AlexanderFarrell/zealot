@@ -15,16 +15,17 @@ impl RepeatPostgresRepo {
 impl RepeatRepo for RepeatPostgresRepo {
     fn get_for_day(
         &self,
-        day: &sqlx::types::chrono::NaiveDate,
-        account: &zealot_domain::account::Account,
-    ) -> Result<Vec<zealot_domain::repeat::RepeatEntry>, zealot_app::repos::common::RepoError> {
+        _day: &sqlx::types::chrono::NaiveDate,
+        _account: &zealot_domain::account::Account,
+    ) -> Result<Vec<zealot_domain::repeat::RepeatEntryCore>, zealot_app::repos::common::RepoError>
+    {
         todo!()
     }
 
     fn set_status(
         &self,
-        dto: &zealot_domain::repeat::RepeatEntryDto,
-        account: &zealot_domain::account::Account,
+        _dto: &zealot_domain::repeat::UpdateRepeatEntryDto,
+        _account: &zealot_domain::account::Account,
     ) -> Result<(), zealot_app::repos::common::RepoError> {
         todo!()
     }

@@ -11,6 +11,8 @@ use crate::{
         comment::CommentService,
         item::ItemService,
         item_type::ItemTypeService,
+        media::MediaService,
+        repeat::RepeatService,
     },
 };
 
@@ -38,6 +40,8 @@ pub struct ZealotServices {
     pub comment: Arc<CommentService>,
     pub item: Arc<ItemService>,
     pub item_type: Arc<ItemTypeService>,
+    pub media: Arc<MediaService>,
+    pub repeat: Arc<RepeatService>,
 
     pub ports: ZealotPorts,
     pub repos: ZealotRepos,
@@ -53,6 +57,9 @@ impl ZealotServices {
             &repos.attribute,
         ));
         let comment = Arc::new(CommentService::new(&repos.comment, &item));
+        let repeat = Arc::new(RepeatService::new(&repos.repeat, &item));
+
+        let media = Arc::new(MediaService::new(&ports.media));
 
         Self {
             account: Arc::new(AccountService::new(&repos.account)),
@@ -62,6 +69,8 @@ impl ZealotServices {
             comment,
             item,
             item_type: Arc::new(ItemTypeService::new(&repos.item_type)),
+            media,
+            repeat,
             repos,
             ports,
         }

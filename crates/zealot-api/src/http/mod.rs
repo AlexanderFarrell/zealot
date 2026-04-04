@@ -6,6 +6,8 @@ mod attribute;
 mod comment;
 mod item;
 mod item_type;
+mod media;
+mod repeat;
 
 use axum::Router;
 use zealot_app::{
@@ -33,5 +35,7 @@ fn build_router(state: AppState) -> Router {
         .nest("/item", item::routes(state.clone()))
         .nest("/item_type", item_type::routes(state.clone()))
         .nest("/attribute", attribute::routes(state.clone()))
+        .nest("/media", media::routes(state.clone()))
+        .nest("/repeat", repeat::routes(state.clone()))
         .with_state(state)
 }
