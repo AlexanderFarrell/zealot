@@ -13,6 +13,7 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "zealot_data", "zealot.db")
 EXPECTED_MIGRATIONS = [
     "initial schema",
     "account split full name",
+    "backfill parent links",
 ]
 
 EXPECTED_SYSTEM_ATTRIBUTE_KINDS = [

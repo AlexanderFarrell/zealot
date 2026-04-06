@@ -17,8 +17,8 @@ use crate::http::{common::HttpError, middleware::auth_middleware};
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/", get(get_item_types).post(add_item_type))
-        .route("/:type_id", get(get_item_type).patch(update_item_type))
-        .route("/:type_id/attr_kind", post(add_attr_kinds).delete(remove_attr_kinds))
+        .route("/{type_id}", get(get_item_type).patch(update_item_type))
+        .route("/{type_id}/attr_kind", post(add_attr_kinds).delete(remove_attr_kinds))
         .route_layer(middleware::map_request_with_state(state.clone(), auth_middleware))
         .with_state(state)
 }

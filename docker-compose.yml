@@ -1,0 +1,42 @@
+services:
+  server:
+    build: 
+      context: .
+      dockerfile: apps/server/Dockerfile
+    image: zealot-server:local
+    environment:
+      DATABASE: sqlite
+      DB_FILENAME: /data/zealot.db
+      MEDIA_SOURCE: FILESYSTEM
+      MEDIA_PATH: /data/public
+      PORT: "8456"
+    ports:
+      - "8456:8456"
+    volumes:
+      - zealot_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8456/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    image: zealot-web:local
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - "8085:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+volumes:
+  zealot_data:

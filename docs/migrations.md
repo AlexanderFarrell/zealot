@@ -8,10 +8,12 @@ Zealot manages schema changes through versioned SQL migration files. Migrations 
 crates/zealot-infra/migrations/
 ├── postgres/
 │   ├── 0001_initial_schema.sql
-│   └── 0002_account_split_full_name.sql
+│   ├── 0002_account_split_full_name.sql
+│   └── 0003_backfill_parent_links.sql
 └── sqlite/
     ├── 0001_initial_schema.sql
-    └── 0002_account_split_full_name.sql
+    ├── 0002_account_split_full_name.sql
+    └── 0003_backfill_parent_links.sql
 ```
 
 Each supported database engine has its own subdirectory. When you add a schema change, you generally need a file in both `postgres/` and `sqlite/` — or just the one that applies if the change is engine-specific.
