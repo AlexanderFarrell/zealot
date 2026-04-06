@@ -1,91 +1,75 @@
-import {account} from "@zealot/domain";
-import {get_req, post_req} from "@websoil/engine";
+import { get_json, post_json, post_req } from "@websoil/engine";
 import { BaseAPI } from "./common";
-import { Account } from "@zealot/domain/src/account";
+import { Account, type AccountDto, type LoginBasicDto, type RegisterBasicDto } from "@zealot/domain/src/account";
 
 export class AuthAPI extends BaseAPI {
     public Account: Account | null;
     public Basic: BasicAuthAPI;
 
     public constructor(baseURL: string) {
-        let onLogin = (dto: account.AccountDto) => {
-            this.Account = new Account(dto);
-        }
-
-        super(baseURL)
-        this.Basic = new BasicAuthAPI(baseURL, onLogin);
+        super(baseURL);
         this.Account = null;
+        this.Basic = new BasicAuthAPI(baseURL,
+            (dto) => { this.Account = new Account(dto); },
+            ()    => { this.Account = null; }
+        );
     }
 
-    public async IsLoggedIn() {
+    public async IsLoggedIn(): Promise<boolean> {
         if (this.Account != null) {
-            return false;
+            return true;
         }
-
         try {
-            const response = await get_req(`${this.baseUrl}/account/is_logged_in`);
-            return response.ok || response.status == 201;
-        } catch (e) {
+            const dto = await get_json(`${this.baseUrl}/auth/is_logged_in`) as AccountDto;
+            this.Account = new Account(dto);
+            return true;
+        } catch {
             return false;
         }
     }
 }
 
 class BasicAuthAPI extends BaseAPI {
-    private onLogin: (dto: account.AccountDto) => void;
+    private onLogin: (dto: AccountDto) => void;
+    private onLogout: () => void;
 
-    public constructor(baseUrl: string, onLogin: (dto: account.AccountDto) => void)  {
-        super(baseUrl)
+    public constructor(
+        baseUrl: string,
+        onLogin: (dto: AccountDto) => void,
+        onLogout: () => void,
+    ) {
+        super(baseUrl);
         this.onLogin = onLogin;
+        this.onLogout = onLogout;
     }
 
-    async login(dto: account.LoginBasicDto) {
-        const response = await post_req(`${this.baseUrl}/account/login`, {
+    public async login(dto: LoginBasicDto): Promise<Account> {
+        const data = await post_json(`${this.baseUrl}/auth/login`, {
             username: dto.username,
-            password: dto.password
-        })  
-        this.onLoginAttempt(response);        
+            password: dto.password,
+        }) as AccountDto;
+        this.onLogin(data);
+        return new Account(data);
     }
 
-    async register(dto: account.RegisterBasicDto) {
-        if (dto.password != dto.confirm) {
+    public async register(dto: RegisterBasicDto): Promise<Account> {
+        if (dto.password !== dto.confirm) {
             throw new Error("Passwords do not match.");
         }
-        const response = await post_req(`${this.baseUrl}/account/register`, {
+        const data = await post_json(`${this.baseUrl}/auth/register`, {
             username: dto.username,
             password: dto.password,
             confirm: dto.confirm,
             email: dto.email,
             given_name: dto.given_name,
-            surname: dto.surname
-        })
-        this.onLoginAttempt(response)
+            surname: dto.surname,
+        }) as AccountDto;
+        this.onLogin(data);
+        return new Account(data);
     }
 
-    async logout() {
-        await get_req(`${this.baseUrl}/account/logout`);
-    }
-
-    private async onLoginAttempt(response: Response) {
-        if (response.status == 200 || response.status == 201) {
-            let data = await response.json();
-            this.onLogin({
-                account_id: data['account_id'],
-                username: data['username'],
-                email: data['email'],
-                given_name: data['given_name'],
-                surname: data['surname']
-            })
-        } else {
-            let error = "Server error";
-            try {
-                error = await response.text();
-            }
-            catch (e) {
-                console.error(e)
-            }
-            throw new Error(error);
-        }
+    public async logout(): Promise<void> {
+        await post_req(`${this.baseUrl}/auth/logout`, {});
+        this.onLogout();
     }
 }
-

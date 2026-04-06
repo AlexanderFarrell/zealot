@@ -21,7 +21,7 @@ pub fn routes(state: AppState) -> Router<AppState> {
         // Specific routes before wildcard routes.
         .route("/mkdir", post(make_folder))
         .route("/rename", patch(rename))
-        .route("/*path", get(get_entry).post(upload).delete(delete_entry))
+        .route("/{*path}", get(get_entry).post(upload).delete(delete_entry))
         // Catch root path (no trailing segment).
         .route("/", get(get_root))
         .route_layer(middleware::map_request_with_state(state.clone(), auth_middleware))

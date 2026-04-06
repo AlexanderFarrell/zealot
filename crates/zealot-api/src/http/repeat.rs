@@ -13,7 +13,7 @@ use crate::http::{common::HttpError, middleware::auth_middleware};
 
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
-        .route("/day/:date", get(get_for_day))
+        .route("/day/{date}", get(get_for_day))
         .route("/status", put(set_status))
         .route_layer(middleware::map_request_with_state(state.clone(), auth_middleware))
         .with_state(state)

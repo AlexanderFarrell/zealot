@@ -17,10 +17,10 @@ use crate::http::{common::HttpError, middleware::auth_middleware};
 
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
-        .route("/day/:date", get(get_for_day))
-        .route("/item/:item_id", get(get_for_item))
+        .route("/day/{date}", get(get_for_day))
+        .route("/item/{item_id}", get(get_for_item))
         .route("/", post(add_comment))
-        .route("/:comment_id", patch(update_comment).delete(delete_comment))
+        .route("/{comment_id}", patch(update_comment).delete(delete_comment))
         .route_layer(middleware::map_request_with_state(state.clone(), auth_middleware))
         .with_state(state)
 }
