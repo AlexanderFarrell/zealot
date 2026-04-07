@@ -1,11 +1,11 @@
 import { BasicAPI } from "@websoil/engine";
-import { delete_req, LazyData, post_req } from "@websoil/engine/src/api/api_helper";
+import { delete_req, get_json, LazyData, post_req } from "@websoil/engine/src/api/api_helper";
 import { ItemType } from "@zealot/domain/src/item_type";
 import type { AddItemTypeDto, ItemTypeDto, UpdateItemTypeDto } from "@zealot/domain/src/item_type";
 
 
-export class ItemTypeAPI extends BasicAPI<ItemType, ItemTypeDto, 
-    AddItemTypeDto, UpdateItemTypeDto> 
+export class ItemTypeAPI extends BasicAPI<ItemType, ItemTypeDto,
+    AddItemTypeDto, UpdateItemTypeDto>
 {
     public Types: LazyData<Record<string, ItemType>>;
 
@@ -23,19 +23,25 @@ export class ItemTypeAPI extends BasicAPI<ItemType, ItemTypeDto,
             return types;
         }
 
-        super(`${baseURL}/item/type`, dto_factory)
+        super(`${baseURL}/item_type`, dto_factory)
         this.Types = new LazyData(types_source)
     }
 
-    async assign(attribute_keys: string[], item_type_name: string) {
-        return post_req(`${this.URL}/assign/${item_type_name}`, {
-            attribute_kinds: attribute_keys
-        })
+    // Backend uses GET /item_type/{type_id} (no /id/ segment)
+    async get_by_id(id: number): Promise<ItemType | null> {
+        try {
+            const dto = await get_json(`${this.URL}/${id}`) as ItemTypeDto;
+            return this.Factory(dto);
+        } catch {
+            return null;
+        }
     }
 
-    async unassign(attribute_keys: string[], item_type_name: string) {
-        return delete_req(`${this.URL}/assign/${item_type_name}`, {
-            attribute_kinds: attribute_keys
-        })
+    async assign(type_id: number, attribute_keys: string[]) {
+        return post_req(`${this.URL}/${type_id}/attr_kind`, attribute_keys)
+    }
+
+    async unassign(type_id: number, attribute_keys: string[]) {
+        return delete_req(`${this.URL}/${type_id}/attr_kind`, attribute_keys)
     }
 }

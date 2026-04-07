@@ -15,11 +15,11 @@ export class AttributeAPI extends BaseAPI {
 
     public async set_value(item_id: number, key: string, value: string) {
         await patch_req(`${this.baseUrl}/item/${item_id}/attr`, {
-            key: value
+            [key]: value
         })
     }
 
     public async remove(item_id: number, key: string) {
-        await delete_req(`${this.baseUrl}/item/${item_id}/${key}`)
+        await delete_req(`${this.baseUrl}/item/${item_id}/attr/${key}`)
     }
 }

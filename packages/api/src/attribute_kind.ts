@@ -25,7 +25,7 @@ export class AttributeKindAPI extends BasicAPI<AttributeKind, AttributeKindDto, 
             return kinds;
         }
 
-        super(`${baseURL}/item/kind`, dto_factory)
+        super(`${baseURL}/attribute`, dto_factory)
         this.Kinds = new LazyData(kinds_source)
     }
 

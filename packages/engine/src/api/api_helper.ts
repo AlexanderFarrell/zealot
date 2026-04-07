@@ -162,6 +162,17 @@ export async function patch_req(url: string, data: any, on_error: string = `Fail
     return requestWithHandling(url, init, on_error, (response) => response);
 }
 
+export async function put_req(url: string, data: any, on_error: string = `Failed to put ${url}`) {
+    const init = await buildRequestInit(
+        "PUT",
+        {
+            "Content-Type": "application/json"
+        },
+        JSON.stringify(data),
+    );
+    return requestWithHandling(url, init, on_error, (response) => response);
+}
+
 export async function delete_req(url: string, data: any = {}, on_error: string = `Failed to delete ${url}`) {
     const init = await buildRequestInit(
         "DELETE",

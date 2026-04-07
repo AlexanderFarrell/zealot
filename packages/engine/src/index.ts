@@ -2,8 +2,8 @@ import * as api from './api/api_helper';
 import * as commands from './ui/commands';
 import * as hotkeys from './ui/hotkeys';
 import { Events } from './logic/events';
-import { withCsrf, get_json, get_blob, get_req, post_json, 
-    post_req, patch_json, patch_req, post_req_form_data, delete_req, BasicAPI } from './api/api_helper';
+import { withCsrf, get_json, get_blob, get_req, post_json,
+    post_req, patch_json, patch_req, put_req, post_req_form_data, delete_req, BasicAPI } from './api/api_helper';
 import { BaseAPIElement, BaseElementEmpty, BaseElement } from './ui/base_element';
 import { Popups } from './ui/popups';
 import * as graphs from './ui/graphs';
@@ -24,6 +24,7 @@ export {
     post_req,
     patch_json,
     patch_req,
+    put_req,
     post_req_form_data,
     delete_req,
     BasicAPI,
