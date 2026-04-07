@@ -11,6 +11,7 @@
     },
     "dependencies": {
         "mitt": "^3.0.1",
+        "@zealot/api": "file:../api",
         "@zealot/domain": "file:../domain",
         "@zealot/content": "file:../content",
         "@websoil/engine": "file:../engine"

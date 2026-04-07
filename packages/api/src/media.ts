@@ -1,4 +1,4 @@
-import { FileStat, FileStatDto } from "@zealot/domain/src/media";
+import { FileStat, type FileStatDto } from "@zealot/domain/src/media";
 import { BaseAPI } from "./common";
 import { delete_req, get_json, patch_req, post_req, post_req_form_data } from "@websoil/engine";
 

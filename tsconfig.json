@@ -1,4 +1,16 @@
 {
   "extends": "./tsconfig.base.json",
-  "files": []
+  "files": [],
+  "references": [
+    { "path": "./packages/domain" },
+    { "path": "./packages/schemas" },
+    { "path": "./packages/core" },
+    { "path": "./packages/commands" },
+    { "path": "./packages/api" },
+    { "path": "./packages/content" },
+    { "path": "./packages/engine" },
+    { "path": "./packages/theme" },
+    { "path": "./packages/ui" },
+    { "path": "./apps/web" }
+  ]
 }
