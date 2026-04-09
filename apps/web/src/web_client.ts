@@ -7,16 +7,16 @@ class ZealotWebClient extends BaseElementEmpty {
         // A lot should come from shared components.
         this.innerHTML = `
         <header-bar></header-bar>
-        <main>
+        <main id="main_web_ui">
             <side-buttons class="desktop_only"></side-buttons>
-            <side-bar id="left_side_bar"></side-bar>
-            <center-content></center-content>
-            <side-bar id="right_side_bar"></side-bar>
+            <side-bar id="left_side_bar">a</side-bar>
+            <center-content>a</center-content>
+            <side-bar id="right_side_bar">a</side-bar>
         </main>
         <footer-bar></footer-bar>
-        `
+        `;
 
-        let side_buttons = new SideButtons().init(default_side_button_entries())
+        (document.querySelector("side-buttons")! as SideButtons).init(default_side_button_entries());
     }
 }
 

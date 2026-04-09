@@ -123,3 +123,4 @@ export function default_side_button_entries(): SideButtonEntry[] {
 }
 
 customElements.define('side-buttons', SideButtons);
+customElements.define('side-button', SideButton);

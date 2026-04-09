@@ -15,9 +15,11 @@ side-buttons {
 	min-height: 100vh;
 }
 
-side-buttons > icon-button {
+side-buttons > side-button {
 	display: block;
   padding: 6px;
+  width: 3em;
+  cursor: pointer;
 }
 
 icon-button {
@@ -29,6 +31,11 @@ icon-button {
   bottom: 0;
   right: 0;
   padding: 5px;
+}
+
+#main_web_ui {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
 }
 
 popup- {

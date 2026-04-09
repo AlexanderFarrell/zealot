@@ -10,15 +10,16 @@
         "lint": "eslint src"
     },
     "dependencies": {
-        "mitt": "^3.0.1",
+        "@websoil/engine": "file:../engine",
         "@zealot/api": "file:../api",
-        "@zealot/domain": "file:../domain",
         "@zealot/content": "file:../content",
-        "@websoil/engine": "file:../engine"
+        "@zealot/domain": "file:../domain",
+        "dockview-core": "^5.2.0",
+        "mitt": "^3.0.1"
     },
     "devDependencies": {
-        "typescript": "^5.9.3",
         "eslint": "^10.0.3",
-        "sass": "^1.98.0"
+        "sass": "^1.98.0",
+        "typescript": "^5.9.3"
     }
 }
