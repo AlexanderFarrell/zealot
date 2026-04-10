@@ -152,7 +152,13 @@ fn decode_scalar_from_cols(
 
 fn scalar_to_cols(
     scalar: &AttributeScalar,
-) -> (Option<String>, Option<f64>, Option<i64>, Option<i64>, Option<i64>) {
+) -> (
+    Option<String>,
+    Option<f64>,
+    Option<i64>,
+    Option<i64>,
+    Option<i64>,
+) {
     match scalar {
         AttributeScalar::Text(s) => (Some(s.clone()), None, None, None, None),
         AttributeScalar::Dropdown(s) => (Some(s.clone()), None, None, None, None),
@@ -277,7 +283,78 @@ enum SqlValue {
     Float(f64),
 }
 
-fn attr_filter_col_and_val(value: &Value) -> Result<(&'static str, SqlValue), RepoError> {
+fn attr_filter_col_and_val(
+    filter: &AttributeFilter,
+    kind_map: &HashMap<String, AttributeBaseScalarType>,
+) -> Result<(&'static str, SqlValue), RepoError> {
+    if let Some(base_type) = kind_map.get(&filter.key) {
+        return match base_type {
+            AttributeBaseScalarType::Text
+            | AttributeBaseScalarType::Dropdown
+            | AttributeBaseScalarType::Week => match &filter.value {
+                Value::String(value) => Ok(("value_text", SqlValue::Str(value.clone()))),
+                _ => Err(RepoError::DatabaseError {
+                    err: format!("filter '{}' expects a string value", filter.key),
+                }),
+            },
+            AttributeBaseScalarType::Integer => match &filter.value {
+                Value::Number(value) => value
+                    .as_i64()
+                    .map(|value| ("value_int", SqlValue::Int(value)))
+                    .ok_or(RepoError::DatabaseError {
+                        err: format!("filter '{}' expects an integer value", filter.key),
+                    }),
+                _ => Err(RepoError::DatabaseError {
+                    err: format!("filter '{}' expects an integer value", filter.key),
+                }),
+            },
+            AttributeBaseScalarType::Boolean => match &filter.value {
+                Value::Bool(value) => Ok(("value_int", SqlValue::Int(*value as i64))),
+                _ => Err(RepoError::DatabaseError {
+                    err: format!("filter '{}' expects a boolean value", filter.key),
+                }),
+            },
+            AttributeBaseScalarType::Decimal => match &filter.value {
+                Value::Number(value) => value
+                    .as_f64()
+                    .map(|value| ("value_num", SqlValue::Float(value)))
+                    .ok_or(RepoError::DatabaseError {
+                        err: format!("filter '{}' expects a numeric value", filter.key),
+                    }),
+                _ => Err(RepoError::DatabaseError {
+                    err: format!("filter '{}' expects a numeric value", filter.key),
+                }),
+            },
+            AttributeBaseScalarType::Date => match &filter.value {
+                Value::String(value) => {
+                    let date = NaiveDate::parse_from_str(value, "%Y-%m-%d").map_err(|err| {
+                        RepoError::DatabaseError {
+                            err: format!("filter '{}' expects YYYY-MM-DD: {}", filter.key, err),
+                        }
+                    })?;
+                    let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
+                    let days = date.signed_duration_since(epoch).num_days();
+                    Ok(("value_date", SqlValue::Int(days * 86400)))
+                }
+                _ => Err(RepoError::DatabaseError {
+                    err: format!("filter '{}' expects a date string", filter.key),
+                }),
+            },
+            AttributeBaseScalarType::Item => match &filter.value {
+                Value::Number(value) => value
+                    .as_i64()
+                    .map(|value| ("value_item_id", SqlValue::Int(value)))
+                    .ok_or(RepoError::DatabaseError {
+                        err: format!("filter '{}' expects an item id", filter.key),
+                    }),
+                _ => Err(RepoError::DatabaseError {
+                    err: format!("filter '{}' expects an item id", filter.key),
+                }),
+            },
+        };
+    }
+
+    let value = &filter.value;
     match value {
         Value::String(s) => Ok(("value_text", SqlValue::Str(s.clone()))),
         Value::Number(n) => {
@@ -298,7 +375,10 @@ fn attr_filter_col_and_val(value: &Value) -> Result<(&'static str, SqlValue), Re
     }
 }
 
-fn build_attr_filter_clause(filter: &AttributeFilter) -> Result<(String, Vec<SqlValue>), RepoError> {
+fn build_attr_filter_clause(
+    filter: &AttributeFilter,
+    kind_map: &HashMap<String, AttributeBaseScalarType>,
+) -> Result<(String, Vec<SqlValue>), RepoError> {
     let op_str = match filter.op {
         AttributeFilterOp::Equal => "=",
         AttributeFilterOp::NotEqual => "!=",
@@ -309,7 +389,7 @@ fn build_attr_filter_clause(filter: &AttributeFilter) -> Result<(String, Vec<Sql
         AttributeFilterOp::LikeCaseInsensitive => "LIKE",
     };
 
-    let (col, value) = attr_filter_col_and_val(&filter.value)?;
+    let (col, value) = attr_filter_col_and_val(filter, kind_map)?;
     let clause = match filter.list_mode {
         AttributeListMode::Any => {
             format!(
@@ -330,7 +410,7 @@ fn build_attr_filter_clause(filter: &AttributeFilter) -> Result<(String, Vec<Sql
         AttributeListMode::All => {
             return Err(RepoError::DatabaseError {
                 err: String::from("list_mode 'all' is not yet supported in SQLite"),
-            })
+            });
         }
     };
 
@@ -459,9 +539,10 @@ impl ItemAttributeValueRepo for ItemAttributeValueSqliteRepo {
             tokio::runtime::Handle::current().block_on(async move {
                 let mut where_parts = Vec::new();
                 let mut values = Vec::new();
+                let kind_map = get_kind_scalar_map(account_id_val, &pool).await?;
 
                 for filter in &filters {
-                    let (clause, clause_values) = build_attr_filter_clause(filter)?;
+                    let (clause, clause_values) = build_attr_filter_clause(filter, &kind_map)?;
                     where_parts.push(format!("({})", clause));
                     values.extend(clause_values);
                 }
@@ -485,8 +566,9 @@ impl ItemAttributeValueRepo for ItemAttributeValueSqliteRepo {
                 item_ids
                     .into_iter()
                     .map(|item_id| {
-                        Id::try_from(item_id)
-                            .map_err(|err| RepoError::DatabaseError { err: err.to_string() })
+                        Id::try_from(item_id).map_err(|err| RepoError::DatabaseError {
+                            err: err.to_string(),
+                        })
                     })
                     .collect()
             })

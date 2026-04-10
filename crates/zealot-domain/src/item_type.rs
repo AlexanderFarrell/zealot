@@ -20,6 +20,15 @@ pub struct ItemTypeRef {
     pub name: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct ItemTypeSummary {
+    pub type_id: Id,
+    pub is_system: bool,
+    pub name: String,
+    pub required_attributes_count: i64,
+    pub item_count: i64,
+}
+
 // Send DTO
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,6 +45,15 @@ pub struct ItemTypeRefDto {
     pub type_id: i64,
     pub is_system: bool,
     pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ItemTypeSummaryDto {
+    pub type_id: i64,
+    pub is_system: bool,
+    pub name: String,
+    pub required_attributes_count: i64,
+    pub item_count: i64,
 }
 
 // Receive DTOs
@@ -101,6 +119,18 @@ impl From<&ItemTypeRef> for ItemTypeRefDto {
             type_id: value.type_id.into(),
             is_system: value.is_system,
             name: value.name.clone(),
+        }
+    }
+}
+
+impl From<&ItemTypeSummary> for ItemTypeSummaryDto {
+    fn from(value: &ItemTypeSummary) -> Self {
+        Self {
+            type_id: value.type_id.into(),
+            is_system: value.is_system,
+            name: value.name.clone(),
+            required_attributes_count: value.required_attributes_count,
+            item_count: value.item_count,
         }
     }
 }

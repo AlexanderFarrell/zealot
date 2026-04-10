@@ -4,7 +4,7 @@ use sqlx::PgPool;
 use zealot_app::repos::{common::RepoError, item_type::ItemTypeRepo};
 use zealot_domain::{
     common::id::Id,
-    item_type::{AddItemTypeDto, ItemType, ItemTypeRef, UpdateItemTypeDto},
+    item_type::{AddItemTypeDto, ItemType, ItemTypeRef, ItemTypeSummary, UpdateItemTypeDto},
 };
 
 #[derive(Debug)]
@@ -24,12 +24,25 @@ impl ItemTypeRepo for ItemTypePostgresRepo {
         todo!()
     }
 
-    fn get_item_type(&self, _item_type_id: &Id, _account_id: &Id) -> Result<Option<ItemType>, RepoError> {
+    fn get_item_type_summaries(&self, _account_id: &Id) -> Result<Vec<ItemTypeSummary>, RepoError> {
         let _ = &self.pool;
         todo!()
     }
 
-    fn get_item_type_by_name(&self, _name: &str, _account_id: &Id) -> Result<Option<ItemType>, RepoError> {
+    fn get_item_type(
+        &self,
+        _item_type_id: &Id,
+        _account_id: &Id,
+    ) -> Result<Option<ItemType>, RepoError> {
+        let _ = &self.pool;
+        todo!()
+    }
+
+    fn get_item_type_by_name(
+        &self,
+        _name: &str,
+        _account_id: &Id,
+    ) -> Result<Option<ItemType>, RepoError> {
         let _ = &self.pool;
         todo!()
     }
@@ -43,17 +56,34 @@ impl ItemTypeRepo for ItemTypePostgresRepo {
         todo!()
     }
 
-    fn get_item_ids_for_type_name(&self, _name: &str, _account_id: &Id) -> Result<Vec<Id>, RepoError> {
+    fn get_item_ids_for_type_name(
+        &self,
+        _name: &str,
+        _account_id: &Id,
+    ) -> Result<Vec<Id>, RepoError> {
         let _ = &self.pool;
         todo!()
     }
 
-    fn add_item_type(&self, _dto: &AddItemTypeDto, _account_id: &Id) -> Result<Option<ItemType>, RepoError> {
+    fn add_item_type(
+        &self,
+        _dto: &AddItemTypeDto,
+        _account_id: &Id,
+    ) -> Result<Option<ItemType>, RepoError> {
         let _ = &self.pool;
         todo!()
     }
 
-    fn update_item_type(&self, _dto: &UpdateItemTypeDto, _account_id: &Id) -> Result<Option<ItemType>, RepoError> {
+    fn update_item_type(
+        &self,
+        _dto: &UpdateItemTypeDto,
+        _account_id: &Id,
+    ) -> Result<Option<ItemType>, RepoError> {
+        let _ = &self.pool;
+        todo!()
+    }
+
+    fn delete_item_type(&self, _item_type_id: &Id, _account_id: &Id) -> Result<bool, RepoError> {
         let _ = &self.pool;
         todo!()
     }

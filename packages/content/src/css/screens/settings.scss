@@ -1,9 +1,128 @@
-.attribute_kind {
-  display: grid;
-  grid-template-columns: 1fr 2fr auto auto;
+.settings-screen,
+.types-screen,
+.type-screen {
+  display: block;
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
 }
 
-.item_type {
+.settings-screen-shell,
+.type-settings-shell,
+.type-screen-shell {
   display: grid;
-  grid-template-columns: 1fr 1fr 2fr auto;
+  gap: 16px;
+}
+
+.settings-section-nav,
+.types-screen-header,
+.type-screen-header,
+.type-screen-section-header,
+.type-settings-actions,
+.type-screen-title-row,
+.type-screen-add-attribute {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-section-nav {
+  flex-wrap: wrap;
+}
+
+.settings-section-nav > button.is-active {
+  border-color: var(--fg-0);
+}
+
+.types-screen-header,
+.type-screen-header {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.types-screen-body,
+.type-screen-section,
+.settings-screen-body {
+  display: grid;
+  gap: 12px;
+}
+
+.types-summary-table,
+.type-attribute-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.types-summary-table th,
+.types-summary-table td,
+.type-attribute-table th,
+.type-attribute-table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-0);
+}
+
+.types-summary-table tbody > tr {
+  cursor: pointer;
+}
+
+.types-summary-table tbody > tr:hover {
+  background: var(--panel-1);
+}
+
+.type-row-link {
+  background: none;
+  box-shadow: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.type-screen-title-input {
+  font: inherit;
+  font-size: 2rem;
+  font-weight: 700;
+  padding: 0;
+  border: none;
+  background: transparent;
+  min-width: 240px;
+}
+
+.type-screen-not-found {
+  display: grid;
+  gap: 12px;
+  max-width: 640px;
+}
+
+.type-settings-create {
+  display: grid;
+  grid-template-columns: minmax(240px, 360px) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.type-settings-actions {
+  justify-content: flex-end;
+}
+
+.type-settings-actions > button,
+.type-screen-add-attribute > button,
+.type-screen-header > button,
+.types-screen-header > button {
+  width: auto;
+}
+
+@media (max-width: 720px) {
+  .types-screen-header,
+  .type-screen-header,
+  .type-screen-section-header,
+  .type-screen-add-attribute,
+  .type-settings-create {
+    display: grid;
+  }
+
+  .type-settings-actions {
+    justify-content: flex-start;
+  }
 }

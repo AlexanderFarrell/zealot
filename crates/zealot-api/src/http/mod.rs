@@ -1,20 +1,18 @@
-mod health;
-pub mod common;
-mod middleware;
 mod account;
-mod auth;
 mod attribute;
+mod auth;
 mod comment;
+pub mod common;
+mod health;
 mod item;
 mod item_type;
 mod media;
+mod middleware;
+mod planner;
 mod repeat;
 
 use axum::Router;
-use zealot_app::{
-    app::{AppState},
-    config::ZealotConfig,
-};
+use zealot_app::{app::AppState, config::ZealotConfig};
 
 pub async fn run_http(state: AppState, config: ZealotConfig) -> Result<(), String> {
     let router = build_router(state);
@@ -38,6 +36,7 @@ fn build_router(state: AppState) -> Router {
         .nest("/item_type", item_type::routes(state.clone()))
         .nest("/attribute", attribute::routes(state.clone()))
         .nest("/media", media::routes(state.clone()))
+        .nest("/planner", planner::routes(state.clone()))
         .nest("/repeat", repeat::routes(state.clone()))
         .with_state(state)
 }

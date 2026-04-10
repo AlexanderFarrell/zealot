@@ -6,6 +6,7 @@ import { ItemAPI } from "./item";
 import { ItemTypeAPI } from "./item_type";
 import { CommentAPI } from "./comment";
 import { MediaAPI } from "./media";
+import { PlannerAPI } from "./planner";
 import { RepeatAPI } from "./repeat";
 import { RuleAPI } from "./rule";
 
@@ -17,6 +18,7 @@ class ZealotAPI extends BaseAPI {
     public ItemType: ItemTypeAPI;
     public Comment: CommentAPI;
     public Media: MediaAPI;
+    public Planner: PlannerAPI;
     public Repeat: RepeatAPI;
     public Rule: RuleAPI;
 
@@ -29,6 +31,7 @@ class ZealotAPI extends BaseAPI {
         this.Item = new ItemAPI(baseUrl);
         this.ItemType = new ItemTypeAPI(baseUrl);
         this.Media = new MediaAPI(baseUrl);
+        this.Planner = new PlannerAPI(baseUrl);
         this.Repeat = new RepeatAPI(baseUrl);
         this.Rule = new RuleAPI(baseUrl);
     }

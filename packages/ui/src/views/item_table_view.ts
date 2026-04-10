@@ -38,6 +38,7 @@ export type ItemTableColumn =
 
 export interface ItemTableCreateRowConfig {
     contextItemId?: number;
+    defaultAttributes?: Record<string, unknown>;
     enabled: boolean;
     onSuccess?: (item: Item) => void;
     relationship?: ItemRelationship;
@@ -49,6 +50,7 @@ export interface ItemTableViewConfig {
     createRow?: ItemTableCreateRowConfig;
     emptyMessage?: string;
     items: Item[];
+    onOpenItem?: (item: Item) => void;
 }
 
 interface CreateDraftState {
@@ -261,7 +263,10 @@ export class ItemTableView extends HTMLElement {
                 return;
             }
 
-            getNavigator().openItemById(item.ItemID);
+            const openItem = this._config?.onOpenItem ?? ((targetItem: Item) => {
+                getNavigator().openItemById(targetItem.ItemID);
+            });
+            openItem(item);
         });
 
         for (const column of this._config!.columns) {
@@ -448,7 +453,9 @@ export class ItemTableView extends HTMLElement {
             return;
         }
 
-        const attributes: Record<string, unknown> = {};
+        const attributes: Record<string, unknown> = {
+            ...(createConfig.defaultAttributes ?? {}),
+        };
         for (const column of this._config!.columns) {
             if (column.kind !== 'attribute' || column.editable === false) {
                 continue;

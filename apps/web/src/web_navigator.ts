@@ -99,8 +99,8 @@ export class WebNavigator implements Navigator {
         this.navigate('/types');
     }
 
-    openType(title: string): void {
-        this.navigate(`/types/${encodeURIComponent(title)}`);
+    openType(title: string, mode: 'push' | 'replace' = 'push'): void {
+        this.navigate(`/types/${encodeURIComponent(title)}`, mode);
     }
 
     openAnalysis(): void {

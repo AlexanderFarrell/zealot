@@ -4,8 +4,10 @@ import * as item_picker_input from './views/item_picker_input';
 import * as item_chips_input from './views/item_chips_input';
 import * as item_search_inline from './views/item_search_inline';
 import * as item_table_view from './views/item_table_view';
+import * as comments_view from './views/comments_view';
 import * as auth from './auth/auth_screen';
 import { AttributeEditor } from './views/attribute_editor';
+import { CommentsView, type CommentsViewConfig } from './views/comments_view';
 import { ItemPickerInput } from './views/item_picker_input';
 import { ItemChipsInput } from './views/item_chips_input';
 import { ItemSearchInline } from './views/item_search_inline';
@@ -35,8 +37,10 @@ export {
     item_chips_input,
     item_search_inline,
     item_table_view,
+    comments_view,
     AttributeEditor,
     AddItemModal,
+    CommentsView,
     ItemPickerInput,
     ItemChipsInput,
     ItemSearchInline,
@@ -57,6 +61,7 @@ export {
 }
 
 export type {
+    CommentsViewConfig,
     ItemTableColumn,
     ItemTableCreateRowConfig,
     ItemTableViewConfig,

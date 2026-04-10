@@ -5,6 +5,7 @@ import { ConfirmDialog } from '../common/confirm_dialog';
 import { LoadingSpinner } from '../common/loading_spinner';
 import { icons } from '@zealot/content';
 import { AttributeEditor } from '../views/attribute_editor';
+import { CommentsView } from '../views/comments_view';
 import { ItemTableView, type ItemTableColumn } from '../views/item_table_view';
 
 const itemApi = new ItemAPI('/api');
@@ -122,6 +123,13 @@ export class ItemScreen extends BaseElementEmpty {
         relatedSection.style.display = related_visible ? 'block' : 'none';
         this.appendChild(relatedSection);
         void this.renderCollections(item, relatedSection);
+
+        const commentsSection = this.buildCollectionSection('Comments');
+        const commentsView = new CommentsView().init({
+            scope: { kind: 'item', itemId: item.ItemID },
+        });
+        commentsSection.content.appendChild(commentsView);
+        this.appendChild(commentsSection.section);
     }
 
     private buildActions(item: Item): HTMLElement {

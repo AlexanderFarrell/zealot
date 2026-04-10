@@ -39,7 +39,7 @@ export interface Navigator {
     openMedia(path: string): void;
     openPlanner(view: PlannerView, date?: string): void;
     openTypes(): void;
-    openType(title: string): void;
+    openType(title: string, mode?: 'push' | 'replace'): void;
     openAnalysis(): void;
     openRules(): void;
     openSettings(section?: SettingsSection): void;

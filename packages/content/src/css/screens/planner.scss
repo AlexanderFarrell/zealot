@@ -1,0 +1,135 @@
+daily-planner-screen,
+weekly-planner-screen,
+monthly-planner-screen,
+annual-planner-screen {
+  display: block;
+  width: 100%;
+  max-width: 1100px;
+  min-height: 100vh;
+  margin: 0 auto;
+}
+
+.planner-screen {
+  display: grid;
+  gap: 16px;
+  padding-bottom: 32px;
+}
+
+.planner-header {
+  display: grid;
+  gap: 12px;
+}
+
+.planner-header-title > h1 {
+  margin: 0;
+}
+
+.planner-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.planner-header-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.planner-header-button > img {
+  width: 1em;
+  height: 1em;
+}
+
+.planner-section,
+.planner-error-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--panel-1);
+  border: 1px solid var(--border-0);
+}
+
+.planner-section > h2 {
+  margin: 0;
+}
+
+.planner-section-body {
+  display: grid;
+  gap: 10px;
+}
+
+.planner-section .item-table {
+  width: 100%;
+}
+
+.planner-repeat-groups {
+  display: grid;
+  gap: 12px;
+}
+
+.planner-repeat-group {
+  display: grid;
+  gap: 8px;
+}
+
+.planner-repeat-group > h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+}
+
+.planner-repeat-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel-0) 75%, var(--bg-1) 25%);
+  border: 1px solid var(--border-1);
+}
+
+.planner-repeat-title {
+  justify-content: flex-start;
+  text-align: left;
+  box-shadow: none !important;
+}
+
+.planner-repeat-controls {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.planner-repeat-controls > input,
+.planner-repeat-controls > select {
+  width: 100%;
+}
+
+.planner-error-card > .tool-error,
+.planner-section-body > .tool-error,
+.planner-section-body > .tool-muted {
+  margin: 0;
+}
+
+@media only screen and (max-width: 768px) {
+  .planner-header-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .planner-header-button {
+    justify-content: center;
+  }
+
+  .planner-repeat-row {
+    grid-template-columns: 1fr;
+  }
+
+  .planner-repeat-controls {
+    grid-template-columns: 1fr;
+  }
+}
