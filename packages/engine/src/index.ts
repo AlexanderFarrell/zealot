@@ -7,6 +7,8 @@ import { withCsrf, get_json, get_blob, get_req, post_json,
 import { BaseAPIElement, BaseElementEmpty, BaseElement } from './ui/base_element';
 import { Popups } from './ui/popups';
 import * as graphs from './ui/graphs';
+import type { Navigator, SettingsSection, PlannerView } from './ui/navigator';
+import { setNavigator, getNavigator, registerNavigationCommands } from './ui/navigator';
 
 export {
     api,
@@ -29,5 +31,10 @@ export {
     delete_req,
     BasicAPI,
     graphs,
-    Events
+    Events,
+    setNavigator,
+    getNavigator,
+    registerNavigationCommands
 }
+
+export type { Navigator, SettingsSection, PlannerView }

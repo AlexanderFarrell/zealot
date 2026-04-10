@@ -1,4 +1,5 @@
 import { BaseAPI } from "../../../api/src/common";
+import { Events } from '../logic/events';
 
 const CSRF_COOKIE_NAME = "csfr_";
 let CSRF_READY_ENDPOINT = "/";
@@ -61,6 +62,9 @@ async function requestWithHandling<T>(
             ...init,
         });
         if (!response.ok) {
+            if (response.status === 401) {
+                Events.emit('to_auth');
+            }
             const error = new Error(`${on_error} (status ${response.status})`);
             (error as Error & { response?: Response }).response = response;
             throw error;
