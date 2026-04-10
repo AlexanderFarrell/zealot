@@ -30,6 +30,7 @@ export interface AccountDto {
     email: string;
     given_name: string;
     surname: string;
+    settings: Record<string, unknown>;
 }
 
 export interface LoginBasicDto {

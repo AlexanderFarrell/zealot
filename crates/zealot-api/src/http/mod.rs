@@ -1,6 +1,7 @@
 mod health;
 pub mod common;
 mod middleware;
+mod account;
 mod auth;
 mod attribute;
 mod comment;
@@ -24,12 +25,13 @@ pub async fn run_http(state: AppState, config: ZealotConfig) -> Result<(), Strin
 
     axum::serve(listener, router)
         .await
-        .map_err(|e| format!("Http server failed to listen"))
+        .map_err(|_e| format!("Http server failed to listen"))
 }
 
 fn build_router(state: AppState) -> Router {
     Router::new()
         .nest("/health", health::routes())
+        .nest("/account", account::routes(state.clone()))
         .nest("/auth", auth::routes(state.clone()))
         .nest("/comment", comment::routes(state.clone()))
         .nest("/item", item::routes(state.clone()))

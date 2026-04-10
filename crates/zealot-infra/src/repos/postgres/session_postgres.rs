@@ -13,9 +13,12 @@ struct AccountRow {
     email: String,
     given_name: String,
     surname: String,
+    settings: String,
 }
 
 fn row_to_account(row: AccountRow) -> Result<Account, RepoError> {
+    let settings = serde_json::from_str(&row.settings)
+        .unwrap_or(serde_json::Value::Object(Default::default()));
     Ok(Account {
         account_id: Id::try_from(row.account_id as i64)
             .map_err(|e| RepoError::DatabaseError { err: e.to_string() })?,
@@ -24,6 +27,7 @@ fn row_to_account(row: AccountRow) -> Result<Account, RepoError> {
             .map_err(|e| RepoError::DatabaseError { err: e.to_string() })?,
         given_name: row.given_name,
         surname: row.surname,
+        settings,
     })
 }
 
@@ -62,7 +66,7 @@ impl SessionRepo for SessionPostgresRepo {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
                 sqlx::query_as::<_, AccountRow>(
-                    "SELECT a.account_id, a.username, a.email, a.given_name, a.surname
+                    "SELECT a.account_id, a.username, a.email, a.given_name, a.surname, a.settings::text
                      FROM account a
                      JOIN session s ON s.account_id = a.account_id
                      WHERE s.token_hash = $1

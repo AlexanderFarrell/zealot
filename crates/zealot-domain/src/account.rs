@@ -12,6 +12,7 @@ pub struct Account {
     pub email: Email,
     pub given_name: String,
     pub surname: String,
+    pub settings: serde_json::Value,
 }
 
 pub struct APIKey(String);
@@ -25,6 +26,7 @@ pub struct AccountDto {
     pub email: String,
     pub given_name: String,
     pub surname: String,
+    pub settings: serde_json::Value,
 }
 
 // Receive DTOs
@@ -99,6 +101,7 @@ impl TryFrom<AccountDto> for Account {
             email: Email::try_from(dto.email).map_err(|err| AccountError::InvalidEmail { err })?,
             given_name: dto.given_name,
             surname: dto.surname,
+            settings: dto.settings,
         })
     }
 }
@@ -111,6 +114,7 @@ impl From<Account> for AccountDto {
             email: value.email.to_string(),
             given_name: value.given_name.clone(),
             surname: value.surname.clone(),
+            settings: value.settings,
         }
     }
 }
@@ -140,6 +144,7 @@ mod account_tests {
             email: Email::try_from(String::from("a@a.com")).unwrap(),
             given_name: String::from("Albert"),
             surname: String::from("Smith"),
+            settings: serde_json::Value::Object(Default::default()),
         }
     }
 

@@ -1,4 +1,4 @@
-import { get_json, post_json, post_req } from "@websoil/engine";
+import { get_json, patch_req, post_json, post_req } from "@websoil/engine";
 import { BaseAPI } from "./common";
 import { Account, type AccountDto, type LoginBasicDto, type RegisterBasicDto } from "@zealot/domain/src/account";
 
@@ -26,6 +26,10 @@ export class AuthAPI extends BaseAPI {
         } catch {
             return false;
         }
+    }
+
+    public async patchSettings(settings: Record<string, unknown>): Promise<void> {
+        await patch_req(`${this.baseUrl}/account/settings`, settings, 'Failed to save settings');
     }
 }
 

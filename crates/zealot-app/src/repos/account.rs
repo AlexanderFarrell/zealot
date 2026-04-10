@@ -16,4 +16,5 @@ pub trait AccountRepo: Debug + Send + Sync {
     fn delete_account(&self, account_id: &Id) -> Result<(), RepoError>;
     fn upsert_api_key(&self, account_id: &Id, key: &str) -> Result<(), RepoError>;
     fn delete_api_key(&self, account_id: &Id) -> Result<(), RepoError>;
+    fn update_settings(&self, account_id: &Id, settings: &serde_json::Value) -> Result<(), RepoError>;
 }
