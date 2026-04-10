@@ -1,4 +1,4 @@
-import { BaseElement, NavigationCommands, Popups, ToolCommands, commands } from "@websoil/engine";
+import { BaseElement, ModalCommands, NavigationCommands, Popups, ToolCommands, commands } from "@websoil/engine";
 import { icons } from "@zealot/content";
 
 interface SideButtonInfo {
@@ -49,7 +49,7 @@ export function default_side_button_entries(): SideButtonEntry[] {
         {
             Title: "New Item",
             IconURL: icons.add,
-            On: showNotImplemented,
+            Command: ModalCommands.newItem,
         },
         null,
         {

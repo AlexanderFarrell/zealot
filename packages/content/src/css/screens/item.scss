@@ -20,6 +20,7 @@ item-screen {
   min-height: 100vh;
   display: grid;
   grid-template-rows: auto auto auto auto 1fr auto auto;
+  gap: 12px;
 }
 
 item-view {
@@ -33,4 +34,90 @@ item-view {
   padding: 10px;
   border-radius: 10px;
   cursor: pointer;
+}
+
+.item-collections {
+  display: grid;
+  gap: 16px;
+}
+
+.item-collection-section {
+  display: grid;
+  gap: 8px;
+}
+
+.item-collection-section > h2 {
+  margin: 0;
+}
+
+.item-collection-content {
+  display: grid;
+  gap: 8px;
+}
+
+.item-table-shell {
+  display: grid;
+  gap: 8px;
+}
+
+.item-table {
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.item-table th,
+.item-table td {
+  vertical-align: top;
+  border-bottom: 1px solid var(--border-1);
+}
+
+.item-table th {
+  padding: 8px 6px;
+  text-align: left;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.item-table-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.item-table td > input,
+.item-table td > select,
+.item-table td > chips-input,
+.item-table td > item-picker-input,
+.item-table td > item-chips-input {
+  width: 100%;
+}
+
+.item-table td > input,
+.item-table td > select {
+  background: none !important;
+  background-color: var(--transparent-0);
+  border: none !important;
+  box-shadow: none;
+  min-height: 32px;
+}
+
+.item-table-create-row {
+  background-color: color-mix(in srgb, var(--accent-0) 8%, var(--panel-0) 92%);
+}
+
+.item-table-actions,
+.item-table-actions-header {
+  width: 120px;
+}
+
+.item-table-actions > button {
+  width: 100%;
+}
+
+.item-table-empty {
+  padding: 12px 6px;
+}
+
+.item-table-error {
+  margin: 0;
 }

@@ -5,21 +5,21 @@ The original client had reusable list and table components for displaying collec
 
 Run `git diff master -- client/src/features/item/item_list_view.ts` and `git diff master -- client/src/features/item/item_table.ts` to see the originals.
 
+We want to only bring table views into this version. List view will be re-envisioned later.
+
 ## Goal
 Build reusable list and table view components for item collections.
-
-## List View (`ItemListView`)
-- Accepts an array of `Item` objects as input
-- Each row: item title (link to `/item/:title`), type badge(s), optional secondary info
-- Supports selection (single/multi) for bulk actions
-- Empty state message when list is empty
-- Optionally shows a loading skeleton while parent is fetching
 
 ## Table View (`ItemTableView`)
 - Tabular display: columns for title, type, attributes (configurable)
 - Column headers are sortable (client-side sort for now)
 - Each row is clickable — navigates to item
 - Empty state row
+- Cells are editable. There were massive changes to individual attribute_item_views so make sure these changes such as item type reflect. 
+
+For the item view, we likely will want to display at least title, type, and priority and status. 
+
+Item view should display related items, not just children.
 
 ## Usage Sites
 These components will be embedded in:

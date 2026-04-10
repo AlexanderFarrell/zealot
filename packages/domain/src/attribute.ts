@@ -11,7 +11,7 @@ export class AttributeKind {
         this.IsSystem = dto.is_system;
         this.Key = dto.key;
         this.Description = dto.description;
-        if (!(dto.base_type in AttributeBaseTypesArray)) {
+        if (!AttributeBaseTypesArray.includes(dto.base_type)) {
             throw new Error("Invalid base type for attribute kind: " + dto.base_type)
         }
         this.BaseType = dto.base_type as AttributeBaseType;
@@ -27,7 +27,8 @@ export const AttributeBaseTypesArray = [
     'week',
     'dropdown',
     'boolean',
-    'list'
+    'list',
+    'item'
 ]
 
 export const AttributeOpsArray = [

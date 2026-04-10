@@ -7,6 +7,8 @@ import { withCsrf, get_json, get_blob, get_req, post_json,
 import { BaseAPIElement, BaseElementEmpty, BaseElement } from './ui/base_element';
 import { Popups } from './ui/popups';
 import * as graphs from './ui/graphs';
+import { Hotkey, CTRL_OR_META_KEY, ALT_KEY, SHIFT_KEY } from './ui/hotkeys';
+import { ModalCommands } from './ui/modal_commands';
 import { NavigationCommands, setNavigator, getNavigator, registerNavigationCommands } from './ui/navigator';
 import { ToolCommands, getToolHost, registerToolCommands, setToolHost } from './ui/tool_host';
 import { AppSettings } from './settings';
@@ -19,6 +21,10 @@ export {
     Popups,
     commands,
     hotkeys,
+    Hotkey,
+    CTRL_OR_META_KEY,
+    ALT_KEY,
+    SHIFT_KEY,
     withCsrf,
     get_blob,
     get_json,
@@ -35,6 +41,7 @@ export {
     Events,
     ItemEvents,
     AppSettings,
+    ModalCommands,
     NavigationCommands,
     setNavigator,
     getNavigator,

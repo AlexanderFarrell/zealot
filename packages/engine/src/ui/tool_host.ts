@@ -1,5 +1,4 @@
 import runner from './commands';
-import { Hotkey, CTRL_OR_META_KEY } from './hotkeys';
 
 export type ToolView = 'search' | 'nav_tree' | 'calendar' | 'item_attributes';
 
@@ -31,7 +30,7 @@ export function getToolHost(): ToolHost {
 }
 
 export function registerToolCommands(): void {
-    runner.register(ToolCommands.searchItems, [new Hotkey('o', [CTRL_OR_META_KEY])], () => {
+    runner.register(ToolCommands.searchItems, [], () => {
         getToolHost().show('search', { focus: true });
     });
     runner.register(ToolCommands.openNavTree, [], () => getToolHost().show('nav_tree'));

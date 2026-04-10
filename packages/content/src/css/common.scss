@@ -9,6 +9,91 @@ zealot_app {
   min-height: 100vh;
 }
 
+header-bar {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  height: 48px;
+  background-color: var(--panel-1);
+  border-bottom: 1px solid var(--border-0);
+
+  button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: auto;
+    background: none;
+    box-shadow: none;
+    padding: 6px 10px;
+
+    img {
+      width: 24px;
+      height: 24px;
+    }
+
+    span {
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+  }
+}
+
+.header-bar-spacer {
+  flex: 1;
+}
+
+mobile-title-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: var(--bg-2);
+  box-shadow: 0 2px 8px var(--shadow-color-2);
+
+  #mobile_title_bar_top {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+
+    button {
+      width: auto;
+      background: none;
+      box-shadow: none;
+      padding: 6px;
+
+      img {
+        width: 28px;
+        height: 28px;
+      }
+    }
+  }
+}
+
+.mobile-dropdown {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 4px;
+  padding: 8px;
+
+  button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 4px;
+    background: none;
+    box-shadow: none;
+    font-size: 12px;
+
+    img {
+      width: 32px;
+      height: 32px;
+    }
+  }
+}
+
 side-buttons {
 	@extend .box;
   width: 40px;
@@ -333,6 +418,103 @@ calendar-view {
   gap: 6px;
 }
 
+add-item-modal,
+item-search-modal {
+  z-index: 1100;
+}
+
+.add-item-modal-window,
+.item-search-modal-window {
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  background: var(--panel-0, var(--bg-2));
+  border: 1px solid var(--border-0, var(--border-1));
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.item-search-modal-window {
+  width: min(760px, calc(100vw - 32px));
+}
+
+.add-item-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.add-item-modal-actions > button {
+  width: auto;
+}
+
+.item-search-inline {
+  position: relative;
+  display: block;
+}
+
+.item-search-inline-shell {
+  display: grid;
+  gap: 4px;
+}
+
+.item-search-inline-shell > input {
+  width: 100%;
+}
+
+.item-search-inline-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--panel-1, var(--bg-2));
+  border: 1px solid var(--border-0, var(--border-1));
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.16);
+}
+
+.item-search-inline-results[hidden] {
+  display: none;
+}
+
+.item-search-inline-row {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  justify-items: start;
+  text-align: left;
+  padding: 10px;
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+
+.item-search-inline-row.is-active {
+  background: color-mix(in srgb, var(--accent-0) 16%, transparent);
+}
+
+.item-search-inline-row-title {
+  font-weight: 600;
+}
+
+.item-search-inline-row-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.item-search-inline-status {
+  margin: 0;
+  padding: 8px;
+}
+
 .calendar-tool-nav {
   width: 38px;
   padding: 8px;
@@ -473,7 +655,7 @@ mobile-title-bar {
 
 @media only screen and (max-width: 768px) {
     .desktop_only {
-        display: none;
+        display: none !important;
     }
 
     .mobile_only {
@@ -487,11 +669,22 @@ mobile-title-bar {
     #main-display {
       grid-template-columns: 1fr;
     }
+
+    #main_web_ui {
+      grid-template-columns: 1fr;
+      padding-top: 56px; /* height of mobile-title-bar */
+    }
+
     *[name="generic_results"] {
       height: 100px;
     }
     content- {
       height: auto;
+    }
+
+    center-content {
+      height: auto;
+      min-height: calc(100vh - 56px);
     }
 }
 

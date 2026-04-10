@@ -18,9 +18,9 @@ class ChipsInput extends HTMLElement {
     private input!: HTMLInputElement;
     private enforce_unique: boolean = true;
     private on_click_item: ((item: string) => void) | null = null;
+    private _inputType: 'text' | 'number' | 'date' = 'text';
 
     public set OnClickItem(value: (item: string) => void) {
-
         this.on_click_item = value;
         let views = this.querySelectorAll('.chip_item')!
         views.forEach((v) => {
@@ -28,6 +28,17 @@ class ChipsInput extends HTMLElement {
                 this.on_click_item!((v as HTMLElement).textContent)
             })
         })
+    }
+
+    public get inputType(): 'text' | 'number' | 'date' {
+        return this._inputType;
+    }
+
+    public set inputType(t: 'text' | 'number' | 'date') {
+        this._inputType = t;
+        if (this.isConnected) {
+            this.refresh();
+        }
     }
 
     public get value(): string[] {
@@ -40,6 +51,9 @@ class ChipsInput extends HTMLElement {
         } else {
             this.items = [];
         }
+        if (this.isConnected) {
+            this.refresh();
+        }
         this.dispatchEvent(new Event('change', {bubbles: true}));
     }
 
@@ -51,11 +65,22 @@ class ChipsInput extends HTMLElement {
 
     }
 
+    private validate(item: string): boolean {
+        if (this._inputType === 'number') {
+            return item.trim() !== '' && !isNaN(parseFloat(item));
+        }
+        if (this._inputType === 'date') {
+            return /^\d{4}-\d{2}-\d{2}$/.test(item.trim());
+        }
+        return true;
+    }
+
     add_items(...items: string[]) {
+        items = items.filter(item => this.validate(item));
+        if (items.length === 0) return;
+
         if (this.enforce_unique) {
-            items = items.filter(item => {
-                return !(item in this.items);
-            })
+            items = items.filter(item => !this.items.includes(item));
             if (items.length == 0) {
                 return;
             }
@@ -85,9 +110,9 @@ class ChipsInput extends HTMLElement {
     }
 
     private refresh() {
-        this.innerHTML = `<div type="items"></div><input type="text">`;
+        this.innerHTML = `<div type="items"></div><input type="${this._inputType}">`;
         this.items_container = this.querySelector('[type="items"]')!
-        this.input = this.querySelector('[type="text"]')!;
+        this.input = this.querySelector('input')!;
 
         this.input.addEventListener('keydown', (e: KeyboardEvent) => {
             if (e.key == "Enter") {
@@ -132,7 +157,7 @@ class ChipsInput extends HTMLElement {
     remove_item_by_index(index: number) {
         let item = this.items[index];
         this.items.splice(index, 1);
-        this.refresh();       
+        this.refresh();
         this.dispatchEvent(new CustomEvent('chips-remove', {
             detail: {items: [item]}
         }));

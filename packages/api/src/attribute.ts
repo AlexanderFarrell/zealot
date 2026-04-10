@@ -13,7 +13,7 @@ export class AttributeAPI extends BaseAPI {
         })
     }
 
-    public async set_value(item_id: number, key: string, value: string) {
+    public async set_value(item_id: number, key: string, value: unknown) {
         await patch_req(`${this.baseUrl}/item/${item_id}/attr`, {
             [key]: value
         })
