@@ -1,15 +1,15 @@
-import { register_hotkey, type Hotkey } from "./hotkeys";
+import { clear_hotkeys, register_hotkey, type Hotkey } from "./hotkeys";
 
 export type UICommand = {
     name: string,
     hotkeys: Hotkey[],
-    func: Function
+    func: () => void
 }
 
 class CommandRunner {
     public Commands: Map<string, UICommand> = new Map();
 
-    register(name: string, hotkeys: Hotkey[], on: Function) {
+    register(name: string, hotkeys: Hotkey[], on: () => void) {
         this.Commands.set(name, {
             name: name,
             hotkeys: hotkeys,
@@ -47,6 +47,7 @@ class CommandRunner {
 
     clear() {
         this.Commands = new Map();
+        clear_hotkeys();
     }
 }
 

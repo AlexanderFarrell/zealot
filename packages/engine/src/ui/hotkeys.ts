@@ -6,11 +6,11 @@ export class Hotkey {
     public key: string;
     public shift_key: boolean;
     public alt_key: boolean;
-    public ctrl_or_meta_key: boolean; 
-    public func: Function;
+    public ctrl_or_meta_key: boolean;
+    public func: () => void;
 
-    constructor(key: string, helper_keys: Number[], func: Function = () => {}) {
-        this.key = key;
+    constructor(key: string, helper_keys: number[], func: () => void = () => {}) {
+        this.key = key.toLowerCase();
         this.shift_key = helper_keys.includes(SHIFT_KEY);
         this.alt_key = helper_keys.includes(ALT_KEY);
         this.ctrl_or_meta_key = helper_keys.includes(CTRL_OR_META_KEY);
@@ -35,26 +35,65 @@ export class Hotkey {
 
 const keys = new Map<string, Hotkey>();
 
+function getHotkeySignature(key: string, shiftKey: boolean, altKey: boolean, ctrlOrMetaKey: boolean): string {
+    return `${ctrlOrMetaKey ? 1 : 0}:${altKey ? 1 : 0}:${shiftKey ? 1 : 0}:${key}`;
+}
+
 function xor(a: boolean, b: boolean):boolean {
     return (a || b) && (!a && b);
 }
 
-export function register_hotkey(key: Hotkey) {
-    keys.set(key.key, key);
+function normalizeEventKey(e: KeyboardEvent): string {
+    if (e.code.startsWith('Key')) {
+        return e.code.slice(3).toLowerCase();
+    }
+    if (e.code.startsWith('Digit')) {
+        return e.code.slice(5);
+    }
+    return e.key.toLowerCase();
 }
 
-document.body.addEventListener('keydown', (e: KeyboardEvent) => {
-    if (keys.has(e.key)) {
-        let hotkey = keys.get(e.key)!;
-        let isMac = navigator.platform.toUpperCase().includes('MAC');
+function isEditableTarget(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) {
+        return false;
+    }
+    if (target.isContentEditable) {
+        return true;
+    }
+    return target.closest('input, textarea, select, [contenteditable]') !== null;
+}
 
-        let modifier = isMac ? e.metaKey : e.ctrlKey;
+export function register_hotkey(key: Hotkey) {
+    keys.set(
+        getHotkeySignature(key.key, key.shift_key, key.alt_key, key.ctrl_or_meta_key),
+        key,
+    );
+}
+
+export function clear_hotkeys(): void {
+    keys.clear();
+}
+
+if (typeof document !== 'undefined') {
+    document.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (isEditableTarget(e.target)) {
+            return;
+        }
+
+        const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().includes('MAC');
+        const modifier = isMac ? e.metaKey : e.ctrlKey;
+        const hotkey = keys.get(getHotkeySignature(normalizeEventKey(e), e.shiftKey, e.altKey, modifier));
+
+        if (!hotkey) {
+            return;
+        }
+
         if ((!xor(e.shiftKey, hotkey.shift_key)) &&
             (!xor(e.altKey, hotkey.alt_key)) &&
-            (!xor(modifier, hotkey.ctrl_or_meta_key))) 
+            (!xor(modifier, hotkey.ctrl_or_meta_key)))
         {
             hotkey.func();
             e.preventDefault();
         }
-    }
-})
+    });
+}

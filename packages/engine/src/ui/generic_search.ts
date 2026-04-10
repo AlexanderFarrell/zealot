@@ -77,8 +77,9 @@ export class GenericSearch<T> extends BaseElement<GenericSearchInfo<T>> {
 
 		search_input.addEventListener('keydown', (e: KeyboardEvent) => {
 			if (e.key === 'Enter') {
-				if (results.length > this.result_index && results.length != 0) {
-					this.data!.on_select(results[this.result_index]);
+				const selectedResult = results[this.result_index];
+				if (selectedResult !== undefined) {
+					this.data!.on_select(selectedResult);
 				}
 			}
 			else if (e.key === "ArrowUp") {
@@ -116,6 +117,10 @@ export class GenericSearch<T> extends BaseElement<GenericSearchInfo<T>> {
 		if (this.result_index === -1) {
 			return;
 		}
-		this.results_views[this.result_index].classList.add('selected');
+		const selectedView = this.results_views[this.result_index];
+		if (!selectedView) {
+			return;
+		}
+		selectedView.classList.add('selected');
 	}
 }

@@ -1,8 +1,8 @@
-import {BaseElement} from "@websoil/engine/src/ui/base_element";
-import {Events} from "@websoil/engine/src/logic/events"
-import {AuthAPI} from "@zealot/api/src/auth"
-import {AuthScreen} from "../auth/auth_screen";
+import { BaseElement, Events, Popups } from "@websoil/engine";
+import { AuthAPI } from "@zealot/api/src/auth";
 import { account } from "@zealot/domain";
+import { AuthScreen } from "../auth/auth_screen";
+import { LoadingSpinner } from "../common/loading_spinner";
 
 interface MainScreenData {
     AuthAPI: AuthAPI,
@@ -19,10 +19,19 @@ export class MainScreen extends BaseElement<MainScreenData> {
             this.to_app();
         })
 
-        if (!await this.data!.AuthAPI.IsLoggedIn()) {
+        this.appendChild(new LoadingSpinner());
+        try {
+            const loggedIn = await this.data!.AuthAPI.IsLoggedIn();
+            this.innerHTML = "";
+            if (!loggedIn) {
+                Events.emit('to_auth');
+            } else {
+                Events.emit('to_app');
+            }
+        } catch (e) {
+            this.innerHTML = "";
+            Popups.add_error((e as Error).message ?? 'Failed to check login status.');
             Events.emit('to_auth');
-        } else {
-            Events.emit('to_app');
         }
     }
 
@@ -30,18 +39,26 @@ export class MainScreen extends BaseElement<MainScreenData> {
         this.innerHTML = "";
         this.appendChild(new AuthScreen().init({
             on_login_attempt: async (dto: account.LoginBasicDto) => {
-                let account = await this.data!.AuthAPI.Basic.login(dto);
-                if (account) {
-                    Events.emit('to_app');
+                try {
+                    const account = await this.data!.AuthAPI.Basic.login(dto);
+                    if (account) {
+                        Events.emit('to_app');
+                    }
+                } catch (e) {
+                    Popups.add_error((e as Error).message ?? 'Login failed.');
                 }
             },
             on_register_attempt: async (dto: account.RegisterBasicDto) => {
-                let account = await this.data!.AuthAPI.Basic.register(dto);
-                if (account) {
-                    Events.emit('to_app');
+                try {
+                    const account = await this.data!.AuthAPI.Basic.register(dto);
+                    if (account) {
+                        Events.emit('to_app');
+                    }
+                } catch (e) {
+                    Popups.add_error((e as Error).message ?? 'Registration failed.');
                 }
             }
-        }))
+        }));
     }
 
     private to_app() {

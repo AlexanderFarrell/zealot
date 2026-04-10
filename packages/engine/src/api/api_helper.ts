@@ -1,4 +1,3 @@
-import { BaseAPI } from "../../../api/src/common";
 import { Events } from '../logic/events';
 
 const CSRF_COOKIE_NAME = "csfr_";
