@@ -1,4 +1,5 @@
-import type { Navigator, PlannerView, SettingsSection } from '@websoil/engine';
+import { DateTime } from 'luxon';
+import type { AppLocation, LocationListener, Navigator, PlannerView, SettingsSection } from '@websoil/engine';
 import { ItemScreen } from '@zealot/ui/src/screens/item_screen';
 import { MediaScreen } from '@zealot/ui/src/screens/media_screen';
 import { DailyPlannerScreen } from '@zealot/ui/src/screens/daily_planner_screen';
@@ -12,27 +13,31 @@ import { RulesScreen } from '@zealot/ui/src/screens/rules_screen';
 import { SettingsScreen } from '@zealot/ui/src/screens/settings_screen';
 
 function todayIso(): string {
-    return new Date().toISOString().slice(0, 10);
+    return DateTime.local().toISODate() ?? DateTime.local().toFormat('yyyy-MM-dd');
 }
 
 function thisWeekIso(): string {
-    const now = new Date();
-    const year = now.getFullYear();
-    // ISO week number
-    const jan4 = new Date(year, 0, 4);
-    const startOfWeek1 = new Date(jan4);
-    startOfWeek1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
-    const diff = now.getTime() - startOfWeek1.getTime();
-    const week = Math.floor(diff / (7 * 24 * 60 * 60 * 1000)) + 1;
-    return `${year}-W${String(week).padStart(2, '0')}`;
+    return DateTime.local().toFormat("kkkk-'W'WW");
 }
 
 function thisMonthIso(): string {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return DateTime.local().toFormat('yyyy-MM');
+}
+
+function thisYear(): string {
+    return DateTime.local().toFormat('yyyy');
+}
+
+interface RouteMatch {
+    screen: HTMLElement;
+    location: AppLocation;
+    redirectTo?: string;
 }
 
 export class WebNavigator implements Navigator {
+    private location: AppLocation = { kind: 'not_found', path: window.location.pathname };
+    private readonly listeners = new Set<LocationListener>();
+
     constructor() {
         window.addEventListener('popstate', () => this.renderCurrent());
     }
@@ -43,62 +48,80 @@ export class WebNavigator implements Navigator {
         return el as HTMLElement;
     }
 
-    private push(path: string): void {
-        history.pushState(null, '', path);
+    private navigate(path: string, mode: 'push' | 'replace' = 'push'): void {
+        if (mode === 'replace') {
+            history.replaceState(null, '', path);
+        } else {
+            history.pushState(null, '', path);
+        }
         this.renderCurrent();
     }
 
+    private setLocation(location: AppLocation): void {
+        this.location = location;
+        this.listeners.forEach((listener) => listener(location));
+    }
+
     openHome(): void {
-        this.push('/');
+        this.navigate('/');
     }
 
     openItem(title: string): void {
-        this.push(`/item/${encodeURIComponent(title)}`);
+        this.navigate(`/item/${encodeURIComponent(title)}`);
     }
 
     openItemById(id: number): void {
-        this.push(`/item_id/${id}`);
+        this.navigate(`/item_id/${id}`);
     }
 
     openMedia(path: string): void {
-        this.push(`/media/${path}`);
+        this.navigate(path ? `/media/${path}` : '/media');
     }
 
     openPlanner(view: PlannerView, date?: string): void {
         switch (view) {
             case 'daily':
-                this.push(`/planner/daily/${date ?? todayIso()}`);
+                this.navigate(`/planner/daily/${date ?? todayIso()}`);
                 break;
             case 'weekly':
-                this.push(`/planner/weekly/${date ?? thisWeekIso()}`);
+                this.navigate(`/planner/weekly/${date ?? thisWeekIso()}`);
                 break;
             case 'monthly':
-                this.push(`/planner/monthly/${date ?? thisMonthIso()}`);
+                this.navigate(`/planner/monthly/${date ?? thisMonthIso()}`);
                 break;
             case 'annual':
-                this.push(`/planner/annual/${date ?? String(new Date().getFullYear())}`);
+                this.navigate(`/planner/annual/${date ?? thisYear()}`);
                 break;
         }
     }
 
     openTypes(): void {
-        this.push('/types');
+        this.navigate('/types');
     }
 
     openType(title: string): void {
-        this.push(`/types/${encodeURIComponent(title)}`);
+        this.navigate(`/types/${encodeURIComponent(title)}`);
     }
 
     openAnalysis(): void {
-        this.push('/analysis');
+        this.navigate('/analysis');
     }
 
     openRules(): void {
-        this.push('/rules');
+        this.navigate('/rules');
     }
 
     openSettings(section?: SettingsSection): void {
-        this.push(`/settings/${section ?? 'attributes'}`);
+        this.navigate(`/settings/${section ?? 'attributes'}`);
+    }
+
+    getLocation(): AppLocation {
+        return this.location;
+    }
+
+    subscribe(listener: LocationListener): () => void {
+        this.listeners.add(listener);
+        return () => this.listeners.delete(listener);
     }
 
     resolve(): void {
@@ -108,47 +131,75 @@ export class WebNavigator implements Navigator {
     private renderCurrent(): void {
         const path = window.location.pathname;
         const content = this.getContent();
-        const screen = this.matchRoute(path);
+        const route = this.matchRoute(path);
+        if (route.redirectTo) {
+            this.navigate(route.redirectTo, 'replace');
+            return;
+        }
         content.innerHTML = '';
-        content.appendChild(screen);
+        content.appendChild(route.screen);
+        this.setLocation(route.location);
     }
 
-    private matchRoute(path: string): HTMLElement {
-        // Exact matches
+    private matchRoute(path: string): RouteMatch {
         if (path === '/') {
             const s = new ItemScreen();
             s.loadItem('Home');
-            return s;
+            return {
+                screen: s,
+                location: { kind: 'home' },
+            };
         }
         if (path === '/analysis') {
-            return new AnalysisScreen();
+            return {
+                screen: new AnalysisScreen(),
+                location: { kind: 'analysis' },
+            };
         }
         if (path === '/rules') {
-            return new RulesScreen();
+            return {
+                screen: new RulesScreen(),
+                location: { kind: 'rules' },
+            };
         }
         if (path === '/types') {
-            return new TypesScreen();
+            return {
+                screen: new TypesScreen(),
+                location: { kind: 'types' },
+            };
         }
 
-        // Prefix matches
         const segments = path.split('/').filter(Boolean);
 
         if (segments[0] === 'item' && segments[1]) {
             const s = new ItemScreen();
-            s.loadItem(decodeURIComponent(segments[1]));
-            return s;
+            const title = decodeURIComponent(segments[1]);
+            s.loadItem(title);
+            return {
+                screen: s,
+                location: { kind: 'item', title },
+            };
         }
 
         if (segments[0] === 'item_id' && segments[1]) {
+            const id = parseInt(segments[1], 10);
+            if (Number.isNaN(id)) {
+                return this.notFound(path);
+            }
             const s = new ItemScreen();
-            s.loadItemById(parseInt(segments[1], 10));
-            return s;
+            s.loadItemById(id);
+            return {
+                screen: s,
+                location: { kind: 'item', itemId: id },
+            };
         }
 
         if (segments[0] === 'media') {
-            // Rejoin the rest of the path after /media/
-            const mediaPath = path.replace(/^\/media\//, '');
-            return new MediaScreen().init(mediaPath);
+            const mediaPath = path === '/media' ? '' : path.replace(/^\/media\//, '');
+            return {
+                screen: new MediaScreen().init(mediaPath),
+                location: { kind: 'media', path: mediaPath },
+            };
         }
 
         if (segments[0] === 'planner') {
@@ -156,36 +207,78 @@ export class WebNavigator implements Navigator {
             const date = segments[2];
 
             if (view === 'daily') {
-                if (!date) { this.openPlanner('daily'); return document.createElement('div'); }
-                return new DailyPlannerScreen().init(date);
+                if (!date) {
+                    return this.redirect(`/planner/daily/${todayIso()}`);
+                }
+                return {
+                    screen: new DailyPlannerScreen().init(date),
+                    location: { kind: 'planner', view, date },
+                };
             }
             if (view === 'weekly') {
-                if (!date) { this.openPlanner('weekly'); return document.createElement('div'); }
-                return new WeeklyPlannerScreen().init(date);
+                if (!date) {
+                    return this.redirect(`/planner/weekly/${thisWeekIso()}`);
+                }
+                return {
+                    screen: new WeeklyPlannerScreen().init(date),
+                    location: { kind: 'planner', view, date },
+                };
             }
             if (view === 'monthly') {
-                if (!date) { this.openPlanner('monthly'); return document.createElement('div'); }
-                return new MonthlyPlannerScreen().init(date);
+                if (!date) {
+                    return this.redirect(`/planner/monthly/${thisMonthIso()}`);
+                }
+                return {
+                    screen: new MonthlyPlannerScreen().init(date),
+                    location: { kind: 'planner', view, date },
+                };
             }
             if (view === 'annual') {
-                if (!date) { this.openPlanner('annual'); return document.createElement('div'); }
-                return new AnnualPlannerScreen().init(date);
+                if (!date) {
+                    return this.redirect(`/planner/annual/${thisYear()}`);
+                }
+                return {
+                    screen: new AnnualPlannerScreen().init(date),
+                    location: { kind: 'planner', view, date },
+                };
             }
         }
 
         if (segments[0] === 'types' && segments[1]) {
-            return new TypeScreen().init(decodeURIComponent(segments[1]));
+            const title = decodeURIComponent(segments[1]);
+            return {
+                screen: new TypeScreen().init(title),
+                location: { kind: 'type', title },
+            };
         }
 
         if (segments[0] === 'settings') {
             const s = new SettingsScreen();
-            s.switchScreen(segments[1] ?? 'attributes');
-            return s;
+            const section = (segments[1] ?? 'attributes') as SettingsSection;
+            s.switchScreen(section);
+            return {
+                screen: s,
+                location: { kind: 'settings', section },
+            };
         }
 
-        // 404
+        return this.notFound(path);
+    }
+
+    private redirect(path: string): RouteMatch {
+        return {
+            screen: document.createElement('div'),
+            location: this.location,
+            redirectTo: path,
+        };
+    }
+
+    private notFound(path: string): RouteMatch {
         const div = document.createElement('div');
         div.textContent = `404 Not Found: ${path}`;
-        return div;
+        return {
+            screen: div,
+            location: { kind: 'not_found', path },
+        };
     }
 }

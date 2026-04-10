@@ -13,6 +13,10 @@
         "@zealot/content": "file:../../packages/content",
         "@zealot/domain": "file:../../packages/domain",
         "@zealot/ui": "file:../../packages/ui",
+        "luxon": "^3.7.2",
         "vite": "^7.1.7"
+    },
+    "devDependencies": {
+        "@types/luxon": "^3.7.1"
     }
 }

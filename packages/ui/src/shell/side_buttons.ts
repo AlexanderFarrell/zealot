@@ -1,4 +1,4 @@
-import { BaseElement, BaseElementEmpty, commands } from "@websoil/engine";
+import { BaseElement, NavigationCommands, Popups, ToolCommands, commands } from "@websoil/engine";
 import { icons } from "@zealot/content";
 
 interface SideButtonInfo {
@@ -39,84 +39,85 @@ export class SideButtons extends BaseElement<SideButtonEntry[]> {
 }
 
 export function default_side_button_entries(): SideButtonEntry[] {
+    const showNotImplemented = () => Popups.add_warning('This action is not implemented yet.');
     let buttons: SideButtonEntry[] = [
         {
             Title: "Home Page",
             IconURL: icons.home,
-            Command: "Go to Home Page"
+            Command: NavigationCommands.goHome
         },
         {
             Title: "New Item",
             IconURL: icons.add,
-            Command: "New Item"
+            On: showNotImplemented,
         },
         null,
         {
             Title: "Search",
             IconURL: icons.search,
-            Command: "Search Items"
+            Command: ToolCommands.searchItems
         },
         {
             Title: "Navigation Side View",
             IconURL: icons.tree2,
-            Command: "Open Nav Sidebar"
+            Command: ToolCommands.openNavTree
         },
         {
             Title: "Calendar",
             IconURL: icons.calendar,
-            Command: "Open Calendar"
+            Command: ToolCommands.openCalendar
         },
         null,
         {
             Title: "Daily Planner",
             IconURL: icons.today,
-            Command: "Open Daily Planner"
+            Command: NavigationCommands.openDailyPlanner
         },
         {
             Title: "Weekly Planner",
             IconURL: icons.week,
-            Command: "Open Weekly Planner"
+            Command: NavigationCommands.openWeeklyPlanner
         },
         {
             Title: "Monthly Planner",
             IconURL: icons.moon,
-            Command: "Open Monthly Planner"
+            Command: NavigationCommands.openMonthlyPlanner
         },
         {
             Title: "Annual Planner",
             IconURL: icons.sun,
-            Command: "Open Annual Planner"
+            Command: NavigationCommands.openAnnualPlanner
         },
         null,
         {
             Title: "Types",
             IconURL: icons.table,
-            Command: "Open Item Types"
+            Command: NavigationCommands.openTypes
         },
         {
             Title: "Analysis",
             IconURL: icons.science,
-            Command: "Open Analysis"
+            Command: NavigationCommands.openAnalysis
         },
         {
             Title: "Rules",
             IconURL: icons.rules,
-            Command: "Open Rules Editor"
+            Command: NavigationCommands.openRules
         },
         {
             Title: "Media",
             IconURL: icons.items,
-            Command: "Open Media"
+            Command: NavigationCommands.openMedia
         },
         {
             Title: "Settings",
             IconURL: icons.settings,
-            Command: "Open Settings"
+            Command: NavigationCommands.openSettings
         },
         {
             Title: "Logout",
             IconURL: icons.logout,
-            Command: "Logout"
+            On: showNotImplemented,
         }
     ];
     return buttons

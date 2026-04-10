@@ -1,27 +1,30 @@
-import { BaseElementEmpty, setNavigator, registerNavigationCommands } from "@websoil/engine";
+import { BaseElementEmpty, commands, registerNavigationCommands, registerToolCommands, setNavigator, setToolHost } from "@websoil/engine";
 import { default_side_button_entries, SideButtons } from "@zealot/ui";
 import { WebNavigator } from "./web_navigator";
+import "./web_tool_host";
+import { WebToolHost } from "./web_tool_host";
 
-// Just for the UI itself. Much should come from shared components.
 class ZealotWebClient extends BaseElementEmpty {
     render() {
-        // A lot should come from shared components.
+        const nav = new WebNavigator();
+        setNavigator(nav);
+        commands.runner.clear();
+        registerNavigationCommands();
+        registerToolCommands();
+
         this.innerHTML = `
         <header-bar></header-bar>
         <main id="main_web_ui">
             <side-buttons class="desktop_only"></side-buttons>
-            <side-bar id="left_side_bar">a</side-bar>
-            <center-content>a</center-content>
-            <side-bar id="right_side_bar">a</side-bar>
+            <web-tool-host id="left_tool_host"></web-tool-host>
+            <center-content></center-content>
         </main>
         <footer-bar></footer-bar>
         `;
 
         (document.querySelector("side-buttons")! as SideButtons).init(default_side_button_entries());
+        setToolHost(document.querySelector('web-tool-host')! as WebToolHost);
 
-        const nav = new WebNavigator();
-        setNavigator(nav);
-        registerNavigationCommands();
         nav.resolve();
     }
 }
