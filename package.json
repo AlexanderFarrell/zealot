@@ -8,10 +8,21 @@
     "scripts": {
         "dev:web": "npm run dev -w @zealot/web",
         "build:web": "npm run build -w @zealot/web",
+        "build:docker": "docker compose build",
+        "docker": "docker compose up --build",
+        "analyze:rust:coupling": "node ./scripts/analysis/rust-coupling.mjs",
+        "analyze:rust:metrics": "node ./scripts/analysis/rust-metrics.mjs",
+        "analyze:ts:deps": "node ./scripts/analysis/ts-deps.mjs",
+        "analyze:report": "node ./scripts/analysis/report.mjs",
+        "analyze:all": "npm run analyze:rust:coupling && npm run analyze:rust:metrics && npm run analyze:ts:deps && npm run analyze:report",
         "test:e2e": "./test/e2e/run.sh",
         "test:playwright": "./test/playwright/run.sh",
         "typecheck": "npm run typecheck --workspaces --if-present",
         "lint": "npm run lint --workspaces --if-present",
         "test": "npm run test --workspaces --if-present"
+    },
+    "devDependencies": {
+        "dependency-cruiser": "^17.3.10",
+        "plato": "^1.7.0"
     }
 }

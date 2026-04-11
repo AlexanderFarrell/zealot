@@ -19,7 +19,7 @@ span[name="value_view"] > select {
 item-screen {
   min-height: 100vh;
   display: grid;
-  grid-template-rows: auto auto auto auto 1fr auto auto;
+  grid-template-rows: auto auto auto auto 1fr auto;
   gap: 12px;
 }
 
@@ -107,11 +107,13 @@ item-view {
 
 .item-table-actions,
 .item-table-actions-header {
-  width: 120px;
+  width: 72px;
 }
 
 .item-table-actions > button {
-  width: 100%;
+  width: auto;
+  padding: 4px 8px;
+  font-size: 12px;
 }
 
 .item-table-empty {

@@ -12,6 +12,9 @@ import {
     currentDay,
     formatDayTitle,
     formatIsoDate,
+    formatIsoWeek,
+    formatMonthCode,
+    formatYearCode,
     mountPlannerTable,
     parseIsoDate,
     renderPlannerMessage,
@@ -47,23 +50,43 @@ export class DailyPlannerScreen extends BaseElementEmpty {
             return;
         }
 
-        const header = createPlannerHeader(formatDayTitle(date), [
-            {
-                iconURL: icons.back,
-                label: 'Previous Day',
-                onClick: () => getNavigator().openPlanner('daily', formatIsoDate(date.minus({ days: 1 }))),
-            },
-            {
-                iconURL: icons.today,
-                label: 'Today',
-                onClick: () => getNavigator().openPlanner('daily'),
-            },
-            {
-                iconURL: icons.forward,
-                label: 'Next Day',
-                onClick: () => getNavigator().openPlanner('daily', formatIsoDate(date.plus({ days: 1 }))),
-            },
-        ]);
+        const header = createPlannerHeader(
+            formatDayTitle(date),
+            [
+                {
+                    iconURL: icons.back,
+                    label: 'Previous Day',
+                    onClick: () => getNavigator().openPlanner('daily', formatIsoDate(date.minus({ days: 1 }))),
+                },
+                {
+                    iconURL: icons.today,
+                    label: 'Today',
+                    onClick: () => getNavigator().openPlanner('daily'),
+                },
+                {
+                    iconURL: icons.forward,
+                    label: 'Next Day',
+                    onClick: () => getNavigator().openPlanner('daily', formatIsoDate(date.plus({ days: 1 }))),
+                },
+            ],
+            [
+                {
+                    iconURL: icons.week,
+                    label: 'This Week',
+                    onClick: () => getNavigator().openPlanner('weekly', formatIsoWeek(date)),
+                },
+                {
+                    iconURL: icons.moon,
+                    label: 'This Month',
+                    onClick: () => getNavigator().openPlanner('monthly', formatMonthCode(date)),
+                },
+                {
+                    iconURL: icons.sun,
+                    label: 'This Year',
+                    onClick: () => getNavigator().openPlanner('annual', formatYearCode(date)),
+                },
+            ],
+        );
 
         const items = createPlannerSection('Items');
         const repeats = createPlannerSection('Repeats');

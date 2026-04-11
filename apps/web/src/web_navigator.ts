@@ -8,7 +8,7 @@ import { MonthlyPlannerScreen } from '@zealot/ui/src/screens/monthly_planner_scr
 import { AnnualPlannerScreen } from '@zealot/ui/src/screens/annual_planner_screen';
 import { TypesScreen } from '@zealot/ui/src/screens/types_screen';
 import { TypeScreen } from '@zealot/ui/src/screens/type_screen';
-import { AnalysisScreen } from '@zealot/ui/src/screens/analysis_screen';
+import { AnalysisScreen, SpecifyScreen, WorkingScreen } from '@zealot/ui/src/screens/analysis_screen';
 import { RulesScreen } from '@zealot/ui/src/screens/rules_screen';
 import { SettingsScreen } from '@zealot/ui/src/screens/settings_screen';
 
@@ -107,6 +107,14 @@ export class WebNavigator implements Navigator {
         this.navigate('/analysis');
     }
 
+    openAnalysisSpecify(): void {
+        this.navigate('/analysis/specify');
+    }
+
+    openAnalysisWorking(): void {
+        this.navigate('/analysis/working');
+    }
+
     openRules(): void {
         this.navigate('/rules');
     }
@@ -154,6 +162,18 @@ export class WebNavigator implements Navigator {
             return {
                 screen: new AnalysisScreen(),
                 location: { kind: 'analysis' },
+            };
+        }
+        if (path === '/analysis/specify') {
+            return {
+                screen: new SpecifyScreen(),
+                location: { kind: 'analysis_specify' },
+            };
+        }
+        if (path === '/analysis/working') {
+            return {
+                screen: new WorkingScreen(),
+                location: { kind: 'analysis_working' },
             };
         }
         if (path === '/rules') {

@@ -9,6 +9,7 @@ import {
     currentMonth,
     formatMonthCode,
     formatMonthTitle,
+    formatYearCode,
     mountPlannerTable,
     parseMonthCode,
     renderPlannerMessage,
@@ -36,23 +37,33 @@ export class MonthlyPlannerScreen extends BaseElementEmpty {
             return;
         }
 
-        const header = createPlannerHeader(formatMonthTitle(date), [
-            {
-                iconURL: icons.back,
-                label: 'Previous Month',
-                onClick: () => getNavigator().openPlanner('monthly', formatMonthCode(date.minus({ months: 1 }))),
-            },
-            {
-                iconURL: icons.month,
-                label: 'This Month',
-                onClick: () => getNavigator().openPlanner('monthly'),
-            },
-            {
-                iconURL: icons.forward,
-                label: 'Next Month',
-                onClick: () => getNavigator().openPlanner('monthly', formatMonthCode(date.plus({ months: 1 }))),
-            },
-        ]);
+        const header = createPlannerHeader(
+            formatMonthTitle(date),
+            [
+                {
+                    iconURL: icons.back,
+                    label: 'Previous Month',
+                    onClick: () => getNavigator().openPlanner('monthly', formatMonthCode(date.minus({ months: 1 }))),
+                },
+                {
+                    iconURL: icons.moon,
+                    label: 'This Month',
+                    onClick: () => getNavigator().openPlanner('monthly'),
+                },
+                {
+                    iconURL: icons.forward,
+                    label: 'Next Month',
+                    onClick: () => getNavigator().openPlanner('monthly', formatMonthCode(date.plus({ months: 1 }))),
+                },
+            ],
+            [
+                {
+                    iconURL: icons.sun,
+                    label: 'This Year',
+                    onClick: () => getNavigator().openPlanner('annual', formatYearCode(date)),
+                },
+            ],
+        );
 
         const items = createPlannerSection('Month Items');
         items.body.appendChild(new LoadingSpinner());

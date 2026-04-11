@@ -11,6 +11,7 @@ import { Hotkey, CTRL_OR_META_KEY, ALT_KEY, SHIFT_KEY } from './ui/hotkeys';
 import { ModalCommands } from './ui/modal_commands';
 import { NavigationCommands, setNavigator, getNavigator, registerNavigationCommands } from './ui/navigator';
 import { ToolCommands, getToolHost, registerToolCommands, setToolHost } from './ui/tool_host';
+import { setRightSidebarHost, getRightSidebarHost } from './ui/right_sidebar_host';
 import { AppSettings } from './settings';
 
 export {
@@ -49,9 +50,12 @@ export {
     ToolCommands,
     setToolHost,
     getToolHost,
-    registerToolCommands
+    registerToolCommands,
+    setRightSidebarHost,
+    getRightSidebarHost,
 }
 
 export type { Navigator, SettingsSection, PlannerView, AppLocation, LocationListener } from './ui/navigator'
 export type { ToolHost, ToolShowOptions, ToolView } from './ui/tool_host'
+export type { RightSidebarHost } from './ui/right_sidebar_host'
 export type { Settings } from './settings'

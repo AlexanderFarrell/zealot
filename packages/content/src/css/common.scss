@@ -120,8 +120,18 @@ icon-button {
 
 #main_web_ui {
   display: grid;
-  grid-template-columns: auto minmax(260px, 320px) minmax(0, 1fr);
+  grid-template-columns: auto minmax(260px, 320px) minmax(0, 1fr) minmax(240px, 300px);
   min-height: 100vh;
+}
+
+right-sidebar {
+  @extend .box;
+  display: block;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px;
+  height: 100vh;
 }
 
 popup- {
@@ -192,9 +202,7 @@ auth-modal form {
 item-screen {
   max-width: 800px;
   width: 100%;
-  /* display: grid; */
-  /* grid-template-rows: auto auto auto auto; */
-  justify-self: center;
+  margin: 0 auto;
 }
 
 .icon {
@@ -653,6 +661,25 @@ mobile-title-bar {
   box-shadow: none !important;
 }
 
+@media (max-width: 1100px) and (min-width: 769px) {
+  #main_web_ui {
+    grid-template-columns: auto minmax(180px, 220px) 1fr;
+    grid-template-rows: auto auto;
+  }
+
+  right-sidebar {
+    grid-column: 3;
+    grid-row: 2;
+    height: auto;
+    border-top: 1px solid var(--border-0);
+  }
+
+  center-content {
+    height: auto;
+    min-height: 60vh;
+  }
+}
+
 @media only screen and (max-width: 768px) {
     .desktop_only {
         display: none !important;
@@ -673,6 +700,10 @@ mobile-title-bar {
     #main_web_ui {
       grid-template-columns: 1fr;
       padding-top: 56px; /* height of mobile-title-bar */
+    }
+
+    right-sidebar {
+      height: auto;
     }
 
     *[name="generic_results"] {
@@ -815,4 +846,46 @@ item-search-inline *[name="generic_results"] {
   border: 1px solid var(--border-0);
   border-radius: 8px;
   padding: 4px;
+}
+
+/* Analysis screens */
+.analysis-screen {
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 16px;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.analysis-tabs {
+  display: flex;
+  gap: 8px;
+
+  button {
+    width: auto;
+    padding: 6px 16px;
+    background: none;
+    box-shadow: none;
+    border: 1px solid var(--border-0);
+    border-radius: 6px;
+
+    &.is-active {
+      background: color-mix(in srgb, var(--accent-0) 20%, var(--panel-0) 80%);
+      border-color: var(--accent-0);
+      font-weight: 600;
+    }
+  }
+}
+
+.analysis-charts-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.analysis-chart {
+  flex: 1;
+  min-width: 200px;
 }

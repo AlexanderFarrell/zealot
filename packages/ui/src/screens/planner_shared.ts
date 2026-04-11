@@ -117,39 +117,54 @@ export function formatYearTitle(date: DateTime): string {
     return date.toFormat('yyyy');
 }
 
-export function createPlannerHeader(title: string, actions: PlannerHeaderAction[]): HTMLElement {
+function buildActionButton(action: PlannerHeaderAction, className: string): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = className;
+    button.addEventListener('click', action.onClick);
+
+    const icon = document.createElement('img');
+    icon.alt = '';
+    icon.src = action.iconURL;
+    button.appendChild(icon);
+
+    const label = document.createElement('span');
+    label.textContent = action.label;
+    button.appendChild(label);
+
+    return button;
+}
+
+export function createPlannerHeader(
+    title: string,
+    actions: PlannerHeaderAction[],
+    crossLinks?: PlannerHeaderAction[],
+): HTMLElement {
     const header = document.createElement('header');
     header.className = 'planner-header';
 
-    const titleBlock = document.createElement('div');
-    titleBlock.className = 'planner-header-title';
-
     const heading = document.createElement('h1');
+    heading.className = 'planner-header-title';
     heading.textContent = title;
-    titleBlock.appendChild(heading);
 
     const actionBar = document.createElement('div');
     actionBar.className = 'planner-header-actions';
-
     actions.forEach((action) => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'planner-header-button';
-        button.addEventListener('click', action.onClick);
-
-        const icon = document.createElement('img');
-        icon.alt = '';
-        icon.src = action.iconURL;
-        button.appendChild(icon);
-
-        const label = document.createElement('span');
-        label.textContent = action.label;
-        button.appendChild(label);
-
-        actionBar.appendChild(button);
+        actionBar.appendChild(buildActionButton(action, 'planner-header-button'));
     });
 
-    header.append(titleBlock, actionBar);
+    if (crossLinks && crossLinks.length > 0) {
+        const sep = document.createElement('span');
+        sep.className = 'planner-header-sep';
+        sep.setAttribute('aria-hidden', 'true');
+        actionBar.appendChild(sep);
+
+        crossLinks.forEach((action) => {
+            actionBar.appendChild(buildActionButton(action, 'planner-header-link'));
+        });
+    }
+
+    header.append(heading, actionBar);
     return header;
 }
 

@@ -118,6 +118,74 @@ fn kind_to_json(kind: &AttributeKind) -> serde_json::Value {
         "key": kind.key,
         "description": kind.description,
         "is_system": kind.is_system,
-        "base_type": format!("{:?}", kind.base_type),
+        "base_type": base_type_str(&kind.base_type),
+        "config": spec_to_config_json(&kind.spec),
     })
+}
+
+fn base_type_str(bt: &zealot_domain::attribute::AttributeBaseType) -> &'static str {
+    use zealot_domain::attribute::{AttributeBaseScalarType, AttributeBaseType};
+    match bt {
+        AttributeBaseType::List(_) => "list",
+        AttributeBaseType::Scalar(s) => match s {
+            AttributeBaseScalarType::Text => "text",
+            AttributeBaseScalarType::Integer => "integer",
+            AttributeBaseScalarType::Decimal => "decimal",
+            AttributeBaseScalarType::Date => "date",
+            AttributeBaseScalarType::Week => "week",
+            AttributeBaseScalarType::Dropdown => "dropdown",
+            AttributeBaseScalarType::Boolean => "boolean",
+            AttributeBaseScalarType::Item => "item",
+        },
+    }
+}
+
+fn spec_to_config_json(spec: &zealot_domain::attribute::AttributeKindSpec) -> serde_json::Value {
+    use zealot_domain::attribute::{AttributeBaseType, AttributeKindSpec};
+    match spec {
+        AttributeKindSpec::Text { min_len, max_len, pattern } => {
+            let mut m = serde_json::Map::new();
+            if let Some(v) = min_len { m.insert("min_len".into(), (*v as u64).into()); }
+            if let Some(v) = max_len { m.insert("max_len".into(), (*v as u64).into()); }
+            if let Some(v) = pattern { m.insert("pattern".into(), v.clone().into()); }
+            serde_json::Value::Object(m)
+        }
+        AttributeKindSpec::Integer { min, max } => {
+            let mut m = serde_json::Map::new();
+            if let Some(v) = min { m.insert("min".into(), (*v).into()); }
+            if let Some(v) = max { m.insert("max".into(), (*v).into()); }
+            serde_json::Value::Object(m)
+        }
+        AttributeKindSpec::Decimal { min, max } => {
+            let mut m = serde_json::Map::new();
+            if let Some(v) = min {
+                if let Some(n) = serde_json::Number::from_f64(*v) {
+                    m.insert("min".into(), n.into());
+                }
+            }
+            if let Some(v) = max {
+                if let Some(n) = serde_json::Number::from_f64(*v) {
+                    m.insert("max".into(), n.into());
+                }
+            }
+            serde_json::Value::Object(m)
+        }
+        AttributeKindSpec::Dropdown { values } => {
+            let arr: Vec<serde_json::Value> = values.iter().map(|v| v.clone().into()).collect();
+            let mut m = serde_json::Map::new();
+            m.insert("values".into(), arr.into());
+            serde_json::Value::Object(m)
+        }
+        AttributeKindSpec::List { list_type } => {
+            let inner = match list_type {
+                AttributeBaseType::List(t) | AttributeBaseType::Scalar(t) => {
+                    base_type_str(&AttributeBaseType::Scalar(t.clone()))
+                }
+            };
+            let mut m = serde_json::Map::new();
+            m.insert("list_type".into(), inner.into());
+            serde_json::Value::Object(m)
+        }
+        _ => serde_json::Value::Object(serde_json::Map::new()),
+    }
 }

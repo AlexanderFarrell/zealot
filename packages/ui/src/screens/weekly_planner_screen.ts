@@ -8,7 +8,9 @@ import {
     createPlannerSection,
     currentWeek,
     formatIsoWeek,
+    formatMonthCode,
     formatWeekTitle,
+    formatYearCode,
     mountPlannerTable,
     parseIsoWeek,
     renderPlannerMessage,
@@ -36,23 +38,38 @@ export class WeeklyPlannerScreen extends BaseElementEmpty {
             return;
         }
 
-        const header = createPlannerHeader(formatWeekTitle(date), [
-            {
-                iconURL: icons.back,
-                label: 'Previous Week',
-                onClick: () => getNavigator().openPlanner('weekly', formatIsoWeek(date.minus({ weeks: 1 }))),
-            },
-            {
-                iconURL: icons.week,
-                label: 'This Week',
-                onClick: () => getNavigator().openPlanner('weekly'),
-            },
-            {
-                iconURL: icons.forward,
-                label: 'Next Week',
-                onClick: () => getNavigator().openPlanner('weekly', formatIsoWeek(date.plus({ weeks: 1 }))),
-            },
-        ]);
+        const header = createPlannerHeader(
+            formatWeekTitle(date),
+            [
+                {
+                    iconURL: icons.back,
+                    label: 'Previous Week',
+                    onClick: () => getNavigator().openPlanner('weekly', formatIsoWeek(date.minus({ weeks: 1 }))),
+                },
+                {
+                    iconURL: icons.week,
+                    label: 'This Week',
+                    onClick: () => getNavigator().openPlanner('weekly'),
+                },
+                {
+                    iconURL: icons.forward,
+                    label: 'Next Week',
+                    onClick: () => getNavigator().openPlanner('weekly', formatIsoWeek(date.plus({ weeks: 1 }))),
+                },
+            ],
+            [
+                {
+                    iconURL: icons.moon,
+                    label: 'This Month',
+                    onClick: () => getNavigator().openPlanner('monthly', formatMonthCode(date)),
+                },
+                {
+                    iconURL: icons.sun,
+                    label: 'This Year',
+                    onClick: () => getNavigator().openPlanner('annual', formatYearCode(date)),
+                },
+            ],
+        );
 
         const items = createPlannerSection('Week Items');
         items.body.appendChild(new LoadingSpinner());

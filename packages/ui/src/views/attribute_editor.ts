@@ -6,6 +6,7 @@ import {
     createAttributeValueInput,
     isBlankAttributeValue,
     loadAttributeKinds,
+    type AttributeValueInputBinding,
 } from './attribute_value_input';
 
 const attrApi = new AttributeAPI('/api');
@@ -149,9 +150,29 @@ export class AttributeEditor extends HTMLElement {
         keyInput.type = 'text';
         keyInput.placeholder = 'New key';
 
-        const valInput = document.createElement('input');
-        valInput.type = 'text';
-        valInput.placeholder = 'Value';
+        const valueSpan = document.createElement('span');
+        valueSpan.setAttribute('name', 'value_view');
+
+        // Start with a plain text input; swapped when key matches a known kind.
+        let currentBinding: AttributeValueInputBinding = createAttributeValueInput({
+            attributeKey: '',
+            value: null,
+        });
+        valueSpan.appendChild(currentBinding.element);
+
+        const resetBinding = () => {
+            currentBinding = createAttributeValueInput({ attributeKey: '', value: null });
+            valueSpan.innerHTML = '';
+            valueSpan.appendChild(currentBinding.element);
+        };
+
+        keyInput.addEventListener('input', () => {
+            const k = keyInput.value.trim();
+            const kind = kinds[k];
+            currentBinding = createAttributeValueInput({ attributeKey: k, value: null, ...(kind ? { kind } : {}) });
+            valueSpan.innerHTML = '';
+            valueSpan.appendChild(currentBinding.element);
+        });
 
         const addBtn = document.createElement('button');
         addBtn.type = 'button';
@@ -159,13 +180,14 @@ export class AttributeEditor extends HTMLElement {
 
         const doAdd = async () => {
             const k = keyInput.value.trim();
-            const v = valInput.value.trim();
             if (!k || k in item.Attributes) return;
+            const v = currentBinding.getValue();
+            if (isBlankAttributeValue(v, kinds[k])) return;
             try {
                 await attrApi.set_value(item.ItemID, k, v);
                 item.Attributes[k] = v;
                 keyInput.value = '';
-                valInput.value = '';
+                resetBinding();
                 void this._render();
             } catch (e) {
                 Popups.add_error((e as Error).message ?? 'Failed to add attribute.');
@@ -179,11 +201,6 @@ export class AttributeEditor extends HTMLElement {
                 void doAdd();
             }
         });
-
-        // Wrap value input in a span so it gets the same CSS treatment as value cells
-        const valueSpan = document.createElement('span');
-        valueSpan.setAttribute('name', 'value_view');
-        valueSpan.appendChild(valInput);
 
         row.appendChild(keyInput);
         row.appendChild(valueSpan);

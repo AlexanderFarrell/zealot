@@ -5,6 +5,12 @@ The `/analysis` route showed a 30-day analytics dashboard with line graphs and p
 
 Run `git diff master -- client/src/features/analysis/analysis_screen.ts` and `git diff master -- client/src/features/analysis/analysis.ts` to see the original. Also check `git diff master -- client/src/shared/graphs.ts` for the chart utilities.
 
+Build 3 screens:
+
+1. Original screen (/analysis)
+2. Specify screen (gets items in Specify Status)
+3. Working screen (gets items in Working Status)
+
 ## Goal
 Build the analysis dashboard screen.
 

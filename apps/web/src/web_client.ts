@@ -7,9 +7,10 @@ import {
     registerNavigationCommands,
     registerToolCommands,
     setNavigator,
+    setRightSidebarHost,
     setToolHost,
 } from "@websoil/engine";
-import { AddItemModal, ItemSearchModal, default_side_button_entries, SideButtons } from "@zealot/ui";
+import { AddItemModal, ItemSearchModal, RightSidebar, default_side_button_entries, SideButtons } from "@zealot/ui";
 import "@zealot/ui/src/shell/mobile_title_bar";
 import { WebNavigator } from "./web_navigator";
 import "./web_tool_host";
@@ -36,12 +37,14 @@ class ZealotWebClient extends BaseElementEmpty {
             <side-buttons class="desktop_only"></side-buttons>
             <web-tool-host id="left_tool_host" class="desktop_only"></web-tool-host>
             <center-content></center-content>
+            <right-sidebar></right-sidebar>
         </main>
         <footer-bar></footer-bar>
         `;
 
         (document.querySelector("side-buttons")! as SideButtons).init(default_side_button_entries());
         setToolHost(document.querySelector('web-tool-host')! as WebToolHost);
+        setRightSidebarHost(document.querySelector('right-sidebar')! as RightSidebar);
 
         nav.resolve();
     }

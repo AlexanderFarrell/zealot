@@ -1,4 +1,4 @@
-import { BaseElementEmpty, Popups, getNavigator } from '@websoil/engine';
+import { BaseElementEmpty, Popups, getNavigator, getRightSidebarHost } from '@websoil/engine';
 import { ItemAPI } from '@zealot/api/src/item';
 import type { Item } from '@zealot/domain/src/item';
 import { ConfirmDialog } from '../common/confirm_dialog';
@@ -11,13 +11,11 @@ import { ItemTableView, type ItemTableColumn } from '../views/item_table_view';
 const itemApi = new ItemAPI('/api');
 const collectionColumns: ItemTableColumn[] = [
     { kind: 'title', label: 'Title' },
-    { kind: 'types', label: 'Type' },
     { attributeKey: 'Status', kind: 'attribute', label: 'Status' },
     { attributeKey: 'Priority', kind: 'attribute', label: 'Priority' },
 ];
 
 let content_visible = true;
-let related_visible = true;
 
 export class ItemScreen extends BaseElementEmpty {
     private item: Item | null = null;
@@ -39,7 +37,12 @@ export class ItemScreen extends BaseElementEmpty {
         void this.fetchAndRender(() => itemApi.GetById(id));
     }
 
+    disconnectedCallback(): void {
+        getRightSidebarHost()?.setContent(null);
+    }
+
     private async fetchAndRender(fetch: () => Promise<Item>): Promise<void> {
+        getRightSidebarHost()?.setContent(null);
         this.innerHTML = '';
         this.appendChild(new LoadingSpinner());
 
@@ -123,12 +126,11 @@ export class ItemScreen extends BaseElementEmpty {
         this.appendChild(contentSection);
         this.renderContent(item, contentSection);
 
-        // Children + Related collections
-        const relatedSection = document.createElement('section');
-        relatedSection.className = 'item-collections';
-        relatedSection.style.display = related_visible ? 'block' : 'none';
-        this.appendChild(relatedSection);
-        void this.renderCollections(item, relatedSection);
+        // Children + Related collections — rendered into the right sidebar
+        const collectionsEl = document.createElement('section');
+        collectionsEl.className = 'item-collections';
+        getRightSidebarHost()?.setContent(collectionsEl);
+        void this.renderCollections(item, collectionsEl);
 
         const commentsSection = this.buildCollectionSection('Comments');
         const commentsView = new CommentsView().init({
@@ -178,12 +180,6 @@ export class ItemScreen extends BaseElementEmpty {
             content_visible = !content_visible;
             const section = this.querySelector('.item-content') as HTMLElement | null;
             if (section) section.style.display = content_visible ? 'block' : 'none';
-        }));
-
-        row.appendChild(makeBtn(icons.items, 'Toggle Related', () => {
-            related_visible = !related_visible;
-            const section = this.querySelector('.item-collections') as HTMLElement | null;
-            if (section) section.style.display = related_visible ? 'block' : 'none';
         }));
 
         row.appendChild(makeBtn(icons.delete, 'Delete Item', () => {
@@ -260,7 +256,7 @@ export class ItemScreen extends BaseElementEmpty {
                     contextItemId: item.ItemID,
                     enabled: true,
                     relationship: 'parent',
-                    submitLabel: 'Add Child',
+                    submitLabel: '+',
                 },
                 emptyMessage: 'No child items.',
                 errorMessage: 'Failed to load child items.',

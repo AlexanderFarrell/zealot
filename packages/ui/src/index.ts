@@ -24,13 +24,24 @@ import { LoadingSpinner } from './common/loading_spinner';
 import { CenterContent } from './shell/center_content';
 import { HeaderBar } from './shell/header_bar';
 import { MobileTitleBar } from './shell/mobile_title_bar';
+import { RightSidebar } from './shell/right_sidebar';
 import { SideBar } from './shell/side_bar';
 import { SideButtons, default_side_button_entries } from './shell/side_buttons';
+import { AttrKindSettingsScreen } from './screens/attr_kind_settings_screen';
+import { MediaScreen } from './screens/media_screen';
+import { AnalysisScreen, SpecifyScreen, WorkingScreen } from './screens/analysis_screen';
+import { PlannerSettingsScreen } from './screens/planner_settings_screen';
+import { WikiSettingsScreen } from './screens/wiki_settings_screen';
+import { DataSettingsScreen } from './screens/data_settings_screen';
+import { UserSettingsScreen } from './screens/user_settings_screen';
 import { CalendarToolView } from './tools/calendar_tool_view';
 import { NavTreeToolView } from './tools/nav_tree_tool_view';
 import { SearchToolView } from './tools/search_tool_view';
 
 export {
+    AnalysisScreen,
+    SpecifyScreen,
+    WorkingScreen,
     chips,
     attribute_editor,
     item_picker_input,
@@ -46,7 +57,13 @@ export {
     ItemSearchInline,
     ItemTableView,
     auth,
+    AttrKindSettingsScreen,
+    MediaScreen,
     CalendarToolView,
+    DataSettingsScreen,
+    PlannerSettingsScreen,
+    UserSettingsScreen,
+    WikiSettingsScreen,
     CenterContent,
     ConfirmDialog,
     HeaderBar,
@@ -54,6 +71,7 @@ export {
     LoadingSpinner,
     MobileTitleBar,
     NavTreeToolView,
+    RightSidebar,
     SearchToolView,
     SideBar,
     SideButtons,

@@ -5,7 +5,9 @@ import { BaseAPI } from "./common";
 
 export interface AttributeFilterDto {
     key: string;
+    op: string;        // "eq" | "ne" | "gt" | "lt" | "gte" | "lte"
     value: any;
+    list_mode: string; // "Any" | "All" | "None"
 }
 
 export class ItemAPI extends BaseAPI {

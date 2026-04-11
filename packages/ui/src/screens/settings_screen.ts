@@ -1,5 +1,10 @@
 import { BaseElementEmpty, getNavigator, type SettingsSection } from '@websoil/engine';
+import { AttrKindSettingsScreen } from './attr_kind_settings_screen';
 import { TypeSettingsScreen } from './type_settings_screen';
+import { PlannerSettingsScreen } from './planner_settings_screen';
+import { WikiSettingsScreen } from './wiki_settings_screen';
+import { DataSettingsScreen } from './data_settings_screen';
+import { UserSettingsScreen } from './user_settings_screen';
 
 export class SettingsScreen extends BaseElementEmpty {
     private section: SettingsSection = 'attributes';
@@ -39,13 +44,18 @@ export class SettingsScreen extends BaseElementEmpty {
 
         const body = document.createElement('div');
         body.className = 'settings-screen-body';
-        if (this.section === 'types') {
+        if (this.section === 'attributes') {
+            body.appendChild(new AttrKindSettingsScreen());
+        } else if (this.section === 'types') {
             body.appendChild(new TypeSettingsScreen());
-        } else {
-            const message = document.createElement('p');
-            message.className = 'tool-muted';
-            message.textContent = `The ${this.section} settings screen is not implemented yet.`;
-            body.appendChild(message);
+        } else if (this.section === 'planner') {
+            body.appendChild(new PlannerSettingsScreen());
+        } else if (this.section === 'wiki') {
+            body.appendChild(new WikiSettingsScreen());
+        } else if (this.section === 'data') {
+            body.appendChild(new DataSettingsScreen());
+        } else if (this.section === 'user') {
+            body.appendChild(new UserSettingsScreen());
         }
 
         shell.append(title, nav, body);

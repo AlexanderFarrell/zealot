@@ -12,6 +12,8 @@ export type AppLocation =
     | { kind: 'types' }
     | { kind: 'type'; title: string }
     | { kind: 'analysis' }
+    | { kind: 'analysis_specify' }
+    | { kind: 'analysis_working' }
     | { kind: 'rules' }
     | { kind: 'settings'; section: SettingsSection }
     | { kind: 'not_found'; path: string };
@@ -41,6 +43,8 @@ export interface Navigator {
     openTypes(): void;
     openType(title: string, mode?: 'push' | 'replace'): void;
     openAnalysis(): void;
+    openAnalysisSpecify(): void;
+    openAnalysisWorking(): void;
     openRules(): void;
     openSettings(section?: SettingsSection): void;
     getLocation(): AppLocation;

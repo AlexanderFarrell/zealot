@@ -13,32 +13,56 @@ annual-planner-screen {
   display: grid;
   gap: 16px;
   padding-bottom: 32px;
+  align-content: start;
 }
 
 .planner-header {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
-.planner-header-title > h1 {
+.planner-header-title {
   margin: 0;
+  font-size: 1.75rem;
+  font-weight: 600;
 }
 
 .planner-header-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
-.planner-header-button {
+.planner-header-button,
+.planner-header-link {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  width: auto;
+  padding: 4px 10px;
 }
 
-.planner-header-button > img {
+.planner-header-button > img,
+.planner-header-link > img {
   width: 1em;
   height: 1em;
+}
+
+.planner-header-link {
+  opacity: 0.65;
+  font-size: 0.875rem;
+}
+
+.planner-header-link:hover {
+  opacity: 1;
+}
+
+.planner-header-sep {
+  width: 1px;
+  height: 1.25em;
+  background: var(--border-0);
+  align-self: center;
+  margin: 0 4px;
 }
 
 .planner-section,
@@ -116,15 +140,6 @@ annual-planner-screen {
 }
 
 @media only screen and (max-width: 768px) {
-  .planner-header-actions {
-    display: grid;
-    grid-template-columns: 1fr;
-  }
-
-  .planner-header-button {
-    justify-content: center;
-  }
-
   .planner-repeat-row {
     grid-template-columns: 1fr;
   }
