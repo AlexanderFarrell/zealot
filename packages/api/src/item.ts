@@ -15,8 +15,8 @@ export class ItemAPI extends BaseAPI {
 
     async GetAll(type?: string): Promise<Item[]> {
         const url = type
-            ? `${this.baseUrl}/item/?type=${encodeURIComponent(type)}`
-            : `${this.baseUrl}/item/`;
+            ? `${this.baseUrl}/item?type=${encodeURIComponent(type)}`
+            : `${this.baseUrl}/item`;
         const dtos: ItemDto[] = await get_json(url);
         return dtos.map(d => new Item(d));
     }
@@ -52,7 +52,7 @@ export class ItemAPI extends BaseAPI {
     }
 
     async Add(dto: AddItemDto): Promise<Item> {
-        const data = await post_json(`${this.baseUrl}/item/`, dto) as ItemDto;
+        const data = await post_json(`${this.baseUrl}/item`, dto) as ItemDto;
         return new Item(data);
     }
 

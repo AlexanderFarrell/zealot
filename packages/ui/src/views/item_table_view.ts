@@ -1,65 +1,19 @@
-import { Popups, getNavigator } from '@websoil/engine';
-import { AttributeAPI } from '@zealot/api/src/attribute';
-import { ItemAPI } from '@zealot/api/src/item';
+import { getNavigator } from '@websoil/engine';
 import type { AttributeKind } from '@zealot/domain/src/attribute';
-import type { Item, ItemRelationship } from '@zealot/domain/src/item';
-import { ItemTypeRef } from '@zealot/domain/src/item_type';
+import type { Item } from '@zealot/domain/src/item';
+import { loadAttributeKinds } from './attribute_value_input';
+import { buildCreateRow } from './item_table_create_row';
+import { saveAttribute, saveTitle, saveTypes, createItem } from './item_table_save';
+import { keyForColumn, sortItems, toggleSort } from './item_table_sort';
 import ChipsInput from './chips_input';
 import {
     createAttributeValueInput,
-    getComparableAttributeValue,
-    isBlankAttributeValue,
-    loadAttributeKinds,
 } from './attribute_value_input';
+import { isBlankAttributeValue } from './attribute_value_input';
 
-const itemApi = new ItemAPI('/api');
-const attrApi = new AttributeAPI('/api');
-
-export type ItemTableColumn =
-    | {
-        kind: 'title';
-        editable?: boolean;
-        label?: string;
-        sortable?: boolean;
-    }
-    | {
-        kind: 'types';
-        editable?: boolean;
-        label?: string;
-        sortable?: boolean;
-    }
-    | {
-        attributeKey: string;
-        kind: 'attribute';
-        editable?: boolean;
-        label?: string;
-        sortable?: boolean;
-    };
-
-export interface ItemTableCreateRowConfig {
-    contextItemId?: number;
-    defaultAttributes?: Record<string, unknown>;
-    enabled: boolean;
-    onSuccess?: (item: Item) => void;
-    relationship?: ItemRelationship;
-    submitLabel?: string;
-}
-
-export interface ItemTableViewConfig {
-    columns: ItemTableColumn[];
-    createRow?: ItemTableCreateRowConfig;
-    emptyMessage?: string;
-    items: Item[];
-    onOpenItem?: (item: Item) => void;
-}
-
-interface CreateDraftState {
-    attributes: Record<string, unknown>;
-    title: string;
-    types: string[];
-}
-
-type SortDirection = 'asc' | 'desc' | null;
+export type { ItemTableColumn, ItemTableCreateRowConfig, ItemTableViewConfig } from './item_table_types';
+import type { CreateDraftState, SortDirection } from './item_table_types';
+import type { ItemTableColumn, ItemTableViewConfig } from './item_table_types';
 
 export class ItemTableView extends HTMLElement {
     private _attributeKinds: Record<string, AttributeKind> = {};
@@ -92,8 +46,7 @@ export class ItemTableView extends HTMLElement {
     }
 
     private async _ensureKinds(): Promise<void> {
-        const kinds = await loadAttributeKinds();
-        this._attributeKinds = kinds;
+        this._attributeKinds = await loadAttributeKinds();
         this._render();
     }
 
@@ -127,11 +80,14 @@ export class ItemTableView extends HTMLElement {
 
             if (column.sortable !== false) {
                 header.classList.add('item-table-sortable');
-                if (this._sortColumnKey === this._keyForColumn(column)) {
+                if (this._sortColumnKey === keyForColumn(column)) {
                     header.textContent += this._sortDirection === 'asc' ? ' ^' : this._sortDirection === 'desc' ? ' v' : '';
                 }
                 header.addEventListener('click', () => {
-                    this._toggleSort(column);
+                    const next = toggleSort(this._sortColumnKey, this._sortDirection, column);
+                    this._sortColumnKey = next.key;
+                    this._sortDirection = next.dir;
+                    this._render();
                 });
             }
 
@@ -149,10 +105,16 @@ export class ItemTableView extends HTMLElement {
 
         const tbody = document.createElement('tbody');
         if (this._config.createRow?.enabled) {
-            tbody.appendChild(this._buildCreateRow());
+            tbody.appendChild(buildCreateRow(
+                this._config,
+                this._createDraft,
+                this._creating,
+                this._attributeKinds,
+                () => { void this._submitCreateRow(); },
+            ));
         }
 
-        const items = this._sortedItems();
+        const items = sortItems(this._items, this._sortColumnKey, this._sortDirection, this._config.columns, this._attributeKinds);
         if (items.length === 0) {
             const row = document.createElement('tr');
             const cell = document.createElement('td');
@@ -172,99 +134,12 @@ export class ItemTableView extends HTMLElement {
         this.appendChild(shell);
     }
 
-    private _buildCreateRow(): HTMLTableRowElement {
-        const row = document.createElement('tr');
-        row.className = 'item-table-create-row';
-
-        for (const column of this._config!.columns) {
-            const cell = document.createElement('td');
-            cell.appendChild(this._buildCreateCell(column));
-            row.appendChild(cell);
-        }
-
-        const actionCell = document.createElement('td');
-        actionCell.className = 'item-table-actions';
-
-        const submit = document.createElement('button');
-        submit.type = 'button';
-        submit.textContent = this._creating
-            ? 'Creating...'
-            : (this._config!.createRow?.submitLabel ?? 'Create');
-        submit.disabled = this._creating;
-        submit.addEventListener('click', () => {
-            void this._submitCreateRow();
-        });
-
-        actionCell.appendChild(submit);
-        row.appendChild(actionCell);
-        return row;
-    }
-
-    private _buildCreateCell(column: ItemTableColumn): HTMLElement {
-        if (column.kind === 'title') {
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.placeholder = 'New item title';
-            input.value = this._createDraft.title;
-            input.dataset.itemTableCreateTitle = 'true';
-            input.addEventListener('input', () => {
-                this._createDraft.title = input.value;
-            });
-            input.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter') {
-                    event.preventDefault();
-                    void this._submitCreateRow();
-                }
-            });
-            return input;
-        }
-
-        if (column.kind === 'types') {
-            const chips = new ChipsInput();
-            chips.value = this._createDraft.types;
-            chips.OnClickItem = (name) => {
-                getNavigator().openType(name);
-            };
-            chips.addEventListener('chips-add', () => {
-                this._createDraft.types = chips.value.slice();
-            });
-            chips.addEventListener('chips-remove', () => {
-                this._createDraft.types = chips.value.slice();
-            });
-            return chips;
-        }
-
-        const kind = this._attributeKinds[column.attributeKey];
-        const controlOptions: Parameters<typeof createAttributeValueInput>[0] = {
-            allowEmpty: true,
-            attributeKey: column.attributeKey,
-            onValueChange: (value) => {
-                if (isBlankAttributeValue(value, kind)) {
-                    delete this._createDraft.attributes[column.attributeKey];
-                    return;
-                }
-
-                this._createDraft.attributes[column.attributeKey] = value;
-            },
-            value: this._createDraft.attributes[column.attributeKey],
-        };
-        if (kind) {
-            controlOptions.kind = kind;
-        }
-
-        const control = createAttributeValueInput(controlOptions);
-        return control.element;
-    }
-
     private _buildItemRow(item: Item): HTMLTableRowElement {
         const row = document.createElement('tr');
         row.addEventListener('click', (event) => {
-            if (this._isInteractiveTarget(event.target)) {
-                return;
-            }
-
-            const openItem = this._config?.onOpenItem ?? ((targetItem: Item) => {
-                getNavigator().openItemById(targetItem.ItemID);
+            if (this._isInteractiveTarget(event.target)) return;
+            const openItem = this._config?.onOpenItem ?? ((target: Item) => {
+                getNavigator().openItemById(target.ItemID);
             });
             openItem(item);
         });
@@ -286,37 +161,36 @@ export class ItemTableView extends HTMLElement {
 
     private _buildItemCell(item: Item, column: ItemTableColumn): HTMLElement {
         if (column.kind === 'title') {
-            if (column.editable === false) {
-                return this._readOnlyCell(item.DisplayTitle);
-            }
+            if (column.editable === false) return this._readOnlyCell(item.DisplayTitle);
 
             const input = document.createElement('input');
             input.type = 'text';
             input.value = item.Title;
             input.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter') {
-                    event.preventDefault();
-                    input.blur();
-                }
+                if (event.key === 'Enter') { event.preventDefault(); input.blur(); }
             });
             input.addEventListener('blur', () => {
-                void this._saveTitle(item, input);
+                void saveTitle(item, input).then((result) => {
+                    if (result === 'saved' && this._sortColumnKey === 'title') this._render();
+                });
             });
             return input;
         }
 
         if (column.kind === 'types') {
             if (column.editable === false) {
-                return this._readOnlyCell(item.Types.map((typeRef) => typeRef.Name).join(', '));
+                return this._readOnlyCell(item.Types.map((t) => t.Name).join(', '));
             }
 
             const chips = new ChipsInput();
-            chips.value = item.Types.map((typeRef) => typeRef.Name);
-            chips.OnClickItem = (name) => {
-                getNavigator().openType(name);
-            };
-            const syncTypes = () => {
-                void this._saveTypes(item, chips.value.slice());
+            chips.value = item.Types.map((t) => t.Name);
+            chips.OnClickItem = (name) => { getNavigator().openType(name); };
+            const syncTypes = (): void => {
+                void saveTypes(item, chips.value.slice()).then((result) => {
+                    if (result === 'failed' || (result === 'saved' && this._sortColumnKey === 'types')) {
+                        this._render();
+                    }
+                });
             };
             chips.addEventListener('chips-add', syncTypes);
             chips.addEventListener('chips-remove', syncTypes);
@@ -334,116 +208,29 @@ export class ItemTableView extends HTMLElement {
             allowEmpty: true,
             attributeKey: key,
             onCommit: async (value) => {
-                const result = await this._saveAttribute(item, key, value, kind);
+                const result = await saveAttribute(item, key, value, kind);
                 if (result === 'saved') {
                     item.Attributes[key] = value;
-                    if (this._sortColumnKey === this._keyForColumn(column)) {
+                    if (this._sortColumnKey === keyForColumn(column)) {
                         this._render();
                     }
                     return;
                 }
-
                 if (result === 'removed') {
                     delete item.Attributes[key];
                 }
-
                 this._render();
             },
             value: item.Attributes[key],
         };
-        if (kind) {
-            controlOptions.kind = kind;
-        }
+        if (kind) controlOptions.kind = kind;
 
-        const control = createAttributeValueInput(controlOptions);
-
-        return control.element;
-    }
-
-    private async _saveTitle(item: Item, input: HTMLInputElement): Promise<void> {
-        const nextTitle = input.value.trim();
-        const previousTitle = item.Title;
-
-        if (nextTitle === previousTitle) {
-            input.value = previousTitle;
-            return;
-        }
-
-        if (!nextTitle) {
-            input.value = previousTitle;
-            return;
-        }
-
-        try {
-            const updated = await itemApi.Update(item.ItemID, {
-                item_id: item.ItemID,
-                title: nextTitle,
-            });
-            item.Title = updated.Title;
-            if (this._sortColumnKey === 'title') {
-                this._render();
-            }
-        } catch (error) {
-            Popups.add_error((error as Error).message ?? 'Failed to save title.');
-            input.value = previousTitle;
-        }
-    }
-
-    private async _saveTypes(item: Item, nextTypes: string[]): Promise<void> {
-        const previousTypes = item.Types.map((typeRef) => typeRef.Name);
-        const added = nextTypes.filter((name) => !previousTypes.includes(name));
-        const removed = previousTypes.filter((name) => !nextTypes.includes(name));
-
-        if (added.length === 0 && removed.length === 0) {
-            return;
-        }
-
-        try {
-            await Promise.all([
-                ...added.map((name) => itemApi.AssignType(item.ItemID, name)),
-                ...removed.map((name) => itemApi.UnassignType(item.ItemID, name)),
-            ]);
-
-            item.Types = nextTypes.map((name) => new ItemTypeRef({
-                is_system: false,
-                name,
-                type_id: -1,
-            }));
-
-            if (this._sortColumnKey === 'types') {
-                this._render();
-            }
-        } catch (error) {
-            Popups.add_error((error as Error).message ?? 'Failed to update item types.');
-            this._render();
-        }
-    }
-
-    private async _saveAttribute(
-        item: Item,
-        key: string,
-        value: unknown,
-        kind: AttributeKind | undefined,
-    ): Promise<'saved' | 'removed' | 'failed'> {
-        try {
-            if (isBlankAttributeValue(value, kind)) {
-                await attrApi.remove(item.ItemID, key);
-                return 'removed';
-            }
-
-            await attrApi.set_value(item.ItemID, key, value);
-            return 'saved';
-        } catch (error) {
-            Popups.add_error((error as Error).message ?? `Failed to save "${key}".`);
-            return 'failed';
-        }
+        return createAttributeValueInput(controlOptions).element;
     }
 
     private async _submitCreateRow(): Promise<void> {
         const createConfig = this._config?.createRow;
-        if (!createConfig?.enabled || this._creating) {
-            return;
-        }
+        if (!createConfig?.enabled || this._creating) return;
 
         const title = this._createDraft.title.trim();
         if (!title) {
@@ -453,21 +240,14 @@ export class ItemTableView extends HTMLElement {
             return;
         }
 
-        const attributes: Record<string, unknown> = {
-            ...(createConfig.defaultAttributes ?? {}),
-        };
+        const attributes: Record<string, unknown> = { ...(createConfig.defaultAttributes ?? {}) };
         for (const column of this._config!.columns) {
-            if (column.kind !== 'attribute' || column.editable === false) {
-                continue;
-            }
-
+            if (column.kind !== 'attribute' || column.editable === false) continue;
             const kind = this._attributeKinds[column.attributeKey];
             const value = this._createDraft.attributes[column.attributeKey];
-            if (isBlankAttributeValue(value, kind)) {
-                continue;
+            if (!isBlankAttributeValue(value, kind)) {
+                attributes[column.attributeKey] = value;
             }
-
-            attributes[column.attributeKey] = value;
         }
 
         this._creating = true;
@@ -475,34 +255,13 @@ export class ItemTableView extends HTMLElement {
         this._render();
 
         try {
-            const addDto: {
-                attributes?: Record<string, unknown>;
-                content: string;
-                links?: Array<{ other_item_id: number; relationship: ItemRelationship }>;
-                title: string;
-                types?: string[];
-            } = {
-                content: '',
+            const created = await createItem({
+                attributes,
                 title,
-            };
-
-            if (Object.keys(attributes).length > 0) {
-                addDto.attributes = attributes;
-            }
-
-            if (createConfig.contextItemId != null) {
-                addDto.links = [{
-                    other_item_id: createConfig.contextItemId,
-                    relationship: createConfig.relationship ?? 'parent',
-                }];
-            }
-
-            if (this._createDraft.types.length > 0) {
-                addDto.types = this._createDraft.types;
-            }
-
-            const created = await itemApi.Add(addDto);
-
+                types: this._createDraft.types,
+                ...(createConfig.contextItemId != null ? { contextItemId: createConfig.contextItemId } : {}),
+                ...(createConfig.relationship != null ? { relationship: createConfig.relationship } : {}),
+            });
             this._items.unshift(created);
             this._createDraft = this._newCreateDraft();
             this._createError = null;
@@ -523,101 +282,14 @@ export class ItemTableView extends HTMLElement {
         });
     }
 
-    private _sortedItems(): Item[] {
-        const items = [...this._items];
-        if (!this._sortColumnKey || !this._sortDirection) {
-            return items;
-        }
-
-        const column = this._config!.columns.find((entry) => this._keyForColumn(entry) === this._sortColumnKey);
-        if (!column) {
-            return items;
-        }
-
-        items.sort((left, right) => {
-            const leftValue = this._sortValueForItem(left, column);
-            const rightValue = this._sortValueForItem(right, column);
-
-            const leftMissing = leftValue == null || leftValue === '';
-            const rightMissing = rightValue == null || rightValue === '';
-
-            if (leftMissing && rightMissing) return 0;
-            if (leftMissing) return 1;
-            if (rightMissing) return -1;
-
-            if (typeof leftValue === 'number' && typeof rightValue === 'number') {
-                return leftValue - rightValue;
-            }
-
-            return String(leftValue).localeCompare(String(rightValue), undefined, { sensitivity: 'base' });
-        });
-
-        if (this._sortDirection === 'desc') {
-            items.reverse();
-        }
-
-        return items;
-    }
-
-    private _sortValueForItem(item: Item, column: ItemTableColumn): string | number | null {
-        if (column.kind === 'title') {
-            return item.Title.toLowerCase();
-        }
-
-        if (column.kind === 'types') {
-            const typeNames = item.Types.map((typeRef) => typeRef.Name).join('\u0000').toLowerCase();
-            return typeNames === '' ? null : typeNames;
-        }
-
-        return getComparableAttributeValue(item.Attributes[column.attributeKey], this._attributeKinds[column.attributeKey]);
-    }
-
-    private _toggleSort(column: ItemTableColumn): void {
-        const key = this._keyForColumn(column);
-        if (this._sortColumnKey !== key) {
-            this._sortColumnKey = key;
-            this._sortDirection = 'asc';
-            this._render();
-            return;
-        }
-
-        if (this._sortDirection === 'asc') {
-            this._sortDirection = 'desc';
-        } else if (this._sortDirection === 'desc') {
-            this._sortDirection = null;
-            this._sortColumnKey = null;
-        } else {
-            this._sortDirection = 'asc';
-        }
-
-        this._render();
-    }
-
     private _columnCount(): number {
         return this._config!.columns.length + (this._config!.createRow?.enabled ? 1 : 0);
     }
 
-    private _keyForColumn(column: ItemTableColumn): string {
-        if (column.kind === 'attribute') {
-            return `attr:${column.attributeKey}`;
-        }
-
-        return column.kind;
-    }
-
     private _labelForColumn(column: ItemTableColumn): string {
-        if (column.label) {
-            return column.label;
-        }
-
-        if (column.kind === 'title') {
-            return 'Title';
-        }
-
-        if (column.kind === 'types') {
-            return 'Type';
-        }
-
+        if (column.label) return column.label;
+        if (column.kind === 'title') return 'Title';
+        if (column.kind === 'types') return 'Type';
         return column.attributeKey;
     }
 
@@ -628,35 +300,19 @@ export class ItemTableView extends HTMLElement {
     }
 
     private _formatAttributeValue(value: unknown): string {
-        if (Array.isArray(value)) {
-            return value.map((entry) => String(entry)).join(', ');
-        }
-
-        if (typeof value === 'boolean') {
-            return value ? 'True' : 'False';
-        }
-
-        if (value == null) {
-            return '';
-        }
-
+        if (Array.isArray(value)) return value.map((entry) => String(entry)).join(', ');
+        if (typeof value === 'boolean') return value ? 'True' : 'False';
+        if (value == null) return '';
         return String(value);
     }
 
     private _isInteractiveTarget(target: EventTarget | null): boolean {
-        if (!(target instanceof Element)) {
-            return false;
-        }
-
+        if (!(target instanceof Element)) return false;
         return target.closest('button, input, select, textarea, a, chips-input, item-picker-input, item-chips-input') !== null;
     }
 
     private _newCreateDraft(): CreateDraftState {
-        return {
-            attributes: {},
-            title: '',
-            types: [],
-        };
+        return { attributes: {}, title: '', types: [] };
     }
 }
 

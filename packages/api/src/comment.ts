@@ -17,7 +17,7 @@ export class CommentAPI extends BaseAPI {
     }
 
     async AddComment(dto: AddCommentDto): Promise<Comment> {
-        const data = await post_json(`${this.baseUrl}/comment/`, {
+        const data = await post_json(`${this.baseUrl}/comment`, {
             content: dto.content,
             item_id: dto.item_id,
             timestamp: formatCommentTimestamp(dto.timestamp),

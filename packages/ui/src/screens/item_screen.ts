@@ -94,7 +94,13 @@ export class ItemScreen extends BaseElementEmpty {
             item.Title = title.textContent ?? item.Title;
         });
         title.addEventListener('blur', () => {
-            void itemApi.Update(item.ItemID, { item_id: item.ItemID, title: item.Title });
+            void itemApi.Update(item.ItemID, { item_id: item.ItemID, title: item.Title }).then((updated) => {
+                // Keep the URL in sync so a reload fetches the item by its current title.
+                if (this.last_loaded_title != null && updated.Title !== this.last_loaded_title) {
+                    window.history.replaceState(null, '', `/item/${encodeURIComponent(updated.Title)}`);
+                    this.last_loaded_title = updated.Title;
+                }
+            });
         });
         this.appendChild(title);
 
