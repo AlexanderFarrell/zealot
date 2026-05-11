@@ -7,6 +7,7 @@ import { icons } from '@zealot/content';
 import { AttributeEditor } from '../views/attribute_editor';
 import { CommentsView } from '../views/comments_view';
 import { ItemTableView, type ItemTableColumn } from '../views/item_table_view';
+import { ZealotScriptEditor } from '../zealotscript/zealotscript_editor';
 
 const itemApi = new ItemAPI('/api');
 const collectionColumns: ItemTableColumn[] = [
@@ -224,20 +225,18 @@ export class ItemScreen extends BaseElementEmpty {
     }
 
     private renderContent(item: Item, container: HTMLElement): void {
-        const textarea = document.createElement('textarea');
-        textarea.value = item.Content;
-        textarea.style.width = '100%';
-        textarea.style.minHeight = '200px';
-        textarea.placeholder = 'Content…';
-        textarea.addEventListener('input', () => {
-            item.Content = textarea.value;
+        const editor = document.createElement('zealotscript-editor') as ZealotScriptEditor;
+        editor.content = item.Content;
+        editor.addEventListener('change', (e: Event) => {
+            const value = (e as CustomEvent<string>).detail;
+            item.Content = value;
             if (this.content_debounce) clearTimeout(this.content_debounce);
             this.content_debounce = setTimeout(async () => {
                 await itemApi.Update(item.ItemID, { item_id: item.ItemID, content: item.Content });
                 Popups.add('Saved', 'note', 2);
             }, 1000);
         });
-        container.appendChild(textarea);
+        container.appendChild(editor);
     }
 
     private async renderCollections(item: Item, container: HTMLElement): Promise<void> {
@@ -255,8 +254,9 @@ export class ItemScreen extends BaseElementEmpty {
                 createRow: {
                     contextItemId: item.ItemID,
                     enabled: true,
+                    panelMode: true,
                     relationship: 'parent',
-                    submitLabel: '+',
+                    submitLabel: 'Add child',
                 },
                 emptyMessage: 'No child items.',
                 errorMessage: 'Failed to load child items.',
@@ -291,6 +291,7 @@ export class ItemScreen extends BaseElementEmpty {
         createRow?: {
             contextItemId: number;
             enabled: boolean;
+            panelMode?: boolean;
             relationship: 'parent';
             submitLabel: string;
         };

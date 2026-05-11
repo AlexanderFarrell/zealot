@@ -1,7 +1,9 @@
 import { getNavigator } from '@websoil/engine';
+import { icons } from '@zealot/content';
 import type { AttributeKind } from '@zealot/domain/src/attribute';
 import type { Item } from '@zealot/domain/src/item';
 import { loadAttributeKinds } from './attribute_value_input';
+import { buildAddPanel } from './item_table_add_panel';
 import { buildCreateRow } from './item_table_create_row';
 import { saveAttribute, saveTitle, saveTypes, createItem } from './item_table_save';
 import { keyForColumn, sortItems, toggleSort } from './item_table_sort';
@@ -22,6 +24,7 @@ export class ItemTableView extends HTMLElement {
     private _createError: string | null = null;
     private _creating = false;
     private _items: Item[] = [];
+    private _panelOpen = false;
     private _sortColumnKey: string | null = null;
     private _sortDirection: SortDirection = null;
 
@@ -38,6 +41,7 @@ export class ItemTableView extends HTMLElement {
         this._createError = null;
         this._creating = false;
         this._createDraft = this._newCreateDraft();
+        this._panelOpen = false;
         this._sortColumnKey = null;
         this._sortDirection = null;
         this._render();
@@ -94,17 +98,26 @@ export class ItemTableView extends HTMLElement {
             headerRow.appendChild(header);
         }
 
-        if (this._config.createRow?.enabled) {
-            const actionHeader = document.createElement('th');
-            actionHeader.className = 'item-table-actions-header';
-            headerRow.appendChild(actionHeader);
-        }
+        const actionHeader = document.createElement('th');
+        actionHeader.className = 'item-table-actions-header';
+        headerRow.appendChild(actionHeader);
 
         thead.appendChild(headerRow);
         table.appendChild(thead);
 
+        if (this._config.createRow?.enabled && this._config.createRow.panelMode) {
+            shell.appendChild(buildAddPanel(
+                this._config.createRow,
+                this._createDraft,
+                this._attributeKinds,
+                this._panelOpen,
+                () => { void this._submitCreateRow(); },
+                () => { this._panelOpen = false; this._createDraft = this._newCreateDraft(); },
+            ));
+        }
+
         const tbody = document.createElement('tbody');
-        if (this._config.createRow?.enabled) {
+        if (this._config.createRow?.enabled && !this._config.createRow.panelMode) {
             tbody.appendChild(buildCreateRow(
                 this._config,
                 this._createDraft,
@@ -150,11 +163,26 @@ export class ItemTableView extends HTMLElement {
             row.appendChild(cell);
         }
 
-        if (this._config!.createRow?.enabled) {
-            const actionCell = document.createElement('td');
-            actionCell.className = 'item-table-actions';
-            row.appendChild(actionCell);
-        }
+        const actionCell = document.createElement('td');
+        actionCell.className = 'item-table-actions';
+
+        const navBtn = document.createElement('button');
+        navBtn.type = 'button';
+        navBtn.title = 'Open item';
+        const navImg = document.createElement('img');
+        navImg.src = icons.forward;
+        navImg.style.height = '1em';
+        navBtn.appendChild(navImg);
+        navBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const openItem = this._config?.onOpenItem ?? ((target: Item) => {
+                getNavigator().openItemById(target.ItemID);
+            });
+            openItem(item);
+        });
+
+        actionCell.appendChild(navBtn);
+        row.appendChild(actionCell);
 
         return row;
     }
@@ -263,8 +291,12 @@ export class ItemTableView extends HTMLElement {
                 ...(createConfig.relationship != null ? { relationship: createConfig.relationship } : {}),
             });
             this._items.unshift(created);
+            // Keep types for rapid multi-add; reset only title + attributes
+            const keptTypes = this._createDraft.types.slice();
             this._createDraft = this._newCreateDraft();
+            this._createDraft.types = keptTypes;
             this._createError = null;
+            if (createConfig.panelMode) this._panelOpen = true;
             createConfig.onSuccess?.(created);
         } catch (error) {
             this._createError = (error as Error).message ?? 'Failed to create item.';
@@ -283,7 +315,7 @@ export class ItemTableView extends HTMLElement {
     }
 
     private _columnCount(): number {
-        return this._config!.columns.length + (this._config!.createRow?.enabled ? 1 : 0);
+        return this._config!.columns.length + 1;
     }
 
     private _labelForColumn(column: ItemTableColumn): string {
@@ -312,7 +344,8 @@ export class ItemTableView extends HTMLElement {
     }
 
     private _newCreateDraft(): CreateDraftState {
-        return { attributes: {}, title: '', types: [] };
+        const defaultTypes = this._config?.createRow?.defaultTypes ?? [];
+        return { attributes: {}, title: '', types: [...defaultTypes] };
     }
 }
 

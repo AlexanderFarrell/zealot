@@ -5,7 +5,7 @@ import {
     isBlankAttributeValue,
 } from './attribute_value_input';
 import ChipsInput from './chips_input';
-import type { CreateDraftState, ItemTableColumn, ItemTableViewConfig } from './item_table_types';
+import type { CreateDraftState, ItemTableColumn, ItemTableCreateRowConfig, ItemTableViewConfig } from './item_table_types';
 
 export function buildCreateRow(
     config: ItemTableViewConfig,
@@ -19,7 +19,7 @@ export function buildCreateRow(
 
     for (const column of config.columns) {
         const cell = document.createElement('td');
-        cell.appendChild(buildCreateCell(column, draft, attributeKinds, onSubmit));
+        cell.appendChild(buildCreateCell(column, draft, attributeKinds, onSubmit, config.createRow));
         row.appendChild(cell);
     }
 
@@ -42,6 +42,7 @@ export function buildCreateCell(
     draft: CreateDraftState,
     attributeKinds: Record<string, AttributeKind>,
     onSubmit: () => void,
+    createRowConfig?: ItemTableCreateRowConfig,
 ): HTMLElement {
     if (column.kind === 'title') {
         const input = document.createElement('input');
@@ -62,6 +63,12 @@ export function buildCreateCell(
     }
 
     if (column.kind === 'types') {
+        if (createRowConfig?.typesEditable === false) {
+            const span = document.createElement('span');
+            span.className = 'tool-muted';
+            span.textContent = draft.types.join(', ');
+            return span;
+        }
         const chips = new ChipsInput();
         chips.value = draft.types;
         chips.OnClickItem = (name) => { getNavigator().openType(name); };

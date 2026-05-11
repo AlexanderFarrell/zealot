@@ -17,3 +17,4 @@
 __pycache__/
 **/tsconfig.tsbuildinfo
 .codex
+**/node_modules/

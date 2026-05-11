@@ -109,8 +109,20 @@
 .type-settings-actions > button,
 .type-screen-add-attribute > button,
 .type-screen-header > button,
-.types-screen-header > button {
+.types-screen-header > button,
+.type-screen-settings-toggle {
   width: auto;
+}
+
+.type-screen-settings-toggle {
+  margin-left: auto;
+  font-size: 13px;
+  padding: 4px 10px;
+}
+
+.type-screen-settings-body {
+  display: grid;
+  gap: 12px;
 }
 
 @media (max-width: 720px) {

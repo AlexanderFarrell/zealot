@@ -9,7 +9,9 @@ export class MediaAPI extends BaseAPI {
     }
 
     public async ListFiles(location: string, page: number = 1): Promise<FileStat[]> {
-        let json = await get_json(`${this.baseUrl}/media/${location}?page=${page}`);
+        const loc = location.replace(/\/+$/, '');
+        const url = loc ? `${this.baseUrl}/media/${loc}?page=${page}` : `${this.baseUrl}/media?page=${page}`;
+        let json = await get_json(url);
         let dtos: FileStatDto[] = json['files'];
         return dtos.map(d => new FileStat(d));
     }
@@ -21,9 +23,11 @@ export class MediaAPI extends BaseAPI {
     }
 
     public async UploadFolder(file: File, location: string) {
+        const loc = location.replace(/\/+$/, '');
+        const url = loc ? `${this.baseUrl}/media/${loc}` : `${this.baseUrl}/media`;
         const formData = new FormData();
         formData.append('file', file);
-        return await post_req_form_data(`${this.baseUrl}/media/${location}`, formData);
+        return await post_req_form_data(url, formData);
     }
 
     public async Rename(old_location: string, new_name: string) {
@@ -34,6 +38,6 @@ export class MediaAPI extends BaseAPI {
     }
 
     public async Delete(path: string) {
-        return await delete_req(`${this.baseUrl}/media/${path}`)
+        return await delete_req(`${this.baseUrl}/media/${path.replace(/\/+$/, '')}`)
     }
 }

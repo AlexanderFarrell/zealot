@@ -1,4 +1,4 @@
-import { BaseElementEmpty, getNavigator } from '@websoil/engine';
+import { BaseElementEmpty, Popups, getNavigator } from '@websoil/engine';
 import { AttributeKindAPI } from '@zealot/api/src/attribute_kind';
 import { ItemAPI } from '@zealot/api/src/item';
 import { ItemTypeAPI } from '@zealot/api/src/item_type';
@@ -15,6 +15,7 @@ const itemApi = new ItemAPI('/api');
 export class TypeScreen extends BaseElementEmpty {
     private typeTitle: string | null = null;
     private renderId = 0;
+    private settingsOpen = false;
 
     async render() {
         const renderId = ++this.renderId;
@@ -65,7 +66,12 @@ export class TypeScreen extends BaseElementEmpty {
             ? this.messageForError(itemsResult.reason, 'Failed to load items.')
             : null;
 
-        this.renderType(typeResult.value, attributeKinds, kindsError, items, itemsError);
+        const shell = document.createElement('div');
+        shell.className = 'type-screen-shell';
+        shell.appendChild(this.buildHeader(typeResult.value));
+        shell.appendChild(this.buildAssignedKindsSection(typeResult.value, attributeKinds, kindsError));
+        shell.appendChild(this.buildItemsSection(typeResult.value, items, itemsError));
+        this.appendChild(shell);
     }
 
     init(title: string): this {
@@ -76,21 +82,16 @@ export class TypeScreen extends BaseElementEmpty {
         return this;
     }
 
-    private renderType(
-        itemType: ItemType,
-        attributeKinds: AttributeKind[],
-        kindsError: string | null,
-        items: Item[] | null,
-        itemsError: string | null,
-    ): void {
-        const shell = document.createElement('div');
-        shell.className = 'type-screen-shell';
-
-        shell.appendChild(this.buildHeader(itemType));
-        shell.appendChild(this.buildAssignedKindsSection(itemType, attributeKinds, kindsError));
-        shell.appendChild(this.buildItemsSection(itemType, items, itemsError));
-
-        this.appendChild(shell);
+    private buildSectionHeader(title: string, ...extras: HTMLElement[]): HTMLElement {
+        const header = document.createElement('div');
+        header.className = 'type-screen-section-header';
+        const h2 = document.createElement('h2');
+        h2.textContent = title;
+        header.appendChild(h2);
+        for (const el of extras) {
+            header.appendChild(el);
+        }
+        return header;
     }
 
     private buildHeader(itemType: ItemType): HTMLElement {
@@ -150,14 +151,17 @@ export class TypeScreen extends BaseElementEmpty {
         const section = document.createElement('section');
         section.className = 'type-screen-section';
 
-        const header = document.createElement('div');
-        header.className = 'type-screen-section-header';
+        // Only custom types can have settings modified; system types hide the toggle.
+        let toggleButton: HTMLElement | undefined;
+        if (!itemType.IsSystem) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'type-screen-settings-toggle';
+            btn.textContent = this.settingsOpen ? 'Hide Settings' : 'Show Settings';
+            toggleButton = btn;
+        }
 
-        const title = document.createElement('h2');
-        title.textContent = 'Assigned Attribute Kinds';
-        header.appendChild(title);
-
-        section.appendChild(header);
+        section.appendChild(this.buildSectionHeader('Assigned Attribute Kinds', ...(toggleButton ? [toggleButton] : [])));
 
         if (kindsError) {
             const error = document.createElement('p');
@@ -166,6 +170,16 @@ export class TypeScreen extends BaseElementEmpty {
             section.appendChild(error);
         }
 
+        const settingsBody = document.createElement('div');
+        settingsBody.className = 'type-screen-settings-body';
+        settingsBody.hidden = !this.settingsOpen;
+
+        toggleButton?.addEventListener('click', () => {
+            this.settingsOpen = !this.settingsOpen;
+            settingsBody.hidden = !this.settingsOpen;
+            toggleButton!.textContent = this.settingsOpen ? 'Hide Settings' : 'Show Settings';
+        });
+
         const kindsByKey = new Map(attributeKinds.map((kind) => [kind.Key, kind]));
         const assignedKeys = [...itemType.RequiredAttributes].sort((left, right) => left.localeCompare(right));
 
@@ -173,7 +187,7 @@ export class TypeScreen extends BaseElementEmpty {
             const empty = document.createElement('p');
             empty.className = 'tool-muted';
             empty.textContent = 'No attribute kinds assigned.';
-            section.appendChild(empty);
+            settingsBody.appendChild(empty);
         } else {
             const table = document.createElement('table');
             table.className = 'type-attribute-table';
@@ -213,7 +227,7 @@ export class TypeScreen extends BaseElementEmpty {
             });
 
             table.appendChild(tbody);
-            section.appendChild(table);
+            settingsBody.appendChild(table);
         }
 
         const availableKinds = attributeKinds
@@ -250,7 +264,8 @@ export class TypeScreen extends BaseElementEmpty {
         });
 
         controls.append(select, addButton);
-        section.appendChild(controls);
+        settingsBody.appendChild(controls);
+        section.appendChild(settingsBody);
 
         return section;
     }
@@ -258,13 +273,7 @@ export class TypeScreen extends BaseElementEmpty {
     private buildItemsSection(itemType: ItemType, items: Item[] | null, itemsError: string | null): HTMLElement {
         const section = document.createElement('section');
         section.className = 'type-screen-section';
-
-        const header = document.createElement('div');
-        header.className = 'type-screen-section-header';
-        const title = document.createElement('h2');
-        title.textContent = 'Items of This Type';
-        header.appendChild(title);
-        section.appendChild(header);
+        section.appendChild(this.buildSectionHeader('Items of This Type'));
 
         if (itemsError) {
             const error = document.createElement('p');
@@ -276,17 +285,22 @@ export class TypeScreen extends BaseElementEmpty {
 
         const table = new ItemTableView();
         const columns: ItemTableColumn[] = [
-            { kind: 'title', editable: false, label: 'Title' },
+            { kind: 'title', label: 'Title' },
             ...itemType.RequiredAttributes.map((attributeKey) => ({
                 attributeKey,
                 kind: 'attribute' as const,
-                editable: false,
                 label: attributeKey,
             })),
         ];
 
         table.init({
             columns,
+            createRow: {
+                defaultTypes: [itemType.Name],
+                enabled: true,
+                submitLabel: `Add ${itemType.Name}`,
+                typesEditable: false,
+            },
             emptyMessage: `No items assigned to ${itemType.Name}.`,
             items: items ?? [],
             onOpenItem: (item) => {
@@ -326,6 +340,17 @@ export class TypeScreen extends BaseElementEmpty {
         this.appendChild(message);
     }
 
+    private renderInlineError(anchor: HTMLElement, message: string): void {
+        const existing = this.querySelector('[data-type-inline-error="true"]');
+        existing?.remove();
+
+        const error = document.createElement('p');
+        error.className = 'tool-error';
+        error.dataset.typeInlineError = 'true';
+        error.textContent = message;
+        anchor.parentElement?.appendChild(error);
+    }
+
     private async saveTitle(itemType: ItemType, input: HTMLInputElement): Promise<void> {
         const nextName = input.value.trim();
         const previousName = itemType.Name;
@@ -353,7 +378,7 @@ export class TypeScreen extends BaseElementEmpty {
             await itemTypeApi.assign(itemType.TypeID, [key]);
             void this.render();
         } catch (error) {
-            this.showSectionError(await this.getErrorMessage(error, `Failed to assign "${key}".`));
+            Popups.add_error(await this.getErrorMessage(error, `Failed to assign "${key}".`));
         }
     }
 
@@ -362,30 +387,8 @@ export class TypeScreen extends BaseElementEmpty {
             await itemTypeApi.unassign(itemType.TypeID, [key]);
             void this.render();
         } catch (error) {
-            this.showSectionError(await this.getErrorMessage(error, `Failed to remove "${key}".`));
+            Popups.add_error(await this.getErrorMessage(error, `Failed to remove "${key}".`));
         }
-    }
-
-    private renderInlineError(anchor: HTMLElement, message: string): void {
-        const existing = this.querySelector('[data-type-inline-error="true"]');
-        existing?.remove();
-
-        const error = document.createElement('p');
-        error.className = 'tool-error';
-        error.dataset.typeInlineError = 'true';
-        error.textContent = message;
-        anchor.parentElement?.appendChild(error);
-    }
-
-    private showSectionError(message: string): void {
-        const existing = this.querySelector('[data-type-action-error="true"]');
-        existing?.remove();
-
-        const error = document.createElement('p');
-        error.className = 'tool-error';
-        error.dataset.typeActionError = 'true';
-        error.textContent = message;
-        this.prepend(error);
     }
 
     private messageForError(error: unknown, fallback: string): string {

@@ -24,10 +24,13 @@ export type ItemTableColumn =
 export interface ItemTableCreateRowConfig {
     contextItemId?: number;
     defaultAttributes?: Record<string, unknown>;
+    defaultTypes?: string[];
     enabled: boolean;
     onSuccess?: (item: Item) => void;
+    panelMode?: boolean;
     relationship?: ItemRelationship;
     submitLabel?: string;
+    typesEditable?: boolean;
 }
 
 export interface ItemTableViewConfig {

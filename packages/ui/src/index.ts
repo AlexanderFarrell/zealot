@@ -37,6 +37,7 @@ import { UserSettingsScreen } from './screens/user_settings_screen';
 import { CalendarToolView } from './tools/calendar_tool_view';
 import { NavTreeToolView } from './tools/nav_tree_tool_view';
 import { SearchToolView } from './tools/search_tool_view';
+import { ZealotScriptEditor } from './zealotscript/zealotscript_editor';
 
 export {
     AnalysisScreen,
@@ -75,7 +76,8 @@ export {
     SearchToolView,
     SideBar,
     SideButtons,
-    default_side_button_entries
+    default_side_button_entries,
+    ZealotScriptEditor
 }
 
 export type {
