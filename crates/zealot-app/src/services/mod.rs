@@ -6,7 +6,7 @@ use crate::{
     services::{
         account::AccountService, analysis::AnalysisService, attribute::AttributeService,
         auth::AuthService, comment::CommentService, item::ItemService, item_type::ItemTypeService,
-        media::MediaService, planner::PlannerService, repeat::RepeatService,
+        media::MediaService, planner::PlannerService, repeat::RepeatService, rule::RuleService,
     },
 };
 
@@ -37,6 +37,7 @@ pub struct ZealotServices {
     pub media: Arc<MediaService>,
     pub planner: Arc<PlannerService>,
     pub repeat: Arc<RepeatService>,
+    pub rule: Arc<RuleService>,
 
     pub ports: ZealotPorts,
     pub repos: ZealotRepos,
@@ -50,10 +51,12 @@ impl ZealotServices {
             &repos.item_link,
             &repos.item_type,
             &repos.attribute,
+            &ports.events,
         ));
-        let comment = Arc::new(CommentService::new(&repos.comment, &item));
+        let comment = Arc::new(CommentService::new(&repos.comment, &item, &ports.events));
         let planner = Arc::new(PlannerService::new(&item));
         let repeat = Arc::new(RepeatService::new(&repos.repeat, &item));
+        let rule = Arc::new(RuleService::new(&repos.rule, &ports.rule_runner));
 
         let media = Arc::new(MediaService::new(&ports.media));
 
@@ -72,6 +75,7 @@ impl ZealotServices {
             media,
             planner,
             repeat,
+            rule,
             repos,
             ports,
         }

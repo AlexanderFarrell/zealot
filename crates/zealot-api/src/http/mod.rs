@@ -10,6 +10,7 @@ mod media;
 mod middleware;
 mod planner;
 mod repeat;
+mod rule;
 
 use axum::Router;
 use zealot_app::{app::AppState, config::ZealotConfig};
@@ -38,5 +39,6 @@ fn build_router(state: AppState) -> Router {
         .nest("/media", media::routes(state.clone()))
         .nest("/planner", planner::routes(state.clone()))
         .nest("/repeat", repeat::routes(state.clone()))
+        .nest("/rule", rule::routes(state.clone()))
         .with_state(state)
 }

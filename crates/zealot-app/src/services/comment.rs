@@ -10,7 +10,10 @@ use zealot_domain::{
     common::id::Id,
 };
 
-use crate::repos::{comment::CommentRepo, common::RepoError};
+use crate::{
+    ports::events::{EventPort, ZealotEvent},
+    repos::{comment::CommentRepo, common::RepoError},
+};
 
 use super::item::ItemService;
 
@@ -18,6 +21,7 @@ use super::item::ItemService;
 pub struct CommentService {
     repo: Arc<dyn CommentRepo>,
     item_service: Arc<ItemService>,
+    event_port: Arc<dyn EventPort>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -33,10 +37,15 @@ pub enum CommentServiceError {
 }
 
 impl CommentService {
-    pub fn new(repo: &Arc<dyn CommentRepo>, item_service: &Arc<ItemService>) -> Self {
+    pub fn new(
+        repo: &Arc<dyn CommentRepo>,
+        item_service: &Arc<ItemService>,
+        event_port: &Arc<dyn EventPort>,
+    ) -> Self {
         Self {
             repo: repo.clone(),
             item_service: item_service.clone(),
+            event_port: event_port.clone(),
         }
     }
 
@@ -89,7 +98,15 @@ impl CommentService {
         account: &Account,
     ) -> Result<Option<Comment>, CommentServiceError> {
         match self.repo.add_comment(dto, &account.account_id)? {
-            Some(core) => Ok(Some(self.hydrate(core, account)?)),
+            Some(core) => {
+                let comment = self.hydrate(core, account)?;
+                self.event_port.emit(ZealotEvent::CommentAdded {
+                    account_id: account.account_id,
+                    item_id: comment.item.item_id,
+                    comment: comment.clone(),
+                });
+                Ok(Some(comment))
+            }
             None => Ok(None),
         }
     }

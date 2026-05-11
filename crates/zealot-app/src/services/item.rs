@@ -15,13 +15,16 @@ use zealot_domain::{
     item_type::{ItemType, ItemTypeRef},
 };
 
-use crate::repos::{
-    attribute::AttributeRepo,
-    common::RepoError,
-    item::ItemRepo,
-    item_attribute_value::ItemAttributeValueRepo,
-    item_link::ItemLinkRepo,
-    item_type::ItemTypeRepo,
+use crate::{
+    ports::events::{EventPort, ZealotEvent},
+    repos::{
+        attribute::AttributeRepo,
+        common::RepoError,
+        item::ItemRepo,
+        item_attribute_value::ItemAttributeValueRepo,
+        item_link::ItemLinkRepo,
+        item_type::ItemTypeRepo,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -31,6 +34,7 @@ pub struct ItemService {
     item_link_repo: Arc<dyn ItemLinkRepo>,
     item_type_repo: Arc<dyn ItemTypeRepo>,
     attribute_repo: Arc<dyn AttributeRepo>,
+    event_port: Arc<dyn EventPort>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -56,6 +60,7 @@ impl ItemService {
         item_link_repo: &Arc<dyn ItemLinkRepo>,
         item_type_repo: &Arc<dyn ItemTypeRepo>,
         attribute_repo: &Arc<dyn AttributeRepo>,
+        event_port: &Arc<dyn EventPort>,
     ) -> Self {
         Self {
             item_repo: item_repo.clone(),
@@ -63,6 +68,7 @@ impl ItemService {
             item_link_repo: item_link_repo.clone(),
             item_type_repo: item_type_repo.clone(),
             attribute_repo: attribute_repo.clone(),
+            event_port: event_port.clone(),
         }
     }
 
@@ -241,7 +247,14 @@ impl ItemService {
                         .map_err(ItemServiceError::Repo)?;
                 }
 
-                self.get_item_by_id(&item.item_id, account)
+                let result = self.get_item_by_id(&item.item_id, account)?;
+                if let Some(ref created) = result {
+                    self.event_port.emit(ZealotEvent::ItemCreated {
+                        account_id: account.account_id,
+                        item: created.clone(),
+                    });
+                }
+                Ok(result)
             }
             None => Ok(None),
         }
@@ -305,14 +318,26 @@ impl ItemService {
                         .map_err(ItemServiceError::Repo)?;
                 }
 
-                self.get_item_by_id(&item.item_id, account)
+                let result = self.get_item_by_id(&item.item_id, account)?;
+                if let Some(ref updated) = result {
+                    self.event_port.emit(ZealotEvent::ItemUpdated {
+                        account_id: account.account_id,
+                        item: updated.clone(),
+                    });
+                }
+                Ok(result)
             }
             None => Ok(None),
         }
     }
 
     pub fn delete_item(&self, item_id: &Id, account: &Account) -> Result<(), ItemServiceError> {
-        self.item_repo.delete_item(item_id, account).map_err(ItemServiceError::Repo)
+        self.item_repo.delete_item(item_id, account).map_err(ItemServiceError::Repo)?;
+        self.event_port.emit(ZealotEvent::ItemDeleted {
+            account_id: account.account_id,
+            item_id: *item_id,
+        });
+        Ok(())
     }
 
     pub fn set_attributes(
@@ -336,7 +361,17 @@ impl ItemService {
         self.ensure_valid_for_types(&item_types, &merged_attributes)?;
         self.item_attribute_value_repo
             .replace_item_attributes(item_id, &parsed, account)
-            .map_err(ItemServiceError::Repo)
+            .map_err(ItemServiceError::Repo)?;
+        if let Ok(Some(item)) = self.get_item_by_id(item_id, account) {
+            for key in raw.keys() {
+                self.event_port.emit(ZealotEvent::AttributeSet {
+                    account_id: account.account_id,
+                    item: item.clone(),
+                    attribute_key: key.clone(),
+                });
+            }
+        }
+        Ok(())
     }
 
     pub fn rename_attribute(
@@ -405,7 +440,15 @@ impl ItemService {
         self.ensure_valid_for_types(&vec![item_type], &current_item.attributes)?;
         self.item_type_repo
             .assign_item_types(&vec![type_name.to_string()], item_id, &account.account_id)
-            .map_err(ItemServiceError::Repo)
+            .map_err(ItemServiceError::Repo)?;
+        if let Ok(Some(item)) = self.get_item_by_id(item_id, account) {
+            self.event_port.emit(ZealotEvent::TypeAssigned {
+                account_id: account.account_id,
+                item,
+                type_name: type_name.to_string(),
+            });
+        }
+        Ok(())
     }
 
     pub fn unassign_type(
@@ -416,7 +459,15 @@ impl ItemService {
     ) -> Result<(), ItemServiceError> {
         self.item_type_repo
             .unassign_item_types(&vec![type_name.to_string()], item_id, &account.account_id)
-            .map_err(ItemServiceError::Repo)
+            .map_err(ItemServiceError::Repo)?;
+        if let Ok(Some(item)) = self.get_item_by_id(item_id, account) {
+            self.event_port.emit(ZealotEvent::TypeUnassigned {
+                account_id: account.account_id,
+                item,
+                type_name: type_name.to_string(),
+            });
+        }
+        Ok(())
     }
     
     // --- Private helpers ---

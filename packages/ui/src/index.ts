@@ -30,6 +30,7 @@ import { SideButtons, default_side_button_entries } from './shell/side_buttons';
 import { AttrKindSettingsScreen } from './screens/attr_kind_settings_screen';
 import { MediaScreen } from './screens/media_screen';
 import { AnalysisScreen, SpecifyScreen, WorkingScreen } from './screens/analysis_screen';
+import { RulesScreen } from './screens/rules_screen';
 import { PlannerSettingsScreen } from './screens/planner_settings_screen';
 import { WikiSettingsScreen } from './screens/wiki_settings_screen';
 import { DataSettingsScreen } from './screens/data_settings_screen';
@@ -41,6 +42,7 @@ import { ZealotScriptEditor } from './zealotscript/zealotscript_editor';
 
 export {
     AnalysisScreen,
+    RulesScreen,
     SpecifyScreen,
     WorkingScreen,
     chips,

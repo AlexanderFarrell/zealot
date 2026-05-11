@@ -1,5 +1,8 @@
 # TASK-037: Rules Screen
 
+> **Superseded** — This task has been implemented by TASK-LUA-FE-001 through TASK-LUA-FE-004.
+
+
 ## Context
 The `/rules` route in the original client was a stub — it rendered only a "Rules" header with no implementation. The backend `RuleAPI` is also a stub. This is lower priority and likely a future feature.
 

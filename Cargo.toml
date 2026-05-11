@@ -7,7 +7,8 @@ members = [
     "crates/zealot-domain",
     "crates/zealot-app",
     "crates/zealot-infra",
-    "crates/zealot-api"
+    "crates/zealot-api",
+    "crates/zealot-lua"
 ]
 resolver = "2"
 
@@ -42,6 +43,10 @@ time = "0.3"
 bcrypt = "0.15"
 
 mongodb = "3"
+
+# Lua rules engine
+mlua   = { version = "0.10", features = ["lua54", "async", "send", "vendored"] }
+croner = "2"
 
 mime_guess = "2"
 
