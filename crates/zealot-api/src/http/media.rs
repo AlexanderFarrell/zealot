@@ -14,7 +14,7 @@ use zealot_domain::{
     media::{FileStatDto, MakeFolderDto, RenameMediaDto},
 };
 
-use crate::http::{common::HttpError, middleware::auth_middleware};
+use crate::http::{common::HttpError, middleware::{auth_middleware, csrf_middleware}};
 
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
@@ -24,6 +24,7 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .route("/{*path}", get(get_entry).post(upload).delete(delete_entry))
         // Catch root path (no trailing segment).
         .route("/", get(get_root))
+        .route_layer(middleware::from_fn_with_state(state.clone(), csrf_middleware))
         .route_layer(middleware::map_request_with_state(state.clone(), auth_middleware))
         .with_state(state)
 }

@@ -12,13 +12,14 @@ use zealot_domain::{
     rule::{AddRuleDto, RuleDto, UpdateRuleDto},
 };
 
-use crate::http::{common::HttpError, middleware::auth_middleware};
+use crate::http::{common::HttpError, middleware::{auth_middleware, csrf_middleware}};
 
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/", get(list_rules).post(create_rule))
         .route("/{id}", get(get_rule).patch(update_rule).delete(delete_rule))
         .route("/{id}/run", post(run_rule))
+        .route_layer(middleware::from_fn_with_state(state.clone(), csrf_middleware))
         .route_layer(middleware::map_request_with_state(state.clone(), auth_middleware))
         .with_state(state)
 }

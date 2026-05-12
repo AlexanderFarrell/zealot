@@ -4,7 +4,7 @@ use time::Duration;
 use zealot_app::{app::AppState, services::auth::AuthError};
 use zealot_domain::{account::{AccountDto, LoginBasicDto, RegisterBasicDto}, auth::Actor};
 
-use crate::http::{common::HttpError, middleware::auth_middleware};
+use crate::http::{common::HttpError, middleware::{auth_middleware, generate_csrf_token}};
 
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
@@ -19,9 +19,16 @@ pub fn routes(state: AppState) -> Router<AppState> {
 
 async fn is_logged_in(
     Extension(actor): Extension<Actor>,
-) -> Result<Json<AccountDto>, HttpError> {
+    jar: CookieJar,
+) -> Result<(CookieJar, Json<AccountDto>), HttpError> {
     if actor.is_authenticated() && let Some(account) = actor.account {
-        Ok(Json(account.into()))
+        let csrf_cookie = Cookie::build(("csfr_", generate_csrf_token()))
+            .http_only(false)
+            .same_site(SameSite::Lax)
+            .path("/")
+            .max_age(Duration::days(30))
+            .build();
+        Ok((jar.add(csrf_cookie), Json(account.into())))
     } else {
         Err(HttpError::Unauthorized)
     }
@@ -45,7 +52,13 @@ async fn register_basic(
                 .path("/")
                 .max_age(Duration::days(30))
                 .build();
-            Ok((jar.add(cookie), Json(account.into())))
+            let csrf_cookie = Cookie::build(("csfr_", generate_csrf_token()))
+                .http_only(false)
+                .same_site(SameSite::Lax)
+                .path("/")
+                .max_age(Duration::days(30))
+                .build();
+            Ok((jar.add(cookie).add(csrf_cookie), Json(account.into())))
         }
         Err(error) => match error {
             AuthError::RegisterError { err } => Err(HttpError::UserError { err }),
@@ -73,7 +86,13 @@ async fn login_basic(
                 .path("/")
                 .max_age(Duration::days(30))
                 .build();
-            Ok((jar.add(cookie), Json(account.into())))
+            let csrf_cookie = Cookie::build(("csfr_", generate_csrf_token()))
+                .http_only(false)
+                .same_site(SameSite::Lax)
+                .path("/")
+                .max_age(Duration::days(30))
+                .build();
+            Ok((jar.add(cookie).add(csrf_cookie), Json(account.into())))
         }
         Err(error) => match error {
             AuthError::LoginError { err } => Err(HttpError::UserError { err }),
@@ -100,7 +119,11 @@ async fn logout_basic(
                 .path("/")
                 .max_age(Duration::ZERO)
                 .build();
-            Ok(jar.remove(cleared))
+            let csrf_cleared = Cookie::build(("csfr_", ""))
+                .path("/")
+                .max_age(Duration::ZERO)
+                .build();
+            Ok(jar.remove(cleared).remove(csrf_cleared))
         }
         Err(_) => Err(HttpError::Internal),
     }

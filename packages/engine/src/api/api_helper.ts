@@ -81,10 +81,10 @@ async function buildRequestInit(
     headers: Record<string, string> = {},
     body?: BodyInit,
 ): Promise<RequestInit> {
-    const finalHeaders = needsCsrf(method) ? withCsrf(headers) : headers;
     if (needsCsrf(method)) {
         await ensureCsrfToken();
     }
+    const finalHeaders = needsCsrf(method) ? withCsrf(headers) : headers;
     const init: RequestInit = {
         method,
         headers: finalHeaders,

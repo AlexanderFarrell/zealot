@@ -13,7 +13,7 @@ use zealot_domain::{
     item_type::{AddItemTypeDto, ItemTypeDto, ItemTypeSummaryDto, UpdateItemTypeDto},
 };
 
-use crate::http::{common::HttpError, middleware::auth_middleware};
+use crate::http::{common::HttpError, middleware::{auth_middleware, csrf_middleware}};
 
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
@@ -30,6 +30,7 @@ pub fn routes(state: AppState) -> Router<AppState> {
             "/{type_id}/attr_kind",
             post(add_attr_kinds).delete(remove_attr_kinds),
         )
+        .route_layer(middleware::from_fn_with_state(state.clone(), csrf_middleware))
         .route_layer(middleware::map_request_with_state(
             state.clone(),
             auth_middleware,

@@ -17,7 +17,7 @@ use zealot_domain::{
     item::{AddItemDto, ItemDto, UpdateItemDto},
 };
 
-use crate::http::{common::HttpError, middleware::auth_middleware};
+use crate::http::{common::HttpError, middleware::{auth_middleware, csrf_middleware}};
 
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
@@ -33,6 +33,7 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .route("/{item_id}/attr/rename", patch(rename_attribute))
         .route("/{item_id}/attr/{key}", delete(delete_attribute))
         .route("/{item_id}/assign_type/{type_name}", post(assign_type).delete(unassign_type))
+        .route_layer(middleware::from_fn_with_state(state.clone(), csrf_middleware))
         .route_layer(middleware::map_request_with_state(state.clone(), auth_middleware))
         .with_state(state)
 }

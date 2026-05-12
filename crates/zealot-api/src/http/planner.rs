@@ -11,7 +11,7 @@ use zealot_app::{
 };
 use zealot_domain::{attribute::Week, auth::Actor, item::ItemDto};
 
-use crate::http::{common::HttpError, middleware::auth_middleware};
+use crate::http::{common::HttpError, middleware::{auth_middleware, csrf_middleware}};
 
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
@@ -19,6 +19,7 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .route("/week/{week}", get(get_for_week))
         .route("/month/{month}/year/{year}", get(get_for_month))
         .route("/year/{year}", get(get_for_year))
+        .route_layer(middleware::from_fn_with_state(state.clone(), csrf_middleware))
         .route_layer(middleware::map_request_with_state(
             state.clone(),
             auth_middleware,

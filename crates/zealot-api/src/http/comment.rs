@@ -13,7 +13,7 @@ use zealot_domain::{
     common::id::Id,
 };
 
-use crate::http::{common::HttpError, middleware::auth_middleware};
+use crate::http::{common::HttpError, middleware::{auth_middleware, csrf_middleware}};
 
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
@@ -21,6 +21,7 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .route("/item/{item_id}", get(get_for_item))
         .route("/", post(add_comment))
         .route("/{comment_id}", patch(update_comment).delete(delete_comment))
+        .route_layer(middleware::from_fn_with_state(state.clone(), csrf_middleware))
         .route_layer(middleware::map_request_with_state(state.clone(), auth_middleware))
         .with_state(state)
 }

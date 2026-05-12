@@ -9,12 +9,13 @@ use sqlx::types::chrono::NaiveDate;
 use zealot_app::{app::AppState, services::repeat::RepeatServiceError};
 use zealot_domain::{auth::Actor, repeat::{RepeatEntryDto, UpdateRepeatEntryDto}};
 
-use crate::http::{common::HttpError, middleware::auth_middleware};
+use crate::http::{common::HttpError, middleware::{auth_middleware, csrf_middleware}};
 
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/day/{date}", get(get_for_day))
         .route("/status", put(set_status))
+        .route_layer(middleware::from_fn_with_state(state.clone(), csrf_middleware))
         .route_layer(middleware::map_request_with_state(state.clone(), auth_middleware))
         .with_state(state)
 }
