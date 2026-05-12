@@ -6,15 +6,14 @@ import { LoadingSpinner } from '../common/loading_spinner';
 import { icons } from '@zealot/content';
 import { AttributeEditor } from '../views/attribute_editor';
 import { CommentsView } from '../views/comments_view';
-import { ItemTableView, type ItemTableColumn } from '../views/item_table_view';
 import { ZealotScriptEditor } from '../zealotscript/zealotscript_editor';
+import { buildItemCardList } from '../views/item_card_list';
+import { buildAddPanel } from '../views/item_table_add_panel';
+import { createItem } from '../views/item_table_save';
+import { loadAttributeKinds } from '../views/attribute_value_input';
+import type { CreateDraftState } from '../views/item_table_types';
 
 const itemApi = new ItemAPI('/api');
-const collectionColumns: ItemTableColumn[] = [
-    { kind: 'title', label: 'Title' },
-    { attributeKey: 'Status', kind: 'attribute', label: 'Status' },
-    { attributeKey: 'Priority', kind: 'attribute', label: 'Priority' },
-];
 
 let content_visible = true;
 
@@ -249,20 +248,15 @@ export class ItemScreen extends BaseElementEmpty {
         container.appendChild(related.section);
 
         await Promise.all([
-            this.renderCollectionTable({
+            this.renderCollectionCards({
                 container: children.content,
-                createRow: {
-                    contextItemId: item.ItemID,
-                    enabled: true,
-                    panelMode: true,
-                    relationship: 'parent',
-                    submitLabel: 'Add child',
-                },
+                createRow: { contextItemId: item.ItemID, relationship: 'parent', submitLabel: 'Add child' },
                 emptyMessage: 'No child items.',
                 errorMessage: 'Failed to load child items.',
+                grouped: true,
                 loader: () => itemApi.GetChildren(item.ItemID),
             }),
-            this.renderCollectionTable({
+            this.renderCollectionCards({
                 container: related.content,
                 emptyMessage: 'No related items.',
                 errorMessage: 'Failed to load related items.',
@@ -286,17 +280,12 @@ export class ItemScreen extends BaseElementEmpty {
         return { content, section };
     }
 
-    private async renderCollectionTable(args: {
+    private async renderCollectionCards(args: {
         container: HTMLElement;
-        createRow?: {
-            contextItemId: number;
-            enabled: boolean;
-            panelMode?: boolean;
-            relationship: 'parent';
-            submitLabel: string;
-        };
+        createRow?: { contextItemId: number; relationship: 'parent'; submitLabel: string };
         emptyMessage: string;
         errorMessage: string;
+        grouped?: boolean;
         loader: () => Promise<Item[]>;
     }): Promise<void> {
         args.container.innerHTML = '';
@@ -310,18 +299,73 @@ export class ItemScreen extends BaseElementEmpty {
             return;
         }
 
-        args.container.innerHTML = '';
-        const table = new ItemTableView();
-        args.container.appendChild(table);
-        const config = {
-            columns: collectionColumns,
-            emptyMessage: args.emptyMessage,
-            items,
+        let draft: CreateDraftState = { attributes: {}, title: '', types: [] };
+        let panelOpen = false;
+        let createError: string | null = null;
+        let attributeKinds: Awaited<ReturnType<typeof loadAttributeKinds>> = {};
+
+        const render = (): void => {
+            args.container.innerHTML = '';
+
+            if (createError) {
+                const err = document.createElement('p');
+                err.className = 'tool-error';
+                err.textContent = createError;
+                args.container.appendChild(err);
+            }
+
+            args.container.appendChild(buildItemCardList(items, args.emptyMessage, args.grouped ? { grouped: true } : {}));
+
+            if (args.createRow) {
+                args.container.appendChild(buildAddPanel(
+                    { contextItemId: args.createRow.contextItemId, enabled: true, panelMode: true, relationship: args.createRow.relationship, submitLabel: args.createRow.submitLabel },
+                    draft,
+                    attributeKinds,
+                    panelOpen,
+                    () => {
+                        void (async () => {
+                            const title = draft.title.trim();
+                            if (!title) {
+                                createError = 'Title is required.';
+                                render();
+                                return;
+                            }
+                            try {
+                                const created = await createItem({
+                                    attributes: draft.attributes,
+                                    contextItemId: args.createRow!.contextItemId,
+                                    relationship: args.createRow!.relationship,
+                                    title,
+                                    types: draft.types,
+                                });
+                                items.unshift(created);
+                                const keptTypes = draft.types.slice();
+                                draft = { attributes: {}, title: '', types: keptTypes };
+                                panelOpen = true;
+                                createError = null;
+                            } catch (error) {
+                                createError = (error as Error).message ?? 'Failed to create item.';
+                            }
+                            render();
+                        })();
+                    },
+                    () => {
+                        panelOpen = false;
+                        draft = { attributes: {}, title: '', types: [] };
+                    },
+                ));
+            }
         };
+
+        render();
+
+        // Load attribute kinds for the add panel's type-required fields, then re-render
         if (args.createRow) {
-            Object.assign(config, { createRow: args.createRow });
+            void loadAttributeKinds().then((kinds) => {
+                attributeKinds = kinds;
+                render();
+            });
         }
-        table.init(config);
     }
 
     private getParentItemId(item: Item): number | null {

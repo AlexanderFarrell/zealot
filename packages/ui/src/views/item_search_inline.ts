@@ -225,6 +225,14 @@ export class ItemSearchInline extends HTMLElement {
                 items = this.ResultsFilter(items);
             }
 
+            const normalizedTerm = term.trim().toLocaleLowerCase();
+            items = [...items].sort((a, b) => {
+                const aExact = a.DisplayTitle.trim().toLocaleLowerCase() === normalizedTerm;
+                const bExact = b.DisplayTitle.trim().toLocaleLowerCase() === normalizedTerm;
+                if (aExact === bExact) return 0;
+                return aExact ? -1 : 1;
+            });
+
             this.results = items;
             this.activeIndex = items.length > 0 ? 0 : -1;
 

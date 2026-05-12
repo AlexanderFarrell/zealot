@@ -62,8 +62,8 @@ pub fn get_env(var: &str, def: &str) -> String {
 pub fn get_env_optional(var: &str) -> Option<String> {
     let value = get_env(var, "");
     if value == "" {
-        return Some(value);
+        None
     } else {
-        return None;
+        Some(value)
     }
 }

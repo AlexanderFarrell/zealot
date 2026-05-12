@@ -41,7 +41,7 @@ fn item_service_err(err: ItemServiceError) -> HttpError {
         ItemServiceError::Attribute(e) => HttpError::UserError { err: e.to_string() },
         ItemServiceError::InvalidFilter(msg) => HttpError::UserError { err: msg },
         ItemServiceError::InvalidId(msg) => HttpError::UserError { err: msg },
-        ItemServiceError::Repo(_) => HttpError::Internal,
+        ItemServiceError::Repo(e) => { eprintln!("[REPO ERROR] {e}"); HttpError::Internal },
     }
 }
 

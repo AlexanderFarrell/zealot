@@ -14,8 +14,17 @@ pub mod sqlite;
 pub async fn get_repo_from_config(config: &ZealotConfig) -> Result<ZealotRepos, String> {
     match config.database.as_str() {
         "postgres" => {
-            let options = PgConnectOptions::new()
+            let mut options = PgConnectOptions::new()
                 .host(&config.db_host.clone().unwrap_or(String::from("localhost")));
+            if let Some(ref username) = config.db_username {
+                options = options.username(username);
+            }
+            if let Some(ref password) = config.db_password {
+                options = options.password(password);
+            }
+            if let Some(ref database) = config.db_database {
+                options = options.database(database);
+            }
 
             match PgPool::connect_with(options).await {
                 Ok(pool) => {

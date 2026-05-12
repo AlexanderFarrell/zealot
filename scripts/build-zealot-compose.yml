@@ -1,12 +1,12 @@
 services:
   server:
-    image: zealot-server:local
+    image: registry.alexanderfarrell.net/zealotd:v0.1.0
     build:
       context: ..
       dockerfile: apps/server/Dockerfile
 
   web:
-    image: zealot-web:local
+    image: registry.alexanderfarrell.net/zealot-web:v0.1.0
     build:
       context: ..
       dockerfile: apps/web/Dockerfile

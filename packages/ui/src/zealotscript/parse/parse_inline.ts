@@ -1,7 +1,7 @@
 import type { Node as PMNode, Schema } from "prosemirror-model";
 
 type InlineAtomMatch = {
-	type: "mdlink" | "hard_break";
+	type: "mdlink" | "hard_break" | "wikilink";
 	full: string;
 	label: string;
 	href: string;
@@ -27,6 +27,7 @@ type SymmetricMark = {
 
 const MDLINK_RE = /^\[([^\]]+)\]\(([^)]+)\)/;
 const HARD_BREAK_RE = /^<br\s*\/?>/i;
+const WIKILINK_RE = /^\[\[([^\]]+)\]\]/;
 const WORD_CHAR_RE = /[A-Za-z0-9]/;
 
 const PAIRED_TAG_MARKS: PairedTagMark[] = [
@@ -70,6 +71,15 @@ const canOpenSymmetricMark = (text: string, index: number, token: SymmetricMark)
 const matchInlineAtomAt = (text: string, index: number): InlineAtomMatch | null => {
 	const rest = text.slice(index);
 
+	const wikilinkMatch = WIKILINK_RE.exec(rest);
+	if (wikilinkMatch) {
+		const content = wikilinkMatch[1] ?? "";
+		const isType = content.startsWith("type:");
+		const target = isType ? content.slice("type:".length) : content;
+		const href = isType ? `zealot://type/${target}` : `zealot://item/${target}`;
+		return { type: "wikilink", full: wikilinkMatch[0], label: target, href };
+	}
+
 	const markdownLinkMatch = MDLINK_RE.exec(rest);
 	if (markdownLinkMatch) {
 		return {
@@ -110,7 +120,7 @@ const buildInlineAtomNodes = (schema: Schema, atom: InlineAtomMatch): PMNode[] =
 		return [schema.text(atom.full)];
 	}
 
-	// mdlink
+	// mdlink or wikilink
 	const href = atom.href.trim();
 	const label = atom.label.trim();
 	const content = label.length > 0 ? parseInlineNodes(schema, label) : [schema.text(href)];

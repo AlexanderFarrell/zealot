@@ -131,8 +131,9 @@ impl AuthService {
         let account = self
             .session
             .get_account_by_token_hash(&token_hash)
-            .map_err(|_| ServiceError::DomainError {
-                err: AuthError::ServerError,
+            .map_err(|e| {
+                eprintln!("[REPO ERROR] get_account_by_token_hash: {e}");
+                ServiceError::DomainError { err: AuthError::ServerError }
             })?;
 
         let Some(account) = account else {

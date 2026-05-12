@@ -447,6 +447,7 @@ item-search-modal {
 
 .item-search-modal-window {
   width: min(760px, calc(100vw - 32px));
+  overflow: visible; /* allow results dropdown to extend beyond the dialog */
 }
 
 .add-item-modal-actions {

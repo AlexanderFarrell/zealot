@@ -13,6 +13,7 @@ import ZealotSchema from "./schema";
 import { parseZealotScript } from "./parser";
 import { serializeZealotScript } from "./serializer";
 import { insertTable, insertAdmonition } from "./commands";
+import { getNavigator } from "@websoil/engine";
 
 type PMCommand = (state: EditorState, dispatch?: (tr: Transaction) => void) => boolean;
 
@@ -242,7 +243,13 @@ export class ZealotScriptEditor extends HTMLElement {
 				if (href.trim().length === 0) return false;
 				event.preventDefault();
 				event.stopPropagation();
-				window.open(href, "_blank", "noopener,noreferrer");
+				if (href.startsWith("zealot://item/")) {
+					getNavigator().openItem(decodeURIComponent(href.slice("zealot://item/".length)));
+				} else if (href.startsWith("zealot://type/")) {
+					getNavigator().openType(decodeURIComponent(href.slice("zealot://type/".length)));
+				} else {
+					window.open(href, "_blank", "noopener,noreferrer");
+				}
 				return true;
 			},
 			dispatchTransaction: (tr: Transaction) => {

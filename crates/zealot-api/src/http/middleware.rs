@@ -81,8 +81,8 @@ async fn resolve_actor(state: &AppState, headers: HeaderMap) -> Actor {
     if let Some(cookie) = jar.get("session_id") {
         match state.services.auth.authenticate_session(cookie.value()).await {
             Ok(actor) => return actor,
-            Err(_) => {
-                // TODO: Distinguish expired/invalid vs internal failure
+            Err(e) => {
+                eprintln!("[AUTH ERROR] session lookup failed: {:?}", e);
             }
         }
     }

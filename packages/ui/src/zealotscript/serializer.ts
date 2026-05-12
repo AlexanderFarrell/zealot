@@ -60,7 +60,13 @@ const wrapInlineLiteralWithMarks = (content: string, marks: ReadonlyArray<Mark>)
 	if (!linkMark) return out;
 	const href = (linkMark.attrs.href || "").trim();
 	if (href.length === 0) return out;
-	return `[${out}](${href})`;
+	return serializeZealotHref(out, href);
+};
+
+const serializeZealotHref = (text: string, href: string): string => {
+	if (href.startsWith("zealot://item/")) return `[[${href.slice("zealot://item/".length)}]]`;
+	if (href.startsWith("zealot://type/")) return `[[type:${href.slice("zealot://type/".length)}]]`;
+	return `[${text}](${href})`;
 };
 
 const serializeTextNode = (node: PMNode): string => {
@@ -72,7 +78,7 @@ const serializeTextNode = (node: PMNode): string => {
 	if (!linkMark) return rendered;
 	const href = (linkMark.attrs.href || "").trim();
 	if (href.length === 0) return rendered;
-	return `[${rendered}](${href})`;
+	return serializeZealotHref(rendered, href);
 };
 
 const serializeInline = (node: PMNode): string => {

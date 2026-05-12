@@ -32,7 +32,7 @@ fn require_account(actor: &Actor) -> Result<zealot_domain::account::Account, Htt
 fn repeat_service_err(err: RepeatServiceError) -> HttpError {
     match err {
         RepeatServiceError::NotFound => HttpError::NotFound,
-        RepeatServiceError::Repo(_) => HttpError::Internal,
+        RepeatServiceError::Repo(e) => { eprintln!("[REPO ERROR] {e}"); HttpError::Internal },
     }
 }
 
