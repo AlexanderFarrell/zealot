@@ -152,6 +152,8 @@ export class CommentsView extends HTMLElement {
             return;
         }
 
+        const hadFocus = this.contains(document.activeElement);
+
         this.className = 'comments-view';
         this.innerHTML = '';
 
@@ -184,6 +186,10 @@ export class CommentsView extends HTMLElement {
 
         shell.append(list, this._buildComposer());
         this.appendChild(shell);
+
+        if (hadFocus) {
+            this._focusDraft();
+        }
     }
 
     private _buildCommentCard(comment: Comment): HTMLElement {

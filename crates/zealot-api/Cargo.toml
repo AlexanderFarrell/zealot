@@ -17,5 +17,8 @@ mime_guess.workspace = true
 sha2.workspace = true
 hex.workspace = true
 
+genpdf = "0.2"
+docx-rs = "0.4"
+
 zealot-domain = {"path" = "../zealot-domain"}
 zealot-app = {"path" = "../zealot-app"}

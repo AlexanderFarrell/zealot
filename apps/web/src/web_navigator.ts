@@ -8,7 +8,7 @@ import { MonthlyPlannerScreen } from '@zealot/ui/src/screens/monthly_planner_scr
 import { AnnualPlannerScreen } from '@zealot/ui/src/screens/annual_planner_screen';
 import { TypesScreen } from '@zealot/ui/src/screens/types_screen';
 import { TypeScreen } from '@zealot/ui/src/screens/type_screen';
-import { AnalysisScreen, SpecifyScreen, WorkingScreen } from '@zealot/ui/src/screens/analysis_screen';
+import { AnalysisScreen, SpecifyScreen, WorkingScreen, RecentScreen, BacklogScreen, OverdueScreen } from '@zealot/ui/src/screens/analysis_screen';
 import { RulesScreen } from '@zealot/ui/src/screens/rules_screen';
 import { SettingsScreen } from '@zealot/ui/src/screens/settings_screen';
 
@@ -115,6 +115,18 @@ export class WebNavigator implements Navigator {
         this.navigate('/analysis/working');
     }
 
+    openAnalysisRecent(): void {
+        this.navigate('/analysis/recent');
+    }
+
+    openAnalysisBacklog(): void {
+        this.navigate('/analysis/backlog');
+    }
+
+    openAnalysisOverdue(): void {
+        this.navigate('/analysis/overdue');
+    }
+
     openRules(): void {
         this.navigate('/rules');
     }
@@ -174,6 +186,24 @@ export class WebNavigator implements Navigator {
             return {
                 screen: new WorkingScreen(),
                 location: { kind: 'analysis_working' },
+            };
+        }
+        if (path === '/analysis/recent') {
+            return {
+                screen: new RecentScreen(),
+                location: { kind: 'analysis_recent' },
+            };
+        }
+        if (path === '/analysis/backlog') {
+            return {
+                screen: new BacklogScreen(),
+                location: { kind: 'analysis_backlog' },
+            };
+        }
+        if (path === '/analysis/overdue') {
+            return {
+                screen: new OverdueScreen(),
+                location: { kind: 'analysis_overdue' },
             };
         }
         if (path === '/rules') {

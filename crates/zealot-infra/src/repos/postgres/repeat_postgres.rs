@@ -78,7 +78,7 @@ impl RepeatRepo for RepeatPostgresRepo {
                     return Ok(Vec::new());
                 }
 
-                let item_ids: Vec<i64> = item_rows.iter().map(|r| r.item_id as i64).collect();
+                let item_ids: Vec<i32> = item_rows.iter().map(|r| r.item_id).collect();
 
                 // Batch-fetch existing repeat_entry records for these items on this date.
                 let placeholders = (1..=item_ids.len())
@@ -108,10 +108,11 @@ impl RepeatRepo for RepeatPostgresRepo {
                 item_ids
                     .into_iter()
                     .map(|item_id_val| {
-                        let item_id = Id::try_from(item_id_val)
+                        let item_id_i64 = item_id_val as i64;
+                        let item_id = Id::try_from(item_id_i64)
                             .map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
 
-                        let (status, comment) = match entry_map.remove(&item_id_val) {
+                        let (status, comment) = match entry_map.remove(&item_id_i64) {
                             Some(entry) => {
                                 let st = RepeatStatus::try_from(entry.status.as_str())
                                     .map_err(|e| RepoError::DatabaseError { err: e })?;
@@ -141,10 +142,10 @@ impl RepeatRepo for RepeatPostgresRepo {
                     RepoError::DatabaseError { err: format!("invalid date '{}': {}", date_str, e) }
                 })?;
 
-                let exists: Option<i64> = sqlx::query_scalar(
+                let exists: Option<i32> = sqlx::query_scalar(
                     "SELECT item_id FROM item WHERE item_id = $1 AND account_id = $2",
                 )
-                .bind(item_id_val)
+                .bind(item_id_val as i32)
                 .bind(account_id_val)
                 .fetch_optional(&pool)
                 .await

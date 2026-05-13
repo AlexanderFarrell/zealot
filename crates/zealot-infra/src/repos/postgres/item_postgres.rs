@@ -192,6 +192,29 @@ impl ItemRepo for ItemPostgresRepo {
         })
     }
 
+    fn get_recent_items(&self, limit: i64, offset: i64, account: &Account) -> Result<Vec<ItemCore>, RepoError> {
+        let account_id_val = i64::from(account.account_id);
+        let pool = self.pool.clone();
+
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let rows = sqlx::query_as::<_, ItemRow>(
+                    "SELECT item_id, title, content FROM item
+                     WHERE account_id = $1
+                     ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+                )
+                .bind(account_id_val)
+                .bind(limit)
+                .bind(offset)
+                .fetch_all(&pool)
+                .await
+                .map_err(RepoError::from)?;
+
+                rows.into_iter().map(row_to_item_core).collect()
+            })
+        })
+    }
+
     fn add_item(
         &self,
         dto: &AddItemCoreDto,

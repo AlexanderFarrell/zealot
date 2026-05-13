@@ -124,6 +124,14 @@ impl ItemService {
         self.hydrate_items(items, &account.account_id)
     }
 
+    pub fn get_recent_items(&self, limit: i64, offset: i64, account: &Account) -> Result<Vec<Item>, ItemServiceError> {
+        let items = self
+            .item_repo
+            .get_recent_items(limit, offset, account)
+            .map_err(ItemServiceError::Repo)?;
+        self.hydrate_items(items, &account.account_id)
+    }
+
     /// Returns items where the "Root" attribute is boolean `true`.
     pub fn get_root_items(&self, account: &Account) -> Result<Vec<Item>, ItemServiceError> {
         let ids = self

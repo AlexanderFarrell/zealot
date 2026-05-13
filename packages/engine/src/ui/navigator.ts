@@ -14,6 +14,9 @@ export type AppLocation =
     | { kind: 'analysis' }
     | { kind: 'analysis_specify' }
     | { kind: 'analysis_working' }
+    | { kind: 'analysis_recent' }
+    | { kind: 'analysis_backlog' }
+    | { kind: 'analysis_overdue' }
     | { kind: 'rules' }
     | { kind: 'settings'; section: SettingsSection }
     | { kind: 'not_found'; path: string };
@@ -45,6 +48,9 @@ export interface Navigator {
     openAnalysis(): void;
     openAnalysisSpecify(): void;
     openAnalysisWorking(): void;
+    openAnalysisRecent(): void;
+    openAnalysisBacklog(): void;
+    openAnalysisOverdue(): void;
     openRules(): void;
     openSettings(section?: SettingsSection): void;
     getLocation(): AppLocation;
@@ -72,6 +78,7 @@ export function registerNavigationCommands(): void {
     runner.register(NavigationCommands.openAnnualPlanner, [new Hotkey('4', [CTRL_OR_META_KEY])], () => getNavigator().openPlanner('annual'));
     runner.register(NavigationCommands.openTypes, [new Hotkey('t', [CTRL_OR_META_KEY, SHIFT_KEY, ALT_KEY])], () => getNavigator().openTypes());
     runner.register(NavigationCommands.openAnalysis, [new Hotkey('1', [CTRL_OR_META_KEY, SHIFT_KEY])], () => getNavigator().openAnalysis());
+    runner.register('Open Recent Items', [new Hotkey('r', [CTRL_OR_META_KEY, SHIFT_KEY])], () => getNavigator().openAnalysisRecent());
     runner.register(NavigationCommands.openRules, [new Hotkey('2', [CTRL_OR_META_KEY, SHIFT_KEY])], () => getNavigator().openRules());
     runner.register(NavigationCommands.openSettings, [new Hotkey('3', [CTRL_OR_META_KEY, SHIFT_KEY])], () => getNavigator().openSettings());
     runner.register(NavigationCommands.openTodayNote, [new Hotkey('d', [CTRL_OR_META_KEY, SHIFT_KEY])], () => getNavigator().openItem(DateTime.local().toISODate() ?? DateTime.local().toFormat('yyyy-MM-dd')));

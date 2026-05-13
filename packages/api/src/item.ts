@@ -33,6 +33,11 @@ export class ItemAPI extends BaseAPI {
         return new Item(dto);
     }
 
+    async GetRecent(limit = 30, offset = 0): Promise<Item[]> {
+        const dtos: ItemDto[] = await get_json(`${this.baseUrl}/item/recent?limit=${limit}&offset=${offset}`);
+        return dtos.map(d => new Item(d));
+    }
+
     async Search(term: string): Promise<Item[]> {
         const dtos: ItemDto[] = await get_json(`${this.baseUrl}/item/search?term=${encodeURIComponent(term)}`);
         return dtos.map(d => new Item(d));
@@ -74,5 +79,13 @@ export class ItemAPI extends BaseAPI {
 
     async UnassignType(item_id: number, type_name: string) {
         return delete_req(`${this.baseUrl}/item/${item_id}/assign_type/${encodeURIComponent(type_name)}`);
+    }
+
+    ExportPdfUrl(item_id: number): string {
+        return `${this.baseUrl}/item/id/${item_id}/export/pdf`;
+    }
+
+    ExportDocxUrl(item_id: number): string {
+        return `${this.baseUrl}/item/id/${item_id}/export/docx`;
     }
 }

@@ -203,7 +203,107 @@ export class ItemScreen extends BaseElementEmpty {
             })();
         }));
 
+        row.appendChild(this.buildDownloadBtn(item));
+
         return row;
+    }
+
+    private buildDownloadBtn(item: Item): HTMLElement {
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = 'position: relative; display: inline-block;';
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.title = 'Download / Export';
+        const img = document.createElement('img');
+        img.src = icons.download;
+        img.alt = 'Download';
+        img.style.width = '1.2em';
+        img.style.height = '1.2em';
+        btn.appendChild(img);
+
+        const menu = document.createElement('div');
+        menu.style.cssText = [
+            'display: none',
+            'position: absolute',
+            'top: calc(100% + 4px)',
+            'left: 0',
+            'background: var(--color-bg, #fff)',
+            'border: 1px solid var(--color-border, #ccc)',
+            'border-radius: 4px',
+            'box-shadow: 0 2px 8px rgba(0,0,0,.2)',
+            'min-width: 170px',
+            'z-index: 200',
+        ].join(';');
+
+        menu.appendChild(this.makeMenuItem('Copy Markdown', () => {
+            const md = this.buildMarkdown(item);
+            void navigator.clipboard.writeText(md);
+            Popups.add('Copied as Markdown');
+            menu.style.display = 'none';
+        }));
+
+        menu.appendChild(this.makeMenuItem('Download as PDF', () => {
+            window.location.href = itemApi.ExportPdfUrl(item.ItemID);
+            menu.style.display = 'none';
+        }));
+
+        menu.appendChild(this.makeMenuItem('Download as DOCX', () => {
+            window.location.href = itemApi.ExportDocxUrl(item.ItemID);
+            menu.style.display = 'none';
+        }));
+
+        wrapper.appendChild(btn);
+        wrapper.appendChild(menu);
+
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+        });
+
+        document.addEventListener('click', () => {
+            menu.style.display = 'none';
+        }, { capture: false });
+
+        return wrapper;
+    }
+
+    private makeMenuItem(label: string, onClick: () => void): HTMLButtonElement {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = label;
+        btn.style.cssText = [
+            'display: block',
+            'width: 100%',
+            'text-align: left',
+            'padding: 6px 12px',
+            'background: none',
+            'border: none',
+            'cursor: pointer',
+            'font-size: 0.9em',
+            'white-space: nowrap',
+        ].join(';');
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            onClick();
+        });
+        return btn;
+    }
+
+    private buildMarkdown(item: Item): string {
+        const lines: string[] = [];
+        lines.push(`# ${item.Title}`, '');
+
+        const attrs = Object.entries(item.Attributes);
+        if (attrs.length > 0) {
+            for (const [k, v] of attrs) {
+                lines.push(`**${k}**: ${String(v)}`);
+            }
+            lines.push('');
+        }
+
+        lines.push(item.Content);
+        return lines.join('\n');
     }
 
     private renderTypes(item: Item, container: HTMLElement, onDone: () => void): void {
