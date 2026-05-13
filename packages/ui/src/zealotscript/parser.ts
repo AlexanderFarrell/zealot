@@ -5,6 +5,8 @@ import { parseCodeBlock } from "./parse/parse_code_block";
 import { parseInlineNodes } from "./parse/parse_inline";
 import { parseMarkdownTable } from "./parse/parse_table";
 import { parseYoutubeEmbed } from "./parse/parse_youtube";
+import { parseMathBlock } from "./parse/parse_math_block";
+import { parseDetails, parseSpoiler, parseDefinitionList, parseColumns, parseTabs } from "./parse/parse_structural_blocks";
 
 const ADMONITION_KINDS = new Set([
 	"note", "warning", "danger", "tip", "info",
@@ -100,14 +102,28 @@ const parseBlockquote = (schema: Schema, lines: string[], startIndex: number) =>
 	return { node, linesConsumed: index - startIndex };
 };
 
+const parseHorizontalRule = (schema: Schema, line: string): PMNode | null => {
+	if (!/^[ \t]*-{3,}[ \t]*$/.exec(line)) return null;
+	const hrNode = schema.nodes["horizontal_rule"];
+	if (!hrNode) return null;
+	return hrNode.create();
+};
+
 const blockTypes: Array<(schema: Schema, line: string) => PMNode | null> = [
 	parseHeading,
+	parseHorizontalRule,
 ];
 
 const multiblockTypes: Array<
 	(schema: Schema, lines: string[], startIndex: number) => { node: PMNode; linesConsumed: number } | null
 > = [
 	parseYoutubeEmbed,
+	parseMathBlock,
+	parseDetails,
+	parseSpoiler,
+	parseDefinitionList,
+	parseColumns,
+	parseTabs,
 	parseAdmonitionBlock,
 	parseBlockquote,
 	parseMarkdownTable,

@@ -432,7 +432,8 @@ item-search-modal {
 }
 
 .add-item-modal-window,
-.item-search-modal-window {
+.item-search-modal-window,
+.assign-type-modal-window {
   width: min(720px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
   overflow: auto;
@@ -457,6 +458,97 @@ item-search-modal {
 }
 
 .add-item-modal-actions > button {
+  width: auto;
+}
+
+assign-type-modal {
+  z-index: 1100;
+}
+
+.assign-type-modal-window {
+  width: min(480px, calc(100vw - 32px));
+}
+
+.assign-type-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-1);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.assign-type-name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.assign-type-btn {
+  width: auto;
+  flex-shrink: 0;
+}
+
+.assign-type-fill-form {
+  width: 100%;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.assign-type-fill-label {
+  font-size: 0.85em;
+  color: var(--fg-2);
+  margin: 0;
+}
+
+.assign-type-fill-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.assign-type-fill-key {
+  width: 120px;
+  flex-shrink: 0;
+  font-size: 0.9em;
+  color: var(--fg-1);
+}
+
+.assign-type-edit-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  opacity: 0.5;
+  vertical-align: middle;
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+.tool-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  h2 {
+    margin: 0;
+  }
+}
+
+.assign-type-modal-close {
+  background: none;
+  border: none;
+  font-size: 1.4em;
+  cursor: pointer;
+  color: var(--fg-1);
+  line-height: 1;
+  padding: 2px 6px;
   width: auto;
 }
 

@@ -12,6 +12,7 @@ import { buildAddPanel } from '../views/item_table_add_panel';
 import { createItem } from '../views/item_table_save';
 import { loadAttributeKinds } from '../views/attribute_value_input';
 import type { CreateDraftState } from '../views/item_table_types';
+import { AssignTypeModal } from '../common/assign_type_modal';
 
 const itemApi = new ItemAPI('/api');
 
@@ -111,12 +112,17 @@ export class ItemScreen extends BaseElementEmpty {
         const typesDiv = document.createElement('div');
         typesDiv.className = 'item-types';
         this.appendChild(typesDiv);
-        this.renderTypes(item, typesDiv);
 
         // Attributes
         const attrsSection = document.createElement('section');
         attrsSection.className = 'item-attributes';
         this.appendChild(attrsSection);
+
+        const onTypesDone = () => {
+            this.renderTypes(item, typesDiv, onTypesDone);
+            this.renderAttributes(item, attrsSection);
+        };
+        this.renderTypes(item, typesDiv, onTypesDone);
         this.renderAttributes(item, attrsSection);
 
         // Content
@@ -200,9 +206,8 @@ export class ItemScreen extends BaseElementEmpty {
         return row;
     }
 
-    private renderTypes(item: Item, container: HTMLElement): void {
+    private renderTypes(item: Item, container: HTMLElement, onDone: () => void): void {
         container.innerHTML = '';
-        if (item.Types.length === 0) return;
 
         item.Types.forEach((typeRef) => {
             const badge = document.createElement('span');
@@ -214,6 +219,21 @@ export class ItemScreen extends BaseElementEmpty {
             });
             container.appendChild(badge);
         });
+
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.title = 'Manage types';
+        editBtn.className = 'assign-type-edit-btn';
+        const img = document.createElement('img');
+        img.src = icons.tag;
+        img.alt = 'Manage types';
+        img.style.width = '1em';
+        img.style.height = '1em';
+        editBtn.appendChild(img);
+        editBtn.addEventListener('click', () => {
+            AssignTypeModal.show(item, onDone);
+        });
+        container.appendChild(editBtn);
     }
 
     private renderAttributes(item: Item, container: HTMLElement): void {
@@ -250,7 +270,7 @@ export class ItemScreen extends BaseElementEmpty {
         await Promise.all([
             this.renderCollectionCards({
                 container: children.content,
-                createRow: { contextItemId: item.ItemID, relationship: 'parent', submitLabel: 'Add child' },
+                createRow: { contextItemId: item.ItemID, contextItemTitle: item.Title, relationship: 'parent', submitLabel: 'Add child' },
                 emptyMessage: 'No child items.',
                 errorMessage: 'Failed to load child items.',
                 grouped: true,
@@ -282,7 +302,7 @@ export class ItemScreen extends BaseElementEmpty {
 
     private async renderCollectionCards(args: {
         container: HTMLElement;
-        createRow?: { contextItemId: number; relationship: 'parent'; submitLabel: string };
+        createRow?: { contextItemId: number; contextItemTitle: string; relationship: 'parent'; submitLabel: string };
         emptyMessage: string;
         errorMessage: string;
         grouped?: boolean;
@@ -334,6 +354,7 @@ export class ItemScreen extends BaseElementEmpty {
                                 const created = await createItem({
                                     attributes: draft.attributes,
                                     contextItemId: args.createRow!.contextItemId,
+                                    contextItemTitle: args.createRow!.contextItemTitle,
                                     relationship: args.createRow!.relationship,
                                     title,
                                     types: draft.types,

@@ -10,6 +10,7 @@ type ListInfo = {
 
 type ListItemInfo = {
 	text: string;
+	checked: boolean | null;
 	children: ListInfo[];
 };
 
@@ -17,6 +18,7 @@ type ParsedListLine = {
 	indent: number;
 	type: ListType;
 	text: string;
+	checked: boolean | null;
 };
 
 const getIndentLevel = (prefix: string): number => {
@@ -29,22 +31,24 @@ const getIndentLevel = (prefix: string): number => {
 	return tabs + Math.floor(spaces / 4);
 };
 
+const TASK_PREFIX_RE = /^\[([xX ])\]\s/;
+
+const extractChecked = (text: string): { text: string; checked: boolean | null } => {
+	const m = TASK_PREFIX_RE.exec(text);
+	if (!m) return { text, checked: null };
+	return { text: text.slice(m[0].length), checked: m[1] !== " " };
+};
+
 const parseListLine = (line: string): ParsedListLine | null => {
 	const bulletMatch = /^([ \t]*)([-*])\s+(.+)$/.exec(line);
 	if (bulletMatch) {
-		return {
-			indent: getIndentLevel(bulletMatch[1] ?? ""),
-			type: "bullet",
-			text: bulletMatch[3] ?? "",
-		};
+		const { text, checked } = extractChecked(bulletMatch[3] ?? "");
+		return { indent: getIndentLevel(bulletMatch[1] ?? ""), type: "bullet", text, checked };
 	}
 	const orderedMatch = /^([ \t]*)(\d+)\.\s+(.+)$/.exec(line);
 	if (orderedMatch) {
-		return {
-			indent: getIndentLevel(orderedMatch[1] ?? ""),
-			type: "ordered",
-			text: orderedMatch[3] ?? "",
-		};
+		const { text, checked } = extractChecked(orderedMatch[3] ?? "");
+		return { indent: getIndentLevel(orderedMatch[1] ?? ""), type: "ordered", text, checked };
 	}
 	return null;
 };
@@ -58,7 +62,7 @@ const buildListNode = (schema: Schema, info: ListInfo): PMNode => {
 		for (const child of item.children) {
 			content.push(buildListNode(schema, child));
 		}
-		return listItem.create(null, content);
+		return listItem.create({ checked: item.checked }, content);
 	});
 
 	const listTypeNode =
@@ -114,7 +118,7 @@ export const parseList = (schema: Schema, lines: string[], startIndex: number) =
 
 		const currentTop = stack[stack.length - 1];
 		if (!currentTop) break;
-		currentTop.list.items.push({ text: parsed.text, children: [] });
+		currentTop.list.items.push({ text: parsed.text, checked: parsed.checked, children: [] });
 		index++;
 		linesConsumed++;
 	}

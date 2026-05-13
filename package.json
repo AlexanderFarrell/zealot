@@ -24,5 +24,8 @@
     "devDependencies": {
         "dependency-cruiser": "^17.3.10",
         "plato": "^1.7.0"
+    },
+    "dependencies": {
+        "mermaid": "^11.15.0"
     }
 }

@@ -145,6 +145,27 @@ const superscriptMark: MarkSpec = {
 	toDOM() { return ["sup", 0]; }
 };
 
+const SAFE_COLOR_RE = /^(?:[a-zA-Z]+|#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})|rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)|hsl\(\s*\d+\s*,\s*\d+%\s*,\s*\d+%\s*\))$/;
+
+const colorMark: MarkSpec = {
+	attrs: { value: { default: "" } },
+	parseDOM: [
+		{
+			tag: "span.zealot-color[style]",
+			getAttrs: (e) => {
+				const el = e as HTMLElement;
+				const color = el.style.color || "";
+				return SAFE_COLOR_RE.test(color.trim()) ? { value: color.trim() } : false;
+			}
+		}
+	],
+	toDOM(mark) {
+		const value = (mark.attrs.value || "").trim();
+		const safe = SAFE_COLOR_RE.test(value) ? value : "";
+		return ["span", { style: safe ? `color: ${safe}` : "", class: "zealot-color" }, 0];
+	}
+};
+
 const youtubeEmbedSpec: NodeSpec = {
 	group: "block",
 	atom: true,
@@ -162,8 +183,180 @@ const youtubeEmbedSpec: NodeSpec = {
 	}
 };
 
+const mathInlineSpec: NodeSpec = {
+	group: "inline",
+	inline: true,
+	atom: true,
+	attrs: { src: { default: "" } },
+	parseDOM: [
+		{
+			tag: "span[data-math-inline]",
+			getAttrs: (e) => ({ src: (e as HTMLElement).getAttribute("data-math-inline") ?? "" })
+		}
+	],
+	toDOM(node) {
+		return ["span", { "data-math-inline": node.attrs.src, class: "zealot-math-inline" }];
+	}
+};
+
+const mathBlockSpec: NodeSpec = {
+	group: "block",
+	atom: true,
+	attrs: { src: { default: "" } },
+	parseDOM: [
+		{
+			tag: "div[data-math-block]",
+			getAttrs: (e) => ({ src: (e as HTMLElement).getAttribute("data-math-block") ?? "" })
+		}
+	],
+	toDOM(node) {
+		return ["div", { "data-math-block": node.attrs.src, class: "zealot-math-block" }];
+	}
+};
+
+const dateRefSpec: NodeSpec = {
+	group: "inline",
+	inline: true,
+	atom: true,
+	attrs: {
+		raw: { default: "" },
+		kind: { default: "day" },
+	},
+	parseDOM: [
+		{
+			tag: "span[data-date-ref]",
+			getAttrs: (e) => {
+				const el = e as HTMLElement;
+				const raw = el.getAttribute("data-date-ref") ?? "";
+				const kind = el.getAttribute("data-date-kind") ?? "day";
+				return { raw, kind };
+			}
+		}
+	],
+	toDOM(node) {
+		const raw = node.attrs.raw as string;
+		const kind = node.attrs.kind as string;
+		return ["span", { "data-date-ref": raw, "data-date-kind": kind, class: `zealot-date-ref zealot-date-ref-${kind}` }, raw];
+	}
+};
+
+const listItemSpec: NodeSpec = {
+	content: "paragraph block*",
+	attrs: { checked: { default: null } },
+	defining: true,
+	parseDOM: [
+		{
+			tag: "li",
+			getAttrs: (e) => {
+				const el = e as HTMLElement;
+				const raw = el.getAttribute("data-checked");
+				if (raw === null) return { checked: null };
+				return { checked: raw === "true" };
+			}
+		}
+	],
+	toDOM(node) {
+		const checked: boolean | null = node.attrs.checked;
+		if (checked === null) return ["li", 0];
+		const inputAttrs: Record<string, string> = {
+			type: "checkbox",
+			class: "zealot-task-checkbox",
+		};
+		if (checked) inputAttrs["checked"] = "";
+		return ["li", { "data-checked": String(checked), class: "zealot-task-item" }, ["input", inputAttrs], 0];
+	}
+};
+
+const detailsSpec: NodeSpec = {
+	group: "block",
+	content: "block+",
+	attrs: { summary: { default: "" } },
+	defining: true,
+	parseDOM: [{
+		tag: "details.zealot-details",
+		getAttrs: (e) => ({
+			summary: (e as HTMLElement).querySelector("summary")?.textContent?.trim() ?? ""
+		})
+	}],
+	toDOM(node) {
+		return ["details", { class: "zealot-details" },
+			["summary", {}, node.attrs.summary || ""],
+			["div", { class: "zealot-details-content" }, 0]];
+	}
+};
+
+const spoilerSpec: NodeSpec = {
+	group: "block",
+	content: "block+",
+	defining: true,
+	parseDOM: [{ tag: "details.zealot-spoiler" }],
+	toDOM() {
+		return ["details", { class: "zealot-spoiler" },
+			["summary", {}, "Show spoiler"],
+			["div", { class: "zealot-spoiler-content" }, 0]];
+	}
+};
+
+const definitionListSpec: NodeSpec = {
+	group: "block",
+	content: "(definition_term definition_desc+)+",
+	parseDOM: [{ tag: "dl.zealot-definition" }],
+	toDOM() { return ["dl", { class: "zealot-definition" }, 0]; }
+};
+
+const definitionTermSpec: NodeSpec = {
+	content: "inline*",
+	parseDOM: [{ tag: "dl.zealot-definition > dt" }],
+	toDOM() { return ["dt", 0]; }
+};
+
+const definitionDescSpec: NodeSpec = {
+	content: "block+",
+	parseDOM: [{ tag: "dl.zealot-definition > dd" }],
+	toDOM() { return ["dd", 0]; }
+};
+
+const columnsSpec: NodeSpec = {
+	group: "block",
+	content: "column{2,4}",
+	defining: true,
+	parseDOM: [{ tag: "div.zealot-columns" }],
+	toDOM(node) {
+		const n = Math.max(node.childCount, 2);
+		return ["div", { class: `zealot-columns zealot-columns-${n}` }, 0];
+	}
+};
+
+const columnSpec: NodeSpec = {
+	content: "block+",
+	defining: true,
+	parseDOM: [{ tag: "div.zealot-column" }],
+	toDOM() { return ["div", { class: "zealot-column" }, 0]; }
+};
+
+const tabsSpec: NodeSpec = {
+	group: "block",
+	content: "tab+",
+	defining: true,
+	parseDOM: [{ tag: "div.zealot-tabs" }],
+	toDOM() { return ["div", { class: "zealot-tabs" }, 0]; }
+};
+
+const tabSpec: NodeSpec = {
+	content: "block+",
+	attrs: { title: { default: "" } },
+	defining: true,
+	parseDOM: [{
+		tag: "div.zealot-tab-panel",
+		getAttrs: (e) => ({ title: (e as HTMLElement).getAttribute("data-tab-title") ?? "" })
+	}],
+	toDOM(node) {
+		return ["div", { class: "zealot-tab-panel", "data-tab-title": node.attrs.title as string }, 0];
+	}
+};
+
 const nodes = addListNodes(
-	baseSchema.spec.nodes.update("code_block", codeBlockSpec),
+	baseSchema.spec.nodes.update("code_block", codeBlockSpec).update("list_item", listItemSpec),
 	"paragraph block*",
 	"block"
 ).append({
@@ -173,6 +366,18 @@ const nodes = addListNodes(
 	table_cell: tableCellSpec,
 	table_header: tableHeaderSpec,
 	youtube_embed: youtubeEmbedSpec,
+	math_inline: mathInlineSpec,
+	math_block: mathBlockSpec,
+	date_ref: dateRefSpec,
+	details: detailsSpec,
+	spoiler: spoilerSpec,
+	definition_list: definitionListSpec,
+	definition_term: definitionTermSpec,
+	definition_desc: definitionDescSpec,
+	columns: columnsSpec,
+	column: columnSpec,
+	tabs: tabsSpec,
+	tab: tabSpec,
 });
 
 const marks = baseSchema.spec.marks.append({
@@ -181,6 +386,7 @@ const marks = baseSchema.spec.marks.append({
 	highlight: highlightMark,
 	subscript: subscriptMark,
 	superscript: superscriptMark,
+	color: colorMark,
 });
 
 export const ZealotSchema = new Schema({ nodes, marks });

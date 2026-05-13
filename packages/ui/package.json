@@ -15,6 +15,7 @@
         "@zealot/content": "file:../content",
         "@zealot/domain": "file:../domain",
         "dockview-core": "^5.2.0",
+        "katex": "^0.16.45",
         "luxon": "^3.7.2",
         "mitt": "^3.0.1",
         "prosemirror-commands": "^1.7.1",
@@ -31,6 +32,7 @@
         "prosemirror-view": "^1.41.8"
     },
     "devDependencies": {
+        "@types/katex": "^0.16.8",
         "@types/luxon": "^3.7.1",
         "eslint": "^10.0.3",
         "sass": "^1.98.0",

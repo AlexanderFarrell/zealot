@@ -9,6 +9,7 @@ const MARK_ORDER = [
 	"subscript",
 	"superscript",
 	"highlight",
+	"color",
 ] as const;
 
 const MARK_DELIMITERS: Record<string, { open: string; close: string }> = {
@@ -29,6 +30,10 @@ const escapeCodeText = (text: string): string => {
 	return text.replace(/\\/g, "\\\\").replace(/`/g, "\\`");
 };
 
+const escapeColorText = (text: string): string => {
+	return text.replace(/</g, "\\<").replace(/>/g, "\\>");
+};
+
 const wrapWithMarks = (text: string, marks: ReadonlyArray<Mark>): string => {
 	if (text.length === 0) return text;
 	const hasCodeMark = marks.some((mark) => mark.type.name === "code");
@@ -36,6 +41,11 @@ const wrapWithMarks = (text: string, marks: ReadonlyArray<Mark>): string => {
 	let out = escapeText(text);
 	for (const markName of MARK_ORDER) {
 		if (!marks.some((mark) => mark.type.name === markName)) continue;
+		if (markName === "color") {
+			const colorMark = marks.find((m) => m.type.name === "color");
+			if (colorMark) out = `<color:${colorMark.attrs.value}>${escapeColorText(out)}</color>`;
+			continue;
+		}
 		const delimiter = MARK_DELIMITERS[markName];
 		if (!delimiter) continue;
 		out = `${delimiter.open}${out}${delimiter.close}`;
@@ -51,6 +61,11 @@ const wrapInlineLiteralWithMarks = (content: string, marks: ReadonlyArray<Mark>)
 	const styledMarks = nonLinkMarks.filter((mark) => mark.type.name !== "code");
 	for (const markName of MARK_ORDER) {
 		if (!styledMarks.some((mark) => mark.type.name === markName)) continue;
+		if (markName === "color") {
+			const colorMark = styledMarks.find((m) => m.type.name === "color");
+			if (colorMark) out = `<color:${colorMark.attrs.value}>${escapeColorText(out)}</color>`;
+			continue;
+		}
 		const delimiter = MARK_DELIMITERS[markName];
 		if (!delimiter) continue;
 		out = `${delimiter.open}${out}${delimiter.close}`;
@@ -64,7 +79,15 @@ const wrapInlineLiteralWithMarks = (content: string, marks: ReadonlyArray<Mark>)
 };
 
 const serializeZealotHref = (text: string, href: string): string => {
-	if (href.startsWith("zealot://item/")) return `[[${href.slice("zealot://item/".length)}]]`;
+	if (href.startsWith("zealot://item/")) {
+		const raw = href.slice("zealot://item/".length);
+		const hashIdx = raw.indexOf("#");
+		const target = hashIdx >= 0 ? raw.slice(0, hashIdx) : raw;
+		const anchor = hashIdx >= 0 ? raw.slice(hashIdx + 1) : "";
+		const anchorPart = anchor.length > 0 ? `#${anchor}` : "";
+		const labelPart = text !== target ? `|${text}` : "";
+		return `[[${target}${anchorPart}${labelPart}]]`;
+	}
 	if (href.startsWith("zealot://type/")) return `[[type:${href.slice("zealot://type/".length)}]]`;
 	return `[${text}](${href})`;
 };
@@ -81,6 +104,10 @@ const serializeTextNode = (node: PMNode): string => {
 	return serializeZealotHref(rendered, href);
 };
 
+const serializeMathInlineNode = (node: PMNode): string => {
+	return `$${node.attrs.src || ""}$`;
+};
+
 const serializeInline = (node: PMNode): string => {
 	let out = "";
 	node.forEach((child) => {
@@ -90,6 +117,14 @@ const serializeInline = (node: PMNode): string => {
 		}
 		if (child.type.name === "hard_break") {
 			out += wrapInlineLiteralWithMarks("<br>", child.marks);
+			return;
+		}
+		if (child.type.name === "math_inline") {
+			out += serializeMathInlineNode(child);
+			return;
+		}
+		if (child.type.name === "date_ref") {
+			out += serializeDateRef(child);
 			return;
 		}
 		out += wrapInlineLiteralWithMarks(escapeText(child.textContent || ""), child.marks);
@@ -154,8 +189,10 @@ const serializeList = (node: PMNode, ordered: boolean, indentLevel = 0): string 
 			}
 		});
 
+		const checked: boolean | null = item.attrs.checked ?? null;
+		const taskPrefix = checked === null ? "" : checked ? "[x] " : "[ ] ";
 		const bullet = ordered ? `${counter}. ` : "- ";
-		lines.push(prefixBase + bullet + text);
+		lines.push(prefixBase + bullet + taskPrefix + text);
 		counter++;
 
 		for (const nested of nestedLists) {
@@ -221,6 +258,11 @@ const serializeYoutubeEmbed = (node: PMNode): string => {
 	return `:::youtube ${(node.attrs.videoId || "").trim()}`;
 };
 
+const serializeMathBlock = (node: PMNode): string => {
+	const src = (node.attrs.src || "").trim();
+	return `:::math\n${src}\n:::`;
+};
+
 const serializeAdmonition = (node: PMNode): string => {
 	const kind = node.attrs.kind || "note";
 	const blocks: string[] = [];
@@ -230,9 +272,76 @@ const serializeAdmonition = (node: PMNode): string => {
 	return `:::${kind}\n${content}\n:::`;
 };
 
+const serializeDateRef = (node: PMNode): string => {
+	return `@${node.attrs.raw || ""}`;
+};
+
+const serializeDetails = (node: PMNode): string => {
+	const summary = (node.attrs.summary as string) || "";
+	const blocks: string[] = [];
+	node.forEach((child) => blocks.push(serializeBlock(child)));
+	const content = joinBlocks(blocks);
+	const header = summary.length > 0 ? `:::details ${summary}` : ":::details";
+	if (content.length === 0) return `${header}\n:::`;
+	return `${header}\n${content}\n:::`;
+};
+
+const serializeSpoiler = (node: PMNode): string => {
+	const blocks: string[] = [];
+	node.forEach((child) => blocks.push(serializeBlock(child)));
+	const content = joinBlocks(blocks);
+	if (content.length === 0) return ":::spoiler\n:::";
+	return `:::spoiler\n${content}\n:::`;
+};
+
+const serializeDefinitionList = (node: PMNode): string => {
+	const lines: string[] = [":::definition"];
+	node.forEach((child) => {
+		if (child.type.name === "definition_term") {
+			lines.push(serializeInline(child));
+		} else if (child.type.name === "definition_desc") {
+			child.forEach((block) => {
+				const text = serializeBlock(block);
+				const firstLine = text.split("\n")[0] ?? "";
+				lines.push(`: ${firstLine}`);
+			});
+		}
+	});
+	lines.push(":::");
+	return lines.join("\n");
+};
+
+const serializeColumns = (node: PMNode): string => {
+	const lines: string[] = [":::columns"];
+	node.forEach((col) => {
+		lines.push(":::col");
+		const colBlocks: string[] = [];
+		col.forEach((child) => colBlocks.push(serializeBlock(child)));
+		if (colBlocks.length > 0) lines.push(joinBlocks(colBlocks));
+		lines.push(":::");
+	});
+	lines.push(":::");
+	return lines.join("\n");
+};
+
+const serializeTabs = (node: PMNode): string => {
+	const lines: string[] = [":::tabs"];
+	node.forEach((tab) => {
+		const title = (tab.attrs.title as string) || "";
+		lines.push(title.length > 0 ? `:::tab ${title}` : ":::tab");
+		const tabBlocks: string[] = [];
+		tab.forEach((child) => tabBlocks.push(serializeBlock(child)));
+		if (tabBlocks.length > 0) lines.push(joinBlocks(tabBlocks));
+		lines.push(":::");
+	});
+	lines.push(":::");
+	return lines.join("\n");
+};
+
 const nodeSerializers: Record<string, (node: PMNode) => string> = {
 	paragraph: serializeParagraph,
 	heading: serializeHeading,
+	horizontal_rule: () => "---",
 	bullet_list: (node) => serializeList(node, false),
 	ordered_list: (node) => serializeList(node, true),
 	code_block: serializeCodeBlock,
@@ -240,6 +349,14 @@ const nodeSerializers: Record<string, (node: PMNode) => string> = {
 	table: serializeTable,
 	admonition: serializeAdmonition,
 	youtube_embed: serializeYoutubeEmbed,
+	math_block: serializeMathBlock,
+	math_inline: serializeMathInlineNode,
+	date_ref: serializeDateRef,
+	details: serializeDetails,
+	spoiler: serializeSpoiler,
+	definition_list: serializeDefinitionList,
+	columns: serializeColumns,
+	tabs: serializeTabs,
 };
 
 const serializeBlock = (node: PMNode): string => {

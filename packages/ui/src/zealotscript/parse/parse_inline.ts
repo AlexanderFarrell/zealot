@@ -1,10 +1,12 @@
 import type { Node as PMNode, Schema } from "prosemirror-model";
+import { lookupEmoji } from "../emoji_map";
 
 type InlineAtomMatch = {
 	type: "mdlink" | "hard_break" | "wikilink";
 	full: string;
 	label: string;
 	href: string;
+	anchor?: string | undefined;
 };
 
 type ParseInlineRangeResult = {
@@ -19,6 +21,8 @@ type PairedTagMark = {
 	markName: string;
 };
 
+const COLOR_TAG_RE = /^<color:([^>]+)>([\s\S]*?)<\/color>/;
+
 type SymmetricMark = {
 	token: string;
 	markName: string;
@@ -27,8 +31,11 @@ type SymmetricMark = {
 
 const MDLINK_RE = /^\[([^\]]+)\]\(([^)]+)\)/;
 const HARD_BREAK_RE = /^<br\s*\/?>/i;
-const WIKILINK_RE = /^\[\[([^\]]+)\]\]/;
+const WIKILINK_RE = /^\[\[([^\]#|]+)(?:#([^\]|]+))?(?:\|([^\]]+))?\]\]/;
 const WORD_CHAR_RE = /[A-Za-z0-9]/;
+const DATE_DAY_RE = /^@(\d{4}-\d{2}-\d{2})\b/;
+const DATE_WEEK_RE = /^@(\d{4}-W\d{2})\b/;
+const DATE_YEAR_RE = /^@(\d{4})\b/;
 
 const PAIRED_TAG_MARKS: PairedTagMark[] = [
 	{ open: "<mark>", close: "</mark>", markName: "highlight" },
@@ -74,10 +81,14 @@ const matchInlineAtomAt = (text: string, index: number): InlineAtomMatch | null 
 	const wikilinkMatch = WIKILINK_RE.exec(rest);
 	if (wikilinkMatch) {
 		const content = wikilinkMatch[1] ?? "";
+		const anchor = wikilinkMatch[2];
+		const displayLabel = wikilinkMatch[3];
 		const isType = content.startsWith("type:");
 		const target = isType ? content.slice("type:".length) : content;
-		const href = isType ? `zealot://type/${target}` : `zealot://item/${target}`;
-		return { type: "wikilink", full: wikilinkMatch[0], label: target, href };
+		const baseHref = isType ? `zealot://type/${target}` : `zealot://item/${target}`;
+		const href = anchor ? `${baseHref}#${anchor}` : baseHref;
+		const label = displayLabel ?? target;
+		return { type: "wikilink", full: wikilinkMatch[0], label, href, anchor };
 	}
 
 	const markdownLinkMatch = MDLINK_RE.exec(rest);
@@ -164,6 +175,25 @@ const parseInlineRange = (
 			continue;
 		}
 
+		if (text[index] === "@") {
+			const rest = text.slice(index);
+			const dayMatch = DATE_DAY_RE.exec(rest);
+			const weekMatch = DATE_WEEK_RE.exec(rest);
+			const yearMatch = DATE_YEAR_RE.exec(rest);
+			const match = dayMatch ?? weekMatch ?? yearMatch;
+			if (match) {
+				const raw = match[1] ?? "";
+				const kind = dayMatch ? "day" : weekMatch ? "week" : "year";
+				const dateRefNode = schema.nodes["date_ref"];
+				if (dateRefNode) {
+					flushBuffer();
+					nodes.push(dateRefNode.create({ raw, kind }));
+					index += match[0].length;
+					continue;
+				}
+			}
+		}
+
 		const atom = matchInlineAtomAt(text, index);
 		if (atom) {
 			flushBuffer();
@@ -186,6 +216,36 @@ const parseInlineRange = (
 			continue;
 		}
 
+		if (text[index] === "$" && text[index + 1] !== " " && text[index + 1] !== undefined) {
+			const closeIndex = text.indexOf("$", index + 1);
+			if (closeIndex > index + 1 && text[closeIndex - 1] !== " ") {
+				const mathSrc = text.slice(index + 1, closeIndex);
+				const mathInline = schema.nodes["math_inline"];
+				if (mathInline) {
+					flushBuffer();
+					nodes.push(mathInline.create({ src: mathSrc }));
+					index = closeIndex + 1;
+					continue;
+				}
+			}
+		}
+
+		if (text[index] === ":" && index + 2 < text.length) {
+			const closeIndex = text.indexOf(":", index + 1);
+			if (closeIndex > index + 1) {
+				const shortcode = text.slice(index + 1, closeIndex);
+				if (/^[a-z0-9_+\-]+$/.test(shortcode)) {
+					const emojiChar = lookupEmoji(shortcode);
+					if (emojiChar) {
+						flushBuffer();
+						nodes.push(schema.text(emojiChar));
+						index = closeIndex + 1;
+						continue;
+					}
+				}
+			}
+		}
+
 		if (text[index] === "`") {
 			const closeIndex = text.indexOf("`", index + 1);
 			if (closeIndex > index + 1) {
@@ -199,6 +259,27 @@ const parseInlineRange = (
 				}
 				index = closeIndex + 1;
 				continue;
+			}
+		}
+
+		if (text[index] === "<") {
+			const colorMatch = COLOR_TAG_RE.exec(text.slice(index));
+			if (colorMatch) {
+				const colorValue = colorMatch[1] ?? "";
+				const innerText = colorMatch[2] ?? "";
+				const colorMarkType = schema.marks["color"];
+				if (colorMarkType) {
+					flushBuffer();
+					const innerNodes = parseInlineNodes(schema, innerText);
+					const mark = colorMarkType.create({ value: colorValue });
+					nodes.push(...innerNodes.map((n) => {
+						if (n.isText) return schema.text(n.text || "", [...n.marks, mark]);
+						if (!n.type.allowsMarkType(colorMarkType)) return n;
+						return n.mark([...n.marks, mark]);
+					}));
+					index += colorMatch[0].length;
+					continue;
+				}
 			}
 		}
 

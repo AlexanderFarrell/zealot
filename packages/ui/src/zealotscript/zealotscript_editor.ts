@@ -12,12 +12,69 @@ import type { MarkType, Schema } from "prosemirror-model";
 import ZealotSchema from "./schema";
 import { parseZealotScript } from "./parser";
 import { serializeZealotScript } from "./serializer";
-import { insertTable, insertAdmonition, insertYoutubeEmbed, extractYouTubeVideoId } from "./commands";
+import { insertTable, insertAdmonition, insertYoutubeEmbed, insertMermaidBlock, extractYouTubeVideoId, insertDetails, insertSpoiler, insertColumns, insertTabs } from "./commands";
+import { TabsView } from "./zealotscript_view";
+import { EMOJI_MAP, lookupEmoji } from "./emoji_map";
 import { getNavigator } from "@websoil/engine";
 import { ItemSearchInline } from "../views/item_search_inline";
 import type { Item } from "@zealot/domain/src/item";
 
 type PMCommand = (state: EditorState, dispatch?: (tr: Transaction) => void) => boolean;
+
+export class TaskListItemView {
+	dom: HTMLElement;
+	contentDOM: HTMLElement;
+
+	constructor(
+		private node: import("prosemirror-model").Node,
+		private view: EditorView,
+		private getPos: () => number | undefined,
+	) {
+		const li = document.createElement("li");
+		const checked: boolean | null = node.attrs.checked ?? null;
+		if (checked !== null) {
+			li.className = "zealot-task-item";
+			li.setAttribute("data-checked", String(checked));
+		}
+
+		if (checked !== null) {
+			const input = document.createElement("input");
+			input.type = "checkbox";
+			input.className = "zealot-task-checkbox";
+			input.checked = checked;
+			input.addEventListener("mousedown", (e) => e.preventDefault());
+			input.addEventListener("change", () => {
+				const pos = this.getPos();
+				if (pos === undefined) return;
+				const tr = this.view.state.tr.setNodeMarkup(pos, undefined, {
+					...this.node.attrs,
+					checked: input.checked,
+				});
+				this.view.dispatch(tr);
+			});
+			li.appendChild(input);
+		}
+
+		const content = document.createElement("span");
+		content.className = "zealot-task-content";
+		li.appendChild(content);
+
+		this.dom = li;
+		this.contentDOM = content;
+	}
+
+	update(node: import("prosemirror-model").Node): boolean {
+		if (node.type !== this.node.type) return false;
+		this.node = node;
+		const checked: boolean | null = node.attrs.checked ?? null;
+		if (checked !== null) {
+			this.dom.setAttribute("data-checked", String(checked));
+			const input = this.dom.querySelector<HTMLInputElement>("input[type=checkbox]");
+			if (input) input.checked = checked;
+		}
+		return true;
+	}
+}
 
 export class YoutubeEmbedView {
 	dom: HTMLElement;
@@ -78,6 +135,22 @@ const buildInputRules = (schema: Schema) => {
 		rules.push(wrappingInputRule(/^\s*([-+*])\s$/, bulletListType));
 	}
 
+	const listItemType = schema.nodes["list_item"];
+	if (listItemType) {
+		rules.push(new InputRule(/^- \[([xX ])\]\s$/, (state, match, start, end) => {
+			const checked = (match[1] ?? " ") !== " ";
+			const { $from } = state.selection;
+			const listItem = state.schema.nodes["list_item"];
+			const bulletList = state.schema.nodes["bullet_list"];
+			const paragraph = state.schema.nodes["paragraph"];
+			if (!listItem || !bulletList || !paragraph) return null;
+			const item = listItem.create({ checked }, paragraph.create());
+			const list = bulletList.create(null, item);
+			const from = $from.before($from.depth === 0 ? 1 : $from.depth);
+			return state.tr.replaceWith(from, end, list);
+		}));
+	}
+
 	const addMarkRule = (markType: MarkType | undefined, regex: RegExp) => {
 		if (!markType) return;
 		rules.push(new InputRule(regex, (state, match, start, end) => {
@@ -93,6 +166,14 @@ const buildInputRules = (schema: Schema) => {
 	addMarkRule(schema.marks["strike"], /~~([^~\n]+)~~$/);
 	addMarkRule(schema.marks["code"], /`([^`\n]+)`$/);
 	addMarkRule(schema.marks["underline"], /(?<![A-Za-z0-9_])_([^_\n]+)_$/);
+
+	rules.push(new InputRule(/:([a-z0-9_+\-]+):$/, (state, match, start, end) => {
+		const shortcode = match[1];
+		if (!shortcode) return null;
+		const emoji = lookupEmoji(shortcode);
+		if (!emoji) return null;
+		return state.tr.replaceWith(start, end, schema.text(emoji));
+	}));
 
 	const linkMark = schema.marks["link"];
 	if (linkMark) {
@@ -153,6 +234,19 @@ const isInList = (state: EditorState): boolean => {
 	return false;
 };
 
+function detectEmojiTrigger(state: EditorState): { from: number; query: string } | null {
+	const { $from } = state.selection;
+	if ($from.depth === 0) return null;
+	const text = $from.parent.textBetween(0, $from.parentOffset, null, "\0");
+	const lastColon = text.lastIndexOf(":");
+	if (lastColon === -1) return null;
+	const query = text.slice(lastColon + 1);
+	if (query.includes(":") || query.includes(" ") || query.includes("\n")) return null;
+	if (!/^[a-z0-9_+\-]*$/.test(query)) return null;
+	if (query.length === 0) return null;
+	return { from: $from.start() + lastColon, query };
+}
+
 function detectWikilinkTrigger(state: EditorState): { from: number; query: string } | null {
 	const { $from } = state.selection;
 	if ($from.depth === 0) return null;
@@ -172,6 +266,9 @@ export class ZealotScriptEditor extends HTMLElement {
 	private _wikilinkPickerSearch: ItemSearchInline | null = null;
 	private _wikilinkPickerFrom: number | null = null;
 	private _outsideClickListener: ((e: MouseEvent) => void) | null = null;
+	private _emojiPickerEl: HTMLDivElement | null = null;
+	private _emojiPickerFrom: number | null = null;
+	private _emojiOutsideClickListener: ((e: MouseEvent) => void) | null = null;
 
 	private _showWikilinkPicker(from: number, query: string): void {
 		if (!this._view) return;
@@ -250,6 +347,84 @@ export class ZealotScriptEditor extends HTMLElement {
 		this._view.focus();
 	}
 
+	private _showEmojiPicker(from: number, query: string): void {
+		if (!this._view) return;
+		this._emojiPickerFrom = from;
+
+		if (!this._emojiPickerEl) {
+			const wrapper = document.createElement("div");
+			wrapper.className = "zealotscript-emoji-picker";
+			document.body.appendChild(wrapper);
+			this._emojiPickerEl = wrapper;
+
+			this._emojiOutsideClickListener = (e: MouseEvent) => {
+				if (
+					this._emojiPickerEl &&
+					!this._emojiPickerEl.contains(e.target as Node) &&
+					!this.contains(e.target as Node)
+				) {
+					this._hideEmojiPicker();
+				}
+			};
+			document.addEventListener("mousedown", this._emojiOutsideClickListener);
+		}
+
+		this._updateEmojiPickerContent(from, query);
+	}
+
+	private _updateEmojiPickerContent(from: number, query: string): void {
+		const el = this._emojiPickerEl;
+		if (!el || !this._view) return;
+
+		const coords = this._view.coordsAtPos(from);
+		el.style.position = "fixed";
+		el.style.top = `${coords.bottom + 4}px`;
+		el.style.left = `${coords.left}px`;
+
+		const matches = Object.entries(EMOJI_MAP)
+			.filter(([k]) => k.startsWith(query))
+			.slice(0, 8);
+
+		el.innerHTML = "";
+		if (matches.length === 0) {
+			this._hideEmojiPicker();
+			return;
+		}
+
+		for (const [shortcode, emoji] of matches) {
+			const btn = document.createElement("button");
+			btn.type = "button";
+			btn.className = "zealotscript-emoji-option";
+			btn.textContent = `${emoji} ${shortcode}`;
+			btn.addEventListener("mousedown", (e) => {
+				e.preventDefault();
+				this._insertEmoji(emoji);
+			});
+			el.appendChild(btn);
+		}
+	}
+
+	private _insertEmoji(emoji: string): void {
+		if (!this._view || this._emojiPickerFrom === null) return;
+		const { state } = this._view;
+		const from = this._emojiPickerFrom;
+		const to = state.selection.from;
+		const tr = state.tr.replaceWith(from, to, state.schema.text(emoji));
+		this._view.dispatch(tr);
+		this._hideEmojiPicker();
+		this._view.focus();
+	}
+
+	private _hideEmojiPicker(): void {
+		if (this._emojiOutsideClickListener) {
+			document.removeEventListener("mousedown", this._emojiOutsideClickListener);
+			this._emojiOutsideClickListener = null;
+		}
+		this._emojiPickerEl?.remove();
+		this._emojiPickerEl = null;
+		this._emojiPickerFrom = null;
+	}
+
 	private _buildToolbar(): HTMLElement {
 		const bar = document.createElement("div");
 		bar.className = "zealotscript-toolbar";
@@ -313,6 +488,20 @@ export class ZealotScriptEditor extends HTMLElement {
 		sep2.className = "zealotscript-toolbar-sep";
 		bar.appendChild(sep2);
 
+		bar.appendChild(btn("☑ Task", "Insert Task List", () => {
+			if (!this._view) return;
+			const { state, dispatch } = this._view;
+			const listItem = state.schema.nodes["list_item"];
+			const bulletList = state.schema.nodes["bullet_list"];
+			const paragraph = state.schema.nodes["paragraph"];
+			if (!listItem || !bulletList || !paragraph) return;
+			const item = listItem.create({ checked: false }, paragraph.create());
+			const list = bulletList.create(null, item);
+			const { $from } = state.selection;
+			const insertPos = $from.before($from.depth === 0 ? 1 : $from.depth);
+			dispatch(state.tr.replaceWith(insertPos, $from.after($from.depth === 0 ? 1 : $from.depth), list));
+			this._view.focus();
+		}));
 		bar.appendChild(btn("Table", "Insert Table", () => runCommand(insertTable)));
 		bar.appendChild(btn("Note", "Insert Note", () => runCommand(insertAdmonition("note"))));
 		bar.appendChild(btn("Warning", "Insert Warning", () => runCommand(insertAdmonition("warning"))));
@@ -323,6 +512,14 @@ export class ZealotScriptEditor extends HTMLElement {
 			const videoId = extractYouTubeVideoId(input.trim());
 			if (videoId) runCommand(insertYoutubeEmbed(videoId));
 		}));
+		bar.appendChild(btn("◇ Mermaid", "Insert Mermaid Diagram", () => runCommand(insertMermaidBlock)));
+		bar.appendChild(btn("◇ Details", "Insert Details block", () => {
+			const summary = window.prompt("Summary text:", "Details") || "Details";
+			runCommand(insertDetails(summary));
+		}));
+		bar.appendChild(btn("◇ Spoiler", "Insert Spoiler block", () => runCommand(insertSpoiler)));
+		bar.appendChild(btn("⊟ Columns", "Insert 2-column layout", () => runCommand(insertColumns(2))));
+		bar.appendChild(btn("⊞ Tabs", "Insert Tabs", () => runCommand(insertTabs(["Tab 1", "Tab 2"]))));
 
 		return bar;
 	}
@@ -346,11 +543,14 @@ export class ZealotScriptEditor extends HTMLElement {
 			state,
 			nodeViews: {
 				youtube_embed: (node) => new YoutubeEmbedView(node),
+				list_item: (node, view, getPos) => new TaskListItemView(node, view, getPos),
+				tabs: (node) => new TabsView(node),
 			},
 			handleKeyDown: (_view, event) => {
-				if (event.key === "Escape" && this._wikilinkPickerEl) {
+				if (event.key === "Escape" && (this._wikilinkPickerEl || this._emojiPickerEl)) {
 					event.preventDefault();
 					this._hideWikilinkPicker();
+					this._hideEmojiPicker();
 					return true;
 				}
 				if (event.key !== "Tab") return false;
@@ -366,7 +566,21 @@ export class ZealotScriptEditor extends HTMLElement {
 				return true;
 			},
 			handleClick: (_view, _pos, event) => {
+				if (event.button !== 0) return false;
 				const target = event.target as HTMLElement | null;
+
+				const dateRef = target?.closest<HTMLElement>("span[data-date-ref]");
+				if (dateRef) {
+					const raw = dateRef.getAttribute("data-date-ref") ?? "";
+					const kind = dateRef.getAttribute("data-date-kind") ?? "day";
+					event.preventDefault();
+					event.stopPropagation();
+					if (kind === "day") getNavigator().openPlanner("daily", raw);
+					else if (kind === "week") getNavigator().openPlanner("weekly", raw);
+					else getNavigator().openPlanner("annual", raw);
+					return true;
+				}
+
 				const anchor = target?.closest("a[href]") as HTMLAnchorElement | null;
 				if (!anchor) return false;
 				const href = anchor.getAttribute("href") || "";
@@ -398,6 +612,18 @@ export class ZealotScriptEditor extends HTMLElement {
 					this._hideWikilinkPicker();
 				}
 
+				const emojiTrigger = detectEmojiTrigger(nextState);
+				if (emojiTrigger) {
+					if (this._emojiPickerEl) {
+						this._emojiPickerFrom = emojiTrigger.from;
+						this._updateEmojiPickerContent(emojiTrigger.from, emojiTrigger.query);
+					} else {
+						this._showEmojiPicker(emojiTrigger.from, emojiTrigger.query);
+					}
+				} else if (this._emojiPickerEl) {
+					this._hideEmojiPicker();
+				}
+
 				if (!tr.docChanged) return;
 				if (this._saveTimer !== null) window.clearTimeout(this._saveTimer);
 				this._saveTimer = window.setTimeout(() => {
@@ -414,6 +640,7 @@ export class ZealotScriptEditor extends HTMLElement {
 	disconnectedCallback() {
 		if (this._saveTimer !== null) window.clearTimeout(this._saveTimer);
 		this._hideWikilinkPicker();
+		this._hideEmojiPicker();
 		this._view?.destroy();
 		this._view = null;
 	}

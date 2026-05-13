@@ -50,3 +50,61 @@ export const insertAdmonition = (kind: string): PMCommand => (state, dispatch) =
 	if (dispatch) dispatch(tr);
 	return true;
 };
+
+export const insertMermaidBlock: PMCommand = (state, dispatch) => {
+	const codeBlock = state.schema.nodes["code_block"];
+	if (!codeBlock) return false;
+	const node = codeBlock.create({ language: "mermaid" });
+	if (dispatch) dispatch(state.tr.replaceSelectionWith(node).scrollIntoView());
+	return true;
+};
+
+export const insertDetails = (summary = "Details"): PMCommand => (state, dispatch) => {
+	const { schema } = state;
+	const paragraph = schema.nodes["paragraph"];
+	const details = schema.nodes["details"];
+	if (!paragraph || !details) return false;
+	const p = paragraph.createAndFill({}, schema.text("..."))!;
+	const node = details.createAndFill({ summary }, [p]);
+	if (!node) return false;
+	if (dispatch) dispatch(state.tr.replaceSelectionWith(node).scrollIntoView());
+	return true;
+};
+
+export const insertSpoiler: PMCommand = (state, dispatch) => {
+	const { schema } = state;
+	const paragraph = schema.nodes["paragraph"];
+	const spoiler = schema.nodes["spoiler"];
+	if (!paragraph || !spoiler) return false;
+	const p = paragraph.createAndFill({}, schema.text("..."))!;
+	const node = spoiler.createAndFill({}, [p]);
+	if (!node) return false;
+	if (dispatch) dispatch(state.tr.replaceSelectionWith(node).scrollIntoView());
+	return true;
+};
+
+export const insertColumns = (numCols: 2 | 3 | 4 = 2): PMCommand => (state, dispatch) => {
+	const { schema } = state;
+	const paragraph = schema.nodes["paragraph"];
+	const column = schema.nodes["column"];
+	const columns = schema.nodes["columns"];
+	if (!paragraph || !column || !columns) return false;
+	const cols = Array.from({ length: numCols }, () => column.createAndFill({}, [paragraph.create()])!);
+	const node = columns.createAndFill({}, cols);
+	if (!node) return false;
+	if (dispatch) dispatch(state.tr.replaceSelectionWith(node).scrollIntoView());
+	return true;
+};
+
+export const insertTabs = (titles = ["Tab 1", "Tab 2"]): PMCommand => (state, dispatch) => {
+	const { schema } = state;
+	const paragraph = schema.nodes["paragraph"];
+	const tab = schema.nodes["tab"];
+	const tabs = schema.nodes["tabs"];
+	if (!paragraph || !tab || !tabs) return false;
+	const tabNodes = titles.map((title) => tab.createAndFill({ title }, [paragraph.create()])!);
+	const node = tabs.createAndFill({}, tabNodes);
+	if (!node) return false;
+	if (dispatch) dispatch(state.tr.replaceSelectionWith(node).scrollIntoView());
+	return true;
+};

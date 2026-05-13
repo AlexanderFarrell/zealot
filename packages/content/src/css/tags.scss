@@ -450,3 +450,254 @@ div[data-admonition="todo"] {
 	padding: 4px;
 	overflow: visible;
 }
+
+.zealotscript-emoji-picker {
+	position: fixed;
+	z-index: 2000;
+	min-width: 160px;
+	max-width: 280px;
+	background: var(--panel-0);
+	border: 1px solid var(--border-0);
+	border-radius: 8px;
+	box-shadow: 0 12px 36px rgba(0, 0, 0, 0.2);
+	padding: 4px;
+	display: grid;
+}
+
+.zealotscript-emoji-option {
+	width: 100%;
+	text-align: left;
+	border-radius: 4px;
+	padding: 5px 10px;
+	background: transparent;
+	box-shadow: none;
+	filter: none;
+	font-size: 13px;
+	transition: background 100ms ease;
+}
+
+.zealotscript-emoji-option:hover {
+	background: color-mix(in srgb, var(--bg-3) 72%, var(--accent-0) 28%);
+	box-shadow: none;
+	filter: none;
+}
+
+.zealot-math-block {
+	background: color-mix(in srgb, var(--bg-1) 80%, var(--accent-0) 20%);
+	border: 1px solid color-mix(in srgb, var(--accent-0) 34%, transparent);
+	border-radius: 8px;
+	padding: 14px 20px;
+	margin: 10px 0;
+	text-align: center;
+	overflow-x: auto;
+}
+
+.zealot-math-inline {
+	display: inline;
+}
+
+.zealot-math-error {
+	color: var(--danger-0, #e05252);
+	font-family: ui-monospace, monospace;
+	font-size: 0.9em;
+}
+
+.zealot-color {
+	border-radius: 3px;
+}
+
+.zealot-date-ref {
+	display: inline-block;
+	padding: 0.05em 0.45em;
+	border-radius: 4px;
+	font-size: 0.92em;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+	background: color-mix(in srgb, var(--bg-1) 70%, var(--accent-0) 30%);
+	border: 1px solid color-mix(in srgb, var(--accent-0) 34%, transparent);
+	color: color-mix(in srgb, var(--text-0) 90%, white 10%);
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.zealot-date-ref:hover {
+	background: color-mix(in srgb, var(--bg-1) 55%, var(--accent-0) 45%);
+}
+
+li.zealot-task-item {
+	list-style: none;
+	display: flex;
+	align-items: baseline;
+	gap: 0.4em;
+	margin-left: -1.2em;
+}
+
+li.zealot-task-item > .zealot-task-content {
+	flex: 1;
+}
+
+.zealot-task-checkbox {
+	flex-shrink: 0;
+	width: 1em;
+	height: 1em;
+	cursor: pointer;
+	accent-color: var(--accent-0);
+}
+
+li.zealot-task-item[data-checked="true"] > .zealot-task-content {
+	opacity: 0.55;
+	text-decoration: line-through;
+}
+
+.zealot-mermaid {
+	margin: 12px 0;
+	text-align: center;
+	overflow-x: auto;
+}
+
+.zealot-mermaid svg {
+	max-width: 100%;
+	height: auto;
+}
+
+.zealot-mermaid-error {
+	margin: 12px 0;
+	border: 1px solid var(--danger-0, #e05252);
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+.zealot-mermaid-error-banner {
+	background: color-mix(in srgb, var(--bg-1) 82%, #6e1537 18%);
+	color: var(--danger-0, #e05252);
+	font-size: 12px;
+	font-weight: 600;
+	padding: 6px 10px;
+}
+
+.zealot-mermaid-error pre {
+	margin: 0;
+	border-radius: 0;
+	font-size: 12px;
+}
+
+// ── Details / Spoiler ────────────────────────────────────────────────────────
+
+details.zealot-details,
+details.zealot-spoiler {
+	border: 1px solid color-mix(in srgb, var(--accent-0) 34%, transparent);
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--bg-1) 86%, var(--accent-0) 14%);
+	padding: 6px 12px;
+	margin: 8px 0;
+}
+
+details.zealot-details > summary,
+details.zealot-spoiler > summary {
+	cursor: pointer;
+	font-weight: 600;
+	padding: 4px 0;
+	user-select: none;
+	color: var(--text-0);
+}
+
+details.zealot-details > .zealot-details-content,
+details.zealot-spoiler > .zealot-spoiler-content {
+	padding-top: 8px;
+}
+
+// ── Definition List ──────────────────────────────────────────────────────────
+
+dl.zealot-definition {
+	margin: 8px 0;
+	padding: 0;
+}
+
+dl.zealot-definition dt {
+	font-weight: 700;
+	color: var(--text-0);
+	margin-top: 8px;
+}
+
+dl.zealot-definition dd {
+	margin-left: 1.5em;
+	margin-top: 2px;
+	color: var(--text-1);
+}
+
+dl.zealot-definition dd p {
+	margin: 0;
+}
+
+// ── Columns ──────────────────────────────────────────────────────────────────
+
+.zealot-columns {
+	display: grid;
+	gap: 12px;
+	margin: 10px 0;
+	align-items: start;
+}
+
+.zealot-columns-2 { grid-template-columns: repeat(2, 1fr); }
+.zealot-columns-3 { grid-template-columns: repeat(3, 1fr); }
+.zealot-columns-4 { grid-template-columns: repeat(4, 1fr); }
+
+.zealot-column {
+	min-width: 0;
+}
+
+@media (max-width: 600px) {
+	.zealot-columns {
+		grid-template-columns: 1fr !important;
+	}
+}
+
+// ── Tabs ─────────────────────────────────────────────────────────────────────
+
+.zealot-tabs {
+	border: 1px solid color-mix(in srgb, var(--accent-0) 30%, transparent);
+	border-radius: 8px;
+	overflow: hidden;
+	margin: 10px 0;
+}
+
+.zealot-tabs-bar {
+	display: flex;
+	flex-wrap: wrap;
+	border-bottom: 1px solid color-mix(in srgb, var(--accent-0) 30%, transparent);
+	background: color-mix(in srgb, var(--bg-1) 90%, var(--accent-0) 10%);
+}
+
+.zealot-tab-btn {
+	flex-shrink: 0;
+	padding: 6px 16px;
+	border: none;
+	border-right: 1px solid color-mix(in srgb, var(--accent-0) 20%, transparent);
+	border-radius: 0;
+	background: transparent;
+	color: var(--text-1);
+	font-size: 13px;
+	font-weight: 500;
+	cursor: pointer;
+	width: auto;
+	box-shadow: none;
+	transition: background 120ms ease, color 120ms ease;
+}
+
+.zealot-tab-btn:hover {
+	background: color-mix(in srgb, var(--bg-3, var(--bg-2)) 60%, var(--accent-0) 40%);
+	color: var(--text-0);
+	box-shadow: none;
+	filter: none;
+}
+
+.zealot-tab-btn--active {
+	background: color-mix(in srgb, var(--bg-1) 60%, var(--accent-0) 40%);
+	color: var(--accent-0);
+	font-weight: 700;
+	box-shadow: none;
+	filter: none;
+}
+
+.zealot-tabs-panels {
+	padding: 12px 14px;
+}
