@@ -4,6 +4,7 @@ import { parseList } from "./parse/parse_list";
 import { parseCodeBlock } from "./parse/parse_code_block";
 import { parseInlineNodes } from "./parse/parse_inline";
 import { parseMarkdownTable } from "./parse/parse_table";
+import { parseYoutubeEmbed } from "./parse/parse_youtube";
 
 const ADMONITION_KINDS = new Set([
 	"note", "warning", "danger", "tip", "info",
@@ -106,6 +107,7 @@ const blockTypes: Array<(schema: Schema, line: string) => PMNode | null> = [
 const multiblockTypes: Array<
 	(schema: Schema, lines: string[], startIndex: number) => { node: PMNode; linesConsumed: number } | null
 > = [
+	parseYoutubeEmbed,
 	parseAdmonitionBlock,
 	parseBlockquote,
 	parseMarkdownTable,

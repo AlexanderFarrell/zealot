@@ -72,9 +72,12 @@ comments-view {
 }
 
 .comments-view-content {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  display: block;
+  width: 100%;
+
+  .zealotscript-view-container .ProseMirror {
+    padding: 0;
+  }
 }
 
 .comments-view-editor,
@@ -83,8 +86,17 @@ comments-view {
 }
 
 .comments-view-editor {
-  min-height: 96px;
-  resize: vertical;
+  display: block;
+
+  .zealotscript-editor-container .ProseMirror {
+    min-height: 96px;
+  }
+}
+
+.comments-view-composer-editor {
+  .zealotscript-editor-container .ProseMirror {
+    min-height: 120px;
+  }
 }
 
 .comments-view-composer > h3 {

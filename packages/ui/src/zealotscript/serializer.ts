@@ -217,6 +217,10 @@ const serializeTable = (node: PMNode): string => {
 	return lines.join("\n");
 };
 
+const serializeYoutubeEmbed = (node: PMNode): string => {
+	return `:::youtube ${(node.attrs.videoId || "").trim()}`;
+};
+
 const serializeAdmonition = (node: PMNode): string => {
 	const kind = node.attrs.kind || "note";
 	const blocks: string[] = [];
@@ -235,6 +239,7 @@ const nodeSerializers: Record<string, (node: PMNode) => string> = {
 	blockquote: serializeBlockquote,
 	table: serializeTable,
 	admonition: serializeAdmonition,
+	youtube_embed: serializeYoutubeEmbed,
 };
 
 const serializeBlock = (node: PMNode): string => {

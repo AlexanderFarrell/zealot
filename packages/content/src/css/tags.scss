@@ -411,8 +411,42 @@ div[data-admonition="todo"] {
 	--admonition-icon: url("../icon/add_note.svg");
 }
 
+.zealot-youtube-embed {
+	position: relative;
+	width: 100%;
+	padding-bottom: 56.25%; /* 16:9 */
+	height: 0;
+	overflow: hidden;
+	margin: 12px 0;
+	border-radius: 8px;
+	background: var(--bg--1);
+}
+
+.zealot-youtube-embed iframe {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	border: 0;
+	border-radius: 8px;
+}
+
 @media only screen and (max-width: 768px) {
 	body {
 		height: auto;
 	}
+}
+
+.zealotscript-wikilink-picker {
+	position: fixed;
+	z-index: 2000;
+	min-width: 280px;
+	max-width: 400px;
+	background: var(--panel-0);
+	border: 1px solid var(--border-0);
+	border-radius: 8px;
+	box-shadow: 0 12px 36px rgba(0, 0, 0, 0.2);
+	padding: 4px;
+	overflow: visible;
 }

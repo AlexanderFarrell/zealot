@@ -7,6 +7,8 @@ import { DateTime } from 'luxon';
 import { ConfirmDialog } from '../common/confirm_dialog';
 import { LoadingSpinner } from '../common/loading_spinner';
 import { ItemSearchInline } from './item_search_inline';
+import { ZealotScriptEditor } from '../zealotscript/zealotscript_editor';
+import { ZealotScriptView } from '../zealotscript/zealotscript_view';
 
 const authApi = new AuthAPI('/api');
 const commentApi = new CommentAPI('/api');
@@ -268,26 +270,25 @@ export class CommentsView extends HTMLElement {
         body.className = 'comments-view-body';
 
         if (this._editingCommentId === comment.CommentID) {
-            const textarea = document.createElement('textarea');
-            textarea.className = 'comments-view-editor';
-            textarea.value = this._editingContent;
-            textarea.dataset.commentEditId = String(comment.CommentID);
-            textarea.rows = Math.max(3, comment.Content.split('\n').length);
-            textarea.addEventListener('input', () => {
-                this._editingContent = textarea.value;
+            const editor = new ZealotScriptEditor();
+            editor.className = 'comments-view-editor';
+            editor.dataset.commentEditId = String(comment.CommentID);
+            editor.content = this._editingContent;
+            editor.addEventListener('change', (event) => {
+                this._editingContent = (event as CustomEvent<string>).detail;
             });
-            textarea.addEventListener('keydown', (event) => {
+            editor.addEventListener('keydown', (event: KeyboardEvent) => {
                 if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
                     event.preventDefault();
                     void this._saveComment(comment);
                 }
             });
-            body.appendChild(textarea);
+            body.appendChild(editor);
         } else {
-            const content = document.createElement('p');
-            content.className = 'comments-view-content';
-            content.textContent = comment.Content;
-            body.appendChild(content);
+            const view = new ZealotScriptView();
+            view.className = 'comments-view-content';
+            view.content = comment.Content;
+            body.appendChild(view);
         }
 
         card.append(header, body);
@@ -361,23 +362,21 @@ export class CommentsView extends HTMLElement {
         contentLabel.textContent = 'Content';
         contentField.appendChild(contentLabel);
 
-        const textarea = document.createElement('textarea');
-        textarea.className = 'comments-view-editor comments-view-composer-editor';
-        textarea.placeholder = 'Write a comment…';
-        textarea.value = this._draftContent;
-        textarea.dataset.commentsDraft = 'true';
-        textarea.rows = 4;
-        textarea.addEventListener('input', () => {
-            this._draftContent = textarea.value;
+        const editor = new ZealotScriptEditor();
+        editor.className = 'comments-view-editor comments-view-composer-editor';
+        editor.dataset.commentsDraft = 'true';
+        editor.content = this._draftContent;
+        editor.addEventListener('change', (event) => {
+            this._draftContent = (event as CustomEvent<string>).detail;
             this._draftError = null;
         });
-        textarea.addEventListener('keydown', (event) => {
+        editor.addEventListener('keydown', (event: KeyboardEvent) => {
             if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
                 event.preventDefault();
                 void this._submitComment();
             }
         });
-        contentField.appendChild(textarea);
+        contentField.appendChild(editor);
 
         composer.appendChild(contentField);
 
@@ -554,16 +553,15 @@ export class CommentsView extends HTMLElement {
 
     private _focusDraft(): void {
         window.requestAnimationFrame(() => {
-            const textarea = this.querySelector<HTMLTextAreaElement>('[data-comments-draft="true"]');
-            textarea?.focus();
+            const editor = this.querySelector<ZealotScriptEditor>('[data-comments-draft="true"]');
+            editor?.focus();
         });
     }
 
     private _focusEdit(commentId: number): void {
         window.requestAnimationFrame(() => {
-            const textarea = this.querySelector<HTMLTextAreaElement>(`[data-comment-edit-id="${commentId}"]`);
-            textarea?.focus();
-            textarea?.setSelectionRange(textarea.value.length, textarea.value.length);
+            const editor = this.querySelector<ZealotScriptEditor>(`[data-comment-edit-id="${commentId}"]`);
+            editor?.focus();
         });
     }
 }

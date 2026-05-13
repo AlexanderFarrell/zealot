@@ -31,14 +31,18 @@ pub struct ItemCore {
     pub content: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ItemRelationship {
-    Parent,
-    Blocks,
-    Tag,
-    Topic,
-    Other,
+/// A free-form relationship label stored in `item_item_link.relationship`.
+/// Stored lowercase in the database. Well-known values are defined in the
+/// `relationship` module, but any user-defined attribute kind key can be used.
+pub type ItemRelationship = String;
+
+/// Well-known relationship keys (lowercase, matching DB storage).
+pub mod relationship {
+    pub const PARENT: &str = "parent";
+    pub const BLOCKS: &str = "blocks";
+    pub const TAG: &str = "tag";
+    pub const TOPIC: &str = "topic";
+    pub const OTHER: &str = "other";
 }
 
 #[derive(Debug, Clone)]
@@ -62,7 +66,9 @@ pub struct ItemDto {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ItemLinkDto {
     pub other_item_id: i64,
-    pub relationship: ItemRelationship,
+    /// Lowercase relationship label (e.g. `"parent"`, `"blocks"`, or any
+    /// user-defined attribute kind key lowercased).
+    pub relationship: String,
 }
 
 // Receive DTOs
@@ -173,7 +179,7 @@ impl Item {
         self.title.clone()
     }
 
-    pub fn linked_item_ids(&self, relationship: ItemRelationship) -> Vec<Id> {
+    pub fn linked_item_ids(&self, relationship: &str) -> Vec<Id> {
         self.links
             .iter()
             .filter(|link| link.relationship == relationship)
@@ -182,7 +188,7 @@ impl Item {
     }
 
     pub fn parent_ids(&self) -> Vec<Id> {
-        self.linked_item_ids(ItemRelationship::Parent)
+        self.linked_item_ids(relationship::PARENT)
     }
 }
 
@@ -190,7 +196,7 @@ impl From<&ItemLink> for ItemLinkDto {
     fn from(value: &ItemLink) -> Self {
         Self {
             other_item_id: value.other_item_id.into(),
-            relationship: value.relationship,
+            relationship: value.relationship.clone(),
         }
     }
 }

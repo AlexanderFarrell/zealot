@@ -50,12 +50,9 @@ export interface ItemDto {
     links?: Array<ItemLinkDto>
 }
 
-export type ItemRelationship =
-    | 'parent'
-    | 'blocks'
-    | 'tag'
-    | 'topic'
-    | 'other';
+/** Free-form relationship label (lowercase, e.g. `"parent"`, `"blocks"`, or
+ *  any user-defined attribute kind key lowercased). */
+export type ItemRelationship = string;
 
 export interface ItemLinkDto {
     other_item_id: number;

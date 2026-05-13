@@ -145,6 +145,23 @@ const superscriptMark: MarkSpec = {
 	toDOM() { return ["sup", 0]; }
 };
 
+const youtubeEmbedSpec: NodeSpec = {
+	group: "block",
+	atom: true,
+	attrs: { videoId: { default: "" } },
+	parseDOM: [
+		{
+			tag: "div[data-youtube]",
+			getAttrs: (e) => ({
+				videoId: (e as HTMLElement).getAttribute("data-youtube") ?? "",
+			})
+		}
+	],
+	toDOM(node) {
+		return ["div", { "data-youtube": node.attrs.videoId, class: "zealot-youtube-embed" }];
+	}
+};
+
 const nodes = addListNodes(
 	baseSchema.spec.nodes.update("code_block", codeBlockSpec),
 	"paragraph block*",
@@ -155,6 +172,7 @@ const nodes = addListNodes(
 	table_row: tableRowSpec,
 	table_cell: tableCellSpec,
 	table_header: tableHeaderSpec,
+	youtube_embed: youtubeEmbedSpec,
 });
 
 const marks = baseSchema.spec.marks.append({

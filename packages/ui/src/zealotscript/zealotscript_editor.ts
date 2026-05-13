@@ -12,10 +12,34 @@ import type { MarkType, Schema } from "prosemirror-model";
 import ZealotSchema from "./schema";
 import { parseZealotScript } from "./parser";
 import { serializeZealotScript } from "./serializer";
-import { insertTable, insertAdmonition } from "./commands";
+import { insertTable, insertAdmonition, insertYoutubeEmbed, extractYouTubeVideoId } from "./commands";
 import { getNavigator } from "@websoil/engine";
+import { ItemSearchInline } from "../views/item_search_inline";
+import type { Item } from "@zealot/domain/src/item";
 
 type PMCommand = (state: EditorState, dispatch?: (tr: Transaction) => void) => boolean;
+
+export class YoutubeEmbedView {
+	dom: HTMLElement;
+
+	constructor(node: import("prosemirror-model").Node) {
+		const videoId = (node.attrs.videoId as string) || "";
+		const wrapper = document.createElement("div");
+		wrapper.className = "zealot-youtube-embed";
+		wrapper.contentEditable = "false";
+		if (videoId) {
+			const iframe = document.createElement("iframe");
+			iframe.src = `https://www.youtube.com/embed/${videoId}`;
+			iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+			iframe.allowFullscreen = true;
+			iframe.setAttribute("frameborder", "0");
+			wrapper.appendChild(iframe);
+		} else {
+			wrapper.textContent = "YouTube embed (no video ID)";
+		}
+		this.dom = wrapper;
+	}
+}
 
 const buildInputRules = (schema: Schema) => {
 	const rules: InputRule[] = [];
@@ -129,10 +153,102 @@ const isInList = (state: EditorState): boolean => {
 	return false;
 };
 
+function detectWikilinkTrigger(state: EditorState): { from: number; query: string } | null {
+	const { $from } = state.selection;
+	if ($from.depth === 0) return null;
+	const text = $from.parent.textBetween(0, $from.parentOffset, null, "\0");
+	const lastBrackets = text.lastIndexOf("[[");
+	if (lastBrackets === -1) return null;
+	const query = text.slice(lastBrackets + 2);
+	if (query.includes("]]") || query.includes("\n")) return null;
+	return { from: $from.start() + lastBrackets, query };
+}
+
 export class ZealotScriptEditor extends HTMLElement {
 	private _view: EditorView | null = null;
 	private _saveTimer: number | null = null;
 	private _lastValue = "";
+	private _wikilinkPickerEl: HTMLDivElement | null = null;
+	private _wikilinkPickerSearch: ItemSearchInline | null = null;
+	private _wikilinkPickerFrom: number | null = null;
+	private _outsideClickListener: ((e: MouseEvent) => void) | null = null;
+
+	private _showWikilinkPicker(from: number, query: string): void {
+		if (!this._view) return;
+		this._wikilinkPickerFrom = from;
+
+		if (!this._wikilinkPickerEl) {
+			const wrapper = document.createElement("div");
+			wrapper.className = "zealotscript-wikilink-picker";
+			const search = new ItemSearchInline();
+			search.placeholder = "Search items…";
+			search.OnSelect = (item) => this._onWikilinkSelect(item);
+			wrapper.appendChild(search);
+			document.body.appendChild(wrapper);
+			this._wikilinkPickerEl = wrapper;
+			this._wikilinkPickerSearch = search;
+
+			this._outsideClickListener = (e: MouseEvent) => {
+				if (
+					this._wikilinkPickerEl &&
+					!this._wikilinkPickerEl.contains(e.target as Node) &&
+					!this.contains(e.target as Node)
+				) {
+					this._hideWikilinkPicker();
+				}
+			};
+			document.addEventListener("mousedown", this._outsideClickListener);
+		}
+
+		const coords = this._view.coordsAtPos(from);
+		const el = this._wikilinkPickerEl;
+		el.style.position = "fixed";
+		el.style.top = `${coords.bottom + 4}px`;
+		el.style.left = `${coords.left}px`;
+
+		this._wikilinkPickerSearch?.setQuery(query);
+	}
+
+	private _updateWikilinkPicker(from: number, query: string): void {
+		if (!this._wikilinkPickerEl) {
+			this._showWikilinkPicker(from, query);
+			return;
+		}
+		this._wikilinkPickerFrom = from;
+		if (!this._view) return;
+		const coords = this._view.coordsAtPos(from);
+		this._wikilinkPickerEl.style.top = `${coords.bottom + 4}px`;
+		this._wikilinkPickerEl.style.left = `${coords.left}px`;
+		this._wikilinkPickerSearch?.setQuery(query);
+	}
+
+	private _hideWikilinkPicker(): void {
+		if (this._outsideClickListener) {
+			document.removeEventListener("mousedown", this._outsideClickListener);
+			this._outsideClickListener = null;
+		}
+		this._wikilinkPickerEl?.remove();
+		this._wikilinkPickerEl = null;
+		this._wikilinkPickerSearch = null;
+		this._wikilinkPickerFrom = null;
+	}
+
+	private _onWikilinkSelect(item: Item): void {
+		if (!this._view || this._wikilinkPickerFrom === null) return;
+		const { state } = this._view;
+		const from = this._wikilinkPickerFrom;
+		const to = state.selection.from;
+		const linkMarkType = state.schema.marks["link"];
+		if (!linkMarkType) return;
+		const mark = linkMarkType.create({ href: `zealot://item/${item.DisplayTitle}` });
+		const linkText = state.schema.text(item.DisplayTitle, [mark]);
+		const tr = state.tr
+			.replaceWith(from, to, linkText)
+			.insertText(" ", from + linkText.nodeSize);
+		this._view.dispatch(tr);
+		this._hideWikilinkPicker();
+		this._view.focus();
+	}
 
 	private _buildToolbar(): HTMLElement {
 		const bar = document.createElement("div");
@@ -201,6 +317,12 @@ export class ZealotScriptEditor extends HTMLElement {
 		bar.appendChild(btn("Note", "Insert Note", () => runCommand(insertAdmonition("note"))));
 		bar.appendChild(btn("Warning", "Insert Warning", () => runCommand(insertAdmonition("warning"))));
 		bar.appendChild(btn("Tip", "Insert Tip", () => runCommand(insertAdmonition("tip"))));
+		bar.appendChild(btn("▶ YouTube", "Insert YouTube Video", () => {
+			const input = window.prompt("YouTube URL or video ID:");
+			if (!input) return;
+			const videoId = extractYouTubeVideoId(input.trim());
+			if (videoId) runCommand(insertYoutubeEmbed(videoId));
+		}));
 
 		return bar;
 	}
@@ -222,7 +344,15 @@ export class ZealotScriptEditor extends HTMLElement {
 
 		this._view = new EditorView(editorContainer, {
 			state,
+			nodeViews: {
+				youtube_embed: (node) => new YoutubeEmbedView(node),
+			},
 			handleKeyDown: (_view, event) => {
+				if (event.key === "Escape" && this._wikilinkPickerEl) {
+					event.preventDefault();
+					this._hideWikilinkPicker();
+					return true;
+				}
 				if (event.key !== "Tab") return false;
 				event.preventDefault();
 				const listItemType = _view.state.schema.nodes["list_item"];
@@ -257,6 +387,17 @@ export class ZealotScriptEditor extends HTMLElement {
 				const nextState = this._view.state.apply(tr);
 				this._view.updateState(nextState);
 
+				const trigger = detectWikilinkTrigger(nextState);
+				if (trigger) {
+					if (this._wikilinkPickerEl) {
+						this._updateWikilinkPicker(trigger.from, trigger.query);
+					} else {
+						this._showWikilinkPicker(trigger.from, trigger.query);
+					}
+				} else if (this._wikilinkPickerEl) {
+					this._hideWikilinkPicker();
+				}
+
 				if (!tr.docChanged) return;
 				if (this._saveTimer !== null) window.clearTimeout(this._saveTimer);
 				this._saveTimer = window.setTimeout(() => {
@@ -272,6 +413,7 @@ export class ZealotScriptEditor extends HTMLElement {
 
 	disconnectedCallback() {
 		if (this._saveTimer !== null) window.clearTimeout(this._saveTimer);
+		this._hideWikilinkPicker();
 		this._view?.destroy();
 		this._view = null;
 	}
@@ -287,6 +429,10 @@ export class ZealotScriptEditor extends HTMLElement {
 		const doc = parseZealotScript(ZealotSchema, value);
 		const tr = this._view.state.tr.replaceWith(0, this._view.state.doc.content.size, doc.content);
 		this._view.dispatch(tr);
+	}
+
+	focus(): void {
+		this._view?.focus();
 	}
 }
 

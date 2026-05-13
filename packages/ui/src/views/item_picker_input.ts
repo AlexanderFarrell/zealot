@@ -1,11 +1,9 @@
-import { ItemAPI } from '@zealot/api/src/item';
 import { getNavigator } from '@websoil/engine';
 import type { Item } from '@zealot/domain/src/item';
 import { icons } from '@zealot/content';
 import { ItemSearchInline } from './item_search_inline';
+import { getCachedItem } from './item_id_cache';
 import './chips-input.scss';
-
-const itemApi = new ItemAPI('/api');
 
 /**
  * <item-picker-input>
@@ -39,7 +37,7 @@ export class ItemPickerInput extends HTMLElement {
 
         if (id !== null) {
             const gen = ++this._generation;
-            void itemApi.GetById(id).then((item: Item) => {
+            void getCachedItem(id).then((item: Item) => {
                 if (gen !== this._generation) return;
                 this._displayTitle = item.DisplayTitle;
                 this._render();

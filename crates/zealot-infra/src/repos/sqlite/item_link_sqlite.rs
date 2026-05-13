@@ -5,7 +5,7 @@ use zealot_app::repos::{common::RepoError, item_link::ItemLinkRepo};
 use zealot_domain::{
     account::Account,
     common::id::Id,
-    item::{ItemLink, ItemRelationship},
+    item::ItemLink,
 };
 
 #[derive(Debug)]
@@ -24,29 +24,6 @@ struct ItemLinkRow {
     first_item_id: i64,
     second_item_id: i64,
     relationship: String,
-}
-
-fn relationship_from_db(value: &str) -> Result<ItemRelationship, RepoError> {
-    match value {
-        "Parent" => Ok(ItemRelationship::Parent),
-        "Blocks" => Ok(ItemRelationship::Blocks),
-        "Tag" => Ok(ItemRelationship::Tag),
-        "Topic" => Ok(ItemRelationship::Topic),
-        "Other" => Ok(ItemRelationship::Other),
-        other => Err(RepoError::DatabaseError {
-            err: format!("unknown item relationship: {other}"),
-        }),
-    }
-}
-
-fn relationship_to_db(value: ItemRelationship) -> &'static str {
-    match value {
-        ItemRelationship::Parent => "Parent",
-        ItemRelationship::Blocks => "Blocks",
-        ItemRelationship::Tag => "Tag",
-        ItemRelationship::Topic => "Topic",
-        ItemRelationship::Other => "Other",
-    }
 }
 
 impl ItemLinkRepo for ItemLinkSqliteRepo {
@@ -92,7 +69,7 @@ impl ItemLinkRepo for ItemLinkSqliteRepo {
                         .map_err(|err| RepoError::DatabaseError { err: err.to_string() })?;
                     links_by_item.entry(first_item_id).or_default().push(ItemLink {
                         other_item_id: second_item_id,
-                        relationship: relationship_from_db(&row.relationship)?,
+                        relationship: row.relationship,
                     });
                 }
 
@@ -104,12 +81,12 @@ impl ItemLinkRepo for ItemLinkSqliteRepo {
     fn get_source_item_ids(
         &self,
         target_item_id: &Id,
-        relationship: ItemRelationship,
+        relationship: &str,
         account_id: &Id,
     ) -> Result<Vec<Id>, RepoError> {
         let target_item_id_val = i64::from(*target_item_id);
         let account_id_val = i64::from(*account_id);
-        let relationship = String::from(relationship_to_db(relationship));
+        let relationship = relationship.to_owned();
         let pool = self.pool.clone();
 
         tokio::task::block_in_place(|| {
@@ -154,6 +131,7 @@ impl ItemLinkRepo for ItemLinkSqliteRepo {
                      JOIN item src ON src.item_id = l.first_item_id
                      JOIN item target ON target.item_id = l.second_item_id
                      WHERE l.first_item_id = ? AND src.account_id = ? AND target.account_id = ?
+                       AND l.relationship != 'parent'
                      ORDER BY l.second_item_id",
                 )
                 .bind(item_id_val)
@@ -169,6 +147,7 @@ impl ItemLinkRepo for ItemLinkSqliteRepo {
                      JOIN item src ON src.item_id = l.first_item_id
                      JOIN item target ON target.item_id = l.second_item_id
                      WHERE l.second_item_id = ? AND src.account_id = ? AND target.account_id = ?
+                       AND l.relationship != 'parent'
                      ORDER BY l.first_item_id",
                 )
                 .bind(item_id_val)
@@ -201,16 +180,14 @@ impl ItemLinkRepo for ItemLinkSqliteRepo {
     ) -> Result<(), RepoError> {
         let item_id_val = i64::from(*item_id);
         let account_id_val = i64::from(account.account_id);
-        let mut deduped_links: HashMap<Id, ItemRelationship> = HashMap::new();
+        // Deduplicate by (other_item_id, relationship).
+        let mut deduped: HashMap<(Id, String), ()> = HashMap::new();
         for link in links {
-            deduped_links.insert(link.other_item_id, link.relationship);
+            deduped.insert((link.other_item_id, link.relationship.clone()), ());
         }
-        let links: Vec<ItemLink> = deduped_links
-            .into_iter()
-            .map(|(other_item_id, relationship)| ItemLink {
-                other_item_id,
-                relationship,
-            })
+        let links: Vec<ItemLink> = deduped
+            .into_keys()
+            .map(|(other_item_id, relationship)| ItemLink { other_item_id, relationship })
             .collect();
         let pool = self.pool.clone();
 
@@ -233,7 +210,7 @@ impl ItemLinkRepo for ItemLinkSqliteRepo {
                     let target_ids: Vec<i64> = links.iter().map(|link| i64::from(link.other_item_id)).collect();
                     let placeholders = target_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
                     let sql = format!(
-                        "SELECT COUNT(*) FROM item
+                        "SELECT COUNT(DISTINCT item_id) FROM item
                          WHERE account_id = ? AND item_id IN ({})",
                         placeholders
                     );
@@ -257,12 +234,56 @@ impl ItemLinkRepo for ItemLinkSqliteRepo {
 
                 for link in &links {
                     sqlx::query(
-                        "INSERT INTO item_item_link (first_item_id, second_item_id, relationship)
+                        "INSERT OR IGNORE INTO item_item_link (first_item_id, second_item_id, relationship)
                          VALUES (?, ?, ?)",
                     )
                     .bind(item_id_val)
                     .bind(i64::from(link.other_item_id))
-                    .bind(relationship_to_db(link.relationship))
+                    .bind(&link.relationship)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(RepoError::from)?;
+                }
+
+                tx.commit().await.map_err(RepoError::from)
+            })
+        })
+    }
+
+    fn replace_links_by_relationship(
+        &self,
+        item_id: &Id,
+        relationship: &str,
+        linked_ids: &[Id],
+        account: &Account,
+    ) -> Result<(), RepoError> {
+        let item_id_val = i64::from(*item_id);
+        let _account_id_val = i64::from(account.account_id);
+        let relationship = relationship.to_owned();
+        let target_ids: Vec<i64> = linked_ids.iter().map(|id| i64::from(*id)).collect();
+        let pool = self.pool.clone();
+
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let mut tx = pool.begin().await.map_err(RepoError::from)?;
+
+                sqlx::query(
+                    "DELETE FROM item_item_link WHERE first_item_id = ? AND relationship = ?",
+                )
+                .bind(item_id_val)
+                .bind(&relationship)
+                .execute(&mut *tx)
+                .await
+                .map_err(RepoError::from)?;
+
+                for &target_id in &target_ids {
+                    sqlx::query(
+                        "INSERT OR IGNORE INTO item_item_link (first_item_id, second_item_id, relationship)
+                         VALUES (?, ?, ?)",
+                    )
+                    .bind(item_id_val)
+                    .bind(target_id)
+                    .bind(&relationship)
                     .execute(&mut *tx)
                     .await
                     .map_err(RepoError::from)?;

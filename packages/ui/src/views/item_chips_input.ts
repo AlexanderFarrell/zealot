@@ -1,11 +1,9 @@
-import { ItemAPI } from '@zealot/api/src/item';
 import { getNavigator } from '@websoil/engine';
 import type { Item } from '@zealot/domain/src/item';
 import { icons } from '@zealot/content';
 import { ItemSearchInline } from './item_search_inline';
+import { getCachedItem } from './item_id_cache';
 import './chips-input.scss';
-
-const itemApi = new ItemAPI('/api');
 
 interface ItemChip {
     id: number;
@@ -50,9 +48,9 @@ export class ItemChipsInput extends HTMLElement {
         this._items = ids.map(id => ({ id, displayTitle: `#${id}` }));
         this._refreshChips();
 
-        // Resolve display titles asynchronously
+        // Resolve display titles asynchronously, deduplicating via the shared cache.
         ids.forEach((id, index) => {
-            void itemApi.GetById(id).then((item: Item) => {
+            void getCachedItem(id).then((item: Item) => {
                 if (gen !== this._resolutionGen) return;
                 const chip = this._items[index];
                 if (!chip) return;

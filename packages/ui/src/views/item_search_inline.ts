@@ -142,6 +142,12 @@ export class ItemSearchInline extends HTMLElement {
         }
     }
 
+    setQuery(query: string): void {
+        if (!this.inputEl) return;
+        this.inputEl.value = query;
+        this.handleInput();
+    }
+
     private handleInput(): void {
         if (!this.inputEl) {
             return;

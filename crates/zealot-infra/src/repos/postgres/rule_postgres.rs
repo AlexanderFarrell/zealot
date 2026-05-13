@@ -19,8 +19,8 @@ impl RulePostgresRepo {
 
 #[derive(sqlx::FromRow)]
 struct RuleRow {
-    rule_id:        i32,
-    account_id:     i32,
+    rule_id:        i64,
+    account_id:     i64,
     name:           String,
     description:    String,
     trigger_kind:   String,
@@ -34,9 +34,9 @@ struct RuleRow {
 }
 
 fn row_to_rule(row: RuleRow) -> Result<Rule, RepoError> {
-    let rule_id = Id::try_from(row.rule_id as i64)
+    let rule_id = Id::try_from(row.rule_id)
         .map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
-    let account_id = Id::try_from(row.account_id as i64)
+    let account_id = Id::try_from(row.account_id)
         .map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
     let trigger: TriggerKind = serde_json::from_str(&row.trigger_config)
         .map_err(|e| RepoError::DatabaseError { err: format!("invalid trigger_config: {}", e) })?;

@@ -1,4 +1,7 @@
 import type { EditorState, Transaction } from "prosemirror-state";
+import { extractYouTubeVideoId } from "./parse/parse_youtube";
+
+export { extractYouTubeVideoId };
 
 type PMCommand = (state: EditorState, dispatch?: (tr: Transaction) => void) => boolean;
 
@@ -24,6 +27,14 @@ export const insertTable: PMCommand = (state, dispatch) => {
 
 	const tr = state.tr.replaceSelectionWith(node).scrollIntoView();
 	if (dispatch) dispatch(tr);
+	return true;
+};
+
+export const insertYoutubeEmbed = (videoId: string): PMCommand => (state, dispatch) => {
+	const youtubeEmbed = state.schema.nodes["youtube_embed"];
+	if (!youtubeEmbed) return false;
+	const node = youtubeEmbed.create({ videoId });
+	if (dispatch) dispatch(state.tr.replaceSelectionWith(node).scrollIntoView());
 	return true;
 };
 

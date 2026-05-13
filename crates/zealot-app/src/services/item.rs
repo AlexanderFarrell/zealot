@@ -6,10 +6,13 @@ use std::{
 use serde_json::Value;
 use zealot_domain::{
     account::Account,
-    attribute::{Attribute, AttributeError, AttributeFilter, AttributeFilterDto, AttributeListMode},
+    attribute::{
+        Attribute, AttributeBaseScalarType, AttributeBaseType, AttributeError, AttributeFilter,
+        AttributeFilterDto, AttributeListMode, AttributeScalar,
+    },
     common::id::Id,
     item::{
-        AddItemCoreDto, AddItemDto, Item, ItemCore, ItemLink, ItemLinkDto, ItemRelationship,
+        relationship, AddItemCoreDto, AddItemDto, Item, ItemCore, ItemLink, ItemLinkDto,
         UpdateItemCoreDto, UpdateItemDto,
     },
     item_type::{ItemType, ItemTypeRef},
@@ -157,7 +160,7 @@ impl ItemService {
     ) -> Result<Vec<Item>, ItemServiceError> {
         let ids = self
             .item_link_repo
-            .get_source_item_ids(item_id, ItemRelationship::Parent, &account.account_id)
+            .get_source_item_ids(item_id, relationship::PARENT, &account.account_id)
             .map_err(ItemServiceError::Repo)?;
         self.hydrate_item_ids(&ids, account)
     }
@@ -362,6 +365,11 @@ impl ItemService {
         self.item_attribute_value_repo
             .replace_item_attributes(item_id, &parsed, account)
             .map_err(ItemServiceError::Repo)?;
+
+        // Sync item-typed attributes into item_item_link so navigation
+        // (Children panel, "To Parent") reflects the new relationship values.
+        self.sync_item_links_from_attributes(item_id, &parsed, account)?;
+
         if let Ok(Some(item)) = self.get_item_by_id(item_id, account) {
             for key in raw.keys() {
                 self.event_port.emit(ZealotEvent::AttributeSet {
@@ -422,7 +430,27 @@ impl ItemService {
         self.ensure_valid_for_types(&item_types, &merged_attributes)?;
         self.item_attribute_value_repo
             .delete_item_attribute(item_id, key, account)
-            .map_err(ItemServiceError::Repo)
+            .map_err(ItemServiceError::Repo)?;
+
+        // If this attribute kind was item-typed, clear its links.
+        let kinds = self
+            .attribute_repo
+            .get_attribute_kinds_for_user(&account.account_id)
+            .map_err(ItemServiceError::Repo)?;
+        if let Some(kind) = kinds.get(key) {
+            let is_item_typed = matches!(
+                &kind.base_type,
+                AttributeBaseType::Scalar(AttributeBaseScalarType::Item)
+                    | AttributeBaseType::List(AttributeBaseScalarType::Item)
+            );
+            if is_item_typed {
+                self.item_link_repo
+                    .replace_links_by_relationship(item_id, &key.to_lowercase(), &[], account)
+                    .map_err(ItemServiceError::Repo)?;
+            }
+        }
+
+        Ok(())
     }
 
     pub fn assign_type(
@@ -501,7 +529,7 @@ impl ItemService {
                     Id::try_from(link.other_item_id).map_err(|err| ItemServiceError::InvalidId(err.to_string()))?;
                 Ok(ItemLink {
                     other_item_id,
-                    relationship: link.relationship,
+                    relationship: link.relationship.clone(),
                 })
             })
             .collect()
@@ -610,6 +638,53 @@ impl ItemService {
                 "item is missing required attributes for type '{}'",
                 item_type.name
             )));
+        }
+
+        Ok(())
+    }
+
+    /// For each attribute in `parsed` whose kind is `item` or `list(item)`,
+    /// replace the corresponding rows in `item_item_link` (keyed by
+    /// `relationship = attribute_key.to_lowercase()`). Attributes with other
+    /// types are ignored.
+    fn sync_item_links_from_attributes(
+        &self,
+        item_id: &Id,
+        parsed: &HashMap<String, Attribute>,
+        account: &Account,
+    ) -> Result<(), ItemServiceError> {
+        let kinds = self
+            .attribute_repo
+            .get_attribute_kinds_for_user(&account.account_id)
+            .map_err(ItemServiceError::Repo)?;
+
+        for (key, attr) in parsed {
+            let is_item_typed = kinds.get(key.as_str()).map(|k| {
+                matches!(
+                    &k.base_type,
+                    AttributeBaseType::Scalar(AttributeBaseScalarType::Item)
+                        | AttributeBaseType::List(AttributeBaseScalarType::Item)
+                )
+            }).unwrap_or(false);
+
+            if !is_item_typed {
+                continue;
+            }
+
+            let item_ids: Vec<Id> = match attr {
+                Attribute::Scalar(AttributeScalar::Item(id)) => vec![*id],
+                Attribute::List(scalars) => scalars
+                    .iter()
+                    .filter_map(|s| {
+                        if let AttributeScalar::Item(id) = s { Some(*id) } else { None }
+                    })
+                    .collect(),
+                _ => vec![],
+            };
+
+            self.item_link_repo
+                .replace_links_by_relationship(item_id, &key.to_lowercase(), &item_ids, account)
+                .map_err(ItemServiceError::Repo)?;
         }
 
         Ok(())
