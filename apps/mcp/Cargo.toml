@@ -2,7 +2,43 @@
 name = "zealot-mcp"
 version.workspace = true
 edition.workspace = true
-# license.workspace = true
 
 [dependencies]
-zealot-domain = {path = "../../crates/zealot-domain"}
+# MCP protocol
+rmcp = { version = "1.7", features = [
+    "server",
+    "macros",
+    "transport-io",
+    "transport-streamable-http-server",
+    "schemars",
+] }
+schemars = "1"
+
+# HTTP client for Zealot API
+reqwest = { version = "0.12", features = ["json"] }
+
+# Web framework (HTTP mode)
+axum.workspace = true
+tower-http.workspace = true
+
+# Async runtime
+tokio.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# CLI argument parsing
+clap = { version = "4", features = ["derive", "env"] }
+
+# URL encoding for path segments
+urlencoding = "2"
+
+# Date math for prompts
+chrono.workspace = true
+
+# Error handling + logging
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
