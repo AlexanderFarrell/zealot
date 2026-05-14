@@ -24,13 +24,16 @@ wait_for_http() {
         response=$(curl -fsS "$url" 2>/dev/null || true)
         if [ -n "$response" ]; then
             if [ -z "$expected_body" ] || [ "$response" = "$expected_body" ]; then
+                echo "" >&2
                 return 0
             fi
         fi
         attempts=$((attempts + 1))
+        printf "." >&2
         sleep 2
     done
 
+    echo "" >&2
     echo "[e2e] Timed out waiting for $url" >&2
     return 1
 }
@@ -54,8 +57,7 @@ fi
 trap cleanup EXIT INT TERM
 
 echo "[e2e] Starting docker compose stack from $COMPOSE_FILE"
-compose up --build -d --remove-orphans
-compose ps
+compose up --build --wait --remove-orphans
 
 echo "[e2e] Waiting for backend health at $SERVER_URL/health"
 wait_for_http "$SERVER_URL/health" "ok"

@@ -42,7 +42,7 @@ pub fn register(
         )?;
     }
 
-    // zealot.items.get_by_title(title) -> item array
+    // zealot.items.get_by_title(title) -> item or nil
     {
         let svc = services.clone();
         let acct_id = account_id;
@@ -57,7 +57,10 @@ pub fn register(
                         .item
                         .get_items_by_title(&title, &account)
                         .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
-                    items_vec_to_lua(&lua, &items)
+                    match items.into_iter().next() {
+                        Some(item) => Ok(LuaValue::Table(item_to_lua(&lua, &item)?)),
+                        None => Ok(LuaValue::Nil),
+                    }
                 }
             })?,
         )?;
@@ -138,21 +141,18 @@ pub fn register(
         )?;
     }
 
-    // zealot.items.create(title, opts?) -> item
+    // zealot.items.create(title, content?, opts?) -> item
     {
         let svc = services.clone();
         let acct_id = account_id;
         items_table.set(
             "create",
-            lua.create_async_function(move |lua, (title, opts): (String, Option<Table>)| {
+            lua.create_async_function(move |lua, (title, content, opts): (String, Option<String>, Option<Table>)| {
                 let svc = svc.clone();
                 let acct_id = acct_id;
                 async move {
                     let account = make_account(acct_id)?;
-                    let content = opts
-                        .as_ref()
-                        .and_then(|o| o.get::<String>("content").ok())
-                        .unwrap_or_default();
+                    let content = content.unwrap_or_default();
                     let types = opts
                         .as_ref()
                         .and_then(|o| o.get::<Table>("types").ok())

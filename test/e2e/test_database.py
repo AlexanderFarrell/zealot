@@ -14,6 +14,8 @@ EXPECTED_MIGRATIONS = [
     "initial schema",
     "account split full name",
     "backfill parent links",
+    "rules",
+    "relationship string",
 ]
 
 EXPECTED_SYSTEM_ATTRIBUTE_KINDS = [
