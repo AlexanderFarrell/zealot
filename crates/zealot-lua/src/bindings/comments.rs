@@ -57,5 +57,6 @@ fn make_account(account_id: Id) -> mlua::Result<Account> {
         given_name: String::new(),
         surname: String::new(),
         settings: serde_json::Value::Object(Default::default()),
+        has_api_key: false,
     })
 }

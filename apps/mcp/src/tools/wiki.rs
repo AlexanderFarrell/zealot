@@ -97,8 +97,8 @@ impl ZealotServer {
         Parameters(p): Parameters<ListItemsParams>,
     ) -> Result<CallToolResult, McpError> {
         let path = match &p.type_filter {
-            Some(t) => format!("/item/?type={}", urlencoding::encode(t)),
-            None => "/item/".to_string(),
+            Some(t) => format!("/item?type={}", urlencoding::encode(t)),
+            None => "/item".to_string(),
         };
         let items: serde_json::Value = self.client.get(&path).await.map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text(pretty(items))]))
@@ -200,7 +200,7 @@ impl ZealotServer {
             "content": p.content,
             "attributes": p.attributes.unwrap_or(json!({})),
         });
-        let item: serde_json::Value = self.client.post("/item/", &body).await.map_err(api_err)?;
+        let item: serde_json::Value = self.client.post("/item", &body).await.map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text(pretty(item))]))
     }
 
@@ -212,7 +212,7 @@ impl ZealotServer {
         let body = json!({ "title": p.title, "content": p.content });
         let item: serde_json::Value = self
             .client
-            .patch(&format!("/{}", p.id), &body)
+            .patch(&format!("/item/{}", p.id), &body)
             .await
             .map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text(pretty(item))]))
@@ -224,7 +224,7 @@ impl ZealotServer {
         Parameters(p): Parameters<ItemIdParam>,
     ) -> Result<CallToolResult, McpError> {
         self.client
-            .delete(&format!("/{}", p.id))
+            .delete(&format!("/item/{}", p.id))
             .await
             .map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text("deleted".to_string())]))
@@ -235,9 +235,9 @@ impl ZealotServer {
         &self,
         Parameters(p): Parameters<SetAttributesParams>,
     ) -> Result<CallToolResult, McpError> {
-        let _: serde_json::Value = self
+        self
             .client
-            .patch(&format!("/{}/attr", p.id), &p.attributes)
+            .patch_no_response(&format!("/item/{}/attr", p.id), &p.attributes)
             .await
             .map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text("attributes updated".to_string())]))
@@ -249,7 +249,7 @@ impl ZealotServer {
         Parameters(p): Parameters<DeleteAttributeParams>,
     ) -> Result<CallToolResult, McpError> {
         self.client
-            .delete(&format!("/{}/attr/{}", p.id, urlencoding::encode(&p.key)))
+            .delete(&format!("/item/{}/attr/{}", p.id, urlencoding::encode(&p.key)))
             .await
             .map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text("attribute deleted".to_string())]))
@@ -260,11 +260,11 @@ impl ZealotServer {
         &self,
         Parameters(p): Parameters<AssignTypeParams>,
     ) -> Result<CallToolResult, McpError> {
-        let _: serde_json::Value = self
+        self
             .client
-            .post(
+            .post_no_response(
                 &format!(
-                    "/{}/assign_type/{}",
+                    "/item/{}/assign_type/{}",
                     p.item_id,
                     urlencoding::encode(&p.type_name)
                 ),
@@ -285,7 +285,7 @@ impl ZealotServer {
     ) -> Result<CallToolResult, McpError> {
         self.client
             .delete(&format!(
-                "/{}/assign_type/{}",
+                "/item/{}/assign_type/{}",
                 p.item_id,
                 urlencoding::encode(&p.type_name)
             ))

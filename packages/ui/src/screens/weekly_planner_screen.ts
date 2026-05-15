@@ -1,4 +1,5 @@
-import { BaseElementEmpty, getNavigator } from '@websoil/engine';
+import { BaseElementEmpty, getNavigator, unregisterDropZonesIn } from '@websoil/engine';
+import { AttributeAPI } from '@zealot/api/src/attribute';
 import { PlannerAPI } from '@zealot/api/src/planner';
 import { icons } from '@zealot/content';
 import { LoadingSpinner } from '../common/loading_spinner';
@@ -11,16 +12,20 @@ import {
     formatMonthCode,
     formatWeekTitle,
     formatYearCode,
-    mountPlannerTable,
+    journalTitleForWeek,
+    mountPlannerCardList,
     parseIsoWeek,
     renderPlannerMessage,
 } from './planner_shared';
+
+const attrApi = new AttributeAPI('/api');
 
 const plannerApi = new PlannerAPI('/api');
 
 export class WeeklyPlannerScreen extends BaseElementEmpty {
     private date: string | null = null;
     private renderId = 0;
+    private headerEl: HTMLElement | null = null;
 
     async render() {
         const renderId = ++this.renderId;
@@ -38,6 +43,11 @@ export class WeeklyPlannerScreen extends BaseElementEmpty {
             return;
         }
 
+        if (this.headerEl) {
+            unregisterDropZonesIn(this.headerEl);
+            this.headerEl = null;
+        }
+
         const header = createPlannerHeader(
             formatWeekTitle(date),
             [
@@ -45,16 +55,19 @@ export class WeeklyPlannerScreen extends BaseElementEmpty {
                     iconURL: icons.back,
                     label: 'Previous Week',
                     onClick: () => getNavigator().openPlanner('weekly', formatIsoWeek(date.minus({ weeks: 1 }))),
+                    onDrop: (id) => { void attrApi.set_value(id, 'Week', formatIsoWeek(date.minus({ weeks: 1 }))); },
                 },
                 {
                     iconURL: icons.week,
                     label: 'This Week',
                     onClick: () => getNavigator().openPlanner('weekly'),
+                    onDrop: (id) => { void attrApi.set_value(id, 'Week', formatIsoWeek(currentWeek())); },
                 },
                 {
                     iconURL: icons.forward,
                     label: 'Next Week',
                     onClick: () => getNavigator().openPlanner('weekly', formatIsoWeek(date.plus({ weeks: 1 }))),
+                    onDrop: (id) => { void attrApi.set_value(id, 'Week', formatIsoWeek(date.plus({ weeks: 1 }))); },
                 },
             ],
             [
@@ -68,9 +81,15 @@ export class WeeklyPlannerScreen extends BaseElementEmpty {
                     label: 'This Year',
                     onClick: () => getNavigator().openPlanner('annual', formatYearCode(date)),
                 },
+                {
+                    iconURL: icons.addNote,
+                    label: 'Journal',
+                    onClick: () => { getNavigator().openItem(journalTitleForWeek(date)); },
+                },
             ],
         );
 
+        this.headerEl = header;
         const items = createPlannerSection('Week Items');
         items.body.appendChild(new LoadingSpinner());
         this.append(header, items.section);
@@ -81,7 +100,7 @@ export class WeeklyPlannerScreen extends BaseElementEmpty {
                 return;
             }
 
-            mountPlannerTable(items.body, {
+            mountPlannerCardList(items.body, {
                 createRow: {
                     defaultAttributes: {
                         Priority: 3,
@@ -99,6 +118,13 @@ export class WeeklyPlannerScreen extends BaseElementEmpty {
                 return;
             }
             renderPlannerMessage(items.body, this._messageForError(error, 'Failed to load items.'), 'error');
+        }
+    }
+
+    disconnectedCallback(): void {
+        if (this.headerEl) {
+            unregisterDropZonesIn(this.headerEl);
+            this.headerEl = null;
         }
     }
 

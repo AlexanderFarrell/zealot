@@ -28,6 +28,7 @@ fn row_to_account(row: AccountRow) -> Result<Account, RepoError> {
         given_name: row.given_name,
         surname: row.surname,
         settings,
+        has_api_key: false,
     })
 }
 

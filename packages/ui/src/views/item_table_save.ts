@@ -80,7 +80,6 @@ export async function saveAttribute(
 export async function createItem(params: {
     attributes: Record<string, unknown>;
     contextItemId?: number;
-    contextItemTitle?: string;
     relationship?: ItemRelationship;
     title: string;
     types: string[];
@@ -88,7 +87,6 @@ export async function createItem(params: {
     const addDto: {
         attributes?: Record<string, unknown>;
         content: string;
-        links?: Array<{ other_item_id: number; relationship: ItemRelationship }>;
         title: string;
         types?: string[];
     } = {
@@ -100,18 +98,11 @@ export async function createItem(params: {
         addDto.attributes = params.attributes;
     }
 
-    if (params.contextItemId != null) {
-        const relationship = params.relationship ?? 'parent';
-        addDto.links = [{
-            other_item_id: params.contextItemId,
-            relationship,
-        }];
-        if (relationship === 'parent' && params.contextItemTitle) {
-            addDto.attributes = {
-                ...addDto.attributes,
-                Parent: [params.contextItemTitle],
-            };
-        }
+    if (params.contextItemId != null && (params.relationship ?? 'parent') === 'parent') {
+        addDto.attributes = {
+            ...addDto.attributes,
+            Parent: [params.contextItemId],
+        };
     }
 
     if (params.types.length > 0) {

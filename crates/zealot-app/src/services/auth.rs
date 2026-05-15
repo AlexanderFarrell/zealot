@@ -105,10 +105,10 @@ impl AuthService {
             });
         }
 
-        // TODO: Ensure that api key is encrypted at rest.
+        let key_hash = Self::hash_token(key);
         let account = self
             .repo
-            .get_account_by_api_key(key)
+            .get_account_by_api_key(&key_hash)
             .map_err(|_| ServiceError::DomainError {
                 err: AuthError::ServerError,
             })?;
@@ -132,7 +132,7 @@ impl AuthService {
             .session
             .get_account_by_token_hash(&token_hash)
             .map_err(|e| {
-                eprintln!("[REPO ERROR] get_account_by_token_hash: {e}");
+                tracing::error!("get_account_by_token_hash failed: {e}");
                 ServiceError::DomainError { err: AuthError::ServerError }
             })?;
 
@@ -307,7 +307,7 @@ impl AuthService {
         (raw_token, token_hash)
     }
 
-    fn hash_token(token: &str) -> String {
+    pub(crate) fn hash_token(token: &str) -> String {
         let mut hasher = Sha256::new();
         hasher.update(token.as_bytes());
         hex::encode(hasher.finalize())

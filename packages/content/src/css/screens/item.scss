@@ -260,6 +260,12 @@ item-view {
     filter: none;
     box-shadow: none;
   }
+
+  &.item-card--drop-target {
+    outline: 2px solid var(--accent-0, #4f8eff);
+    outline-offset: 2px;
+    background: var(--panel-2);
+  }
 }
 
 .item-card__header {

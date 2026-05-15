@@ -1,6 +1,9 @@
 import type { ItemAPI } from '@zealot/api/src/item';
-import { getNavigator } from '@websoil/engine';
+import { getNavigator, registerDropZone, unregisterDropZonesIn } from '@websoil/engine';
+import { AttributeAPI } from '@zealot/api/src/attribute';
 import type { Item } from '@zealot/domain/src/item';
+
+const attrApi = new AttributeAPI('/api');
 
 interface SearchToolViewOptions {
     itemApi: ItemAPI;
@@ -33,6 +36,13 @@ export class SearchToolView extends HTMLElement {
             clearTimeout(this.debounceTimer);
             this.debounceTimer = null;
         }
+        unregisterDropZonesIn(this);
+    }
+
+    private clearResults(): void {
+        if (!this.resultsEl) return;
+        unregisterDropZonesIn(this.resultsEl);
+        this.resultsEl.innerHTML = '';
     }
 
     focusInput(): void {
@@ -104,32 +114,26 @@ export class SearchToolView extends HTMLElement {
     }
 
     private showPrompt(): void {
-        if (!this.resultsEl) {
-            return;
-        }
+        this.clearResults();
+        if (!this.resultsEl) return;
         this.resultsEl.innerHTML = `<p class="tool-muted">Type a title to search items.</p>`;
     }
 
     private showLoading(): void {
-        if (!this.resultsEl) {
-            return;
-        }
+        this.clearResults();
+        if (!this.resultsEl) return;
         this.resultsEl.innerHTML = `<p class="tool-muted">Searching…</p>`;
     }
 
     private showError(message: string): void {
-        if (!this.resultsEl) {
-            return;
-        }
+        this.clearResults();
+        if (!this.resultsEl) return;
         this.resultsEl.innerHTML = `<p class="tool-error">${message}</p>`;
     }
 
     private showResults(results: Item[]): void {
-        if (!this.resultsEl) {
-            return;
-        }
-
-        this.resultsEl.innerHTML = '';
+        this.clearResults();
+        if (!this.resultsEl) return;
 
         if (results.length === 0) {
             this.resultsEl.innerHTML = `<p class="tool-muted">No items found.</p>`;
@@ -143,6 +147,7 @@ export class SearchToolView extends HTMLElement {
             const row = document.createElement('button');
             row.type = 'button';
             row.className = 'search-tool-result';
+            row.draggable = true;
 
             const title = document.createElement('span');
             title.className = 'search-tool-result-title';
@@ -163,6 +168,24 @@ export class SearchToolView extends HTMLElement {
 
             row.addEventListener('click', () => {
                 getNavigator().openItemById(item.ItemID);
+            });
+            row.addEventListener('dragstart', (e) => {
+                e.dataTransfer?.setData('text/plain', String(item.ItemID));
+                if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+            });
+            registerDropZone({
+                element: row,
+                onDragOver: (e) => {
+                    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+                    row.classList.add('search-tool-result--drop-target');
+                },
+                onDrop: (draggedItemId) => {
+                    if (draggedItemId === item.ItemID) return;
+                    void attrApi.set_value(draggedItemId, 'Parent', [item.ItemID]);
+                },
+                onDragLeave: () => {
+                    row.classList.remove('search-tool-result--drop-target');
+                },
             });
 
             list.appendChild(row);

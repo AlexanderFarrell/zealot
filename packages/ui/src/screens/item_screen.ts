@@ -87,8 +87,21 @@ export class ItemScreen extends BaseElementEmpty {
     private renderItem(): void {
         const item = this.item!;
 
+        // Types
+        const typesDiv = document.createElement('div');
+        typesDiv.className = 'item-types';
+
+        // Attributes
+        const attrsSection = document.createElement('section');
+        attrsSection.className = 'item-attributes';
+
+        const onTypesDone = () => {
+            this.renderTypes(item, typesDiv, onTypesDone);
+            this.renderAttributes(item, attrsSection);
+        };
+
         // Action buttons
-        this.appendChild(this.buildActions(item));
+        this.appendChild(this.buildActions(item, () => onTypesDone()));
 
         // Title
         const title = document.createElement('h1');
@@ -108,20 +121,8 @@ export class ItemScreen extends BaseElementEmpty {
         });
         this.appendChild(title);
 
-        // Types
-        const typesDiv = document.createElement('div');
-        typesDiv.className = 'item-types';
         this.appendChild(typesDiv);
-
-        // Attributes
-        const attrsSection = document.createElement('section');
-        attrsSection.className = 'item-attributes';
         this.appendChild(attrsSection);
-
-        const onTypesDone = () => {
-            this.renderTypes(item, typesDiv, onTypesDone);
-            this.renderAttributes(item, attrsSection);
-        };
         this.renderTypes(item, typesDiv, onTypesDone);
         this.renderAttributes(item, attrsSection);
 
@@ -146,7 +147,7 @@ export class ItemScreen extends BaseElementEmpty {
         this.appendChild(commentsSection.section);
     }
 
-    private buildActions(item: Item): HTMLElement {
+    private buildActions(item: Item, onManageTypes: () => void): HTMLElement {
         const row = document.createElement('div');
         row.className = 'button_row row gap';
 
@@ -205,6 +206,10 @@ export class ItemScreen extends BaseElementEmpty {
 
         row.appendChild(this.buildDownloadBtn(item));
 
+        row.appendChild(makeBtn(icons.tag, 'Manage types', () => {
+            AssignTypeModal.show(item, onManageTypes);
+        }));
+
         return row;
     }
 
@@ -228,8 +233,8 @@ export class ItemScreen extends BaseElementEmpty {
             'position: absolute',
             'top: calc(100% + 4px)',
             'left: 0',
-            'background: var(--color-bg, #fff)',
-            'border: 1px solid var(--color-border, #ccc)',
+            'background: var(--panel-0, var(--bg-2))',
+            'border: 1px solid var(--border-0, var(--border-1))',
             'border-radius: 4px',
             'box-shadow: 0 2px 8px rgba(0,0,0,.2)',
             'min-width: 170px',
@@ -282,6 +287,7 @@ export class ItemScreen extends BaseElementEmpty {
             'cursor: pointer',
             'font-size: 0.9em',
             'white-space: nowrap',
+            'color: inherit',
         ].join(';');
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -306,7 +312,7 @@ export class ItemScreen extends BaseElementEmpty {
         return lines.join('\n');
     }
 
-    private renderTypes(item: Item, container: HTMLElement, onDone: () => void): void {
+    private renderTypes(item: Item, container: HTMLElement, _onDone: () => void): void {
         container.innerHTML = '';
 
         item.Types.forEach((typeRef) => {
@@ -319,21 +325,6 @@ export class ItemScreen extends BaseElementEmpty {
             });
             container.appendChild(badge);
         });
-
-        const editBtn = document.createElement('button');
-        editBtn.type = 'button';
-        editBtn.title = 'Manage types';
-        editBtn.className = 'assign-type-edit-btn';
-        const img = document.createElement('img');
-        img.src = icons.tag;
-        img.alt = 'Manage types';
-        img.style.width = '1em';
-        img.style.height = '1em';
-        editBtn.appendChild(img);
-        editBtn.addEventListener('click', () => {
-            AssignTypeModal.show(item, onDone);
-        });
-        container.appendChild(editBtn);
     }
 
     private renderAttributes(item: Item, container: HTMLElement): void {
@@ -370,7 +361,7 @@ export class ItemScreen extends BaseElementEmpty {
         await Promise.all([
             this.renderCollectionCards({
                 container: children.content,
-                createRow: { contextItemId: item.ItemID, contextItemTitle: item.Title, relationship: 'parent', submitLabel: 'Add child' },
+                createRow: { contextItemId: item.ItemID, relationship: 'parent', submitLabel: 'Add child' },
                 emptyMessage: 'No child items.',
                 errorMessage: 'Failed to load child items.',
                 grouped: true,
@@ -402,7 +393,7 @@ export class ItemScreen extends BaseElementEmpty {
 
     private async renderCollectionCards(args: {
         container: HTMLElement;
-        createRow?: { contextItemId: number; contextItemTitle: string; relationship: 'parent'; submitLabel: string };
+        createRow?: { contextItemId: number; relationship: 'parent'; submitLabel: string };
         emptyMessage: string;
         errorMessage: string;
         grouped?: boolean;
@@ -454,7 +445,6 @@ export class ItemScreen extends BaseElementEmpty {
                                 const created = await createItem({
                                     attributes: draft.attributes,
                                     contextItemId: args.createRow!.contextItemId,
-                                    contextItemTitle: args.createRow!.contextItemTitle,
                                     relationship: args.createRow!.relationship,
                                     title,
                                     types: draft.types,

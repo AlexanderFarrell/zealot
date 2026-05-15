@@ -244,6 +244,7 @@ impl ItemService {
                     self.item_attribute_value_repo
                         .replace_item_attributes(&item.item_id, &attributes, account)
                         .map_err(ItemServiceError::Repo)?;
+                    self.sync_item_links_from_attributes(&item.item_id, &attributes, account)?;
                 }
 
                 if !type_names.is_empty() {
@@ -506,6 +507,24 @@ impl ItemService {
         Ok(())
     }
     
+    /// Re-syncs `item_item_link` from all item-typed attributes for every item
+    /// owned by the account. Returns the number of items processed.
+    pub fn rebuild_links_for_account(&self, account: &Account) -> Result<usize, ItemServiceError> {
+        let item_ids = self.item_repo
+            .get_all_item_ids_for_user(&account.account_id)
+            .map_err(ItemServiceError::Repo)?;
+
+        let all_attributes = self.item_attribute_value_repo
+            .get_attributes_for_items(&item_ids, &account.account_id)
+            .map_err(ItemServiceError::Repo)?;
+
+        let count = all_attributes.len();
+        for (item_id, attrs) in &all_attributes {
+            self.sync_item_links_from_attributes(item_id, attrs, account)?;
+        }
+        Ok(count)
+    }
+
     // --- Private helpers ---
 
     fn parse_attributes_map(

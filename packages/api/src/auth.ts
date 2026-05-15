@@ -1,4 +1,4 @@
-import { get_json, patch_req, post_json, post_req } from "@websoil/engine";
+import { delete_req, get_json, patch_req, post_json, post_req } from "@websoil/engine";
 import { BaseAPI } from "./common";
 import { Account, type AccountDto, type LoginBasicDto, type RegisterBasicDto } from "@zealot/domain/src/account";
 
@@ -30,6 +30,15 @@ export class AuthAPI extends BaseAPI {
 
     public async patchSettings(settings: Record<string, unknown>): Promise<void> {
         await patch_req(`${this.baseUrl}/account/settings`, settings, 'Failed to save settings');
+    }
+
+    public async createApiKey(): Promise<string> {
+        const data = await post_json(`${this.baseUrl}/account/api-key`, {}) as { key: string };
+        return data.key;
+    }
+
+    public async deleteApiKey(): Promise<void> {
+        await delete_req(`${this.baseUrl}/account/api-key`, 'Failed to revoke API key');
     }
 }
 

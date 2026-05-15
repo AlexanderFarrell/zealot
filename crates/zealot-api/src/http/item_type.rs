@@ -49,7 +49,7 @@ fn item_type_service_err(err: ItemTypeServiceError) -> HttpError {
     match err {
         ItemTypeServiceError::NotFound => HttpError::NotFound,
         ItemTypeServiceError::ReadOnly(err) => HttpError::UserError { err },
-        ItemTypeServiceError::Repo(e) => { eprintln!("[REPO ERROR] {e}"); HttpError::Internal },
+        ItemTypeServiceError::Repo(e) => { tracing::error!("ItemType repo error: {e}"); HttpError::Internal },
     }
 }
 

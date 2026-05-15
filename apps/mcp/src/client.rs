@@ -87,6 +87,63 @@ impl ZealotClient {
         self.parse(resp).await
     }
 
+    pub async fn post_no_response<B: Serialize>(&self, path: &str, body: &B) -> Result<(), ApiError> {
+        let resp = self
+            .inner
+            .post(self.url(path))
+            .header("X-API-Key", &self.api_key)
+            .json(body)
+            .send()
+            .await?;
+        if resp.status() == StatusCode::NOT_FOUND {
+            return Err(ApiError::NotFound);
+        }
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let message = resp.text().await.unwrap_or_default();
+            return Err(ApiError::Http { status, message });
+        }
+        Ok(())
+    }
+
+    pub async fn put_no_response<B: Serialize>(&self, path: &str, body: &B) -> Result<(), ApiError> {
+        let resp = self
+            .inner
+            .put(self.url(path))
+            .header("X-API-Key", &self.api_key)
+            .json(body)
+            .send()
+            .await?;
+        if resp.status() == StatusCode::NOT_FOUND {
+            return Err(ApiError::NotFound);
+        }
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let message = resp.text().await.unwrap_or_default();
+            return Err(ApiError::Http { status, message });
+        }
+        Ok(())
+    }
+
+    pub async fn patch_no_response<B: Serialize>(&self, path: &str, body: &B) -> Result<(), ApiError> {
+        let resp = self
+            .inner
+            .patch(self.url(path))
+            .header("X-API-Key", &self.api_key)
+            .json(body)
+            .send()
+            .await?;
+        if resp.status() == StatusCode::NOT_FOUND {
+            return Err(ApiError::NotFound);
+        }
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let message = resp.text().await.unwrap_or_default();
+            return Err(ApiError::Http { status, message });
+        }
+        Ok(())
+    }
+
     pub async fn delete(&self, path: &str) -> Result<(), ApiError> {
         let resp = self
             .inner

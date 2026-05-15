@@ -12,3 +12,4 @@ coverage
 *.pyd
 *.log
 test-results
+**/tsconfig.tsbuildinfo

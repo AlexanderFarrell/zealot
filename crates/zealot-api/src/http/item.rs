@@ -40,6 +40,7 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .route("/children/{item_id}", get(get_children))
         .route("/related/{item_id}", get(get_related))
         .route("/filter", post(filter_items))
+        .route("/rebuild-links", post(rebuild_links))
         .route("/{item_id}", patch(update_item).delete(delete_item))
         .route("/{item_id}/attr", patch(set_attributes))
         .route("/{item_id}/attr/rename", patch(rename_attribute))
@@ -66,7 +67,7 @@ fn item_service_err(err: ItemServiceError) -> HttpError {
         ItemServiceError::Attribute(e) => HttpError::UserError { err: e.to_string() },
         ItemServiceError::InvalidFilter(msg) => HttpError::UserError { err: msg },
         ItemServiceError::InvalidId(msg) => HttpError::UserError { err: msg },
-        ItemServiceError::Repo(e) => { eprintln!("[REPO ERROR] {e}"); HttpError::Internal },
+        ItemServiceError::Repo(e) => { tracing::error!("Item repo error: {e}"); HttpError::Internal },
     }
 }
 
@@ -225,6 +226,17 @@ async fn filter_items(
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
 
+async fn rebuild_links(
+    State(state): State<AppState>,
+    Extension(actor): Extension<Actor>,
+) -> Result<Json<serde_json::Value>, HttpError> {
+    let account = require_account(&actor)?;
+    let count = state.services.item
+        .rebuild_links_for_account(&account)
+        .map_err(item_service_err)?;
+    Ok(Json(serde_json::json!({ "rebuilt": count })))
+}
+
 async fn add_item(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
@@ -357,7 +369,7 @@ async fn export_pdf(
         .ok_or(HttpError::NotFound)?;
 
     let bytes = generate_pdf(&item).map_err(|e| {
-        eprintln!("[PDF ERROR] {e}");
+        tracing::error!("PDF export error: {e}");
         HttpError::Internal
     })?;
 
@@ -377,7 +389,7 @@ async fn export_docx(
         .ok_or(HttpError::NotFound)?;
 
     let bytes = generate_docx(&item).map_err(|e| {
-        eprintln!("[DOCX ERROR] {e}");
+        tracing::error!("DOCX export error: {e}");
         HttpError::Internal
     })?;
 

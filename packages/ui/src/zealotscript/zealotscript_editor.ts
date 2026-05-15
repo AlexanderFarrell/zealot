@@ -337,7 +337,7 @@ export class ZealotScriptEditor extends HTMLElement {
 		const to = state.selection.from;
 		const linkMarkType = state.schema.marks["link"];
 		if (!linkMarkType) return;
-		const mark = linkMarkType.create({ href: `zealot://item/${item.DisplayTitle}` });
+		const mark = linkMarkType.create({ href: `zealot://item/${item.Title}` });
 		const linkText = state.schema.text(item.DisplayTitle, [mark]);
 		const tr = state.tr
 			.replaceWith(from, to, linkText)

@@ -82,7 +82,7 @@ async fn resolve_actor(state: &AppState, headers: HeaderMap) -> Actor {
         match state.services.auth.authenticate_session(cookie.value()).await {
             Ok(actor) => return actor,
             Err(e) => {
-                eprintln!("[AUTH ERROR] session lookup failed: {:?}", e);
+                tracing::warn!("Session lookup failed: {:?}", e);
             }
         }
     }

@@ -1,7 +1,10 @@
 import type { ItemAPI } from '@zealot/api/src/item';
-import { Events, ItemEvents, getNavigator, type AppLocation } from '@websoil/engine';
+import { Events, ItemEvents, getNavigator, registerDropZone, unregisterDropZone, type AppLocation } from '@websoil/engine';
+import { AttributeAPI } from '@zealot/api/src/attribute';
 import { icons } from '@zealot/content';
 import type { Item } from '@zealot/domain/src/item';
+
+const attrApi = new AttributeAPI('/api');
 
 interface NavTreeToolViewOptions {
     itemApi: ItemAPI;
@@ -45,9 +48,20 @@ class NavTreeNodeView extends HTMLElement {
         this.titleButton.classList.toggle('is-active', this.isItemActive(this.item));
     }
 
+    disconnectedCallback(): void {
+        if (this.titleButton) {
+            unregisterDropZone(this.titleButton);
+        }
+    }
+
     private render(): void {
         if (!this.item || !this.itemApi || !this.isItemActive) {
             return;
+        }
+
+        if (this.titleButton) {
+            unregisterDropZone(this.titleButton);
+            this.titleButton = null;
         }
 
         this.innerHTML = `
@@ -70,9 +84,33 @@ class NavTreeNodeView extends HTMLElement {
             void this.toggleExpanded();
         });
 
-        this.titleButton?.addEventListener('click', () => {
-            getNavigator().openItemById(this.item!.ItemID);
-        });
+        if (this.titleButton) {
+            const titleButton = this.titleButton;
+            const item = this.item!;
+
+            titleButton.draggable = true;
+            titleButton.addEventListener('dragstart', (e) => {
+                e.dataTransfer?.setData('text/plain', String(item.ItemID));
+                if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+            });
+            titleButton.addEventListener('click', () => {
+                getNavigator().openItemById(item.ItemID);
+            });
+            registerDropZone({
+                element: titleButton,
+                onDragOver: (e) => {
+                    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+                    titleButton.classList.add('nav-tree-title--drop-target');
+                },
+                onDrop: (draggedItemId) => {
+                    if (draggedItemId === item.ItemID) return;
+                    void attrApi.set_value(draggedItemId, 'Parent', [item.ItemID]);
+                },
+                onDragLeave: () => {
+                    titleButton.classList.remove('nav-tree-title--drop-target');
+                },
+            });
+        }
 
         this.refreshActiveState();
 

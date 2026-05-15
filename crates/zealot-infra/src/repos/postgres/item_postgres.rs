@@ -304,4 +304,21 @@ impl ItemRepo for ItemPostgresRepo {
             })
         })
     }
+
+    fn get_all_item_ids_for_user(&self, account_id: &Id) -> Result<Vec<Id>, RepoError> {
+        let account_id_val = i64::from(*account_id);
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                sqlx::query_scalar::<_, i32>("SELECT item_id FROM item WHERE account_id = $1")
+                    .bind(account_id_val)
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?
+                    .into_iter()
+                    .map(|id| Id::try_from(id as i64).map_err(|e| RepoError::DatabaseError { err: e.to_string() }))
+                    .collect()
+            })
+        })
+    }
 }

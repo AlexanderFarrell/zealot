@@ -57,6 +57,13 @@ annual-planner-screen {
   opacity: 1;
 }
 
+.planner-header-button.drop-zone--active,
+.planner-header-link.drop-zone--active {
+  outline: 2px solid var(--accent-0, #4f8eff);
+  outline-offset: 2px;
+  opacity: 1;
+}
+
 .planner-header-sep {
   width: 1px;
   height: 1.25em;

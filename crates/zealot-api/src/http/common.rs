@@ -19,7 +19,7 @@ impl IntoResponse for HttpError {
                 (StatusCode::UNAUTHORIZED, "Unauthorized").into_response()
             },
             HttpError::Internal => {
-                eprintln!("[ERROR] Internal server error");
+                tracing::error!("Internal server error");
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal error").into_response()
             },
             HttpError::UserError { err } => {

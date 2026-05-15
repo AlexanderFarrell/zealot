@@ -10,3 +10,8 @@ services:
     build:
       context: ..
       dockerfile: apps/web/Dockerfile
+  mcp:
+    image: registry.alexanderfarrell.net/zealot-mcp:latest
+    build:
+      context: ..
+      dockerfile: apps/mcp/Dockerfile

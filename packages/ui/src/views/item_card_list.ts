@@ -1,5 +1,8 @@
-import { getNavigator } from '@websoil/engine';
+import { getNavigator, registerDropZone } from '@websoil/engine';
+import { AttributeAPI } from '@zealot/api/src/attribute';
 import type { Item } from '@zealot/domain/src/item';
+
+const attrApi = new AttributeAPI('/api');
 
 const STATUS_ORDER = ['Working', 'Specify', 'To Do', 'Complete', 'Hold', 'Rejected', 'Blocked'];
 
@@ -7,8 +10,30 @@ function buildCard(item: Item, showStatus: boolean): HTMLElement {
     const card = document.createElement('button');
     card.type = 'button';
     card.className = 'item-card';
+    card.draggable = true;
+
     card.addEventListener('click', () => {
         getNavigator().openItemById(item.ItemID);
+    });
+
+    card.addEventListener('dragstart', (e) => {
+        e.dataTransfer?.setData('text/plain', String(item.ItemID));
+        if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+    });
+
+    registerDropZone({
+        element: card,
+        onDragOver: (e) => {
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+            card.classList.add('item-card--drop-target');
+        },
+        onDrop: (draggedItemId) => {
+            if (draggedItemId === item.ItemID) return;
+            void attrApi.set_value(draggedItemId, 'Parent', [item.ItemID]);
+        },
+        onDragLeave: () => {
+            card.classList.remove('item-card--drop-target');
+        },
     });
 
     const header = document.createElement('div');

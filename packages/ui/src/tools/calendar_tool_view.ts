@@ -1,16 +1,19 @@
 import { DateTime } from 'luxon';
-import { getNavigator } from '@websoil/engine';
+import { getNavigator, registerDropZone, unregisterDropZonesIn } from '@websoil/engine';
+import { AttributeAPI } from '@zealot/api/src/attribute';
 import { icons } from '@zealot/content';
+import {
+    formatIsoDate,
+    formatIsoWeek,
+    formatMonthCode,
+    formatMonthTitle,
+    formatWeekTitle,
+} from '../screens/planner_shared';
+
+const attrApi = new AttributeAPI('/api');
 
 const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-
-function formatIsoDate(date: DateTime): string {
-    return date.toISODate() ?? date.toFormat('yyyy-MM-dd');
-}
-
-function formatMonthTitle(date: DateTime): string {
-    return date.toFormat('LLLL yyyy');
-}
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export class CalendarToolView extends HTMLElement {
     private visibleMonth = DateTime.local().startOf('month');
@@ -19,7 +22,12 @@ export class CalendarToolView extends HTMLElement {
         this.render();
     }
 
+    disconnectedCallback(): void {
+        unregisterDropZonesIn(this);
+    }
+
     private render(): void {
+        unregisterDropZonesIn(this);
         this.innerHTML = `
         <div class="tool-panel">
             <div class="tool-panel-header tool-panel-header-spread">
@@ -41,6 +49,7 @@ export class CalendarToolView extends HTMLElement {
         const previousButton = this.querySelector('.calendar-tool-nav[aria-label="Previous month"]');
         const nextButton = this.querySelector('.calendar-tool-nav[aria-label="Next month"]');
         const todayButton = this.querySelector('.calendar-tool-today');
+        const panel = this.querySelector('.tool-panel');
         const grid = this.querySelector('.calendar-tool-grid');
 
         previousButton?.addEventListener('click', () => {
@@ -85,8 +94,125 @@ export class CalendarToolView extends HTMLElement {
             button.addEventListener('click', () => {
                 getNavigator().openPlanner('daily', formatIsoDate(current));
             });
+            registerDropZone({
+                element: button,
+                onDragOver: (e) => {
+                    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+                    button.classList.add('calendar-tool-day--drop-target');
+                },
+                onDrop: (id) => {
+                    void attrApi.set_value(id, 'Date', formatIsoDate(current));
+                },
+                onDragLeave: () => {
+                    button.classList.remove('calendar-tool-day--drop-target');
+                },
+            });
             grid.appendChild(button);
         }
+
+        if (panel) {
+            this.renderWeekButtons(panel);
+            this.renderMonthButtons(panel);
+        }
+    }
+
+    private renderWeekButtons(panel: Element): void {
+        const firstDay = this.visibleMonth.startOf('month');
+        const lastDay = this.visibleMonth.endOf('month');
+        const today = DateTime.local();
+
+        const section = document.createElement('div');
+        section.className = 'calendar-tool-section';
+
+        const label = document.createElement('div');
+        label.className = 'tool-label';
+        label.textContent = 'Weeks';
+        section.appendChild(label);
+
+        const weekGrid = document.createElement('div');
+        weekGrid.className = 'calendar-tool-week-grid';
+
+        let weekStart = firstDay.startOf('week');
+        while (weekStart.toMillis() <= lastDay.toMillis()) {
+            const w = weekStart;
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'calendar-tool-week-btn';
+            button.textContent = `Wk ${w.weekNumber}`;
+            button.title = formatWeekTitle(w);
+            if (w.hasSame(today, 'week')) {
+                button.classList.add('today');
+            }
+            button.addEventListener('click', () => {
+                getNavigator().openPlanner('weekly', formatIsoWeek(w));
+            });
+            registerDropZone({
+                element: button,
+                onDragOver: (e) => {
+                    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+                    button.classList.add('calendar-tool-day--drop-target');
+                },
+                onDrop: (id) => { void attrApi.set_value(id, 'Week', formatIsoWeek(w)); },
+                onDragLeave: () => {
+                    button.classList.remove('calendar-tool-day--drop-target');
+                },
+            });
+            weekGrid.appendChild(button);
+            weekStart = weekStart.plus({ weeks: 1 });
+        }
+
+        section.appendChild(weekGrid);
+        panel.appendChild(section);
+    }
+
+    private renderMonthButtons(panel: Element): void {
+        const today = DateTime.local();
+        const year = this.visibleMonth.year;
+
+        const section = document.createElement('div');
+        section.className = 'calendar-tool-section';
+
+        const label = document.createElement('div');
+        label.className = 'tool-label';
+        label.textContent = 'Months';
+        section.appendChild(label);
+
+        const monthGrid = document.createElement('div');
+        monthGrid.className = 'calendar-tool-month-grid';
+
+        for (let m = 1; m <= 12; m += 1) {
+            const monthDate = DateTime.fromObject({ year, month: m, day: 1 });
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'calendar-tool-month-btn';
+            button.textContent = MONTH_LABELS[m - 1] ?? '';
+            if (monthDate.hasSame(today, 'month')) {
+                button.classList.add('today');
+            }
+            button.addEventListener('click', () => {
+                getNavigator().openPlanner('monthly', formatMonthCode(monthDate));
+            });
+            registerDropZone({
+                element: button,
+                onDragOver: (e) => {
+                    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+                    button.classList.add('calendar-tool-day--drop-target');
+                },
+                onDrop: (id) => {
+                    void Promise.all([
+                        attrApi.set_value(id, 'Month', m),
+                        attrApi.set_value(id, 'Year', year),
+                    ]);
+                },
+                onDragLeave: () => {
+                    button.classList.remove('calendar-tool-day--drop-target');
+                },
+            });
+            monthGrid.appendChild(button);
+        }
+
+        section.appendChild(monthGrid);
+        panel.appendChild(section);
     }
 }
 

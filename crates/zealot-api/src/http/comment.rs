@@ -39,7 +39,7 @@ fn comment_service_err(err: CommentServiceError) -> HttpError {
     match err {
         CommentServiceError::NotFound => HttpError::NotFound,
         CommentServiceError::Unauthorized => HttpError::Unauthorized,
-        CommentServiceError::Repo(e) => { eprintln!("[REPO ERROR] {e}"); HttpError::Internal },
+        CommentServiceError::Repo(e) => { tracing::error!("Comment repo error: {e}"); HttpError::Internal },
     }
 }
 

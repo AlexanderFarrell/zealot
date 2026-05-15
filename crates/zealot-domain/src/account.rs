@@ -13,6 +13,7 @@ pub struct Account {
     pub given_name: String,
     pub surname: String,
     pub settings: serde_json::Value,
+    pub has_api_key: bool,
 }
 
 pub struct APIKey(String);
@@ -27,6 +28,7 @@ pub struct AccountDto {
     pub given_name: String,
     pub surname: String,
     pub settings: serde_json::Value,
+    pub has_api_key: bool,
 }
 
 // Receive DTOs
@@ -102,6 +104,7 @@ impl TryFrom<AccountDto> for Account {
             given_name: dto.given_name,
             surname: dto.surname,
             settings: dto.settings,
+            has_api_key: dto.has_api_key,
         })
     }
 }
@@ -115,6 +118,7 @@ impl From<Account> for AccountDto {
             given_name: value.given_name.clone(),
             surname: value.surname.clone(),
             settings: value.settings,
+            has_api_key: value.has_api_key,
         }
     }
 }
@@ -145,6 +149,7 @@ mod account_tests {
             given_name: String::from("Albert"),
             surname: String::from("Smith"),
             settings: serde_json::Value::Object(Default::default()),
+            has_api_key: false,
         }
     }
 

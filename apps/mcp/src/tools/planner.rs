@@ -140,9 +140,9 @@ impl ZealotServer {
             "status": p.status,
             "comment": p.comment,
         });
-        let _: serde_json::Value = self
+        self
             .client
-            .put("/repeat/status", &body)
+            .put_no_response("/repeat/status", &body)
             .await
             .map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text("repeat status updated".to_string())]))
@@ -185,7 +185,7 @@ impl ZealotServer {
             "content": p.content,
         });
         let comment: serde_json::Value =
-            self.client.post("/comment/", &body).await.map_err(api_err)?;
+            self.client.post("/comment", &body).await.map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text(pretty(comment))]))
     }
 

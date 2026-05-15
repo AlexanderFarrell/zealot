@@ -12,6 +12,7 @@ import { ModalCommands } from './ui/modal_commands';
 import { NavigationCommands, setNavigator, getNavigator, registerNavigationCommands } from './ui/navigator';
 import { ToolCommands, getToolHost, registerToolCommands, setToolHost } from './ui/tool_host';
 import { setRightSidebarHost, getRightSidebarHost } from './ui/right_sidebar_host';
+import { registerDropZone, unregisterDropZone, unregisterDropZonesIn } from './ui/drag_drop';
 import { AppSettings } from './settings';
 
 export {
@@ -54,7 +55,12 @@ export {
     registerToolCommands,
     setRightSidebarHost,
     getRightSidebarHost,
+    registerDropZone,
+    unregisterDropZone,
+    unregisterDropZonesIn,
 }
+
+export type { DropZone } from './ui/drag_drop'
 
 export type { Navigator, SettingsSection, PlannerView, AppLocation, LocationListener } from './ui/navigator'
 export type { ToolHost, ToolShowOptions, ToolView } from './ui/tool_host'

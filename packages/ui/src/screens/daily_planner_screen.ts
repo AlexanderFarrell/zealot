@@ -1,4 +1,5 @@
-import { BaseElementEmpty, getNavigator, getRightSidebarHost } from '@websoil/engine';
+import { BaseElementEmpty, getNavigator, getRightSidebarHost, unregisterDropZonesIn } from '@websoil/engine';
+import { AttributeAPI } from '@zealot/api/src/attribute';
 import { PlannerAPI } from '@zealot/api/src/planner';
 import { RepeatAPI } from '@zealot/api/src/repeat';
 import { icons } from '@zealot/content';
@@ -15,10 +16,12 @@ import {
     formatIsoWeek,
     formatMonthCode,
     formatYearCode,
-    mountPlannerTable,
+    mountPlannerCardList,
     parseIsoDate,
     renderPlannerMessage,
 } from './planner_shared';
+
+const attrApi = new AttributeAPI('/api');
 
 const plannerApi = new PlannerAPI('/api');
 const repeatApi = new RepeatAPI('/api');
@@ -26,6 +29,7 @@ const repeatApi = new RepeatAPI('/api');
 export class DailyPlannerScreen extends BaseElementEmpty {
     private date: string | null = null;
     private renderId = 0;
+    private headerEl: HTMLElement | null = null;
 
     async render() {
         const renderId = ++this.renderId;
@@ -44,6 +48,11 @@ export class DailyPlannerScreen extends BaseElementEmpty {
             return;
         }
 
+        if (this.headerEl) {
+            unregisterDropZonesIn(this.headerEl);
+            this.headerEl = null;
+        }
+
         const header = createPlannerHeader(
             formatDayTitle(date),
             [
@@ -51,16 +60,19 @@ export class DailyPlannerScreen extends BaseElementEmpty {
                     iconURL: icons.back,
                     label: 'Previous Day',
                     onClick: () => getNavigator().openPlanner('daily', formatIsoDate(date.minus({ days: 1 }))),
+                    onDrop: (id) => { void attrApi.set_value(id, 'Date', formatIsoDate(date.minus({ days: 1 }))); },
                 },
                 {
                     iconURL: icons.today,
                     label: 'Today',
                     onClick: () => getNavigator().openPlanner('daily'),
+                    onDrop: (id) => { void attrApi.set_value(id, 'Date', formatIsoDate(currentDay())); },
                 },
                 {
                     iconURL: icons.forward,
                     label: 'Next Day',
                     onClick: () => getNavigator().openPlanner('daily', formatIsoDate(date.plus({ days: 1 }))),
+                    onDrop: (id) => { void attrApi.set_value(id, 'Date', formatIsoDate(date.plus({ days: 1 }))); },
                 },
             ],
             [
@@ -79,6 +91,11 @@ export class DailyPlannerScreen extends BaseElementEmpty {
                     label: 'This Year',
                     onClick: () => getNavigator().openPlanner('annual', formatYearCode(date)),
                 },
+                {
+                    iconURL: icons.addNote,
+                    label: 'Journal',
+                    onClick: () => { getNavigator().openItem(formatIsoDate(date)); },
+                },
             ],
         );
 
@@ -89,6 +106,7 @@ export class DailyPlannerScreen extends BaseElementEmpty {
             scope: { kind: 'day', date },
         }));
 
+        this.headerEl = header;
         this.append(header, items.section, comments.section);
 
         const [itemsResult, repeatsResult] = await Promise.allSettled([
@@ -101,7 +119,7 @@ export class DailyPlannerScreen extends BaseElementEmpty {
         }
 
         if (itemsResult.status === 'fulfilled') {
-            mountPlannerTable(items.body, {
+            mountPlannerCardList(items.body, {
                 createRow: {
                     defaultAttributes: {
                         Date: formatIsoDate(date),
@@ -126,6 +144,10 @@ export class DailyPlannerScreen extends BaseElementEmpty {
 
     disconnectedCallback(): void {
         getRightSidebarHost()?.setContent(null);
+        if (this.headerEl) {
+            unregisterDropZonesIn(this.headerEl);
+            this.headerEl = null;
+        }
     }
 
     init(date: string): this {

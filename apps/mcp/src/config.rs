@@ -12,7 +12,7 @@ pub struct Config {
     pub api_key: String,
 
     /// Transport mode: stdio (for Claude Desktop) or http (for web clients)
-    #[arg(long, default_value = "stdio")]
+    #[arg(long, env = "MCP_MODE", default_value = "stdio")]
     pub mode: Mode,
 
     /// Port for HTTP mode

@@ -1,4 +1,5 @@
-import { BaseElementEmpty, getNavigator } from '@websoil/engine';
+import { BaseElementEmpty, getNavigator, unregisterDropZonesIn } from '@websoil/engine';
+import { AttributeAPI } from '@zealot/api/src/attribute';
 import { PlannerAPI } from '@zealot/api/src/planner';
 import { icons } from '@zealot/content';
 import { LoadingSpinner } from '../common/loading_spinner';
@@ -10,16 +11,19 @@ import {
     formatMonthCode,
     formatMonthTitle,
     formatYearCode,
-    mountPlannerTable,
+    mountPlannerCardList,
     parseMonthCode,
     renderPlannerMessage,
 } from './planner_shared';
+
+const attrApi = new AttributeAPI('/api');
 
 const plannerApi = new PlannerAPI('/api');
 
 export class MonthlyPlannerScreen extends BaseElementEmpty {
     private date: string | null = null;
     private renderId = 0;
+    private headerEl: HTMLElement | null = null;
 
     async render() {
         const renderId = ++this.renderId;
@@ -37,6 +41,18 @@ export class MonthlyPlannerScreen extends BaseElementEmpty {
             return;
         }
 
+        if (this.headerEl) {
+            unregisterDropZonesIn(this.headerEl);
+            this.headerEl = null;
+        }
+
+        const setMonth = (id: number, month: number, year: number): void => {
+            void Promise.all([
+                attrApi.set_value(id, 'Month', month),
+                attrApi.set_value(id, 'Year', year),
+            ]);
+        };
+
         const header = createPlannerHeader(
             formatMonthTitle(date),
             [
@@ -44,16 +60,19 @@ export class MonthlyPlannerScreen extends BaseElementEmpty {
                     iconURL: icons.back,
                     label: 'Previous Month',
                     onClick: () => getNavigator().openPlanner('monthly', formatMonthCode(date.minus({ months: 1 }))),
+                    onDrop: (id) => { const d = date.minus({ months: 1 }); setMonth(id, d.month, d.year); },
                 },
                 {
                     iconURL: icons.moon,
                     label: 'This Month',
                     onClick: () => getNavigator().openPlanner('monthly'),
+                    onDrop: (id) => { const d = currentMonth(); setMonth(id, d.month, d.year); },
                 },
                 {
                     iconURL: icons.forward,
                     label: 'Next Month',
                     onClick: () => getNavigator().openPlanner('monthly', formatMonthCode(date.plus({ months: 1 }))),
+                    onDrop: (id) => { const d = date.plus({ months: 1 }); setMonth(id, d.month, d.year); },
                 },
             ],
             [
@@ -62,9 +81,15 @@ export class MonthlyPlannerScreen extends BaseElementEmpty {
                     label: 'This Year',
                     onClick: () => getNavigator().openPlanner('annual', formatYearCode(date)),
                 },
+                {
+                    iconURL: icons.addNote,
+                    label: 'Journal',
+                    onClick: () => { getNavigator().openItem(formatMonthTitle(date)); },
+                },
             ],
         );
 
+        this.headerEl = header;
         const items = createPlannerSection('Month Items');
         items.body.appendChild(new LoadingSpinner());
         this.append(header, items.section);
@@ -75,7 +100,7 @@ export class MonthlyPlannerScreen extends BaseElementEmpty {
                 return;
             }
 
-            mountPlannerTable(items.body, {
+            mountPlannerCardList(items.body, {
                 createRow: {
                     defaultAttributes: {
                         Month: date.month,
@@ -94,6 +119,13 @@ export class MonthlyPlannerScreen extends BaseElementEmpty {
                 return;
             }
             renderPlannerMessage(items.body, this._messageForError(error, 'Failed to load items.'), 'error');
+        }
+    }
+
+    disconnectedCallback(): void {
+        if (this.headerEl) {
+            unregisterDropZonesIn(this.headerEl);
+            this.headerEl = null;
         }
     }
 

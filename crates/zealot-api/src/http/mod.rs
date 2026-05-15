@@ -13,6 +13,8 @@ mod repeat;
 mod rule;
 
 use axum::Router;
+use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
+use tracing::Level;
 use zealot_app::{app::AppState, config::ZealotConfig};
 
 pub async fn run_http(state: AppState, config: ZealotConfig) -> Result<(), String> {
@@ -40,5 +42,10 @@ fn build_router(state: AppState) -> Router {
         .nest("/planner", planner::routes(state.clone()))
         .nest("/repeat", repeat::routes(state.clone()))
         .nest("/rule", rule::routes(state.clone()))
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
+                .on_response(DefaultOnResponse::new().level(Level::INFO)),
+        )
         .with_state(state)
 }

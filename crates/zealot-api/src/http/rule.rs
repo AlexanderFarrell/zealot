@@ -35,7 +35,7 @@ fn rule_service_err(err: RuleServiceError) -> HttpError {
     match err {
         RuleServiceError::NotFound => HttpError::NotFound,
         RuleServiceError::Unauthorized => HttpError::Unauthorized,
-        RuleServiceError::Repo(e) => { eprintln!("[REPO ERROR] {e}"); HttpError::Internal },
+        RuleServiceError::Repo(e) => { tracing::error!("Rule repo error: {e}"); HttpError::Internal },
     }
 }
 

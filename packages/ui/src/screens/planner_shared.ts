@@ -1,29 +1,25 @@
 import { DateTime } from 'luxon';
+import { getNavigator, registerDropZone, unregisterDropZone, unregisterDropZonesIn } from '@websoil/engine';
 import { icons } from '@zealot/content';
-import {
-    ItemTableView,
-    type ItemTableColumn,
-    type ItemTableCreateRowConfig,
-} from '../views/item_table_view';
+import type { AttributeKind } from '@zealot/domain/src/attribute';
 import type { Item } from '@zealot/domain/src/item';
+import { loadAttributeKinds } from '../views/attribute_value_input';
+import { buildItemCardList } from '../views/item_card_list';
+import { buildAddPanel } from '../views/item_table_add_panel';
+import { createItem } from '../views/item_table_save';
+import type { CreateDraftState, ItemTableCreateRowConfig } from '../views/item_table_types';
 
 export interface PlannerHeaderAction {
     iconURL: string;
     label: string;
     onClick: () => void;
+    onDrop?: (draggedItemId: number) => void;
 }
 
 export interface PlannerSectionElements {
     body: HTMLDivElement;
     section: HTMLElement;
 }
-
-export const plannerTableColumns: ItemTableColumn[] = [
-    { kind: 'title', label: 'Title' },
-    { kind: 'types', label: 'Type' },
-    { attributeKey: 'Status', kind: 'attribute', label: 'Status' },
-    { attributeKey: 'Priority', kind: 'attribute', label: 'Priority' },
-];
 
 export function currentDay(): DateTime {
     return DateTime.local().startOf('day');
@@ -132,6 +128,21 @@ function buildActionButton(action: PlannerHeaderAction, className: string): HTML
     label.textContent = action.label;
     button.appendChild(label);
 
+    if (action.onDrop) {
+        const onDrop = action.onDrop;
+        registerDropZone({
+            element: button,
+            onDragOver: (e) => {
+                if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+                button.classList.add('drop-zone--active');
+            },
+            onDrop: (id) => { onDrop(id); },
+            onDragLeave: () => {
+                button.classList.remove('drop-zone--active');
+            },
+        });
+    }
+
     return button;
 }
 
@@ -226,26 +237,90 @@ export function renderPlannerMessage(
     container.appendChild(paragraph);
 }
 
-export function mountPlannerTable(
+export function mountPlannerCardList(
     container: HTMLElement,
     options: {
-        createRow?: ItemTableCreateRowConfig;
+        createRow?: Pick<ItemTableCreateRowConfig, 'defaultAttributes' | 'submitLabel' | 'enabled'>;
         emptyMessage: string;
         items: Item[];
     },
 ): void {
     container.innerHTML = '';
-    const table = new ItemTableView();
-    container.appendChild(table);
-    const config = {
-        columns: plannerTableColumns,
-        emptyMessage: options.emptyMessage,
-        items: options.items,
+
+    const items = [...options.items];
+    const { emptyMessage } = options;
+
+    const cardListDiv = document.createElement('div');
+    cardListDiv.appendChild(buildItemCardList(items, emptyMessage, { grouped: true }));
+    container.appendChild(cardListDiv);
+
+    if (!options.createRow) return;
+
+    const createRowConfig = options.createRow;
+    const defaultAttributes = { ...createRowConfig.defaultAttributes };
+
+    const newDraft = (): CreateDraftState => ({
+        attributes: { ...defaultAttributes },
+        title: '',
+        types: [],
+    });
+
+    let draft = newDraft();
+    let attributeKinds: Record<string, AttributeKind> = {};
+    let panelEl: HTMLElement | null = null;
+
+    const refreshCardList = (): void => {
+        unregisterDropZonesIn(cardListDiv);
+        cardListDiv.innerHTML = '';
+        cardListDiv.appendChild(buildItemCardList(items, emptyMessage, { grouped: true }));
     };
 
-    if (options.createRow) {
-        Object.assign(config, { createRow: options.createRow });
-    }
+    const rebuildPanel = (startOpen: boolean): void => {
+        const fullConfig: ItemTableCreateRowConfig = { ...createRowConfig, enabled: true };
+        const nextPanel = buildAddPanel(
+            fullConfig,
+            draft,
+            attributeKinds,
+            startOpen,
+            onSubmit,
+            onReset,
+        );
+        if (panelEl) {
+            panelEl.replaceWith(nextPanel);
+        } else {
+            container.appendChild(nextPanel);
+        }
+        panelEl = nextPanel;
+    };
 
-    table.init(config);
+    const onSubmit = (): void => {
+        const title = draft.title.trim();
+        if (!title) return;
+        void createItem({
+            attributes: draft.attributes,
+            title,
+            types: draft.types,
+        }).then((item) => {
+            items.push(item);
+            refreshCardList();
+            draft = newDraft();
+            rebuildPanel(true);
+        });
+    };
+
+    const onReset = (): void => {
+        draft = newDraft();
+    };
+
+    rebuildPanel(false);
+
+    void loadAttributeKinds().then((kinds) => {
+        attributeKinds = kinds;
+        const isOpen = panelEl !== null && !panelEl.classList.contains('item-table-add-panel--collapsed');
+        rebuildPanel(isOpen);
+    });
+}
+
+export function journalTitleForWeek(date: DateTime): string {
+    return `Week ${date.weekNumber} ${date.weekYear}`;
 }

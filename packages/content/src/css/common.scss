@@ -420,6 +420,11 @@ calendar-view {
   font-weight: 600;
 }
 
+.search-tool-result--drop-target {
+  outline: 2px solid var(--accent-0, #4f8eff);
+  outline-offset: 2px;
+}
+
 .search-tool-result-badges {
   display: flex;
   flex-wrap: wrap;
@@ -658,6 +663,38 @@ assign-type-modal {
   box-shadow: none;
 }
 
+.calendar-tool-day--drop-target {
+  outline: 2px solid var(--accent-0, #4f8eff);
+  outline-offset: 2px;
+}
+
+.calendar-tool-section {
+  display: grid;
+  gap: 6px;
+}
+
+.calendar-tool-week-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.calendar-tool-week-btn {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.calendar-tool-month-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.calendar-tool-month-btn {
+  padding: 4px 2px;
+  font-size: 12px;
+}
+
 .nav-tree-tool-body {
   display: grid;
   gap: 4px;
@@ -700,6 +737,11 @@ assign-type-modal {
 .nav-tree-title.is-active {
   background: color-mix(in srgb, var(--accent-0) 24%, var(--panel-0) 76%);
   box-shadow: none;
+}
+
+.nav-tree-title--drop-target {
+  outline: 2px solid var(--accent-0, #4f8eff);
+  outline-offset: 2px;
 }
 
 .nav-tree-children {

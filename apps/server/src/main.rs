@@ -21,6 +21,10 @@ use zealot_lua::runner::LuaRuleRunner;
 
 #[tokio::main]
 async fn main() -> Result<(), String> {
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .init();
+
     let config = ZealotConfig::load_from_env();
     let repos = get_repo_from_config(&config)
         .await
@@ -54,7 +58,7 @@ async fn main() -> Result<(), String> {
             match rx.recv().await {
                 Ok(event) => { event_runner.run_event_rules(event).await; }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                    eprintln!("Event loop lagged, skipped {n} events");
+                    tracing::warn!("Event loop lagged, skipped {n} events");
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
             }

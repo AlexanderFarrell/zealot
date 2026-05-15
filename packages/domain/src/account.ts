@@ -6,6 +6,7 @@ export class Account {
     public Email: string;
     public GivenName: string;
     public Surname: string;
+    public HasApiKey: boolean;
 
     public constructor(dto: AccountDto) {
         this.AccountID = dto.account_id;
@@ -13,6 +14,7 @@ export class Account {
         this.Email = dto.email;
         this.GivenName = dto.given_name;
         this.Surname = dto.surname;
+        this.HasApiKey = dto.has_api_key;
     }
 
     public get FullNameEng(): string {
@@ -31,6 +33,7 @@ export interface AccountDto {
     given_name: string;
     surname: string;
     settings: Record<string, unknown>;
+    has_api_key: boolean;
 }
 
 export interface LoginBasicDto {

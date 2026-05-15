@@ -81,6 +81,10 @@ export class ItemAPI extends BaseAPI {
         return delete_req(`${this.baseUrl}/item/${item_id}/assign_type/${encodeURIComponent(type_name)}`);
     }
 
+    async RebuildLinks(): Promise<{ rebuilt: number }> {
+        return await post_json(`${this.baseUrl}/item/rebuild-links`, {}) as { rebuilt: number };
+    }
+
     ExportPdfUrl(item_id: number): string {
         return `${this.baseUrl}/item/id/${item_id}/export/pdf`;
     }

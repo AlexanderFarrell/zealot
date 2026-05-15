@@ -13,3 +13,5 @@ zealot-lua   = {path = "../../crates/zealot-lua"}
 tokio.workspace = true
 sqlx.workspace = true
 croner.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

@@ -3,11 +3,25 @@ use rmcp::{
     ErrorData as McpError,
     handler::server::wrapper::Parameters,
 };
-use schemars::JsonSchema;
+use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde::Deserialize;
 use serde_json::json;
 
 use crate::tools::{ZealotServer, api_err};
+
+// schemars 1.x generates boolean `true` for serde_json::Value, which the MCP
+// SDK's Zod validator rejects. This wrapper emits {"type":"object"} instead.
+#[derive(Debug, Deserialize)]
+struct JsonObject(serde_json::Value);
+
+impl JsonSchema for JsonObject {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("JsonObject")
+    }
+    fn json_schema(_gen: &mut SchemaGenerator) -> Schema {
+        schemars::json_schema!({"type": "object"})
+    }
+}
 
 // ── Rules ─────────────────────────────────────────────────────────────────────
 
@@ -23,7 +37,7 @@ pub struct CreateRuleParams {
     /// Trigger as a JSON object. Examples:
     /// {"kind":"manual"}, {"kind":"cron","expression":"0 9 * * *"},
     /// {"kind":"on_item_create"}, {"kind":"on_type_assign","type_name":"Goal"}
-    pub trigger: serde_json::Value,
+    pub trigger: JsonObject,
     /// Lua script body — use the zealot.* API to interact with Zealot
     pub script: String,
     /// Whether the rule is active (default true)
@@ -35,7 +49,7 @@ pub struct UpdateRuleParams {
     pub rule_id: i64,
     pub name: Option<String>,
     pub description: Option<String>,
-    pub trigger: Option<serde_json::Value>,
+    pub trigger: Option<JsonObject>,
     pub script: Option<String>,
     pub enabled: Option<bool>,
 }
@@ -92,14 +106,14 @@ pub struct CreateAttributeKindParams {
     /// Base type: text, integer, decimal, date, week, boolean, dropdown, item, list
     pub base_type: String,
     /// Type-specific config (e.g. {"values":["low","medium","high"]} for dropdown)
-    pub config: Option<serde_json::Value>,
+    pub config: Option<JsonObject>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct UpdateAttributeKindParams {
     pub kind_id: i64,
     pub description: Option<String>,
-    pub config: Option<serde_json::Value>,
+    pub config: Option<JsonObject>,
 }
 
 fn pretty(v: serde_json::Value) -> String {
@@ -112,7 +126,7 @@ impl ZealotServer {
 
     #[rmcp::tool(description = "List all automation rules. Rules are Lua scripts triggered by events, schedules, or manually.")]
     pub async fn list_rules(&self) -> Result<CallToolResult, McpError> {
-        let rules: serde_json::Value = self.client.get("/rule/").await.map_err(api_err)?;
+        let rules: serde_json::Value = self.client.get("/rule").await.map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text(pretty(rules))]))
     }
 
@@ -137,11 +151,11 @@ impl ZealotServer {
         let body = json!({
             "name": p.name,
             "description": p.description,
-            "trigger": p.trigger,
+            "trigger": p.trigger.0,
             "script": p.script,
             "enabled": p.enabled.unwrap_or(true),
         });
-        let rule: serde_json::Value = self.client.post("/rule/", &body).await.map_err(api_err)?;
+        let rule: serde_json::Value = self.client.post("/rule", &body).await.map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text(pretty(rule))]))
     }
 
@@ -153,7 +167,7 @@ impl ZealotServer {
         let body = json!({
             "name": p.name,
             "description": p.description,
-            "trigger": p.trigger,
+            "trigger": p.trigger.map(|t| t.0),
             "script": p.script,
             "enabled": p.enabled,
         });
@@ -194,7 +208,7 @@ impl ZealotServer {
 
     #[rmcp::tool(description = "List all item types defined in this Zealot instance (e.g. Goal, Project, Habit, Task).")]
     pub async fn list_item_types(&self) -> Result<CallToolResult, McpError> {
-        let types: serde_json::Value = self.client.get("/item_type/").await.map_err(api_err)?;
+        let types: serde_json::Value = self.client.get("/item_type").await.map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text(pretty(types))]))
     }
 
@@ -226,7 +240,7 @@ impl ZealotServer {
             "color": p.color,
         });
         let t: serde_json::Value =
-            self.client.post("/item_type/", &body).await.map_err(api_err)?;
+            self.client.post("/item_type", &body).await.map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text(pretty(t))]))
     }
 
@@ -265,7 +279,7 @@ impl ZealotServer {
 
     #[rmcp::tool(description = "List all attribute kind definitions (the schema for custom item attributes).")]
     pub async fn list_attribute_kinds(&self) -> Result<CallToolResult, McpError> {
-        let kinds: serde_json::Value = self.client.get("/attribute/").await.map_err(api_err)?;
+        let kinds: serde_json::Value = self.client.get("/attribute").await.map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text(pretty(kinds))]))
     }
 
@@ -291,10 +305,10 @@ impl ZealotServer {
             "key": p.key,
             "description": p.description,
             "base_type": p.base_type,
-            "config": p.config.unwrap_or(json!({})),
+            "config": p.config.map(|c| c.0).unwrap_or(json!({})),
         });
         let kind: serde_json::Value =
-            self.client.post("/attribute/", &body).await.map_err(api_err)?;
+            self.client.post("/attribute", &body).await.map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text(pretty(kind))]))
     }
 
@@ -305,7 +319,7 @@ impl ZealotServer {
     ) -> Result<CallToolResult, McpError> {
         let body = json!({
             "description": p.description,
-            "config": p.config,
+            "config": p.config.map(|c| c.0),
         });
         let kind: serde_json::Value = self
             .client
