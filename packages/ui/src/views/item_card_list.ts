@@ -6,7 +6,7 @@ const attrApi = new AttributeAPI('/api');
 
 const STATUS_ORDER = ['Working', 'Specify', 'To Do', 'Complete', 'Hold', 'Rejected', 'Blocked'];
 
-function buildCard(item: Item, showStatus: boolean): HTMLElement {
+function buildCard(item: Item, showStatus: boolean, onDrop?: () => void): HTMLElement {
     const card = document.createElement('button');
     card.type = 'button';
     card.className = 'item-card';
@@ -29,7 +29,7 @@ function buildCard(item: Item, showStatus: boolean): HTMLElement {
         },
         onDrop: (draggedItemId) => {
             if (draggedItemId === item.ItemID) return;
-            void attrApi.set_value(draggedItemId, 'Parent', [item.ItemID]);
+            void attrApi.set_value(draggedItemId, 'Parent', [item.ItemID]).then(() => onDrop?.());
         },
         onDragLeave: () => {
             card.classList.remove('item-card--drop-target');
@@ -67,7 +67,7 @@ function buildCard(item: Item, showStatus: boolean): HTMLElement {
     return card;
 }
 
-function buildGroup(label: string, items: Item[], showStatus: boolean): HTMLElement {
+function buildGroup(label: string, items: Item[], showStatus: boolean, statusValue?: string, onDrop?: () => void): HTMLElement {
     const group = document.createElement('div');
     group.className = 'item-card-group';
 
@@ -76,14 +76,30 @@ function buildGroup(label: string, items: Item[], showStatus: boolean): HTMLElem
     heading.textContent = label;
     group.appendChild(heading);
 
+    if (statusValue !== undefined) {
+        registerDropZone({
+            element: heading,
+            onDragOver: (e: DragEvent) => {
+                if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+                heading.classList.add('item-card-group__label--drop-target');
+            },
+            onDrop: (draggedItemId: number) => {
+                void attrApi.set_value(draggedItemId, 'Status', statusValue).then(() => onDrop?.());
+            },
+            onDragLeave: () => {
+                heading.classList.remove('item-card-group__label--drop-target');
+            },
+        });
+    }
+
     for (const item of items) {
-        group.appendChild(buildCard(item, showStatus));
+        group.appendChild(buildCard(item, showStatus, onDrop));
     }
 
     return group;
 }
 
-function groupItems(items: Item[]): Array<{ label: string; items: Item[]; showStatus: boolean }> {
+function groupItems(items: Item[]): Array<{ label: string; items: Item[]; showStatus: boolean; statusValue?: string }> {
     const statusBuckets = new Map<string, Item[]>();
     const typeBuckets = new Map<string, Item[]>();
     const ungrouped: Item[] = [];
@@ -107,16 +123,16 @@ function groupItems(items: Item[]): Array<{ label: string; items: Item[]; showSt
         ungrouped.push(item);
     }
 
-    const result: Array<{ label: string; items: Item[]; showStatus: boolean }> = [];
+    const result: Array<{ label: string; items: Item[]; showStatus: boolean; statusValue?: string }> = [];
 
     // Status groups in defined order first, then any remaining unknown statuses
     for (const status of STATUS_ORDER) {
         const bucket = statusBuckets.get(status);
-        if (bucket) result.push({ label: status, items: bucket, showStatus: false });
+        if (bucket) result.push({ label: status, items: bucket, showStatus: false, statusValue: status });
     }
     for (const [status, bucket] of statusBuckets) {
         if (!STATUS_ORDER.includes(status)) {
-            result.push({ label: status, items: bucket, showStatus: false });
+            result.push({ label: status, items: bucket, showStatus: false, statusValue: status });
         }
     }
 
@@ -136,7 +152,7 @@ function groupItems(items: Item[]): Array<{ label: string; items: Item[]; showSt
 export function buildItemCardList(
     items: Item[],
     emptyMessage: string,
-    options: { grouped?: boolean } = {},
+    options: { grouped?: boolean; onDrop?: () => void } = {},
 ): HTMLElement {
     const list = document.createElement('div');
     list.className = 'item-card-list';
@@ -150,12 +166,12 @@ export function buildItemCardList(
     }
 
     if (options.grouped) {
-        for (const { label, items: bucketItems, showStatus } of groupItems(items)) {
-            list.appendChild(buildGroup(label, bucketItems, showStatus));
+        for (const { label, items: bucketItems, showStatus, statusValue } of groupItems(items)) {
+            list.appendChild(buildGroup(label, bucketItems, showStatus, statusValue, options.onDrop));
         }
     } else {
         for (const item of items) {
-            list.appendChild(buildCard(item, true));
+            list.appendChild(buildCard(item, true, options.onDrop));
         }
     }
 

@@ -425,7 +425,7 @@ export class ItemScreen extends BaseElementEmpty {
                 args.container.appendChild(err);
             }
 
-            args.container.appendChild(buildItemCardList(items, args.emptyMessage, args.grouped ? { grouped: true } : {}));
+            args.container.appendChild(buildItemCardList(items, args.emptyMessage, { ...(args.grouped ? { grouped: true } : {}), onDrop: render }));
 
             if (args.createRow) {
                 args.container.appendChild(buildAddPanel(

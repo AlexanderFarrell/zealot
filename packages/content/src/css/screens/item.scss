@@ -237,6 +237,14 @@ item-view {
   text-transform: uppercase;
   color: var(--text-1);
   padding: 0 2px;
+  border-radius: 3px;
+
+  &.item-card-group__label--drop-target {
+    color: var(--accent-0, #4f8eff);
+    background: var(--panel-2);
+    outline: 2px solid var(--accent-0, #4f8eff);
+    outline-offset: 2px;
+  }
 }
 
 .item-card {

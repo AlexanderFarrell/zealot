@@ -251,8 +251,15 @@ export function mountPlannerCardList(
     const { emptyMessage } = options;
 
     const cardListDiv = document.createElement('div');
-    cardListDiv.appendChild(buildItemCardList(items, emptyMessage, { grouped: true }));
     container.appendChild(cardListDiv);
+
+    const refreshCardList = (): void => {
+        unregisterDropZonesIn(cardListDiv);
+        cardListDiv.innerHTML = '';
+        cardListDiv.appendChild(buildItemCardList(items, emptyMessage, { grouped: true, onDrop: refreshCardList }));
+    };
+
+    refreshCardList();
 
     if (!options.createRow) return;
 
@@ -268,12 +275,6 @@ export function mountPlannerCardList(
     let draft = newDraft();
     let attributeKinds: Record<string, AttributeKind> = {};
     let panelEl: HTMLElement | null = null;
-
-    const refreshCardList = (): void => {
-        unregisterDropZonesIn(cardListDiv);
-        cardListDiv.innerHTML = '';
-        cardListDiv.appendChild(buildItemCardList(items, emptyMessage, { grouped: true }));
-    };
 
     const rebuildPanel = (startOpen: boolean): void => {
         const fullConfig: ItemTableCreateRowConfig = { ...createRowConfig, enabled: true };
