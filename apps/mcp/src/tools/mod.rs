@@ -41,6 +41,10 @@ impl ZealotServer {
 pub fn api_err(e: ApiError) -> McpError {
     match e {
         ApiError::NotFound => McpError::invalid_params("not found", None),
+        ApiError::Http { status, message } => McpError::internal_error(
+            format!("upstream HTTP {status}: {message}"),
+            None,
+        ),
         e => McpError::internal_error(e.to_string(), None),
     }
 }

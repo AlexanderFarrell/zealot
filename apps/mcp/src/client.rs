@@ -163,14 +163,17 @@ impl ZealotClient {
     }
 
     async fn parse<T: DeserializeOwned>(&self, resp: reqwest::Response) -> Result<T, ApiError> {
-        if resp.status() == StatusCode::NOT_FOUND {
+        let status = resp.status();
+        if status == StatusCode::NOT_FOUND {
             return Err(ApiError::NotFound);
         }
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let message = resp.text().await.unwrap_or_default();
-            return Err(ApiError::Http { status, message });
+        let body = resp.text().await.unwrap_or_default();
+        if !status.is_success() {
+            return Err(ApiError::Http { status, message: body });
         }
-        Ok(resp.json::<T>().await?)
+        serde_json::from_str(&body).map_err(|e| ApiError::Http {
+            status,
+            message: format!("JSON decode failed: {e} — raw body: {body}"),
+        })
     }
 }
