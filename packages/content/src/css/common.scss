@@ -1024,3 +1024,56 @@ item-search-inline *[name="generic_results"] {
   flex: 1;
   min-width: 200px;
 }
+
+/* ── Context Menu ──────────────────────────────────────────────────────────── */
+
+#context-menu-overlay {
+  display: none;
+  position: fixed;
+  z-index: 2100;
+  min-width: 180px;
+  max-width: 320px;
+  background: var(--panel-0, var(--bg-2));
+  border: 1px solid var(--border-0, var(--border-1));
+  border-radius: 8px;
+  box-shadow: 0 8px 24px var(--shadow-color-4);
+  padding: 4px;
+  overflow: hidden;
+}
+
+.ctx-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 12px;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+  font-size: 13px;
+  white-space: nowrap;
+  color: var(--text-0);
+  transition: background 80ms ease;
+}
+
+.ctx-menu-item:hover,
+.ctx-menu-item:focus {
+  background: color-mix(in srgb, var(--bg-3) 72%, var(--accent-0) 28%);
+  box-shadow: none;
+  filter: none;
+  outline: none;
+}
+
+.ctx-menu-item--danger {
+  color: var(--danger-0);
+}
+
+.ctx-menu-item--danger:hover,
+.ctx-menu-item--danger:focus {
+  background: color-mix(in srgb, var(--bg-1) 70%, var(--danger-0) 30%);
+}
+
+.ctx-menu-separator {
+  margin: 4px 0;
+  border: none;
+  border-top: 1px solid var(--border-0, var(--border-1));
+}

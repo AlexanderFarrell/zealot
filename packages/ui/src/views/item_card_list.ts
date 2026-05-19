@@ -1,8 +1,11 @@
-import { getNavigator, registerDropZone } from '@websoil/engine';
+import { getNavigator, registerDropZone, registerContextMenu, Popups } from '@websoil/engine';
 import { AttributeAPI } from '@zealot/api/src/attribute';
+import { ItemAPI } from '@zealot/api/src/item';
 import type { Item } from '@zealot/domain/src/item';
+import { ConfirmDialog } from '../common/confirm_dialog';
 
 const attrApi = new AttributeAPI('/api');
+const itemApi = new ItemAPI('/api');
 
 const STATUS_ORDER = ['Working', 'Specify', 'To Do', 'Complete', 'Hold', 'Rejected', 'Blocked'];
 
@@ -35,6 +38,26 @@ function buildCard(item: Item, showStatus: boolean, onDrop?: () => void): HTMLEl
             card.classList.remove('item-card--drop-target');
         },
     });
+
+    registerContextMenu(card, () => [
+        { label: 'Open', onClick: () => getNavigator().openItemById(item.ItemID) },
+        { label: 'Open in New Tab', onClick: () => window.open(`/item/${encodeURIComponent(item.Title)}`, '_blank') },
+        { label: 'Open in New Window', onClick: () => window.open(`/item/${encodeURIComponent(item.Title)}`, '_blank', 'noopener,noreferrer') },
+        { label: 'Copy Link', onClick: () => {
+            void navigator.clipboard.writeText(`${window.location.origin}/item/${encodeURIComponent(item.Title)}`);
+            Popups.add('Link copied');
+        }},
+        { separator: true },
+        { label: 'Delete', danger: true, onClick: () => {
+            void (async () => {
+                const ok = await ConfirmDialog.show(`Delete "${item.DisplayTitle}"?`);
+                if (!ok) return;
+                await itemApi.Delete(item.ItemID);
+                Popups.add(`Deleted ${item.DisplayTitle}`);
+                onDrop?.();
+            })();
+        }},
+    ]);
 
     const header = document.createElement('div');
     header.className = 'item-card__header';

@@ -1,10 +1,12 @@
-import type { ItemAPI } from '@zealot/api/src/item';
-import { Events, ItemEvents, getNavigator, registerDropZone, unregisterDropZone, type AppLocation } from '@websoil/engine';
+import { ItemAPI } from '@zealot/api/src/item';
+import { Events, ItemEvents, getNavigator, registerDropZone, unregisterDropZone, registerContextMenu, unregisterContextMenu, Popups, type AppLocation } from '@websoil/engine';
 import { AttributeAPI } from '@zealot/api/src/attribute';
 import { icons } from '@zealot/content';
 import type { Item } from '@zealot/domain/src/item';
+import { ConfirmDialog } from '../common/confirm_dialog';
 
 const attrApi = new AttributeAPI('/api');
+const itemApi = new ItemAPI('/api');
 
 interface NavTreeToolViewOptions {
     itemApi: ItemAPI;
@@ -51,6 +53,7 @@ class NavTreeNodeView extends HTMLElement {
     disconnectedCallback(): void {
         if (this.titleButton) {
             unregisterDropZone(this.titleButton);
+            unregisterContextMenu(this.titleButton);
         }
     }
 
@@ -61,6 +64,7 @@ class NavTreeNodeView extends HTMLElement {
 
         if (this.titleButton) {
             unregisterDropZone(this.titleButton);
+            unregisterContextMenu(this.titleButton);
             this.titleButton = null;
         }
 
@@ -110,6 +114,25 @@ class NavTreeNodeView extends HTMLElement {
                     titleButton.classList.remove('nav-tree-title--drop-target');
                 },
             });
+            registerContextMenu(titleButton, () => [
+                { label: 'Open', onClick: () => getNavigator().openItemById(item.ItemID) },
+                { label: 'Open in New Tab', onClick: () => window.open(`/item/${encodeURIComponent(item.Title)}`, '_blank') },
+                { label: 'Open in New Window', onClick: () => window.open(`/item/${encodeURIComponent(item.Title)}`, '_blank', 'noopener,noreferrer') },
+                { label: 'Copy Link', onClick: () => {
+                    void navigator.clipboard.writeText(`${window.location.origin}/item/${encodeURIComponent(item.Title)}`);
+                    Popups.add('Link copied');
+                }},
+                { label: 'New Child Item', onClick: () => getNavigator().openItemById(item.ItemID) },
+                { separator: true },
+                { label: 'Delete', danger: true, onClick: () => {
+                    void (async () => {
+                        const ok = await ConfirmDialog.show(`Delete "${item.DisplayTitle}"?`);
+                        if (!ok) return;
+                        await itemApi.Delete(item.ItemID);
+                        Popups.add(`Deleted ${item.DisplayTitle}`);
+                    })();
+                }},
+            ]);
         }
 
         this.refreshActiveState();

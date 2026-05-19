@@ -13,6 +13,7 @@ import { NavigationCommands, setNavigator, getNavigator, registerNavigationComma
 import { ToolCommands, getToolHost, registerToolCommands, setToolHost } from './ui/tool_host';
 import { setRightSidebarHost, getRightSidebarHost } from './ui/right_sidebar_host';
 import { registerDropZone, unregisterDropZone, unregisterDropZonesIn } from './ui/drag_drop';
+import { registerContextMenu, unregisterContextMenu, unregisterContextMenuIn } from './ui/context_menu';
 import { AppSettings } from './settings';
 
 export {
@@ -58,9 +59,13 @@ export {
     registerDropZone,
     unregisterDropZone,
     unregisterDropZonesIn,
+    registerContextMenu,
+    unregisterContextMenu,
+    unregisterContextMenuIn,
 }
 
 export type { DropZone } from './ui/drag_drop'
+export type { ContextAction } from './ui/context_menu'
 
 export type { Navigator, SettingsSection, PlannerView, AppLocation, LocationListener } from './ui/navigator'
 export type { ToolHost, ToolShowOptions, ToolView } from './ui/tool_host'

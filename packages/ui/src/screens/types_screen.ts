@@ -1,7 +1,9 @@
-import { BaseElementEmpty, getNavigator } from '@websoil/engine';
+import { BaseElementEmpty, getNavigator, registerContextMenu, unregisterContextMenuIn, Popups } from '@websoil/engine';
 import { ItemTypeAPI } from '@zealot/api/src/item_type';
 import type { ItemTypeSummary } from '@zealot/domain/src/item_type';
+import type { ContextAction } from '@websoil/engine';
 import { LoadingSpinner } from '../common/loading_spinner';
+import { ConfirmDialog } from '../common/confirm_dialog';
 
 const itemTypeApi = new ItemTypeAPI('/api');
 
@@ -61,6 +63,7 @@ export class TypesScreen extends BaseElementEmpty {
     }
 
     private renderSummaries(container: HTMLElement, summaries: ItemTypeSummary[]): void {
+        unregisterContextMenuIn(container);
         container.innerHTML = '';
 
         if (summaries.length === 0) {
@@ -96,6 +99,23 @@ export class TypesScreen extends BaseElementEmpty {
                     getNavigator().openType(summary.Name);
                 }
             });
+
+            const actions: ContextAction[] = [
+                { label: 'Open Type', onClick: () => getNavigator().openType(summary.Name) },
+            ];
+            if (!summary.IsSystem) {
+                actions.push({ separator: true });
+                actions.push({ label: 'Delete Type', danger: true, onClick: () => {
+                    void (async () => {
+                        const ok = await ConfirmDialog.show(`Delete type "${summary.Name}"?`);
+                        if (!ok) return;
+                        await itemTypeApi.remove(summary.TypeID);
+                        Popups.add(`Deleted type "${summary.Name}"`);
+                        void this.render();
+                    })();
+                }});
+            }
+            registerContextMenu(row, () => actions);
 
             const name = document.createElement('td');
             const nameButton = document.createElement('button');

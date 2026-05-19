@@ -1,4 +1,6 @@
-import { getNavigator } from '@websoil/engine';
+import { getNavigator, registerContextMenu, unregisterContextMenuIn, Popups } from '@websoil/engine';
+import { ItemAPI } from '@zealot/api/src/item';
+import { ConfirmDialog } from '../common/confirm_dialog';
 import { icons } from '@zealot/content';
 import type { AttributeKind } from '@zealot/domain/src/attribute';
 import type { Item } from '@zealot/domain/src/item';
@@ -16,6 +18,8 @@ import { isBlankAttributeValue } from './attribute_value_input';
 export type { ItemTableColumn, ItemTableCreateRowConfig, ItemTableViewConfig } from './item_table_types';
 import type { CreateDraftState, SortDirection } from './item_table_types';
 import type { ItemTableColumn, ItemTableViewConfig } from './item_table_types';
+
+const itemApi = new ItemAPI('/api');
 
 export class ItemTableView extends HTMLElement {
     private _attributeKinds: Record<string, AttributeKind> = {};
@@ -61,6 +65,7 @@ export class ItemTableView extends HTMLElement {
         }
 
         this.className = 'item-table-view';
+        unregisterContextMenuIn(this);
         this.innerHTML = '';
 
         const shell = document.createElement('div');
@@ -156,6 +161,32 @@ export class ItemTableView extends HTMLElement {
             });
             openItem(item);
         });
+
+        registerContextMenu(row, () => [
+            { label: 'Open', onClick: () => {
+                const openItem = this._config?.onOpenItem ?? ((target: Item) => {
+                    getNavigator().openItemById(target.ItemID);
+                });
+                openItem(item);
+            }},
+            { label: 'Open in New Tab', onClick: () => window.open(`/item/${encodeURIComponent(item.Title)}`, '_blank') },
+            { label: 'Open in New Window', onClick: () => window.open(`/item/${encodeURIComponent(item.Title)}`, '_blank', 'noopener,noreferrer') },
+            { label: 'Copy Link', onClick: () => {
+                void navigator.clipboard.writeText(`${window.location.origin}/item/${encodeURIComponent(item.Title)}`);
+                Popups.add('Link copied');
+            }},
+            { separator: true },
+            { label: 'Delete', danger: true, onClick: () => {
+                void (async () => {
+                    const ok = await ConfirmDialog.show(`Delete "${item.DisplayTitle}"?`);
+                    if (!ok) return;
+                    await itemApi.Delete(item.ItemID);
+                    Popups.add(`Deleted ${item.DisplayTitle}`);
+                    this._items = this._items.filter((i) => i.ItemID !== item.ItemID);
+                    this._render();
+                })();
+            }},
+        ]);
 
         for (const column of this._config!.columns) {
             const cell = document.createElement('td');

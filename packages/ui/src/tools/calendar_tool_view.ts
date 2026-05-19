@@ -1,5 +1,5 @@
 import { DateTime } from 'luxon';
-import { getNavigator, registerDropZone, unregisterDropZonesIn } from '@websoil/engine';
+import { getNavigator, registerDropZone, unregisterDropZonesIn, registerContextMenu, unregisterContextMenuIn } from '@websoil/engine';
 import { AttributeAPI } from '@zealot/api/src/attribute';
 import { icons } from '@zealot/content';
 import {
@@ -24,10 +24,12 @@ export class CalendarToolView extends HTMLElement {
 
     disconnectedCallback(): void {
         unregisterDropZonesIn(this);
+        unregisterContextMenuIn(this);
     }
 
     private render(): void {
         unregisterDropZonesIn(this);
+        unregisterContextMenuIn(this);
         this.innerHTML = `
         <div class="tool-panel">
             <div class="tool-panel-header tool-panel-header-spread">
@@ -107,6 +109,9 @@ export class CalendarToolView extends HTMLElement {
                     button.classList.remove('calendar-tool-day--drop-target');
                 },
             });
+            registerContextMenu(button, () => [
+                { label: `Open ${formatIsoDate(current)} in Planner`, onClick: () => getNavigator().openPlanner('daily', formatIsoDate(current)) },
+            ]);
             grid.appendChild(button);
         }
 
@@ -157,6 +162,9 @@ export class CalendarToolView extends HTMLElement {
                     button.classList.remove('calendar-tool-day--drop-target');
                 },
             });
+            registerContextMenu(button, () => [
+                { label: `Open Week ${w.weekNumber} in Planner`, onClick: () => getNavigator().openPlanner('weekly', formatIsoWeek(w)) },
+            ]);
             weekGrid.appendChild(button);
             weekStart = weekStart.plus({ weeks: 1 });
         }
@@ -208,6 +216,9 @@ export class CalendarToolView extends HTMLElement {
                     button.classList.remove('calendar-tool-day--drop-target');
                 },
             });
+            registerContextMenu(button, () => [
+                { label: `Open ${MONTH_LABELS[m - 1] ?? ''} ${year} in Planner`, onClick: () => getNavigator().openPlanner('monthly', formatMonthCode(monthDate)) },
+            ]);
             monthGrid.appendChild(button);
         }
 

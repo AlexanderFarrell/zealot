@@ -135,7 +135,7 @@ pub struct KnowledgeGraphArgs {
     /// Starting topic to explore
     pub topic: String,
     /// How many relationship hops to follow (default 2, max 3)
-    pub max_depth: Option<u32>,
+    pub max_depth: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -464,7 +464,11 @@ impl ZealotServer {
         &self,
         Parameters(a): Parameters<KnowledgeGraphArgs>,
     ) -> Result<GetPromptResult, McpError> {
-        let depth = a.max_depth.unwrap_or(2).min(3);
+        let depth = a.max_depth
+            .as_deref()
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(2)
+            .min(3);
         let root_results = self
             .client
             .get::<serde_json::Value>(&format!(

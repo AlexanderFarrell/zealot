@@ -1,4 +1,4 @@
-import { BaseElementEmpty, Popups, getNavigator, getRightSidebarHost } from '@websoil/engine';
+import { BaseElementEmpty, Popups, getNavigator, getRightSidebarHost, registerContextMenu, unregisterContextMenu, unregisterContextMenuIn } from '@websoil/engine';
 import { ItemAPI } from '@zealot/api/src/item';
 import type { Item } from '@zealot/domain/src/item';
 import { ConfirmDialog } from '../common/confirm_dialog';
@@ -13,6 +13,7 @@ import { createItem } from '../views/item_table_save';
 import { loadAttributeKinds } from '../views/attribute_value_input';
 import type { CreateDraftState } from '../views/item_table_types';
 import { AssignTypeModal } from '../common/assign_type_modal';
+import { PasteTemplateModal } from '../common/paste_template_modal';
 
 const itemApi = new ItemAPI('/api');
 
@@ -40,9 +41,11 @@ export class ItemScreen extends BaseElementEmpty {
 
     disconnectedCallback(): void {
         getRightSidebarHost()?.setContent(null);
+        unregisterContextMenu(this);
     }
 
     private async fetchAndRender(fetch: () => Promise<Item>): Promise<void> {
+        unregisterContextMenu(this);
         getRightSidebarHost()?.setContent(null);
         this.innerHTML = '';
         this.appendChild(new LoadingSpinner());
@@ -99,6 +102,48 @@ export class ItemScreen extends BaseElementEmpty {
             this.renderTypes(item, typesDiv, onTypesDone);
             this.renderAttributes(item, attrsSection);
         };
+
+        registerContextMenu(this, () => [
+            { label: 'Copy Link', onClick: () => {
+                void navigator.clipboard.writeText(window.location.href);
+                Popups.add('Link copied');
+            }},
+            { label: 'Open in New Tab', onClick: () => window.open(window.location.href, '_blank') },
+            { label: 'Open in New Window', onClick: () => window.open(window.location.href, '_blank', 'noopener,noreferrer') },
+            { label: 'Copy as Markdown', onClick: () => {
+                void navigator.clipboard.writeText(this.buildMarkdown(item));
+                Popups.add('Copied as Markdown');
+            }},
+            { label: 'Download as PDF', onClick: () => { window.location.href = itemApi.ExportPdfUrl(item.ItemID); } },
+            { label: 'Download as DOCX', onClick: () => { window.location.href = itemApi.ExportDocxUrl(item.ItemID); } },
+            { separator: true },
+            { label: 'Manage Types', onClick: () => AssignTypeModal.show(item, () => onTypesDone()) },
+            { label: 'Paste Template', onClick: () => {
+                PasteTemplateModal.show((templateContent) => {
+                    const separator = item.Content.trim().length > 0 ? '\n\n' : '';
+                    item.Content = item.Content + separator + templateContent;
+                    const editorEl = this.querySelector('zealotscript-editor') as ZealotScriptEditor | null;
+                    if (editorEl) editorEl.content = item.Content;
+                    void itemApi.Update(item.ItemID, { item_id: item.ItemID, content: item.Content })
+                        .then(() => Popups.add('Template pasted'));
+                });
+            }},
+            { separator: true },
+            { label: 'Delete Item', danger: true, onClick: () => {
+                void (async () => {
+                    const confirmed = await ConfirmDialog.show('Are you sure you want to delete this item?');
+                    if (!confirmed) return;
+                    await itemApi.Delete(item.ItemID);
+                    Popups.add(`Removed ${item.Title}`);
+                    const parentId = this.getParentItemId(item);
+                    if (parentId != null) {
+                        getNavigator().openItemById(parentId);
+                    } else {
+                        getNavigator().openHome();
+                    }
+                })();
+            }},
+        ]);
 
         // Action buttons
         this.appendChild(this.buildActions(item, () => onTypesDone()));
@@ -210,6 +255,17 @@ export class ItemScreen extends BaseElementEmpty {
             AssignTypeModal.show(item, onManageTypes);
         }));
 
+        row.appendChild(makeBtn(icons.postAdd, 'Paste Template', () => {
+            PasteTemplateModal.show((templateContent) => {
+                const separator = item.Content.trim().length > 0 ? '\n\n' : '';
+                item.Content = item.Content + separator + templateContent;
+                const editorEl = this.querySelector('zealotscript-editor') as ZealotScriptEditor | null;
+                if (editorEl) editorEl.content = item.Content;
+                void itemApi.Update(item.ItemID, { item_id: item.ItemID, content: item.Content })
+                    .then(() => Popups.add('Template pasted'));
+            });
+        }));
+
         return row;
     }
 
@@ -313,6 +369,7 @@ export class ItemScreen extends BaseElementEmpty {
     }
 
     private renderTypes(item: Item, container: HTMLElement, _onDone: () => void): void {
+        unregisterContextMenuIn(container);
         container.innerHTML = '';
 
         item.Types.forEach((typeRef) => {
@@ -323,6 +380,17 @@ export class ItemScreen extends BaseElementEmpty {
             badge.addEventListener('click', () => {
                 getNavigator().openType(typeRef.Name);
             });
+            registerContextMenu(badge, () => [
+                { label: 'Open Type Screen', onClick: () => getNavigator().openType(typeRef.Name) },
+                { separator: true },
+                { label: 'Remove from Item', danger: true, onClick: () => {
+                    void (async () => {
+                        await itemApi.UnassignType(item.ItemID, typeRef.Name);
+                        Popups.add(`Removed type "${typeRef.Name}"`);
+                        _onDone();
+                    })();
+                }},
+            ]);
             container.appendChild(badge);
         });
     }
@@ -416,6 +484,7 @@ export class ItemScreen extends BaseElementEmpty {
         let attributeKinds: Awaited<ReturnType<typeof loadAttributeKinds>> = {};
 
         const render = (): void => {
+            unregisterContextMenuIn(args.container);
             args.container.innerHTML = '';
 
             if (createError) {

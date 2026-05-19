@@ -1,5 +1,5 @@
 import type { ItemAPI } from '@zealot/api/src/item';
-import { getNavigator, registerDropZone, unregisterDropZonesIn } from '@websoil/engine';
+import { getNavigator, registerDropZone, unregisterDropZonesIn, registerContextMenu, unregisterContextMenuIn, Popups } from '@websoil/engine';
 import { AttributeAPI } from '@zealot/api/src/attribute';
 import type { Item } from '@zealot/domain/src/item';
 
@@ -37,11 +37,13 @@ export class SearchToolView extends HTMLElement {
             this.debounceTimer = null;
         }
         unregisterDropZonesIn(this);
+        unregisterContextMenuIn(this);
     }
 
     private clearResults(): void {
         if (!this.resultsEl) return;
         unregisterDropZonesIn(this.resultsEl);
+        unregisterContextMenuIn(this.resultsEl);
         this.resultsEl.innerHTML = '';
     }
 
@@ -187,6 +189,15 @@ export class SearchToolView extends HTMLElement {
                     row.classList.remove('search-tool-result--drop-target');
                 },
             });
+            registerContextMenu(row, () => [
+                { label: 'Open', onClick: () => getNavigator().openItemById(item.ItemID) },
+                { label: 'Open in New Tab', onClick: () => window.open(`/item/${encodeURIComponent(item.Title)}`, '_blank') },
+                { label: 'Open in New Window', onClick: () => window.open(`/item/${encodeURIComponent(item.Title)}`, '_blank', 'noopener,noreferrer') },
+                { label: 'Copy Link', onClick: () => {
+                    void navigator.clipboard.writeText(`${window.location.origin}/item/${encodeURIComponent(item.Title)}`);
+                    Popups.add('Link copied');
+                }},
+            ]);
 
             list.appendChild(row);
         });

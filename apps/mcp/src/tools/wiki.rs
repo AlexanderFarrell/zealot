@@ -209,7 +209,7 @@ impl ZealotServer {
         &self,
         Parameters(p): Parameters<UpdateItemParams>,
     ) -> Result<CallToolResult, McpError> {
-        let body = json!({ "title": p.title, "content": p.content });
+        let body = json!({ "item_id": p.id, "title": p.title, "content": p.content });
         let item: serde_json::Value = self
             .client
             .patch(&format!("/item/{}", p.id), &body)
