@@ -12,7 +12,7 @@ use crate::tools::{ZealotServer, api_err};
 // schemars 1.x generates boolean `true` for serde_json::Value, which the MCP
 // SDK's Zod validator rejects. This wrapper emits {"type":"object"} instead.
 #[derive(Debug, Deserialize)]
-struct JsonObject(serde_json::Value);
+pub struct JsonObject(pub serde_json::Value);
 
 impl JsonSchema for JsonObject {
     fn schema_name() -> std::borrow::Cow<'static, str> {

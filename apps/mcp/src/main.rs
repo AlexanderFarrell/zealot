@@ -1,11 +1,6 @@
-mod client;
-mod config;
-mod prompts;
-mod server;
-mod tools;
-
 use clap::Parser;
-use config::Config;
+use zealot_mcp::config::{Config, Mode};
+use zealot_mcp::server;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -20,7 +15,7 @@ async fn main() -> anyhow::Result<()> {
     config.validate()?;
 
     match config.mode {
-        config::Mode::Stdio => server::run_stdio(config).await,
-        config::Mode::Http => server::run_http(config).await,
+        Mode::Stdio => server::run_stdio(config).await,
+        Mode::Http  => server::run_http(config).await,
     }
 }
