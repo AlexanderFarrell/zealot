@@ -1,10 +1,9 @@
-import { BasicAPI, patch_json } from "@websoil/engine";
+import { BasicAPI, patch_json, delete_req } from "@websoil/engine";
 import { LazyData } from "@websoil/engine/src/api/api_helper";
 import { AttributeKind } from "@zealot/domain/src/attribute";
 import type {
-    AddAttributeKindDto,
-    AttributeConfig,
     AttributeKindDto,
+    AddAttributeKindDto,
     UpdateAttributeKindDto,
 } from "@zealot/domain/src/attribute";
 
@@ -29,7 +28,13 @@ export class AttributeKindAPI extends BasicAPI<AttributeKind, AttributeKindDto, 
         this.Kinds = new LazyData(kinds_source)
     }
 
-    async UpdateConfig(kind_id: number, config: AttributeConfig) {
-        return patch_json(`${this.URL}/${kind_id}/config`, {config})
+    // Server route is PATCH /attribute/id/{kind_id}
+    override async update(id: number, updates: UpdateAttributeKindDto) {
+        return patch_json(`${this.URL}/id/${id}`, updates);
+    }
+
+    // Server route is DELETE /attribute/key/{key}
+    async removeByKey(key: string) {
+        return delete_req(`${this.URL}/key/${key}`);
     }
 }
