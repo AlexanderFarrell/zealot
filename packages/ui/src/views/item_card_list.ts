@@ -3,13 +3,16 @@ import { AttributeAPI } from '@zealot/api/src/attribute';
 import { ItemAPI } from '@zealot/api/src/item';
 import type { Item } from '@zealot/domain/src/item';
 import { ConfirmDialog } from '../common/confirm_dialog';
+import { renderItemTitle } from './item_title';
+import { getCachedItem } from './item_id_cache';
 
 const attrApi = new AttributeAPI('/api');
 const itemApi = new ItemAPI('/api');
 
-const STATUS_ORDER = ['Working', 'Specify', 'To Do', 'Complete', 'Hold', 'Rejected', 'Blocked'];
+const STATUS_ORDER = ['Working', 'Specify', 'To Do', 'On Going', 'Complete', 'Hold', 'Blocked'];
+const BOTTOM_STATUS_ORDER = ['Rejected', 'Retired'];
 
-function buildCard(item: Item, showStatus: boolean, onDrop?: () => void): HTMLElement {
+function buildCard(item: Item, showStatus: boolean, showParent: boolean, onDrop?: () => void): HTMLElement {
     const card = document.createElement('button');
     card.type = 'button';
     card.className = 'item-card';
@@ -64,7 +67,7 @@ function buildCard(item: Item, showStatus: boolean, onDrop?: () => void): HTMLEl
 
     const title = document.createElement('div');
     title.className = 'item-card__title';
-    title.textContent = item.DisplayTitle;
+    renderItemTitle(title, item);
     header.appendChild(title);
 
     if (showStatus) {
@@ -80,17 +83,28 @@ function buildCard(item: Item, showStatus: boolean, onDrop?: () => void): HTMLEl
     card.appendChild(header);
 
     const typeNames = item.Types.filter((t) => !t.IsSystem).map((t) => t.Name);
-    if (typeNames.length > 0) {
+    const parentLink = showParent ? item.Links.find((l) => l.Relationship === 'parent') : undefined;
+
+    if (typeNames.length > 0 || parentLink) {
         const typeEl = document.createElement('div');
         typeEl.className = 'item-card__type';
         typeEl.textContent = typeNames.join(' · ');
+        if (parentLink) {
+            const parentEl = document.createElement('span');
+            parentEl.className = 'item-card__parent';
+            parentEl.textContent = `#${parentLink.OtherItemID}`;
+            void getCachedItem(parentLink.OtherItemID).then((p) => {
+                parentEl.textContent = p.DisplayTitle;
+            }).catch(() => { /* keep ID placeholder */ });
+            typeEl.appendChild(parentEl);
+        }
         card.appendChild(typeEl);
     }
 
     return card;
 }
 
-function buildGroup(label: string, items: Item[], showStatus: boolean, statusValue?: string, onDrop?: () => void): HTMLElement {
+function buildGroup(label: string, items: Item[], showStatus: boolean, showParent: boolean, statusValue?: string, onDrop?: () => void): HTMLElement {
     const group = document.createElement('div');
     group.className = 'item-card-group';
 
@@ -116,7 +130,7 @@ function buildGroup(label: string, items: Item[], showStatus: boolean, statusVal
     }
 
     for (const item of items) {
-        group.appendChild(buildCard(item, showStatus, onDrop));
+        group.appendChild(buildCard(item, showStatus, showParent, onDrop));
     }
 
     return group;
@@ -154,7 +168,7 @@ function groupItems(items: Item[]): Array<{ label: string; items: Item[]; showSt
         if (bucket) result.push({ label: status, items: bucket, showStatus: false, statusValue: status });
     }
     for (const [status, bucket] of statusBuckets) {
-        if (!STATUS_ORDER.includes(status)) {
+        if (!STATUS_ORDER.includes(status) && !BOTTOM_STATUS_ORDER.includes(status)) {
             result.push({ label: status, items: bucket, showStatus: false, statusValue: status });
         }
     }
@@ -169,13 +183,19 @@ function groupItems(items: Item[]): Array<{ label: string; items: Item[]; showSt
         result.push({ label: 'Other', items: ungrouped, showStatus: true });
     }
 
+    // Bottom status groups appear after types and ungrouped
+    for (const status of BOTTOM_STATUS_ORDER) {
+        const bucket = statusBuckets.get(status);
+        if (bucket) result.push({ label: status, items: bucket, showStatus: false, statusValue: status });
+    }
+
     return result;
 }
 
 export function buildItemCardList(
     items: Item[],
     emptyMessage: string,
-    options: { grouped?: boolean; onDrop?: () => void } = {},
+    options: { grouped?: boolean; showParent?: boolean; onDrop?: () => void } = {},
 ): HTMLElement {
     const list = document.createElement('div');
     list.className = 'item-card-list';
@@ -188,13 +208,15 @@ export function buildItemCardList(
         return list;
     }
 
+    const showParent = options.showParent ?? false;
+
     if (options.grouped) {
         for (const { label, items: bucketItems, showStatus, statusValue } of groupItems(items)) {
-            list.appendChild(buildGroup(label, bucketItems, showStatus, statusValue, options.onDrop));
+            list.appendChild(buildGroup(label, bucketItems, showStatus, showParent, statusValue, options.onDrop));
         }
     } else {
         for (const item of items) {
-            list.appendChild(buildCard(item, true, options.onDrop));
+            list.appendChild(buildCard(item, true, showParent, options.onDrop));
         }
     }
 

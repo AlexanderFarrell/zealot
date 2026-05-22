@@ -1,5 +1,6 @@
 import type { Node as PMNode, Schema } from "prosemirror-model";
 import { lookupEmoji } from "../emoji_map";
+import { hasIcon } from "../icon_registry";
 
 type InlineAtomMatch = {
 	type: "mdlink" | "hard_break" | "wikilink";
@@ -241,6 +242,15 @@ const parseInlineRange = (
 						nodes.push(schema.text(emojiChar));
 						index = closeIndex + 1;
 						continue;
+					}
+					if (hasIcon(shortcode)) {
+						const iconRefType = schema.nodes["icon_ref"];
+						if (iconRefType) {
+							flushBuffer();
+							nodes.push(iconRefType.createChecked({ name: shortcode }));
+							index = closeIndex + 1;
+							continue;
+						}
 					}
 				}
 			}

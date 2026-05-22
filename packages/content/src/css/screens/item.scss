@@ -182,6 +182,44 @@ item-screen {
   gap: 12px;
 }
 
+.item-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+
+  > h1 {
+    margin: 0;
+    min-width: 0;
+  }
+}
+
+.item-title-icon {
+  display: flex;
+  align-items: center;
+  padding-top: 0.15em;
+
+  &[draggable="true"] {
+    cursor: grab;
+  }
+
+  &[draggable="true"]:active {
+    cursor: grabbing;
+  }
+}
+
+.item-screen-title-icon {
+  width: 2em;
+  height: 2em;
+}
+
+.item-screen-title-icon.item-title-inline-icon--text {
+  width: auto;
+  height: auto;
+  min-width: 1em;
+  font-size: 2em;
+  line-height: 1;
+}
+
 item-view {
   background-color: var(--bg-2);
   border: 1px solid var(--bg-3);
@@ -304,6 +342,12 @@ item-view {
 .item-card__type {
   font-size: 11px;
   color: var(--text-1);
+}
+
+.item-card__parent {
+  color: var(--text-2);
+  margin-left: 6px;
+  &::before { content: '↑ '; }
 }
 
 .item-table-shell {

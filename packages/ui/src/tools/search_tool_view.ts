@@ -2,6 +2,7 @@ import type { ItemAPI } from '@zealot/api/src/item';
 import { getNavigator, registerDropZone, unregisterDropZonesIn, registerContextMenu, unregisterContextMenuIn, Popups } from '@websoil/engine';
 import { AttributeAPI } from '@zealot/api/src/attribute';
 import type { Item } from '@zealot/domain/src/item';
+import { createItemTitleElement } from '../views/item_title';
 
 const attrApi = new AttributeAPI('/api');
 
@@ -151,10 +152,7 @@ export class SearchToolView extends HTMLElement {
             row.className = 'search-tool-result';
             row.draggable = true;
 
-            const title = document.createElement('span');
-            title.className = 'search-tool-result-title';
-            title.textContent = item.DisplayTitle;
-            row.appendChild(title);
+            row.appendChild(createItemTitleElement(item, { className: 'search-tool-result-title' }));
 
             if (item.Types.length > 0) {
                 const badges = document.createElement('span');

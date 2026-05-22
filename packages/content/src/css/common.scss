@@ -420,6 +420,32 @@ calendar-view {
   font-weight: 600;
 }
 
+.item-title-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  vertical-align: middle;
+}
+
+.item-title-inline-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.item-title-inline-icon--text {
+  min-width: 1.2em;
+}
+
+.item-title-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .search-tool-result--drop-target {
   outline: 2px solid var(--accent-0, #4f8eff);
   outline-offset: 2px;
@@ -565,6 +591,13 @@ assign-type-modal {
 .item-search-inline-shell {
   display: grid;
   gap: 4px;
+}
+
+.item-search-inline-preview {
+  padding: 6px 8px;
+  border: 1px solid var(--border-0, var(--border-1));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--panel-0, var(--bg-2)) 88%, var(--accent-0) 12%);
 }
 
 .item-search-inline-shell > input {
@@ -723,6 +756,9 @@ assign-type-modal {
 }
 
 .nav-tree-title {
+  display: flex;
+  align-items: center;
+  width: 100%;
   background: transparent;
   box-shadow: none;
   padding: 8px 10px;

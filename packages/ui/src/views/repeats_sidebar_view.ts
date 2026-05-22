@@ -1,6 +1,7 @@
 import { Popups, getNavigator } from '@websoil/engine';
 import { RepeatAPI } from '@zealot/api/src/repeat';
 import { RepeatStatus, type RepeatEntry, type RepeatStatusType } from '@zealot/domain/src/repeat';
+import { renderItemTitle } from './item_title';
 
 const repeatApi = new RepeatAPI('/api');
 const repeatGroups = ['Morning', 'Afternoon', 'Evening', 'Anytime'] as const;
@@ -89,7 +90,7 @@ export class RepeatsSidebarView extends HTMLElement {
         const title = document.createElement('button');
         title.type = 'button';
         title.className = 'sidebar-repeat-title';
-        title.textContent = entry.Item.DisplayTitle;
+        renderItemTitle(title, entry.Item, { className: 'sidebar-repeat-title-label' });
         title.addEventListener('click', () => {
             getNavigator().openItemById(entry.Item.ItemID);
         });

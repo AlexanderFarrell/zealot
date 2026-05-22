@@ -25,6 +25,7 @@ const attrApi = new AttributeAPI('/api');
  */
 export class AttributeEditor extends HTMLElement {
     private _item: Item | null = null;
+    public onIconChange: (() => void) | null = null;
 
     init(item: Item): this {
         this._item = item;
@@ -85,6 +86,9 @@ export class AttributeEditor extends HTMLElement {
                 await attrApi.rename(item.ItemID, key, newKey);
                 item.Attributes[newKey] = item.Attributes[key];
                 delete item.Attributes[key];
+                if (key === 'Icon' || newKey === 'Icon') {
+                    this.onIconChange?.();
+                }
                 void this._render();
             } catch (e) {
                 Popups.add_error((e as Error).message ?? 'Failed to rename attribute.');
@@ -104,11 +108,17 @@ export class AttributeEditor extends HTMLElement {
                 const result = await this._saveValue(item, key, nextValue, kind);
                 if (result === 'saved') {
                     item.Attributes[key] = nextValue;
+                    if (key === 'Icon') {
+                        this.onIconChange?.();
+                    }
                     return;
                 }
 
                 if (result === 'removed') {
                     delete item.Attributes[key];
+                    if (key === 'Icon') {
+                        this.onIconChange?.();
+                    }
                 }
 
                 void this._render();
@@ -130,6 +140,9 @@ export class AttributeEditor extends HTMLElement {
             try {
                 await attrApi.remove(item.ItemID, key);
                 delete item.Attributes[key];
+                if (key === 'Icon') {
+                    this.onIconChange?.();
+                }
                 void this._render();
             } catch (e) {
                 Popups.add_error((e as Error).message ?? 'Failed to delete attribute.');
@@ -186,6 +199,9 @@ export class AttributeEditor extends HTMLElement {
             try {
                 await attrApi.set_value(item.ItemID, k, v);
                 item.Attributes[k] = v;
+                if (k === 'Icon') {
+                    this.onIconChange?.();
+                }
                 keyInput.value = '';
                 resetBinding();
                 void this._render();

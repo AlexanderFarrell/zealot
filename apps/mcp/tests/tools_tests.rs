@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::ErrorCode;
 use serde_json::json;
@@ -319,7 +321,7 @@ async fn create_item_with_attributes() {
         .create_item(Parameters(CreateItemParams {
             title: "Item with attrs".to_string(),
             content: "body".to_string(),
-            attributes: Some(json!({"priority": "high"})),
+            attributes: Some(HashMap::from([("priority".into(), json!("high"))])),
         }))
         .await
         .unwrap();
@@ -380,7 +382,7 @@ async fn set_item_attributes_patches_attr_path() {
     server
         .set_item_attributes(Parameters(SetAttributesParams {
             id: 5,
-            attributes: json!({"priority": "high"}),
+            attributes: HashMap::from([("priority".into(), json!("high"))]),
         }))
         .await
         .unwrap();

@@ -4,6 +4,7 @@ import { AttributeAPI } from '@zealot/api/src/attribute';
 import { icons } from '@zealot/content';
 import type { Item } from '@zealot/domain/src/item';
 import { ConfirmDialog } from '../common/confirm_dialog';
+import { renderItemTitle } from '../views/item_title';
 
 const attrApi = new AttributeAPI('/api');
 const itemApi = new ItemAPI('/api');
@@ -74,7 +75,7 @@ class NavTreeNodeView extends HTMLElement {
                 <button type="button" class="nav-tree-toggle" aria-label="Toggle children" aria-expanded="${this.expanded}">
                     <img class="nav-tree-chevron" src="${icons.right}" alt="">
                 </button>
-                <button type="button" class="nav-tree-title">${this.item.DisplayTitle}</button>
+                <button type="button" class="nav-tree-title"></button>
             </div>
             <div class="nav-tree-children"></div>
         </div>
@@ -83,6 +84,9 @@ class NavTreeNodeView extends HTMLElement {
         const toggleButton = this.querySelector('.nav-tree-toggle');
         const childrenEl = this.querySelector('.nav-tree-children');
         this.titleButton = this.querySelector('.nav-tree-title');
+        if (this.titleButton) {
+            renderItemTitle(this.titleButton, this.item, { className: 'nav-tree-title-label' });
+        }
 
         toggleButton?.addEventListener('click', () => {
             void this.toggleExpanded();

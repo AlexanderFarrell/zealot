@@ -123,6 +123,10 @@ const serializeInline = (node: PMNode): string => {
 			out += serializeMathInlineNode(child);
 			return;
 		}
+		if (child.type.name === "icon_ref") {
+			out += `:${child.attrs.name}:`;
+			return;
+		}
 		if (child.type.name === "date_ref") {
 			out += serializeDateRef(child);
 			return;
@@ -351,6 +355,7 @@ const nodeSerializers: Record<string, (node: PMNode) => string> = {
 	youtube_embed: serializeYoutubeEmbed,
 	math_block: serializeMathBlock,
 	math_inline: serializeMathInlineNode,
+	icon_ref: (node) => `:${node.attrs.name}:`,
 	date_ref: serializeDateRef,
 	details: serializeDetails,
 	spoiler: serializeSpoiler,

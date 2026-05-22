@@ -10,12 +10,14 @@
         "lint": "eslint src"
     },
     "dependencies": {
+        "@mdi/js": "^7.4.47",
         "@websoil/engine": "file:../engine",
         "@zealot/api": "file:../api",
         "@zealot/content": "file:../content",
         "@zealot/domain": "file:../domain",
         "dockview-core": "^5.2.0",
         "katex": "^0.16.45",
+        "lucide": "^1.16.0",
         "luxon": "^3.7.2",
         "mitt": "^3.0.1",
         "prosemirror-commands": "^1.7.1",
@@ -29,7 +31,8 @@
         "prosemirror-schema-basic": "^1.2.4",
         "prosemirror-schema-list": "^1.5.1",
         "prosemirror-state": "^1.4.4",
-        "prosemirror-view": "^1.41.8"
+        "prosemirror-view": "^1.41.8",
+        "simple-icons": "^16.20.0"
     },
     "devDependencies": {
         "@types/katex": "^0.16.8",

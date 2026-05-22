@@ -1,5 +1,6 @@
 import { ItemAPI } from '@zealot/api/src/item';
 import type { Item } from '@zealot/domain/src/item';
+import { createItemTitleElement } from './item_title';
 
 const itemApi = new ItemAPI('/api');
 let nextListboxId = 0;
@@ -12,6 +13,7 @@ declare global {
 
 export class ItemSearchInline extends HTMLElement {
     private inputEl: HTMLInputElement | null = null;
+    private previewEl: HTMLDivElement | null = null;
     private resultsEl: HTMLDivElement | null = null;
     private debounceTimer: ReturnType<typeof setTimeout> | null = null;
     private blurTimer: ReturnType<typeof setTimeout> | null = null;
@@ -32,8 +34,9 @@ export class ItemSearchInline extends HTMLElement {
     set value(item: Item | null) {
         this.selectedItem = item;
         if (this.inputEl) {
-            this.inputEl.value = item?.DisplayTitle ?? '';
+            this.inputEl.value = item?.Title ?? '';
         }
+        this.syncSelectedPreview();
         this.closeDropdown();
     }
 
@@ -78,6 +81,7 @@ export class ItemSearchInline extends HTMLElement {
             this.resultsEl.innerHTML = '';
         }
 
+        this.syncSelectedPreview();
         this.closeDropdown();
     }
 
@@ -86,6 +90,7 @@ export class ItemSearchInline extends HTMLElement {
         this.classList.add('item-search-inline');
         this.innerHTML = `
         <div class="item-search-inline-shell">
+            <div class="item-search-inline-preview" hidden></div>
             <input
                 type="search"
                 autocomplete="off"
@@ -102,14 +107,16 @@ export class ItemSearchInline extends HTMLElement {
         `;
 
         this.inputEl = this.querySelector('input');
+        this.previewEl = this.querySelector('.item-search-inline-preview');
         this.resultsEl = this.querySelector('.item-search-inline-results');
 
-        if (!this.inputEl || !this.resultsEl) {
+        if (!this.inputEl || !this.previewEl || !this.resultsEl) {
             return;
         }
 
         this.inputEl.placeholder = this.placeholder;
-        this.inputEl.value = this.selectedItem?.DisplayTitle ?? '';
+        this.inputEl.value = this.selectedItem?.Title ?? '';
+        this.syncSelectedPreview();
 
         this.inputEl.addEventListener('input', () => this.handleInput());
         this.inputEl.addEventListener('keydown', (event) => this.handleKeydown(event));
@@ -129,6 +136,23 @@ export class ItemSearchInline extends HTMLElement {
                 }
             }, 120);
         });
+    }
+
+    private syncSelectedPreview(): void {
+        if (!this.previewEl) {
+            return;
+        }
+
+        if (!this.selectedItem) {
+            this.previewEl.hidden = true;
+            this.previewEl.replaceChildren();
+            return;
+        }
+
+        this.previewEl.hidden = false;
+        this.previewEl.replaceChildren(createItemTitleElement(this.selectedItem, {
+            className: 'item-search-inline-preview-content',
+        }));
     }
 
     private clearTimers(): void {
@@ -153,8 +177,9 @@ export class ItemSearchInline extends HTMLElement {
             return;
         }
 
-        if (this.selectedItem && this.inputEl.value !== this.selectedItem.DisplayTitle) {
+        if (this.selectedItem && this.inputEl.value !== this.selectedItem.Title) {
             this.selectedItem = null;
+            this.syncSelectedPreview();
         }
 
         this.requestId += 1;
@@ -233,8 +258,8 @@ export class ItemSearchInline extends HTMLElement {
 
             const normalizedTerm = term.trim().toLocaleLowerCase();
             items = [...items].sort((a, b) => {
-                const aExact = a.DisplayTitle.trim().toLocaleLowerCase() === normalizedTerm;
-                const bExact = b.DisplayTitle.trim().toLocaleLowerCase() === normalizedTerm;
+                const aExact = a.Title.trim().toLocaleLowerCase() === normalizedTerm;
+                const bExact = b.Title.trim().toLocaleLowerCase() === normalizedTerm;
                 if (aExact === bExact) return 0;
                 return aExact ? -1 : 1;
             });
@@ -281,10 +306,7 @@ export class ItemSearchInline extends HTMLElement {
                 this.selectItem(item);
             });
 
-            const title = document.createElement('span');
-            title.className = 'item-search-inline-row-title';
-            title.textContent = item.DisplayTitle;
-            row.appendChild(title);
+            row.appendChild(createItemTitleElement(item, { className: 'item-search-inline-row-title' }));
 
             if (item.Types.length > 0) {
                 const badges = document.createElement('span');
@@ -361,9 +383,10 @@ export class ItemSearchInline extends HTMLElement {
         this.clearTimers();
 
         if (this.inputEl) {
-            this.inputEl.value = item.DisplayTitle;
+            this.inputEl.value = item.Title;
         }
 
+        this.syncSelectedPreview();
         this.closeDropdown();
         this.OnSelect?.(item);
         this.dispatchEvent(new CustomEvent('item-selected', {

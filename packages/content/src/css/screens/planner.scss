@@ -203,8 +203,11 @@ annual-planner-screen {
 }
 
 .sidebar-repeat-title {
+  display: inline-flex;
+  align-items: center;
   justify-content: flex-start;
   text-align: left;
+  width: auto;
   box-shadow: none !important;
   font-size: 0.85rem;
   padding: 0;

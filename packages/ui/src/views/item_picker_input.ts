@@ -3,6 +3,7 @@ import type { Item } from '@zealot/domain/src/item';
 import { icons } from '@zealot/content';
 import { ItemSearchInline } from './item_search_inline';
 import { getCachedItem } from './item_id_cache';
+import { createItemTitleElement } from './item_title';
 import './chips-input.scss';
 
 /**
@@ -20,7 +21,8 @@ import './chips-input.scss';
  */
 export class ItemPickerInput extends HTMLElement {
     private _value: number | null = null;
-    private _displayTitle: string = '';
+    private _title = '';
+    private _rawIcon = '';
     // Generation counter so stale GetById resolutions don't overwrite newer values
     private _generation = 0;
 
@@ -32,14 +34,16 @@ export class ItemPickerInput extends HTMLElement {
 
     set value(id: number | null) {
         this._value = id;
-        this._displayTitle = id !== null ? `#${id}` : '';
+        this._title = id !== null ? `#${id}` : '';
+        this._rawIcon = '';
         this._render();
 
         if (id !== null) {
             const gen = ++this._generation;
             void getCachedItem(id).then((item: Item) => {
                 if (gen !== this._generation) return;
-                this._displayTitle = item.DisplayTitle;
+                this._title = item.Title;
+                this._rawIcon = item.RawIcon;
                 this._render();
             }).catch(() => {
                 // Keep placeholder if lookup fails
@@ -75,7 +79,7 @@ export class ItemPickerInput extends HTMLElement {
         chip.style.cursor = 'pointer';
 
         const label = document.createElement('span');
-        label.textContent = this._displayTitle;
+        label.replaceChildren(createItemTitleElement({ Title: this._title, RawIcon: this._rawIcon }));
         label.addEventListener('click', () => {
             if (this._value !== null) {
                 getNavigator().openItemById(this._value);
@@ -89,7 +93,8 @@ export class ItemPickerInput extends HTMLElement {
             e.stopPropagation();
             this._generation++;
             this._value = null;
-            this._displayTitle = '';
+            this._title = '';
+            this._rawIcon = '';
             this._render();
             this.OnChange?.(null);
         });
@@ -105,7 +110,8 @@ export class ItemPickerInput extends HTMLElement {
         search.OnSelect = (item: Item) => {
             this._generation++;
             this._value = item.ItemID;
-            this._displayTitle = item.DisplayTitle;
+            this._title = item.Title;
+            this._rawIcon = item.RawIcon;
             this._render();
             this.OnChange?.(item.ItemID);
         };

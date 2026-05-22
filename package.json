@@ -8,6 +8,8 @@
     "scripts": {
         "dev:web": "npm run dev -w @zealot/web",
         "build:web": "npm run build -w @zealot/web",
+        "generate:icon-catalog": "node ./scripts/generate-icon-catalog.mjs",
+        "check:icon-catalog": "node ./scripts/generate-icon-catalog.mjs --check",
         "build:docker": "docker compose build",
         "docker": "docker compose up --build",
         "analyze:rust:coupling": "node ./scripts/analysis/rust-coupling.mjs",

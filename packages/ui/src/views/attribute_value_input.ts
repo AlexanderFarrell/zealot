@@ -1,5 +1,6 @@
 import { AttributeKindAPI } from '@zealot/api/src/attribute_kind';
 import type { AttributeKind } from '@zealot/domain/src/attribute';
+import { ShortcodePicker, detectShortcodeTriggerInText, type ShortcodeSuggestion } from '../zealotscript/shortcode_picker';
 import ChipsInput from './chips_input';
 import { ItemChipsInput } from './item_chips_input';
 import { ItemPickerInput } from './item_picker_input';
@@ -274,6 +275,8 @@ function bindTextInput(
     options: AttributeValueInputOptions,
     readValue: () => unknown,
 ): AttributeValueInputBinding {
+    attachIconShortcodePicker(input, options);
+
     input.addEventListener('input', () => {
         options.onValueChange?.(readValue());
     });
@@ -316,6 +319,82 @@ function bindChangeInput(
         focus: () => input.focus(),
         getValue: readValue,
     };
+}
+
+function attachIconShortcodePicker(
+    input: HTMLInputElement,
+    options: AttributeValueInputOptions,
+): void {
+    if (options.attributeKey !== 'Icon' || input.type !== 'text') {
+        return;
+    }
+
+    const picker = new ShortcodePicker({
+        containsTarget: (target) => target === input,
+        onSelect: (suggestion) => {
+            insertShortcodeSuggestion(input, suggestion);
+        },
+    });
+
+    const updatePicker = (): void => {
+        const trigger = detectInputShortcodeTrigger(input);
+        if (!trigger) {
+            picker.hide();
+            return;
+        }
+
+        const rect = input.getBoundingClientRect();
+        picker.update({ left: rect.left, bottom: rect.bottom }, trigger.query);
+    };
+
+    input.addEventListener('input', updatePicker);
+    input.addEventListener('click', updatePicker);
+    input.addEventListener('keyup', updatePicker);
+    input.addEventListener('blur', () => {
+        picker.hide();
+    });
+    input.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && picker.isOpen) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            picker.hide();
+        }
+    });
+}
+
+function detectInputShortcodeTrigger(input: HTMLInputElement): { from: number; to: number; query: string } | null {
+    const selectionStart = input.selectionStart;
+    const selectionEnd = input.selectionEnd;
+    if (selectionStart == null || selectionEnd == null || selectionStart !== selectionEnd) {
+        return null;
+    }
+
+    const trigger = detectShortcodeTriggerInText(input.value.slice(0, selectionStart));
+    if (!trigger) {
+        return null;
+    }
+
+    return { from: trigger.from, to: selectionStart, query: trigger.query };
+}
+
+function insertShortcodeSuggestion(
+    input: HTMLInputElement,
+    suggestion: ShortcodeSuggestion,
+): void {
+    const trigger = detectInputShortcodeTrigger(input);
+    if (!trigger) {
+        return;
+    }
+
+    const insertedValue = suggestion.kind === 'emoji'
+        ? suggestion.emoji
+        : `:${suggestion.shortcode}:`;
+
+    input.value = `${input.value.slice(0, trigger.from)}${insertedValue}${input.value.slice(trigger.to)}`;
+    input.focus();
+    const caret = trigger.from + insertedValue.length;
+    input.setSelectionRange(caret, caret);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 function appendOption(select: HTMLSelectElement, value: string, label: string): void {

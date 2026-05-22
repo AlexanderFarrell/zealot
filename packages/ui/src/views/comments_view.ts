@@ -9,6 +9,7 @@ import { LoadingSpinner } from '../common/loading_spinner';
 import { ItemSearchInline } from './item_search_inline';
 import { ZealotScriptEditor } from '../zealotscript/zealotscript_editor';
 import { ZealotScriptView } from '../zealotscript/zealotscript_view';
+import { renderItemTitle } from './item_title';
 
 const authApi = new AuthAPI('/api');
 const commentApi = new CommentAPI('/api');
@@ -31,7 +32,7 @@ function extractMessage(error: unknown, fallback: string): string {
 }
 
 function sortComments(entries: Comment[]): Comment[] {
-    return [...entries].sort((a, b) => a.Timestamp.toMillis() - b.Timestamp.toMillis());
+    return [...entries].sort((a, b) => b.Timestamp.toMillis() - a.Timestamp.toMillis());
 }
 
 async function getCurrentUsername(): Promise<string> {
@@ -52,6 +53,7 @@ async function getCurrentUsername(): Promise<string> {
 export class CommentsView extends HTMLElement {
     private _authorLabel = 'You';
     private _comments: Comment[] = [];
+    private _composerOpen = false;
     private _config: CommentsViewConfig | null = null;
     private _deletingCommentId: number | null = null;
     private _draftContent = '';
@@ -60,6 +62,8 @@ export class CommentsView extends HTMLElement {
     private _draftTime = currentTimeValue();
     private _editingCommentId: number | null = null;
     private _editingContent = '';
+    private _editingDate = '';
+    private _editingTime = '';
     private _loadError: string | null = null;
     private _loading = false;
     private _requestId = 0;
@@ -81,6 +85,7 @@ export class CommentsView extends HTMLElement {
     init(config: CommentsViewConfig): this {
         this._config = config;
         this._comments = [];
+        this._composerOpen = false;
         this._deletingCommentId = null;
         this._draftContent = '';
         this._draftError = null;
@@ -88,6 +93,8 @@ export class CommentsView extends HTMLElement {
         this._draftTime = currentTimeValue();
         this._editingCommentId = null;
         this._editingContent = '';
+        this._editingDate = '';
+        this._editingTime = '';
         this._loadError = null;
         this._loading = false;
         this._savingCommentId = null;
@@ -160,6 +167,12 @@ export class CommentsView extends HTMLElement {
         const shell = document.createElement('div');
         shell.className = 'comments-view-shell';
 
+        shell.appendChild(this._buildComposerToggle());
+
+        if (this._composerOpen) {
+            shell.appendChild(this._buildComposer());
+        }
+
         const list = document.createElement('div');
         list.className = 'comments-view-list';
 
@@ -184,12 +197,27 @@ export class CommentsView extends HTMLElement {
             });
         }
 
-        shell.append(list, this._buildComposer());
+        shell.appendChild(list);
         this.appendChild(shell);
 
         if (hadFocus) {
             this._focusDraft();
         }
+    }
+
+    private _buildComposerToggle(): HTMLElement {
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'comments-view-composer-toggle';
+        toggle.textContent = this._composerOpen ? 'Add Comment ▲' : 'Add Comment ▼';
+        toggle.addEventListener('click', () => {
+            this._composerOpen = !this._composerOpen;
+            this._render();
+            if (this._composerOpen) {
+                this._focusDraft();
+            }
+        });
+        return toggle;
     }
 
     private _buildCommentCard(comment: Comment): HTMLElement {
@@ -216,7 +244,7 @@ export class CommentsView extends HTMLElement {
             const item = document.createElement('button');
             item.type = 'button';
             item.className = 'comments-view-item';
-            item.textContent = comment.Item.DisplayTitle;
+            renderItemTitle(item, comment.Item, { className: 'comments-view-item-label' });
             item.addEventListener('click', () => {
                 getNavigator().openItemById(comment.Item.ItemID);
             });
@@ -234,6 +262,8 @@ export class CommentsView extends HTMLElement {
             cancel.addEventListener('click', () => {
                 this._editingCommentId = null;
                 this._editingContent = '';
+                this._editingDate = '';
+                this._editingTime = '';
                 this._savingCommentId = null;
                 this._render();
             });
@@ -255,6 +285,8 @@ export class CommentsView extends HTMLElement {
             edit.addEventListener('click', () => {
                 this._editingCommentId = comment.CommentID;
                 this._editingContent = comment.Content;
+                this._editingDate = comment.Timestamp.toISODate() ?? '';
+                this._editingTime = comment.Timestamp.toFormat('HH:mm');
                 this._render();
                 this._focusEdit(comment.CommentID);
             });
@@ -276,6 +308,26 @@ export class CommentsView extends HTMLElement {
         body.className = 'comments-view-body';
 
         if (this._editingCommentId === comment.CommentID) {
+            const timestampEdit = document.createElement('div');
+            timestampEdit.className = 'comments-view-timestamp-edit';
+
+            const dateInput = document.createElement('input');
+            dateInput.type = 'date';
+            dateInput.value = this._editingDate;
+            dateInput.addEventListener('input', () => {
+                this._editingDate = dateInput.value;
+            });
+
+            const timeInput = document.createElement('input');
+            timeInput.type = 'time';
+            timeInput.value = this._editingTime;
+            timeInput.addEventListener('input', () => {
+                this._editingTime = timeInput.value;
+            });
+
+            timestampEdit.append(dateInput, timeInput);
+            body.appendChild(timestampEdit);
+
             const editor = new ZealotScriptEditor();
             editor.className = 'comments-view-editor';
             editor.dataset.commentEditId = String(comment.CommentID);
@@ -308,10 +360,6 @@ export class CommentsView extends HTMLElement {
             event.preventDefault();
             void this._submitComment();
         });
-
-        const heading = document.createElement('h3');
-        heading.textContent = 'Add Comment';
-        composer.appendChild(heading);
 
         if (this._draftError) {
             const error = document.createElement('p');
@@ -443,6 +491,7 @@ export class CommentsView extends HTMLElement {
             this._comments = sortComments([...this._comments, created]);
             this._draftContent = '';
             this._draftError = null;
+            this._composerOpen = false;
             if (this._config.scope.kind === 'day') {
                 this._draftTime = currentTimeValue();
                 this._draftItem = null;
@@ -454,7 +503,6 @@ export class CommentsView extends HTMLElement {
         } finally {
             this._submitting = false;
             this._render();
-            this._focusDraft();
         }
     }
 
@@ -468,16 +516,24 @@ export class CommentsView extends HTMLElement {
         this._render();
 
         try {
+            const newTimestamp = this._resolveEditTimestamp(comment);
             const updated = await commentApi.UpdateEntry({
                 comment_id: comment.CommentID,
                 content,
+                ...(newTimestamp && newTimestamp.toMillis() !== comment.Timestamp.toMillis()
+                    ? { timestamp: newTimestamp }
+                    : {}),
             });
 
-            this._comments = this._comments.map((entry) =>
-                entry.CommentID === updated.CommentID ? updated : entry,
+            this._comments = sortComments(
+                this._comments.map((entry) =>
+                    entry.CommentID === updated.CommentID ? updated : entry,
+                ),
             );
             this._editingCommentId = null;
             this._editingContent = '';
+            this._editingDate = '';
+            this._editingTime = '';
         } catch (error) {
             Popups.add_error(extractMessage(error, 'Failed to save comment.'));
         } finally {
@@ -506,6 +562,8 @@ export class CommentsView extends HTMLElement {
             if (this._editingCommentId === comment.CommentID) {
                 this._editingCommentId = null;
                 this._editingContent = '';
+                this._editingDate = '';
+                this._editingTime = '';
             }
         } catch (error) {
             Popups.add_error(extractMessage(error, 'Failed to delete comment.'));
@@ -543,6 +601,16 @@ export class CommentsView extends HTMLElement {
         });
 
         return timestamp.isValid ? timestamp : null;
+    }
+
+    private _resolveEditTimestamp(comment: Comment): DateTime | null {
+        const dateStr = this._editingDate || (comment.Timestamp.toISODate() ?? '');
+        const timeMatch = /^(\d{2}):(\d{2})$/.exec(this._editingTime);
+        if (!timeMatch) {
+            return null;
+        }
+        const dt = DateTime.fromISO(`${dateStr}T${timeMatch[1]}:${timeMatch[2]}:00`);
+        return dt.isValid ? dt : null;
     }
 
     private _formatTimestamp(timestamp: DateTime): string {

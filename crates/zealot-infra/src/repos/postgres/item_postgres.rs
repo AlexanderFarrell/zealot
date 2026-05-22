@@ -139,23 +139,42 @@ impl ItemRepo for ItemPostgresRepo {
         term: &str,
         account: &Account,
     ) -> Result<Vec<ItemCore>, RepoError> {
-        let pattern = if term.trim().is_empty() {
-            String::from("%")
-        } else {
-            format!("%{}%", term)
-        };
+        let trimmed = term.trim();
         let account_id_val = i64::from(account.account_id);
         let pool = self.pool.clone();
+
+        if trimmed.is_empty() {
+            return tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async move {
+                    let rows = sqlx::query_as::<_, ItemRow>(
+                        "SELECT item_id, title, content FROM item
+                         WHERE title ILIKE '%' AND account_id = $1
+                         ORDER BY item_id DESC LIMIT 20",
+                    )
+                    .bind(account_id_val)
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
+
+                    rows.into_iter().map(row_to_item_core).collect()
+                })
+            });
+        }
+
+        let pattern = format!("%{}%", trimmed);
+        let term_owned = trimmed.to_string();
 
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
                 let rows = sqlx::query_as::<_, ItemRow>(
                     "SELECT item_id, title, content FROM item
                      WHERE title ILIKE $1 AND account_id = $2
-                     ORDER BY item_id DESC LIMIT 20",
+                     ORDER BY CASE WHEN LOWER(title) = LOWER($3) THEN 0 ELSE 1 END ASC,
+                              item_id DESC LIMIT 20",
                 )
                 .bind(&pattern)
                 .bind(account_id_val)
+                .bind(&term_owned)
                 .fetch_all(&pool)
                 .await
                 .map_err(RepoError::from)?;

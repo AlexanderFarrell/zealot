@@ -256,7 +256,7 @@ export function mountPlannerCardList(
     const refreshCardList = (): void => {
         unregisterDropZonesIn(cardListDiv);
         cardListDiv.innerHTML = '';
-        cardListDiv.appendChild(buildItemCardList(items, emptyMessage, { grouped: true, onDrop: refreshCardList }));
+        cardListDiv.appendChild(buildItemCardList(items, emptyMessage, { grouped: true, showParent: true, onDrop: refreshCardList }));
     };
 
     refreshCardList();

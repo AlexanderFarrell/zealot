@@ -14,6 +14,7 @@ import { loadAttributeKinds } from '../views/attribute_value_input';
 import type { CreateDraftState } from '../views/item_table_types';
 import { AssignTypeModal } from '../common/assign_type_modal';
 import { PasteTemplateModal } from '../common/paste_template_modal';
+import { createItemTitleIconElement } from '../views/item_title';
 
 const itemApi = new ItemAPI('/api');
 
@@ -98,9 +99,28 @@ export class ItemScreen extends BaseElementEmpty {
         const attrsSection = document.createElement('section');
         attrsSection.className = 'item-attributes';
 
+        const titleRow = document.createElement('div');
+        titleRow.className = 'item-title-row';
+        const iconEl = document.createElement('span');
+        iconEl.className = 'item-title-icon';
+        iconEl.draggable = true;
+        iconEl.addEventListener('dragstart', (event) => {
+            if (iconEl.hidden) {
+                event.preventDefault();
+                return;
+            }
+            event.dataTransfer?.setData('text/plain', String(item.ItemID));
+            if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+        });
+        const renderTitleIcon = () => {
+            const icon = createItemTitleIconElement(item, { className: 'item-screen-title-icon' });
+            iconEl.replaceChildren(...(icon ? [icon] : []));
+            iconEl.hidden = !icon;
+        };
+
         const onTypesDone = () => {
             this.renderTypes(item, typesDiv, onTypesDone);
-            this.renderAttributes(item, attrsSection);
+            this.renderAttributes(item, attrsSection, renderTitleIcon);
         };
 
         registerContextMenu(this, () => [
@@ -148,6 +168,10 @@ export class ItemScreen extends BaseElementEmpty {
         // Action buttons
         this.appendChild(this.buildActions(item, () => onTypesDone()));
 
+        // Icon + Title row
+        renderTitleIcon();
+        titleRow.appendChild(iconEl);
+
         // Title
         const title = document.createElement('h1');
         title.contentEditable = 'true';
@@ -164,12 +188,13 @@ export class ItemScreen extends BaseElementEmpty {
                 }
             });
         });
-        this.appendChild(title);
+        titleRow.appendChild(title);
+        this.appendChild(titleRow);
 
         this.appendChild(typesDiv);
         this.appendChild(attrsSection);
         this.renderTypes(item, typesDiv, onTypesDone);
-        this.renderAttributes(item, attrsSection);
+        this.renderAttributes(item, attrsSection, renderTitleIcon);
 
         // Content
         const contentSection = document.createElement('section');
@@ -395,9 +420,10 @@ export class ItemScreen extends BaseElementEmpty {
         });
     }
 
-    private renderAttributes(item: Item, container: HTMLElement): void {
+    private renderAttributes(item: Item, container: HTMLElement, onIconChange?: () => void): void {
         container.innerHTML = '';
         const editor = new AttributeEditor();
+        editor.onIconChange = onIconChange ?? null;
         container.appendChild(editor);
         editor.init(item);
     }
@@ -439,6 +465,8 @@ export class ItemScreen extends BaseElementEmpty {
                 container: related.content,
                 emptyMessage: 'No related items.',
                 errorMessage: 'Failed to load related items.',
+                grouped: true,
+                showParent: true,
                 loader: () => itemApi.GetRelated(item.ItemID),
             }),
         ]);
@@ -465,6 +493,7 @@ export class ItemScreen extends BaseElementEmpty {
         emptyMessage: string;
         errorMessage: string;
         grouped?: boolean;
+        showParent?: boolean;
         loader: () => Promise<Item[]>;
     }): Promise<void> {
         args.container.innerHTML = '';
@@ -494,7 +523,7 @@ export class ItemScreen extends BaseElementEmpty {
                 args.container.appendChild(err);
             }
 
-            args.container.appendChild(buildItemCardList(items, args.emptyMessage, { ...(args.grouped ? { grouped: true } : {}), onDrop: render }));
+            args.container.appendChild(buildItemCardList(items, args.emptyMessage, { ...(args.grouped ? { grouped: true } : {}), ...(args.showParent ? { showParent: true } : {}), onDrop: render }));
 
             if (args.createRow) {
                 args.container.appendChild(buildAddPanel(

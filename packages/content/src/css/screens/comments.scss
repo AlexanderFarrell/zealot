@@ -55,7 +55,10 @@ comments-view {
 }
 
 .comments-view-item {
+  display: inline-flex;
+  align-items: center;
   justify-self: start;
+  width: auto;
   padding: 3px 8px;
   font-size: 0.85rem;
 }

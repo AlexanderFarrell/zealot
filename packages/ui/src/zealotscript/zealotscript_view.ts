@@ -9,6 +9,7 @@ import ZealotSchema from "./schema";
 import { parseZealotScript } from "./parser";
 import { serializeZealotScript } from "./serializer";
 import { YoutubeEmbedView } from "./zealotscript_editor";
+import { setIconRefElement } from "./icon_registry";
 
 let katexLib: typeof katex | null = null;
 const loadKatex = async (): Promise<typeof katex> => {
@@ -25,6 +26,16 @@ const loadMermaid = async (): Promise<typeof MermaidType> => {
 	mermaidLib = mod.default;
 	mermaidLib.initialize({ startOnLoad: false, theme: "neutral" });
 	return mermaidLib;
+};
+
+const renderIconsInContainer = (container: HTMLElement): void => {
+	for (const el of Array.from(container.querySelectorAll<HTMLElement>("span[data-icon-ref]"))) {
+		const name = el.getAttribute("data-icon-ref") ?? "";
+		setIconRefElement(el, name, {
+			className: el.className || "zealot-icon",
+			title: el.getAttribute("title") ?? name,
+		});
+	}
 };
 
 let mermaidCounter = 0;
@@ -179,11 +190,18 @@ export class ZealotScriptView extends HTMLElement {
 			nodeViews: {
 				youtube_embed: (node) => new YoutubeEmbedView(node),
 				tabs: (node) => new TabsView(node),
+				icon_ref: (node) => {
+					const span = document.createElement("span");
+					const name = node.attrs.name as string;
+					setIconRefElement(span, name, { className: "zealot-icon", title: name });
+					return { dom: span };
+				},
 			},
 			dispatchTransaction: (tr) => {
 				if (!this._view) return;
 				this._view.updateState(this._view.state.apply(tr));
 				if (tr.docChanged) {
+					renderIconsInContainer(container);
 					renderMathInContainer(container);
 					renderMermaidInContainer(container);
 				}
@@ -262,6 +280,7 @@ export class ZealotScriptView extends HTMLElement {
 			},
 		});
 
+		renderIconsInContainer(container);
 		renderMathInContainer(container);
 		renderMermaidInContainer(container);
 	}

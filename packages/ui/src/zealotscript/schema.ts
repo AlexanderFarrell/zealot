@@ -214,6 +214,23 @@ const mathBlockSpec: NodeSpec = {
 	}
 };
 
+const iconRefSpec: NodeSpec = {
+	group: "inline",
+	inline: true,
+	atom: true,
+	attrs: { name: { default: "" } },
+	parseDOM: [
+		{
+			tag: "span[data-icon-ref]",
+			getAttrs: (e) => ({ name: (e as HTMLElement).getAttribute("data-icon-ref") ?? "" })
+		}
+	],
+	toDOM(node) {
+		const name = node.attrs.name as string;
+		return ["span", { "data-icon-ref": name, class: "zealot-icon", title: name }, `:${name}:`];
+	}
+};
+
 const dateRefSpec: NodeSpec = {
 	group: "inline",
 	inline: true,
@@ -368,6 +385,7 @@ const nodes = addListNodes(
 	youtube_embed: youtubeEmbedSpec,
 	math_inline: mathInlineSpec,
 	math_block: mathBlockSpec,
+	icon_ref: iconRefSpec,
 	date_ref: dateRefSpec,
 	details: detailsSpec,
 	spoiler: spoilerSpec,

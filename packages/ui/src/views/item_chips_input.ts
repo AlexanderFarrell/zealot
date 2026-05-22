@@ -3,11 +3,13 @@ import type { Item } from '@zealot/domain/src/item';
 import { icons } from '@zealot/content';
 import { ItemSearchInline } from './item_search_inline';
 import { getCachedItem } from './item_id_cache';
+import { createItemTitleElement } from './item_title';
 import './chips-input.scss';
 
 interface ItemChip {
     id: number;
-    displayTitle: string;
+    Title: string;
+    RawIcon: string;
 }
 
 /**
@@ -45,7 +47,7 @@ export class ItemChipsInput extends HTMLElement {
         const gen = this._resolutionGen;
 
         // Immediately render placeholders
-        this._items = ids.map(id => ({ id, displayTitle: `#${id}` }));
+        this._items = ids.map((id) => ({ id, Title: `#${id}`, RawIcon: '' }));
         this._refreshChips();
 
         // Resolve display titles asynchronously, deduplicating via the shared cache.
@@ -54,7 +56,8 @@ export class ItemChipsInput extends HTMLElement {
                 if (gen !== this._resolutionGen) return;
                 const chip = this._items[index];
                 if (!chip) return;
-                chip.displayTitle = item.DisplayTitle;
+                chip.Title = item.Title;
+                chip.RawIcon = item.RawIcon;
                 this._refreshChips();
             }).catch(() => {
                 // Keep placeholder on failure
@@ -88,7 +91,7 @@ export class ItemChipsInput extends HTMLElement {
             return items.filter((item) => !selectedIds.has(item.ItemID));
         };
         search.OnSelect = (item) => {
-            this._items.push({ id: item.ItemID, displayTitle: item.DisplayTitle });
+            this._items.push({ id: item.ItemID, Title: item.Title, RawIcon: item.RawIcon });
             this._refreshChips();
             search.clear();
             this.OnChange?.(this.value);
@@ -110,8 +113,8 @@ export class ItemChipsInput extends HTMLElement {
             chip.className = 'chip_item';
 
             const label = document.createElement('span');
-            label.textContent = item.displayTitle;
             label.style.cursor = 'pointer';
+            label.replaceChildren(createItemTitleElement(item));
             label.addEventListener('click', () => {
                 if (this.OnClickItem) {
                     this.OnClickItem(item.id);

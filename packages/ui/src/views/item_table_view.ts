@@ -14,6 +14,7 @@ import {
     createAttributeValueInput,
 } from './attribute_value_input';
 import { isBlankAttributeValue } from './attribute_value_input';
+import { createItemTitleElement } from './item_title';
 
 export type { ItemTableColumn, ItemTableCreateRowConfig, ItemTableViewConfig } from './item_table_types';
 import type { CreateDraftState, SortDirection } from './item_table_types';
@@ -220,7 +221,7 @@ export class ItemTableView extends HTMLElement {
 
     private _buildItemCell(item: Item, column: ItemTableColumn): HTMLElement {
         if (column.kind === 'title') {
-            if (column.editable === false) return this._readOnlyCell(item.DisplayTitle);
+            if (column.editable === false) return createItemTitleElement(item, { className: 'item-table-title' });
 
             const input = document.createElement('input');
             input.type = 'text';

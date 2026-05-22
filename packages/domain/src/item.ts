@@ -31,6 +31,10 @@ export class Item {
         }) || [];
     }
 
+    public get RawIcon(): string {
+        return (this.Attributes['Icon'] as string | undefined) ?? '';
+    }
+
     public get DisplayTitle(): string {
         let title = '';
         if ('Icon' in this.Attributes) {

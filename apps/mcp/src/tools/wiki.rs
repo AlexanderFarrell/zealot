@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use rmcp::{
     model::{CallToolResult, Content},
     ErrorData as McpError,
@@ -48,7 +50,7 @@ pub struct CreateItemParams {
     /// Content body (ZealotScript / markdown)
     pub content: String,
     /// Optional attributes as a JSON object (e.g. {"priority": "high", "due": "2025-06-01"})
-    pub attributes: Option<serde_json::Value>,
+    pub attributes: Option<HashMap<String, serde_json::Value>>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -66,7 +68,7 @@ pub struct SetAttributesParams {
     /// Numeric item ID
     pub id: i64,
     /// JSON object of attribute key→value pairs to set
-    pub attributes: serde_json::Value,
+    pub attributes: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -198,7 +200,7 @@ impl ZealotServer {
         let body = json!({
             "title": p.title,
             "content": p.content,
-            "attributes": p.attributes.unwrap_or(json!({})),
+            "attributes": p.attributes.unwrap_or_default(),
         });
         let item: serde_json::Value = self.client.post("/item", &body).await.map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text(pretty(item))]))
@@ -209,7 +211,11 @@ impl ZealotServer {
         &self,
         Parameters(p): Parameters<UpdateItemParams>,
     ) -> Result<CallToolResult, McpError> {
-        let body = json!({ "item_id": p.id, "title": p.title, "content": p.content });
+        let mut body = serde_json::Map::new();
+        body.insert("item_id".into(), json!(p.id));
+        if let Some(t) = p.title { body.insert("title".into(), json!(t)); }
+        if let Some(c) = p.content { body.insert("content".into(), json!(c)); }
+        let body = serde_json::Value::Object(body);
         let item: serde_json::Value = self
             .client
             .patch(&format!("/item/{}", p.id), &body)
