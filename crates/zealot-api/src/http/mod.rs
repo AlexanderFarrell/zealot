@@ -13,7 +13,7 @@ mod repeat;
 mod rule;
 
 use axum::Router;
-use axum::http::{HeaderName, HeaderValue};
+use axum::http::{HeaderName, HeaderValue, Method};
 use tower_http::cors::CorsLayer;
 use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
 use tracing::Level;
@@ -34,7 +34,7 @@ pub async fn run_http(state: AppState, config: ZealotConfig) -> Result<(), Strin
 fn build_router(state: AppState) -> Router {
     let cors = CorsLayer::new()
         .allow_origin("tauri://localhost".parse::<HeaderValue>().unwrap())
-        .allow_methods(tower_http::cors::Any)
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE, Method::OPTIONS])
         .allow_headers([
             HeaderName::from_static("content-type"),
             HeaderName::from_static("x-api-key"),
