@@ -1,10 +1,16 @@
 use axum::{Extension, Json, Router, extract::State, middleware, routing::{get, post}};
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
+use serde::Serialize;
 use time::Duration;
 use zealot_app::{app::AppState, services::auth::AuthError};
 use zealot_domain::{account::{AccountDto, LoginBasicDto, RegisterBasicDto}, auth::Actor};
 
 use crate::http::{common::HttpError, middleware::{auth_middleware, generate_csrf_token}};
+
+#[derive(Serialize)]
+struct ApiKeyResponse {
+    key: String,
+}
 
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
@@ -14,6 +20,7 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .route("/login", post(login_basic))
         .route("/logout", post(logout_basic))
         .route_layer(middleware::map_request_with_state(state.clone(), auth_middleware))
+        .route("/api_key", post(create_api_key_with_credentials))
         .with_state(state)
 }
 
@@ -93,6 +100,25 @@ async fn login_basic(
                 .max_age(Duration::days(30))
                 .build();
             Ok((jar.add(cookie).add(csrf_cookie), Json(account.into())))
+        }
+        Err(error) => match error {
+            AuthError::LoginError { err } => Err(HttpError::UserError { err }),
+            AuthError::ServerError => Err(HttpError::Internal),
+            AuthError::RegisterError { .. } => Err(HttpError::Internal),
+        },
+    }
+}
+
+async fn create_api_key_with_credentials(
+    State(state): State<AppState>,
+    Json(dto): Json<LoginBasicDto>,
+) -> Result<Json<ApiKeyResponse>, HttpError> {
+    match state.services.auth.login_account(&dto).await {
+        Ok((account, _token)) => {
+            let raw_key = state.services.account
+                .generate_api_key(&account.account_id)
+                .map_err(|_| HttpError::Internal)?;
+            Ok(Json(ApiKeyResponse { key: raw_key }))
         }
         Err(error) => match error {
             AuthError::LoginError { err } => Err(HttpError::UserError { err }),

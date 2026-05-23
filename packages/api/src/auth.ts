@@ -37,6 +37,11 @@ export class AuthAPI extends BaseAPI {
         return data.key;
     }
 
+    public async createApiKeyWithCredentials(username: string, password: string): Promise<string> {
+        const data = await post_json(`${this.baseUrl}/auth/api_key`, { username, password }) as { key: string };
+        return data.key;
+    }
+
     public async deleteApiKey(): Promise<void> {
         await delete_req(`${this.baseUrl}/account/api-key`, 'Failed to revoke API key');
     }

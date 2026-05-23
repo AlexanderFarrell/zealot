@@ -32,9 +32,7 @@ export async function initWithServerUrl(url: string): Promise<void> {
     applyApiInstance(new ZealotAPI(url), url);
 }
 
-export async function completeLogin(): Promise<void> {
-    if (!_api) throw new Error('API not initialised — call initWithServerUrl first');
-    const key = await _api.Auth.createApiKey();
+export async function completeLoginWithKey(key: string): Promise<void> {
     localStorage.setItem(KEY_API_KEY, key);
     SetApiKey(key);
 }

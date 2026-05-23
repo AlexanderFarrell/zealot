@@ -1,8 +1,8 @@
 import { Events, Popups } from '@websoil/engine';
-import { MainScreen } from '@zealot/ui/src/screens/main_screen';
 import { MobileClient } from './mobile_client';
+import { MobileLoginScreen } from './screens/mobile_login_screen';
 import { ServerSetupScreen } from './screens/server_setup_screen';
-import { tryLoadCredentials, completeLogin, logout, getAPI } from './mobile_core';
+import { tryLoadCredentials, completeLoginWithKey, logout, getAPI } from './mobile_core';
 
 window.addEventListener('unhandledrejection', (e) => {
     console.error('Unhandled promise rejection:', e.reason);
@@ -53,31 +53,16 @@ function showServerSetup(): void {
 }
 
 function showAuthPhase(): void {
-    const api = getAPI();
-
-    // Intercept to_app: after session login, generate and store the API key,
-    // then transition to the direct-app view (bypassing MainScreen.to_app).
-    const onToApp = async (): Promise<void> => {
-        Events.off('to_app', onToApp);
-        try {
-            await completeLogin();
-        } catch (e) {
-            console.error('Failed to generate API key after login:', e);
-            // Non-fatal: app still works via session for this session
-        }
-        appEl.innerHTML = '';
-        showDirectApp();
-    };
-
-    Events.on('to_app', onToApp);
-
-    appEl.appendChild(
-        new MainScreen().init({
-            AuthAPI: api.Auth,
-            // MainScreen.to_app() appends this, but we clear appEl immediately after
-            MainContentBuilder: () => document.createElement('div'),
-        }),
-    );
+    const login = new MobileLoginScreen();
+    login.init({
+        onLogin: async (username: string, password: string) => {
+            const key = await getAPI().Auth.createApiKeyWithCredentials(username, password);
+            await completeLoginWithKey(key);
+            appEl.innerHTML = '';
+            showDirectApp();
+        },
+    });
+    appEl.appendChild(login);
 }
 
 function showDirectApp(): void {
