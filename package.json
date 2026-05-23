@@ -8,6 +8,12 @@
     "scripts": {
         "dev:web": "npm run dev -w @zealot/web",
         "build:web": "npm run build -w @zealot/web",
+        "dev:mobile": "npm run dev -w @zealot/mobile",
+        "build:mobile": "npm run build -w @zealot/mobile",
+        "tauri:ios": "npm run tauri:ios -w @zealot/mobile",
+        "tauri:android": "npm run tauri:android -w @zealot/mobile",
+        "tauri:ios:build": "npm run tauri:ios:build -w @zealot/mobile",
+        "tauri:android:build": "npm run tauri:android:build -w @zealot/mobile",
         "generate:icon-catalog": "node ./scripts/generate-icon-catalog.mjs",
         "check:icon-catalog": "node ./scripts/generate-icon-catalog.mjs --check",
         "build:docker": "docker compose build",

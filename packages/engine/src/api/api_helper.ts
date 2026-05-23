@@ -4,6 +4,12 @@ const CSRF_COOKIE_NAME = "csfr_";
 let CSRF_READY_ENDPOINT = "/";
 let csrfReadyPromise: Promise<void> | null = null;
 
+let _apiKey: string | null = null;
+
+export function SetApiKey(key: string | null): void {
+    _apiKey = key;
+}
+
 export function InitCSRFEndpoint(endpoint: string) {
     CSRF_READY_ENDPOINT = endpoint;
 }
@@ -81,6 +87,12 @@ async function buildRequestInit(
     headers: Record<string, string> = {},
     body?: BodyInit,
 ): Promise<RequestInit> {
+    if (_apiKey) {
+        const finalHeaders: Record<string, string> = { ...headers, 'X-Api-Key': _apiKey };
+        const init: RequestInit = { method, headers: finalHeaders };
+        if (body !== undefined) init.body = body;
+        return init;
+    }
     if (needsCsrf(method)) {
         await ensureCsrfToken();
     }

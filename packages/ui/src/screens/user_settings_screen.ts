@@ -4,8 +4,17 @@ import { ItemAPI } from '@zealot/api/src/item';
 import { LoadingSpinner } from '../common/loading_spinner';
 import { ConfirmDialog } from '../common/confirm_dialog';
 
-const authApi = new AuthAPI('/api');
-const itemApi = new ItemAPI('/api');
+let authApi = new AuthAPI('/api');
+let itemApi = new ItemAPI('/api');
+
+export function configureUserSettingsAPIs(auth: AuthAPI, item: ItemAPI): void {
+    authApi = auth;
+    itemApi = item;
+}
+
+function isTauriEnv(): boolean {
+    return '__TAURI__' in window || '__TAURI_INTERNALS__' in window;
+}
 
 export class UserSettingsScreen extends BaseElementEmpty {
     private renderId = 0;
@@ -74,7 +83,9 @@ export class UserSettingsScreen extends BaseElementEmpty {
         `;
         shell.appendChild(infoTable);
 
-        shell.appendChild(this.renderApiKeySection());
+        if (!isTauriEnv()) {
+            shell.appendChild(this.renderApiKeySection());
+        }
         shell.appendChild(this.renderAdminSection());
 
         if (this.logoutError) {

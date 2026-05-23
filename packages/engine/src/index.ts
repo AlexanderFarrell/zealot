@@ -2,7 +2,7 @@ import * as api from './api/api_helper';
 import * as commands from './ui/commands';
 import * as hotkeys from './ui/hotkeys';
 import { Events, ItemEvents } from './logic/events';
-import { InitCSRFEndpoint, withCsrf, get_json, get_blob, get_req, post_json,
+import { InitCSRFEndpoint, withCsrf, SetApiKey, get_json, get_blob, get_req, post_json,
     post_req, patch_json, patch_req, put_req, post_req_form_data, delete_req, BasicAPI } from './api/api_helper';
 import { BaseAPIElement, BaseElementEmpty, BaseElement } from './ui/base_element';
 import { Popups } from './ui/popups';
@@ -30,6 +30,7 @@ export {
     SHIFT_KEY,
     InitCSRFEndpoint,
     withCsrf,
+    SetApiKey,
     get_blob,
     get_json,
     get_req,

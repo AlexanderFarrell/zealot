@@ -1,0 +1,9 @@
+{
+  "identifier": "default",
+  "description": "Zealot Mobile default capabilities",
+  "platforms": ["iOS", "android"],
+  "windows": ["main"],
+  "permissions": [
+    "core:default"
+  ]
+}

@@ -1,0 +1,29 @@
+{
+    "name": "@zealot/mobile",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "scripts": {
+        "dev": "vite --port 5174",
+        "build": "tsc && vite build",
+        "tauri": "tauri",
+        "tauri:ios": "tauri ios dev",
+        "tauri:android": "tauri android dev",
+        "tauri:ios:build": "tauri ios build",
+        "tauri:android:build": "tauri android build"
+    },
+    "dependencies": {
+        "@tauri-apps/api": "^2",
+        "@zealot/api": "file:../../packages/api",
+        "@zealot/content": "file:../../packages/content",
+        "@zealot/domain": "file:../../packages/domain",
+        "@zealot/ui": "file:../../packages/ui",
+        "@websoil/engine": "file:../../packages/engine",
+        "luxon": "^3.7.2"
+    },
+    "devDependencies": {
+        "@tauri-apps/cli": "^2",
+        "vite": "^7.1.7",
+        "typescript": "*"
+    }
+}
