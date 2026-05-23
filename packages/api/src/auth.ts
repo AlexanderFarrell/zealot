@@ -1,6 +1,6 @@
 import { delete_req, get_json, patch_req, post_json, post_req } from "@websoil/engine";
 import { BaseAPI } from "./common";
-import { Account, type AccountDto, type LoginBasicDto, type RegisterBasicDto } from "@zealot/domain/src/account";
+import { Account, ApiKey, type ApiKeyDto, type CreateApiKeyResponseDto, type AccountDto, type LoginBasicDto, type RegisterBasicDto } from "@zealot/domain/src/account";
 
 export class AuthAPI extends BaseAPI {
     public Account: Account | null;
@@ -32,18 +32,21 @@ export class AuthAPI extends BaseAPI {
         await patch_req(`${this.baseUrl}/account/settings`, settings, 'Failed to save settings');
     }
 
-    public async createApiKey(): Promise<string> {
-        const data = await post_json(`${this.baseUrl}/account/api-key`, {}) as { key: string };
-        return data.key;
+    public async listApiKeys(): Promise<ApiKey[]> {
+        const data = await get_json(`${this.baseUrl}/account/api-keys`) as ApiKeyDto[];
+        return data.map(dto => new ApiKey(dto));
     }
 
-    public async createApiKeyWithCredentials(username: string, password: string): Promise<string> {
-        const data = await post_json(`${this.baseUrl}/auth/api_key`, { username, password }) as { key: string };
-        return data.key;
+    public async createApiKey(label?: string): Promise<CreateApiKeyResponseDto> {
+        return await post_json(`${this.baseUrl}/account/api-keys`, { label: label ?? null }) as CreateApiKeyResponseDto;
     }
 
-    public async deleteApiKey(): Promise<void> {
-        await delete_req(`${this.baseUrl}/account/api-key`, 'Failed to revoke API key');
+    public async createApiKeyWithCredentials(username: string, password: string, label?: string): Promise<CreateApiKeyResponseDto> {
+        return await post_json(`${this.baseUrl}/auth/api_key`, { username, password, label: label ?? null }) as CreateApiKeyResponseDto;
+    }
+
+    public async deleteApiKey(id: number): Promise<void> {
+        await delete_req(`${this.baseUrl}/account/api-keys/${id}`, 'Failed to revoke API key');
     }
 }
 

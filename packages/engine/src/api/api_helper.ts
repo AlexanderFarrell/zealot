@@ -10,6 +10,13 @@ export function SetApiKey(key: string | null): void {
     _apiKey = key;
 }
 
+// Mobile sets this on window to route http/https calls through native HTTP (bypass CORS).
+function _fetch(url: string, init: RequestInit): Promise<Response> {
+    const override = (typeof window !== 'undefined') && (window as Window & { __zealotFetch?: typeof fetch }).__zealotFetch;
+if (override) return override(url, init);
+    return fetch(url, init);
+}
+
 export function InitCSRFEndpoint(endpoint: string) {
     CSRF_READY_ENDPOINT = endpoint;
 }
@@ -42,7 +49,7 @@ async function ensureCsrfToken(): Promise<void> {
     if (csrfReadyPromise) {
         return csrfReadyPromise;
     }
-    csrfReadyPromise = fetch(CSRF_READY_ENDPOINT, {
+    csrfReadyPromise = _fetch(CSRF_READY_ENDPOINT, {
         method: "GET",
         credentials: "include",
     }).then(() => undefined).finally(() => {
@@ -62,7 +69,7 @@ async function requestWithHandling<T>(
     parse: (response: Response) => Promise<T> | T,
 ): Promise<T> {
     try {
-        const response = await fetch(url, {
+        const response = await _fetch(url, {
             credentials: "include",
             ...init,
         });

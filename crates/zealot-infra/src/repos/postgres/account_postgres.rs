@@ -1,7 +1,7 @@
 use sqlx::PgPool;
 use zealot_app::repos::{account::AccountRepo, common::RepoError};
 use zealot_domain::{
-    account::{Account, CreateAccountDto},
+    account::{Account, ApiKeyRecord, CreateAccountDto},
     common::{email::Email, id::Id},
 };
 
@@ -13,7 +13,7 @@ struct AccountRow {
     given_name: String,
     surname: String,
     settings: String,
-    api_key_hash: Option<String>,
+    has_api_key: bool,
 }
 
 fn row_to_account(row: AccountRow) -> Result<Account, RepoError> {
@@ -28,7 +28,23 @@ fn row_to_account(row: AccountRow) -> Result<Account, RepoError> {
         given_name: row.given_name,
         surname: row.surname,
         settings,
-        has_api_key: row.api_key_hash.is_some(),
+        has_api_key: row.has_api_key,
+    })
+}
+
+#[derive(sqlx::FromRow)]
+struct ApiKeyRow {
+    api_key_id: i32,
+    label: String,
+    created_at: String,
+}
+
+fn row_to_api_key_record(row: ApiKeyRow) -> Result<ApiKeyRecord, RepoError> {
+    Ok(ApiKeyRecord {
+        api_key_id: Id::try_from(row.api_key_id as i64)
+            .map_err(|e| RepoError::DatabaseError { err: e.to_string() })?,
+        label: row.label,
+        created_at: row.created_at,
     })
 }
 
@@ -63,7 +79,8 @@ impl AccountRepo for AccountPostgresRepo {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
                 sqlx::query_as::<_, AccountRow>(
-                    "SELECT account_id, username, email, given_name, surname, settings::text, api_key_hash
+                    "SELECT account_id, username, email, given_name, surname, settings::text,
+                            EXISTS(SELECT 1 FROM api_key k WHERE k.account_id = account.account_id) AS has_api_key
                      FROM account WHERE account_id = $1",
                 )
                 .bind(id_val)
@@ -80,7 +97,8 @@ impl AccountRepo for AccountPostgresRepo {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
                 sqlx::query_as::<_, AccountRow>(
-                    "SELECT account_id, username, email, given_name, surname, settings::text, api_key_hash
+                    "SELECT account_id, username, email, given_name, surname, settings::text,
+                            EXISTS(SELECT 1 FROM api_key k WHERE k.account_id = account.account_id) AS has_api_key
                      FROM account WHERE username = $1",
                 )
                 .bind(username)
@@ -97,8 +115,10 @@ impl AccountRepo for AccountPostgresRepo {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
                 sqlx::query_as::<_, AccountRow>(
-                    "SELECT account_id, username, email, given_name, surname, settings::text, api_key_hash
-                     FROM account WHERE api_key_hash = $1",
+                    "SELECT a.account_id, a.username, a.email, a.given_name, a.surname, a.settings::text,
+                            true AS has_api_key
+                     FROM account a JOIN api_key k ON k.account_id = a.account_id
+                     WHERE k.key_hash = $1",
                 )
                 .bind(key_hash)
                 .fetch_optional(&self.pool)
@@ -116,7 +136,8 @@ impl AccountRepo for AccountPostgresRepo {
                 sqlx::query_as::<_, AccountRow>(
                     "INSERT INTO account (username, email, password, given_name, surname)
                      VALUES ($1, $2, $3, $4, $5)
-                     RETURNING account_id, username, email, given_name, surname, settings::text, api_key_hash",
+                     RETURNING account_id, username, email, given_name, surname, settings::text,
+                               false AS has_api_key",
                 )
                 .bind(&account.username)
                 .bind(&account.email)
@@ -145,31 +166,56 @@ impl AccountRepo for AccountPostgresRepo {
         })
     }
 
-    fn upsert_api_key(&self, account_id: &Id, key_hash: &str) -> Result<(), RepoError> {
+    fn insert_api_key(&self, account_id: &Id, key_hash: &str, label: &str) -> Result<ApiKeyRecord, RepoError> {
         let id_val = i64::from(*account_id);
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
-                sqlx::query(
-                    "UPDATE account SET api_key_hash = $1 WHERE account_id = $2",
+                sqlx::query_as::<_, ApiKeyRow>(
+                    "INSERT INTO api_key (account_id, key_hash, label)
+                     VALUES ($1, $2, $3)
+                     RETURNING api_key_id, label, created_at::text",
                 )
-                .bind(key_hash)
                 .bind(id_val)
-                .execute(&self.pool)
+                .bind(key_hash)
+                .bind(label)
+                .fetch_one(&self.pool)
                 .await
-                .map(|_| ())
                 .map_err(RepoError::from)
+                .and_then(row_to_api_key_record)
             })
         })
     }
 
-    fn delete_api_key(&self, account_id: &Id) -> Result<(), RepoError> {
+    fn list_api_keys(&self, account_id: &Id) -> Result<Vec<ApiKeyRecord>, RepoError> {
         let id_val = i64::from(*account_id);
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
-                sqlx::query(
-                    "UPDATE account SET api_key_hash = NULL WHERE account_id = $1",
+                sqlx::query_as::<_, ApiKeyRow>(
+                    "SELECT api_key_id, label, created_at::text
+                     FROM api_key WHERE account_id = $1
+                     ORDER BY created_at ASC",
                 )
                 .bind(id_val)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(RepoError::from)?
+                .into_iter()
+                .map(row_to_api_key_record)
+                .collect()
+            })
+        })
+    }
+
+    fn delete_api_key_by_id(&self, api_key_id: &Id, account_id: &Id) -> Result<(), RepoError> {
+        let key_id_val = i64::from(*api_key_id);
+        let account_id_val = i64::from(*account_id);
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                sqlx::query(
+                    "DELETE FROM api_key WHERE api_key_id = $1 AND account_id = $2",
+                )
+                .bind(key_id_val)
+                .bind(account_id_val)
                 .execute(&self.pool)
                 .await
                 .map(|_| ())

@@ -1,16 +1,11 @@
 use axum::{Extension, Json, Router, extract::State, middleware, routing::{get, post}};
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
-use serde::Serialize;
+use serde::Deserialize;
 use time::Duration;
 use zealot_app::{app::AppState, services::auth::AuthError};
-use zealot_domain::{account::{AccountDto, LoginBasicDto, RegisterBasicDto}, auth::Actor};
+use zealot_domain::{account::{AccountDto, CreateApiKeyResponseDto, LoginBasicDto, RegisterBasicDto}, auth::Actor};
 
 use crate::http::{common::HttpError, middleware::{auth_middleware, generate_csrf_token}};
-
-#[derive(Serialize)]
-struct ApiKeyResponse {
-    key: String,
-}
 
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
@@ -109,16 +104,30 @@ async fn login_basic(
     }
 }
 
+#[derive(Deserialize)]
+struct CreateApiKeyWithCredentialsDto {
+    username: String,
+    password: String,
+    label: Option<String>,
+}
+
 async fn create_api_key_with_credentials(
     State(state): State<AppState>,
-    Json(dto): Json<LoginBasicDto>,
-) -> Result<Json<ApiKeyResponse>, HttpError> {
-    match state.services.auth.login_account(&dto).await {
+    Json(dto): Json<CreateApiKeyWithCredentialsDto>,
+) -> Result<Json<CreateApiKeyResponseDto>, HttpError> {
+    let login_dto = LoginBasicDto { username: dto.username, password: dto.password };
+    match state.services.auth.login_account(&login_dto).await {
         Ok((account, _token)) => {
-            let raw_key = state.services.account
-                .generate_api_key(&account.account_id)
+            let label = dto.label.unwrap_or_else(|| "Mobile".to_string());
+            let (record, raw_key) = state.services.account
+                .generate_api_key(&account.account_id, &label)
                 .map_err(|_| HttpError::Internal)?;
-            Ok(Json(ApiKeyResponse { key: raw_key }))
+            Ok(Json(CreateApiKeyResponseDto {
+                key: raw_key,
+                api_key_id: record.api_key_id.into(),
+                label: record.label,
+                created_at: record.created_at,
+            }))
         }
         Err(error) => match error {
             AuthError::LoginError { err } => Err(HttpError::UserError { err }),

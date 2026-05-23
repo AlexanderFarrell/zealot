@@ -4,6 +4,10 @@
   "platforms": ["iOS", "android"],
   "windows": ["main"],
   "permissions": [
-    "core:default"
+    "core:default",
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://**" }, { "url": "http://**" }]
+    }
   ]
 }

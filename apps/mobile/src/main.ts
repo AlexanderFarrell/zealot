@@ -1,8 +1,48 @@
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { Events, Popups } from '@websoil/engine';
 import { MobileClient } from './mobile_client';
 import { MobileLoginScreen } from './screens/mobile_login_screen';
 import { ServerSetupScreen } from './screens/server_setup_screen';
-import { tryLoadCredentials, completeLoginWithKey, logout, getAPI } from './mobile_core';
+import { tryLoadCredentials, completeLoginWithKey, logout, getAPI, getServerUrl } from './mobile_core';
+
+// Route all API calls through Tauri's native HTTP client (reqwest), bypassing WKWebView CORS.
+//
+// UI components use relative URLs like /api/item/title/Home (hardcoded for the web app).
+// The browser resolves these to tauri://localhost/api/... — not the real server.
+// We resolve all URLs against tauri://localhost first, then rewrite tauri://localhost/api/...
+// to the actual Zealot server origin so tauriFetch reaches the right host.
+const _browserFetch = fetch;
+(window as unknown as { __zealotFetch: typeof fetch }).__zealotFetch = (input, init) => {
+    const raw = input instanceof Request ? input.url
+        : input instanceof URL ? input.href
+        : String(input);
+
+    // Resolve relative URLs so we can inspect the full URL.
+    let url: string;
+    try {
+        url = new URL(raw, 'tauri://localhost').href;
+    } catch {
+        url = raw;
+    }
+
+    // Rewrite tauri://localhost/api/... → serverOrigin/api/...
+    if (url.startsWith('tauri://localhost/api/')) {
+        const serverUrl = getServerUrl();
+        if (serverUrl) {
+            const serverOrigin = new URL(serverUrl).origin;
+            url = serverOrigin + url.slice('tauri://localhost'.length);
+        }
+    }
+
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+        // Strip browser-only fields — tauriFetch uses new Request(url, init) internally
+        // and WebKit throws SyntaxError for credentials/mode on cross-origin tauri:// requests.
+        const { credentials, mode, cache, redirect, referrer, referrerPolicy, integrity, keepalive, ...nativeInit } = init ?? {};
+        return tauriFetch(url, nativeInit) as Promise<Response>;
+    }
+
+    return _browserFetch(input, init);
+};
 
 window.addEventListener('unhandledrejection', (e) => {
     console.error('Unhandled promise rejection:', e.reason);
@@ -56,8 +96,8 @@ function showAuthPhase(): void {
     const login = new MobileLoginScreen();
     login.init({
         onLogin: async (username: string, password: string) => {
-            const key = await getAPI().Auth.createApiKeyWithCredentials(username, password);
-            await completeLoginWithKey(key);
+            const result = await getAPI().Auth.createApiKeyWithCredentials(username, password, 'Mobile');
+            await completeLoginWithKey(result.key, result.api_key_id);
             appEl.innerHTML = '';
             showDirectApp();
         },

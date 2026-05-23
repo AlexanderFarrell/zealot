@@ -16,6 +16,13 @@ pub struct Account {
     pub has_api_key: bool,
 }
 
+#[derive(Debug, Clone)]
+pub struct ApiKeyRecord {
+    pub api_key_id: Id,
+    pub label: String,
+    pub created_at: String,
+}
+
 pub struct APIKey(String);
 
 // Send DTOs
@@ -29,6 +36,21 @@ pub struct AccountDto {
     pub surname: String,
     pub settings: serde_json::Value,
     pub has_api_key: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApiKeyRecordDto {
+    pub api_key_id: i64,
+    pub label: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateApiKeyResponseDto {
+    pub key: String,
+    pub api_key_id: i64,
+    pub label: String,
+    pub created_at: String,
 }
 
 // Receive DTOs
@@ -119,6 +141,16 @@ impl From<Account> for AccountDto {
             surname: value.surname.clone(),
             settings: value.settings,
             has_api_key: value.has_api_key,
+        }
+    }
+}
+
+impl From<ApiKeyRecord> for ApiKeyRecordDto {
+    fn from(r: ApiKeyRecord) -> Self {
+        Self {
+            api_key_id: r.api_key_id.into(),
+            label: r.label,
+            created_at: r.created_at,
         }
     }
 }

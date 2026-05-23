@@ -56,6 +56,7 @@ mobile-title-bar {
     align-items: center;
     gap: 4px;
     padding: 4px 8px;
+    padding-top: calc(env(safe-area-inset-top) + 4px);
 
     button {
       width: auto;
@@ -69,6 +70,12 @@ mobile-title-bar {
       }
     }
   }
+}
+
+#main_mobile_ui {
+  padding-top: calc(env(safe-area-inset-top) + 48px);
+  min-height: 100vh;
+  box-sizing: border-box;
 }
 
 .mobile-dropdown {

@@ -1,3 +1,4 @@
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { BaseElement } from '@websoil/engine';
 import { initWithServerUrl } from '../mobile_core';
 
@@ -54,7 +55,7 @@ export class ServerSetupScreen extends BaseElement<ServerSetupData> {
         submitBtn.textContent = 'Connecting…';
 
         try {
-            const resp = await fetch(`${rawUrl}/auth/is_logged_in`, { method: 'GET' });
+            const resp = await tauriFetch(`${rawUrl}/auth/is_logged_in`, { method: 'GET' });
             // 200 (logged in) or 401 (not logged in) both confirm the server is reachable
             if (!resp.ok && resp.status !== 401) {
                 throw new Error(`Server responded with status ${resp.status}`);

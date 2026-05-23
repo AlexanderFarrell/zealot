@@ -1,6 +1,7 @@
 import { BaseElementEmpty, Events } from '@websoil/engine';
 import { AuthAPI } from '@zealot/api/src/auth';
 import { ItemAPI } from '@zealot/api/src/item';
+import { ApiKey } from '@zealot/domain/src/account';
 import { LoadingSpinner } from '../common/loading_spinner';
 import { ConfirmDialog } from '../common/confirm_dialog';
 
@@ -21,7 +22,9 @@ export class UserSettingsScreen extends BaseElementEmpty {
     private logoutError: string | null = null;
     private loggingOut = false;
 
-    private hasApiKey: boolean | null = null;
+    private apiKeys: ApiKey[] = [];
+    private apiKeysLoaded = false;
+    private newKeyLabel = '';
     private generatedKey: string | null = null;
     private apiKeyBusy = false;
     private apiKeyError: string | null = null;
@@ -67,8 +70,17 @@ export class UserSettingsScreen extends BaseElementEmpty {
 
         const account = authApi.Account;
 
-        if (this.hasApiKey === null) {
-            this.hasApiKey = account.HasApiKey;
+        if (!this.apiKeysLoaded) {
+            try {
+                this.apiKeys = await authApi.listApiKeys();
+            } catch {
+                // non-fatal — show empty list
+            }
+            this.apiKeysLoaded = true;
+        }
+
+        if (renderId !== this.renderId) {
+            return;
         }
 
         const infoTable = document.createElement('table');
@@ -110,7 +122,7 @@ export class UserSettingsScreen extends BaseElementEmpty {
         section.className = 'api-key-section';
 
         const sectionHeading = document.createElement('h3');
-        sectionHeading.textContent = 'API Key';
+        sectionHeading.textContent = 'API Keys';
         section.appendChild(sectionHeading);
 
         if (this.generatedKey !== null) {
@@ -152,34 +164,67 @@ export class UserSettingsScreen extends BaseElementEmpty {
             section.appendChild(error);
         }
 
-        if (this.hasApiKey) {
-            const status = document.createElement('p');
-            status.className = 'tool-muted';
-            status.textContent = this.generatedKey
-                ? 'A new API key has been generated above.'
-                : 'An API key is currently active.';
-            section.appendChild(status);
+        if (this.apiKeys.length > 0) {
+            const table = document.createElement('table');
+            table.className = 'api-keys-table';
 
-            const revokeButton = document.createElement('button');
-            revokeButton.type = 'button';
-            revokeButton.className = 'button-danger';
-            revokeButton.textContent = this.apiKeyBusy ? 'Revoking…' : 'Revoke Key';
-            revokeButton.disabled = this.apiKeyBusy;
-            revokeButton.addEventListener('click', () => { void this.revokeKey(); });
-            section.appendChild(revokeButton);
+            const thead = document.createElement('thead');
+            thead.innerHTML = '<tr><th>Label</th><th>Created</th><th></th></tr>';
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            for (const key of this.apiKeys) {
+                const row = document.createElement('tr');
+
+                const labelCell = document.createElement('td');
+                labelCell.textContent = key.Label;
+                row.appendChild(labelCell);
+
+                const dateCell = document.createElement('td');
+                dateCell.className = 'tool-muted';
+                dateCell.textContent = formatDate(key.CreatedAt);
+                row.appendChild(dateCell);
+
+                const actionCell = document.createElement('td');
+                const revokeBtn = document.createElement('button');
+                revokeBtn.type = 'button';
+                revokeBtn.className = 'button-danger button-small';
+                revokeBtn.textContent = 'Revoke';
+                revokeBtn.disabled = this.apiKeyBusy;
+                revokeBtn.addEventListener('click', () => { void this.revokeKey(key); });
+                actionCell.appendChild(revokeBtn);
+                row.appendChild(actionCell);
+
+                tbody.appendChild(row);
+            }
+            table.appendChild(tbody);
+            section.appendChild(table);
         } else {
             const status = document.createElement('p');
             status.className = 'tool-muted';
-            status.textContent = 'No API key configured.';
+            status.textContent = 'No API keys configured.';
             section.appendChild(status);
-
-            const generateButton = document.createElement('button');
-            generateButton.type = 'button';
-            generateButton.textContent = this.apiKeyBusy ? 'Generating…' : 'Generate Key';
-            generateButton.disabled = this.apiKeyBusy;
-            generateButton.addEventListener('click', () => { void this.generateKey(); });
-            section.appendChild(generateButton);
         }
+
+        const form = document.createElement('div');
+        form.className = 'api-key-form';
+
+        const labelInput = document.createElement('input');
+        labelInput.type = 'text';
+        labelInput.placeholder = 'Label (e.g. MCP Server)';
+        labelInput.value = this.newKeyLabel;
+        labelInput.className = 'api-key-label-input';
+        labelInput.addEventListener('input', () => { this.newKeyLabel = labelInput.value; });
+        form.appendChild(labelInput);
+
+        const generateButton = document.createElement('button');
+        generateButton.type = 'button';
+        generateButton.textContent = this.apiKeyBusy ? 'Generating…' : 'Generate Key';
+        generateButton.disabled = this.apiKeyBusy;
+        generateButton.addEventListener('click', () => { void this.generateKey(labelInput.value); });
+        form.appendChild(generateButton);
+
+        section.appendChild(form);
 
         return section;
     }
@@ -240,15 +285,18 @@ export class UserSettingsScreen extends BaseElementEmpty {
         void this.render();
     }
 
-    private async generateKey(): Promise<void> {
+    private async generateKey(labelValue: string): Promise<void> {
         if (this.apiKeyBusy) return;
         this.apiKeyBusy = true;
         this.apiKeyError = null;
         void this.render();
 
         try {
-            this.generatedKey = await authApi.createApiKey();
-            this.hasApiKey = true;
+            const label = labelValue.trim() || 'Default';
+            const result = await authApi.createApiKey(label);
+            this.generatedKey = result.key;
+            this.newKeyLabel = '';
+            this.apiKeys = await authApi.listApiKeys();
         } catch (error) {
             this.apiKeyError = error instanceof Error && error.message
                 ? error.message
@@ -259,19 +307,21 @@ export class UserSettingsScreen extends BaseElementEmpty {
         void this.render();
     }
 
-    private async revokeKey(): Promise<void> {
+    private async revokeKey(key: ApiKey): Promise<void> {
         if (this.apiKeyBusy) return;
-        const confirmed = await ConfirmDialog.show('Revoke your API key? Any integrations using it will stop working.');
+        const confirmed = await ConfirmDialog.show(`Revoke key "${key.Label}"? Integrations using it will stop working.`);
         if (!confirmed) return;
 
         this.apiKeyBusy = true;
         this.apiKeyError = null;
+        if (this.generatedKey !== null) {
+            this.generatedKey = null;
+        }
         void this.render();
 
         try {
-            await authApi.deleteApiKey();
-            this.hasApiKey = false;
-            this.generatedKey = null;
+            await authApi.deleteApiKey(key.ApiKeyId);
+            this.apiKeys = this.apiKeys.filter(k => k.ApiKeyId !== key.ApiKeyId);
         } catch (error) {
             this.apiKeyError = error instanceof Error && error.message
                 ? error.message
@@ -309,6 +359,14 @@ function escapeHtml(text: string): string {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+}
+
+function formatDate(iso: string): string {
+    try {
+        return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch {
+        return iso;
+    }
 }
 
 if (!customElements.get('user-settings-screen')) {

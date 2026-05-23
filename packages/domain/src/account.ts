@@ -1,4 +1,27 @@
+export interface ApiKeyDto {
+    api_key_id: number;
+    label: string;
+    created_at: string;
+}
 
+export class ApiKey {
+    public readonly ApiKeyId: number;
+    public readonly Label: string;
+    public readonly CreatedAt: string;
+
+    public constructor(dto: ApiKeyDto) {
+        this.ApiKeyId = dto.api_key_id;
+        this.Label = dto.label;
+        this.CreatedAt = dto.created_at;
+    }
+}
+
+export interface CreateApiKeyResponseDto {
+    key: string;
+    api_key_id: number;
+    label: string;
+    created_at: string;
+}
 
 export class Account {
     public readonly AccountID: number;
