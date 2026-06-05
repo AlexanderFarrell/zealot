@@ -7,6 +7,7 @@
 - [Overview](./overview.md) — What Zealot is, core use cases, and how it compares to adjacent tools
 - [Quickstart](./quickstart.md) — Install Zealot, create your first workspace, and use it for real planning
 - [Deployment and Operations](./deployment.md) — Run Zealot on a server: configuration, TLS, backups, security, and upgrades
+- [Troubleshooting and Recovery](./troubleshooting.md) — Diagnose startup, login, migration, and database problems; restore from backup; data-loss decision tree
 - [Building & Running](./building.md) — Build the backend, web app, mobile apps, and Docker stack
 - [Migrations](./migrations.md) — Database schema migration system
 
