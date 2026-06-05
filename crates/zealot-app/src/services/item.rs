@@ -123,11 +123,13 @@ impl ItemService {
     pub fn search_items_by_title(
         &self,
         term: &str,
+        limit: i64,
+        offset: i64,
         account: &Account,
     ) -> Result<Vec<Item>, ItemServiceError> {
         let items = self
             .item_repo
-            .search_items_by_title(term, account)
+            .search_items_by_title(term, limit, offset, account)
             .map_err(ItemServiceError::Repo)?;
         self.hydrate_items(items, &account.account_id)
     }

@@ -9,12 +9,10 @@ use zealot_domain::{
 use crate::repos::common::RepoError;
 
 pub trait ItemRepo: Debug + Send + Sync {
-    // Getters TODO: Add paging
-
     fn get_item_by_id(&self, item_id: &Id, account: &Account) -> Result<Option<ItemCore>, RepoError>;
     fn get_items_by_ids(&self, item_ids: &Vec<Id>, account: &Account) -> Result<Vec<ItemCore>, RepoError>;
     fn get_items_by_title(&self, title: &str, account: &Account) -> Result<Vec<ItemCore>, RepoError>;
-    fn search_items_by_title(&self, term: &str, account: &Account) -> Result<Vec<ItemCore>, RepoError>;
+    fn search_items_by_title(&self, term: &str, limit: i64, offset: i64, account: &Account) -> Result<Vec<ItemCore>, RepoError>;
     fn regex_items_by_title(&self, term: &str, account: &Account) -> Result<Vec<ItemCore>, RepoError>;
     fn get_recent_items(&self, limit: i64, offset: i64, account: &Account) -> Result<Vec<ItemCore>, RepoError>;
     fn get_all_item_ids_for_user(&self, account_id: &Id) -> Result<Vec<Id>, RepoError>;

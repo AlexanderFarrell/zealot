@@ -84,11 +84,19 @@ struct RootItemsParams {
     item_type: Option<String>,
 }
 
+const MAX_SEARCH_LIMIT: i64 = 100;
+
 #[derive(Deserialize)]
 struct SearchParams {
     #[serde(default)]
     term: String,
+    #[serde(default = "default_search_limit")]
+    limit: i64,
+    #[serde(default)]
+    offset: i64,
 }
+
+fn default_search_limit() -> i64 { 20 }
 
 #[derive(Deserialize)]
 struct RecentParams {
@@ -180,10 +188,11 @@ async fn search_items(
     Query(params): Query<SearchParams>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
     let account = require_account(&actor)?;
+    let limit = params.limit.clamp(1, MAX_SEARCH_LIMIT);
     let items = state
         .services
         .item
-        .search_items_by_title(&params.term, &account)
+        .search_items_by_title(&params.term, limit, params.offset, &account)
         .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }

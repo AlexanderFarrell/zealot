@@ -174,6 +174,54 @@ async fn search_items_url_encodes_spaces() {
     server
         .search_items(Parameters(SearchItemsParams {
             term: "hello world".to_string(),
+            limit: None,
+            offset: None,
+        }))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn search_items_passes_limit_and_offset() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("GET"))
+        .and(path("/item/search"))
+        .and(query_param("term", "test"))
+        .and(query_param("limit", "5"))
+        .and(query_param("offset", "10"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    server
+        .search_items(Parameters(SearchItemsParams {
+            term: "test".to_string(),
+            limit: Some(5),
+            offset: Some(10),
+        }))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn search_items_default_limit_and_offset() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("GET"))
+        .and(path("/item/search"))
+        .and(query_param("term", "foo"))
+        .and(query_param("limit", "20"))
+        .and(query_param("offset", "0"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    server
+        .search_items(Parameters(SearchItemsParams {
+            term: "foo".to_string(),
+            limit: None,
+            offset: None,
         }))
         .await
         .unwrap();

@@ -110,7 +110,7 @@ mod tests {
             Ok(found)
         }
         fn get_items_by_title(&self, _title: &str, _account: &Account) -> Result<Vec<ItemCore>, RepoError> { Ok(vec![]) }
-        fn search_items_by_title(&self, _term: &str, _account: &Account) -> Result<Vec<ItemCore>, RepoError> { Ok(vec![]) }
+        fn search_items_by_title(&self, _term: &str, _limit: i64, _offset: i64, _account: &Account) -> Result<Vec<ItemCore>, RepoError> { Ok(vec![]) }
         fn regex_items_by_title(&self, _term: &str, _account: &Account) -> Result<Vec<ItemCore>, RepoError> { Ok(vec![]) }
         fn get_recent_items(&self, _limit: i64, _offset: i64, _account: &Account) -> Result<Vec<ItemCore>, RepoError> { Ok(vec![]) }
         fn get_all_item_ids_for_user(&self, _account_id: &Id) -> Result<Vec<Id>, RepoError> { Ok(vec![]) }

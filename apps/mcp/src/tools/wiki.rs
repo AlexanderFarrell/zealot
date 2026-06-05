@@ -35,6 +35,10 @@ pub struct RecentItemsParams {
 pub struct SearchItemsParams {
     /// Search term to match against item titles
     pub term: String,
+    /// Maximum number of results to return (default 20, max 100)
+    pub limit: Option<i64>,
+    /// Offset for pagination (default 0)
+    pub offset: Option<i64>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -121,15 +125,17 @@ impl ZealotServer {
         Ok(CallToolResult::success(vec![Content::text(pretty(items))]))
     }
 
-    #[rmcp::tool(description = "Search items by title keyword. Returns matching items sorted by relevance.")]
+    #[rmcp::tool(description = "Search items by title keyword. Returns matching items sorted by relevance. Supports pagination via `limit` (default 20, max 100) and `offset`.")]
     pub async fn search_items(
         &self,
         Parameters(p): Parameters<SearchItemsParams>,
     ) -> Result<CallToolResult, McpError> {
+        let limit = p.limit.unwrap_or(20);
+        let offset = p.offset.unwrap_or(0);
         let items: serde_json::Value = self
             .client
             .get(&format!(
-                "/item/search?term={}",
+                "/item/search?term={}&limit={limit}&offset={offset}",
                 urlencoding::encode(&p.term)
             ))
             .await

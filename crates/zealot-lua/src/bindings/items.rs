@@ -100,7 +100,7 @@ pub fn register(
                     let account = make_account(acct_id)?;
                     let items = svc
                         .item
-                        .search_items_by_title(&term, &account)
+                        .search_items_by_title(&term, 20, 0, &account)
                         .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
                     items_vec_to_lua(&lua, &items)
                 }

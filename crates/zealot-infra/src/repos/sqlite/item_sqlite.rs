@@ -124,7 +124,7 @@ impl ItemRepo for ItemSqliteRepo {
         })
     }
 
-    fn search_items_by_title(&self, term: &str, account: &Account) -> Result<Vec<ItemCore>, RepoError> {
+    fn search_items_by_title(&self, term: &str, limit: i64, offset: i64, account: &Account) -> Result<Vec<ItemCore>, RepoError> {
         let trimmed = term.trim();
         let account_id_val = i64::from(account.account_id);
         let pool = self.pool.clone();
@@ -135,9 +135,11 @@ impl ItemRepo for ItemSqliteRepo {
                     let rows = sqlx::query_as::<_, ItemRow>(
                         "SELECT item_id, title, content FROM item
                          WHERE title LIKE '%' AND account_id = ?
-                         ORDER BY item_id DESC LIMIT 20",
+                         ORDER BY item_id DESC LIMIT ? OFFSET ?",
                     )
                     .bind(account_id_val)
+                    .bind(limit)
+                    .bind(offset)
                     .fetch_all(&pool)
                     .await
                     .map_err(RepoError::from)?;
@@ -156,11 +158,13 @@ impl ItemRepo for ItemSqliteRepo {
                     "SELECT item_id, title, content FROM item
                      WHERE title LIKE ? AND account_id = ?
                      ORDER BY CASE WHEN LOWER(title) = LOWER(?) THEN 0 ELSE 1 END ASC,
-                              item_id DESC LIMIT 20",
+                              item_id DESC LIMIT ? OFFSET ?",
                 )
                 .bind(&pattern)
                 .bind(account_id_val)
                 .bind(&term_owned)
+                .bind(limit)
+                .bind(offset)
                 .fetch_all(&pool)
                 .await
                 .map_err(RepoError::from)?;
@@ -171,7 +175,7 @@ impl ItemRepo for ItemSqliteRepo {
     }
 
     fn regex_items_by_title(&self, term: &str, account: &Account) -> Result<Vec<ItemCore>, RepoError> {
-        self.search_items_by_title(term, account)
+        self.search_items_by_title(term, 20, 0, account)
     }
 
     fn get_recent_items(&self, limit: i64, offset: i64, account: &Account) -> Result<Vec<ItemCore>, RepoError> {
