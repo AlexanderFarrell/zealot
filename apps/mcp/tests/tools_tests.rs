@@ -15,7 +15,7 @@ use zealot_mcp::tools::automation::{
 };
 use zealot_mcp::tools::media::{CreateFolderParams, DeleteMediaParams, MediaPathParam};
 use zealot_mcp::tools::planner::{
-    AddCommentParams, CommentIdParam, DateParam, ItemIdParam as PlannerItemIdParam,
+    AddCommentParams, CommentIdParam, DateParam, DateRangeParam, ItemIdParam as PlannerItemIdParam,
     MonthYearParam, UpdateCommentParams, UpdateRepeatParams, WeekParam,
 };
 use zealot_mcp::tools::wiki::{
@@ -558,6 +558,89 @@ async fn update_repeat_status_puts_correct_path() {
         }))
         .await
         .unwrap();
+}
+
+// ── Planner: get_repeat_items ─────────────────────────────────────────────────
+
+#[tokio::test]
+async fn list_repeat_items_correct_path() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("GET"))
+        .and(path("/repeat/items"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    server.get_repeat_items().await.unwrap();
+}
+
+// ── Planner: get_repeat_entries_for_range ─────────────────────────────────────
+
+#[tokio::test]
+async fn get_repeat_entries_for_range_week() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("GET"))
+        .and(path("/repeat/range"))
+        .and(query_param("start", "2026-06-02"))
+        .and(query_param("end", "2026-06-08"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    server
+        .get_repeat_entries_for_range(Parameters(DateRangeParam {
+            start_date: "2026-06-02".to_string(),
+            end_date: "2026-06-08".to_string(),
+        }))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn get_repeat_entries_for_range_month() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("GET"))
+        .and(path("/repeat/range"))
+        .and(query_param("start", "2026-06-01"))
+        .and(query_param("end", "2026-06-30"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    server
+        .get_repeat_entries_for_range(Parameters(DateRangeParam {
+            start_date: "2026-06-01".to_string(),
+            end_date: "2026-06-30".to_string(),
+        }))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn get_repeat_entries_for_range_mcp_passthrough() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("GET"))
+        .and(path("/repeat/range"))
+        .and(query_param("start", "2026-06-01"))
+        .and(query_param("end", "2026-06-07"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!([{"status": "Complete"}])),
+        )
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    let result = server
+        .get_repeat_entries_for_range(Parameters(DateRangeParam {
+            start_date: "2026-06-01".to_string(),
+            end_date: "2026-06-07".to_string(),
+        }))
+        .await
+        .unwrap();
+    assert!(text_of(result).contains("Complete"));
 }
 
 // ── Planner: comments ─────────────────────────────────────────────────────────

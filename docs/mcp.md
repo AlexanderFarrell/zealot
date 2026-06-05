@@ -173,7 +173,9 @@ These tools cover the core Zealot data model. Every piece of information in Zeal
 
 | Tool | Parameters | What it does |
 |---|---|---|
+| `get_repeat_items` | — | List all items enrolled in the repeat tracker |
 | `get_repeat_entries` | `date` (`YYYY-MM-DD`) | Get habit/repeat entries with completion status for a day |
+| `get_repeat_entries_for_range` | `start_date`, `end_date` (`YYYY-MM-DD`) | Get habit entries for a date range (inclusive) |
 | `update_repeat_status` | `item_id`, `date`, `status?`, `comment?` | Update habit completion; status is one of `Complete`, `Skip`, `Alternate`, `NotComplete` |
 
 ### Media

@@ -32,6 +32,21 @@ struct RepeatEntryRow {
     comment: Option<String>,
 }
 
+#[derive(sqlx::FromRow)]
+struct RepeatItemScheduleRow {
+    item_id: i32,
+    schedule: String,
+    end_date: Option<NaiveDate>,
+}
+
+#[derive(sqlx::FromRow)]
+struct RepeatEntryWithDateRow {
+    item_id: i32,
+    date: NaiveDate,
+    status: String,
+    comment: Option<String>,
+}
+
 impl RepeatRepo for RepeatPostgresRepo {
     fn get_for_day(
         &self,
@@ -124,6 +139,116 @@ impl RepeatRepo for RepeatPostgresRepo {
                         Ok(RepeatEntryCore { item_id, status, date: day, comment })
                     })
                     .collect()
+            })
+        })
+    }
+
+    fn get_for_range(
+        &self,
+        start: &NaiveDate,
+        end: &NaiveDate,
+        account: &Account,
+    ) -> Result<Vec<RepeatEntryCore>, RepoError> {
+        let start = *start;
+        let end = *end;
+        let account_id_val = i64::from(account.account_id);
+        let pool = self.pool.clone();
+
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                // Query 1: all active Repeat items with schedule string and optional end date.
+                // Excludes items whose End Date is before the start of the range.
+                let item_rows = sqlx::query_as::<_, RepeatItemScheduleRow>(
+                    "SELECT DISTINCT i.item_id, sched.value_text AS schedule,
+                            ed.value_date::date AS end_date
+                     FROM item i
+                     JOIN item_item_type_link lnk ON lnk.item_id = i.item_id
+                     JOIN item_type it ON it.type_id = lnk.type_id
+                     JOIN attribute sched ON sched.item_id = i.item_id
+                         AND sched.key = 'Schedule'
+                     LEFT JOIN attribute ed ON ed.item_id = i.item_id
+                         AND ed.key = 'End Date'
+                     WHERE i.account_id = $1
+                       AND it.name = 'Repeat'
+                       AND (ed.value_date IS NULL OR ed.value_date::date >= $2)",
+                )
+                .bind(account_id_val)
+                .bind(start)
+                .fetch_all(&pool)
+                .await
+                .map_err(RepoError::from)?;
+
+                if item_rows.is_empty() {
+                    return Ok(Vec::new());
+                }
+
+                let item_ids: Vec<i32> = item_rows.iter().map(|r| r.item_id).collect();
+
+                // Query 2: all repeat_entry rows in the date range for those items.
+                let placeholders = (1..=item_ids.len())
+                    .map(|i| format!("${}", i + 3))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let entry_sql = format!(
+                    "SELECT re.item_id, re.date, re.status::text, re.comment
+                     FROM repeat_entry re
+                     JOIN item i ON i.item_id = re.item_id
+                     WHERE re.date BETWEEN $1 AND $2
+                       AND i.account_id = $3
+                       AND re.item_id IN ({placeholders})"
+                );
+                let mut entry_query = sqlx::query_as::<_, RepeatEntryWithDateRow>(&entry_sql)
+                    .bind(start)
+                    .bind(end)
+                    .bind(account_id_val);
+                for id in &item_ids {
+                    entry_query = entry_query.bind(*id);
+                }
+                let entry_rows = entry_query.fetch_all(&pool).await.map_err(RepoError::from)?;
+
+                let mut entry_map: HashMap<(i64, NaiveDate), RepeatEntryWithDateRow> =
+                    entry_rows.into_iter().map(|r| ((r.item_id as i64, r.date), r)).collect();
+
+                // Loop over each day in [start, end] and produce one core per scheduled item.
+                let mut result: Vec<RepeatEntryCore> = Vec::new();
+                let mut current = start;
+                loop {
+                    let weekday_pos =
+                        current.weekday().number_from_sunday() as usize; // 1=Sun..7=Sat
+                    for item in &item_rows {
+                        let scheduled = item
+                            .schedule
+                            .as_bytes()
+                            .get(weekday_pos - 1)
+                            .map(|&b| b == b'1')
+                            .unwrap_or(false);
+                        if !scheduled {
+                            continue;
+                        }
+                        if let Some(end_date) = item.end_date {
+                            if end_date < current {
+                                continue;
+                            }
+                        }
+                        let item_id = Id::try_from(item.item_id as i64)
+                            .map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
+                        let key = (item.item_id as i64, current);
+                        let (status, comment) = match entry_map.remove(&key) {
+                            Some(entry) => {
+                                let st = RepeatStatus::try_from(entry.status.as_str())
+                                    .map_err(|e| RepoError::DatabaseError { err: e })?;
+                                (st, entry.comment.unwrap_or_default())
+                            }
+                            None => (RepeatStatus::NotComplete, String::new()),
+                        };
+                        result.push(RepeatEntryCore { item_id, status, date: current, comment });
+                    }
+                    if current >= end {
+                        break;
+                    }
+                    current = current.succ_opt().unwrap_or(end);
+                }
+                Ok(result)
             })
         })
     }

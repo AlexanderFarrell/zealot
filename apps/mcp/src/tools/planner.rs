@@ -71,6 +71,14 @@ pub struct ItemIdParam {
     pub item_id: i64,
 }
 
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct DateRangeParam {
+    /// Start date (inclusive) in YYYY-MM-DD format
+    pub start_date: String,
+    /// End date (inclusive) in YYYY-MM-DD format
+    pub end_date: String,
+}
+
 fn pretty(v: serde_json::Value) -> String {
     serde_json::to_string_pretty(&v).unwrap_or_default()
 }
@@ -124,6 +132,31 @@ impl ZealotServer {
         let entries: serde_json::Value = self
             .client
             .get(&format!("/repeat/day/{}", p.date))
+            .await
+            .map_err(api_err)?;
+        Ok(CallToolResult::success(vec![Content::text(pretty(entries))]))
+    }
+
+    #[rmcp::tool(description = "List all items enrolled in the repeat/habit tracker.")]
+    pub async fn get_repeat_items(
+        &self,
+    ) -> Result<CallToolResult, McpError> {
+        let items: serde_json::Value = self
+            .client
+            .get("/repeat/items")
+            .await
+            .map_err(api_err)?;
+        Ok(CallToolResult::success(vec![Content::text(pretty(items))]))
+    }
+
+    #[rmcp::tool(description = "Get repeat/habit entries for a date range. Returns completion status for each habit scheduled on each day in the range (inclusive). Format: YYYY-MM-DD.")]
+    pub async fn get_repeat_entries_for_range(
+        &self,
+        Parameters(p): Parameters<DateRangeParam>,
+    ) -> Result<CallToolResult, McpError> {
+        let entries: serde_json::Value = self
+            .client
+            .get(&format!("/repeat/range?start={}&end={}", p.start_date, p.end_date))
             .await
             .map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text(pretty(entries))]))
