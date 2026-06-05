@@ -32,7 +32,9 @@ impl AttributeService {
         key: &str,
         account_id: &Id,
     ) -> Result<Option<AttributeKind>, AttributeServiceError> {
-        self.repo.get_attribute_kind(key, account_id).map_err(AttributeServiceError::Repo)
+        self.repo
+            .get_attribute_kind(key, account_id)
+            .map_err(AttributeServiceError::Repo)
     }
 
     pub fn get_kind_by_id(
@@ -40,7 +42,9 @@ impl AttributeService {
         kind_id: &Id,
         account_id: &Id,
     ) -> Result<Option<AttributeKind>, AttributeServiceError> {
-        self.repo.get_attribute_kind_by_id(kind_id, account_id).map_err(AttributeServiceError::Repo)
+        self.repo
+            .get_attribute_kind_by_id(kind_id, account_id)
+            .map_err(AttributeServiceError::Repo)
     }
 
     pub fn get_kinds_for_user(
@@ -58,7 +62,9 @@ impl AttributeService {
         dto: &AddAttributeKindDto,
         account_id: &Id,
     ) -> Result<Option<AttributeKind>, AttributeServiceError> {
-        self.repo.add_attribute_kind(dto, account_id).map_err(AttributeServiceError::Repo)
+        self.repo
+            .add_attribute_kind(dto, account_id)
+            .map_err(AttributeServiceError::Repo)
     }
 
     pub fn update_attribute_kind(
@@ -66,7 +72,9 @@ impl AttributeService {
         dto: &UpdateAttributeKindDto,
         account_id: &Id,
     ) -> Result<Option<AttributeKind>, AttributeServiceError> {
-        self.repo.update_attribute_kind(dto, account_id).map_err(AttributeServiceError::Repo)
+        self.repo
+            .update_attribute_kind(dto, account_id)
+            .map_err(AttributeServiceError::Repo)
     }
 
     pub fn delete_attribute_kind(
@@ -84,9 +92,12 @@ impl AttributeService {
                 )));
             }
         } else {
-            self.repo.delete_attribute_values_for_kind(key, account_id)?;
+            self.repo
+                .delete_attribute_values_for_kind(key, account_id)?;
         }
-        self.repo.delete_attribute_kind(key, account_id).map_err(AttributeServiceError::Repo)
+        self.repo
+            .delete_attribute_kind(key, account_id)
+            .map_err(AttributeServiceError::Repo)
     }
 }
 
@@ -116,15 +127,52 @@ mod tests {
     }
 
     impl AttributeRepo for MockAttributeRepo {
-        fn get_attribute_kind(&self, _key: &str, _account_id: &Id) -> Result<Option<AttributeKind>, RepoError> { Ok(None) }
-        fn get_attribute_kind_by_id(&self, _id: &Id, _account_id: &Id) -> Result<Option<AttributeKind>, RepoError> { Ok(None) }
-        fn get_attribute_kinds_for_user(&self, _account_id: &Id) -> Result<HashMap<String, AttributeKind>, RepoError> { Ok(HashMap::new()) }
-        fn add_attribute_kind(&self, _dto: &AddAttributeKindDto, _account_id: &Id) -> Result<Option<AttributeKind>, RepoError> { Ok(None) }
-        fn update_attribute_kind(&self, _dto: &UpdateAttributeKindDto, _account_id: &Id) -> Result<Option<AttributeKind>, RepoError> { Ok(None) }
-        fn count_attribute_values_for_kind(&self, _key: &str, _account_id: &Id) -> Result<i64, RepoError> {
+        fn get_attribute_kind(
+            &self,
+            _key: &str,
+            _account_id: &Id,
+        ) -> Result<Option<AttributeKind>, RepoError> {
+            Ok(None)
+        }
+        fn get_attribute_kind_by_id(
+            &self,
+            _id: &Id,
+            _account_id: &Id,
+        ) -> Result<Option<AttributeKind>, RepoError> {
+            Ok(None)
+        }
+        fn get_attribute_kinds_for_user(
+            &self,
+            _account_id: &Id,
+        ) -> Result<HashMap<String, AttributeKind>, RepoError> {
+            Ok(HashMap::new())
+        }
+        fn add_attribute_kind(
+            &self,
+            _dto: &AddAttributeKindDto,
+            _account_id: &Id,
+        ) -> Result<Option<AttributeKind>, RepoError> {
+            Ok(None)
+        }
+        fn update_attribute_kind(
+            &self,
+            _dto: &UpdateAttributeKindDto,
+            _account_id: &Id,
+        ) -> Result<Option<AttributeKind>, RepoError> {
+            Ok(None)
+        }
+        fn count_attribute_values_for_kind(
+            &self,
+            _key: &str,
+            _account_id: &Id,
+        ) -> Result<i64, RepoError> {
             Ok(self.value_count)
         }
-        fn delete_attribute_values_for_kind(&self, _key: &str, _account_id: &Id) -> Result<(), RepoError> {
+        fn delete_attribute_values_for_kind(
+            &self,
+            _key: &str,
+            _account_id: &Id,
+        ) -> Result<(), RepoError> {
             self.values_deleted.store(true, Ordering::Relaxed);
             Ok(())
         }
@@ -134,7 +182,9 @@ mod tests {
         }
     }
 
-    fn account_id() -> Id { Id::try_from(1i64).unwrap() }
+    fn account_id() -> Id {
+        Id::try_from(1i64).unwrap()
+    }
 
     #[test]
     fn delete_unused_kind_succeeds() {

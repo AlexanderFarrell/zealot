@@ -13,7 +13,7 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct RuleService {
-    rule_repo:   Arc<dyn RuleRepo>,
+    rule_repo: Arc<dyn RuleRepo>,
     rule_runner: Arc<dyn RuleRunnerPort>,
 }
 
@@ -30,7 +30,7 @@ pub enum RuleServiceError {
 impl RuleService {
     pub fn new(rule_repo: &Arc<dyn RuleRepo>, rule_runner: &Arc<dyn RuleRunnerPort>) -> Self {
         Self {
-            rule_repo:   rule_repo.clone(),
+            rule_repo: rule_repo.clone(),
             rule_runner: rule_runner.clone(),
         }
     }

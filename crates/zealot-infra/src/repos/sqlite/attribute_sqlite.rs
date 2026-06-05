@@ -61,17 +61,30 @@ fn scalar_type_to_str(t: &AttributeBaseScalarType) -> &'static str {
 }
 
 fn row_to_attribute_kind(row: AttributeKindRow) -> Result<AttributeKind, RepoError> {
-    let config: Value = serde_json::from_str(&row.config)
-        .unwrap_or(Value::Object(serde_json::Map::new()));
+    let config: Value =
+        serde_json::from_str(&row.config).unwrap_or(Value::Object(serde_json::Map::new()));
 
     let (base_type, spec) = match row.base_type.as_str() {
         "text" => {
-            let min_len = config.get("min_len").and_then(|v| v.as_u64()).map(|v| v as usize);
-            let max_len = config.get("max_len").and_then(|v| v.as_u64()).map(|v| v as usize);
-            let pattern = config.get("pattern").and_then(|v| v.as_str()).map(String::from);
+            let min_len = config
+                .get("min_len")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as usize);
+            let max_len = config
+                .get("max_len")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as usize);
+            let pattern = config
+                .get("pattern")
+                .and_then(|v| v.as_str())
+                .map(String::from);
             (
                 AttributeBaseType::Scalar(AttributeBaseScalarType::Text),
-                AttributeKindSpec::Text { min_len, max_len, pattern },
+                AttributeKindSpec::Text {
+                    min_len,
+                    max_len,
+                    pattern,
+                },
             )
         }
         "integer" => {
@@ -126,8 +139,7 @@ fn row_to_attribute_kind(row: AttributeKindRow) -> Result<AttributeKind, RepoErr
                 .get("list_type")
                 .and_then(|v| v.as_str())
                 .unwrap_or("text");
-            let inner = parse_scalar_type(inner_type_str)
-                .unwrap_or(AttributeBaseScalarType::Text);
+            let inner = parse_scalar_type(inner_type_str).unwrap_or(AttributeBaseScalarType::Text);
             (
                 AttributeBaseType::List(inner.clone()),
                 AttributeKindSpec::List {
@@ -138,12 +150,12 @@ fn row_to_attribute_kind(row: AttributeKindRow) -> Result<AttributeKind, RepoErr
         other => {
             return Err(RepoError::DatabaseError {
                 err: format!("unknown base_type: {}", other),
-            })
+            });
         }
     };
 
-    let kind_id = Id::try_from(row.kind_id)
-        .map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
+    let kind_id =
+        Id::try_from(row.kind_id).map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
 
     Ok(AttributeKind {
         kind_id,
@@ -157,26 +169,46 @@ fn row_to_attribute_kind(row: AttributeKindRow) -> Result<AttributeKind, RepoErr
 
 fn spec_to_config(spec: &AttributeKindSpec) -> Value {
     match spec {
-        AttributeKindSpec::Text { min_len, max_len, pattern } => {
+        AttributeKindSpec::Text {
+            min_len,
+            max_len,
+            pattern,
+        } => {
             let mut m = serde_json::Map::new();
-            if let Some(v) = min_len { m.insert("min_len".into(), Value::Number((*v as u64).into())); }
-            if let Some(v) = max_len { m.insert("max_len".into(), Value::Number((*v as u64).into())); }
-            if let Some(v) = pattern { m.insert("pattern".into(), Value::String(v.clone())); }
+            if let Some(v) = min_len {
+                m.insert("min_len".into(), Value::Number((*v as u64).into()));
+            }
+            if let Some(v) = max_len {
+                m.insert("max_len".into(), Value::Number((*v as u64).into()));
+            }
+            if let Some(v) = pattern {
+                m.insert("pattern".into(), Value::String(v.clone()));
+            }
             Value::Object(m)
         }
         AttributeKindSpec::Integer { min, max } => {
             let mut m = serde_json::Map::new();
-            if let Some(v) = min { m.insert("min".into(), Value::Number((*v).into())); }
-            if let Some(v) = max { m.insert("max".into(), Value::Number((*v).into())); }
+            if let Some(v) = min {
+                m.insert("min".into(), Value::Number((*v).into()));
+            }
+            if let Some(v) = max {
+                m.insert("max".into(), Value::Number((*v).into()));
+            }
             Value::Object(m)
         }
         AttributeKindSpec::Decimal { min, max } => {
             let mut m = serde_json::Map::new();
             if let Some(v) = min {
-                m.insert("min".into(), Value::Number(serde_json::Number::from_f64(*v).unwrap_or(0.into())));
+                m.insert(
+                    "min".into(),
+                    Value::Number(serde_json::Number::from_f64(*v).unwrap_or(0.into())),
+                );
             }
             if let Some(v) = max {
-                m.insert("max".into(), Value::Number(serde_json::Number::from_f64(*v).unwrap_or(0.into())));
+                m.insert(
+                    "max".into(),
+                    Value::Number(serde_json::Number::from_f64(*v).unwrap_or(0.into())),
+                );
             }
             Value::Object(m)
         }
@@ -353,7 +385,11 @@ impl AttributeRepo for AttributeSqliteRepo {
         })
     }
 
-    fn count_attribute_values_for_kind(&self, key: &str, account_id: &Id) -> Result<i64, RepoError> {
+    fn count_attribute_values_for_kind(
+        &self,
+        key: &str,
+        account_id: &Id,
+    ) -> Result<i64, RepoError> {
         let account_id_val = i64::from(*account_id);
         let key = key.to_string();
         tokio::task::block_in_place(|| {
@@ -370,20 +406,22 @@ impl AttributeRepo for AttributeSqliteRepo {
         })
     }
 
-    fn delete_attribute_values_for_kind(&self, key: &str, account_id: &Id) -> Result<(), RepoError> {
+    fn delete_attribute_values_for_kind(
+        &self,
+        key: &str,
+        account_id: &Id,
+    ) -> Result<(), RepoError> {
         let account_id_val = i64::from(*account_id);
         let key = key.to_string();
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
-                sqlx::query(
-                    "DELETE FROM attribute WHERE key = ? AND account_id = ?",
-                )
-                .bind(&key)
-                .bind(account_id_val)
-                .execute(&self.pool)
-                .await
-                .map(|_| ())
-                .map_err(RepoError::from)
+                sqlx::query("DELETE FROM attribute WHERE key = ? AND account_id = ?")
+                    .bind(&key)
+                    .bind(account_id_val)
+                    .execute(&self.pool)
+                    .await
+                    .map(|_| ())
+                    .map_err(RepoError::from)
             })
         })
     }
@@ -393,15 +431,13 @@ impl AttributeRepo for AttributeSqliteRepo {
         let key = key.to_string();
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
-                sqlx::query(
-                    "DELETE FROM attribute_kind WHERE key = ? AND account_id = ?",
-                )
-                .bind(&key)
-                .bind(account_id_val)
-                .execute(&self.pool)
-                .await
-                .map(|_| ())
-                .map_err(RepoError::from)
+                sqlx::query("DELETE FROM attribute_kind WHERE key = ? AND account_id = ?")
+                    .bind(&key)
+                    .bind(account_id_val)
+                    .execute(&self.pool)
+                    .await
+                    .map(|_| ())
+                    .map_err(RepoError::from)
             })
         })
     }

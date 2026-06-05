@@ -1,16 +1,16 @@
+use crate::ports::events::ZealotEvent;
+use chrono::NaiveDateTime;
 use std::fmt::Debug;
 use std::future::Future;
 use std::pin::Pin;
-use chrono::NaiveDateTime;
 use zealot_domain::{common::id::Id, rule::Rule};
-use crate::ports::events::ZealotEvent;
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct RuleRunResult {
-    pub rule_id:     Id,
-    pub success:     bool,
-    pub output:      Option<String>,
-    pub error:       Option<String>,
+    pub rule_id: Id,
+    pub success: bool,
+    pub output: Option<String>,
+    pub error: Option<String>,
     pub duration_ms: u64,
 }
 
@@ -28,7 +28,8 @@ pub trait RuleRunnerPort: Debug + Send + Sync {
     fn run_event_rules(&self, event: ZealotEvent) -> BoxFuture<'_, Vec<RuleRunResult>>;
 
     /// Run a single rule with the given context.
-    fn run_rule<'a>(&'a self, rule: &'a Rule, context: RuleContext) -> BoxFuture<'a, RuleRunResult>;
+    fn run_rule<'a>(&'a self, rule: &'a Rule, context: RuleContext)
+    -> BoxFuture<'a, RuleRunResult>;
 }
 
 /// No-op implementation for use in tests and contexts without Lua.
@@ -40,13 +41,17 @@ impl RuleRunnerPort for NoopRuleRunner {
         Box::pin(async { vec![] })
     }
 
-    fn run_rule<'a>(&'a self, rule: &'a Rule, _context: RuleContext) -> BoxFuture<'a, RuleRunResult> {
+    fn run_rule<'a>(
+        &'a self,
+        rule: &'a Rule,
+        _context: RuleContext,
+    ) -> BoxFuture<'a, RuleRunResult> {
         Box::pin(async move {
             RuleRunResult {
-                rule_id:     rule.rule_id,
-                success:     true,
-                output:      None,
-                error:       None,
+                rule_id: rule.rule_id,
+                success: true,
+                output: None,
+                error: None,
                 duration_ms: 0,
             }
         })

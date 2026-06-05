@@ -2,16 +2,19 @@ use std::collections::HashMap;
 
 use axum::{
     Extension, Json, Router,
+    body::Body,
     extract::{Path, Query, State},
     http::{StatusCode, header},
     middleware,
     response::Response,
     routing::{delete, get, patch, post},
-    body::Body,
 };
 use serde::Deserialize;
 use serde_json::Value;
-use zealot_app::{app::AppState, services::item::{ItemServiceError, SearchResult}};
+use zealot_app::{
+    app::AppState,
+    services::item::{ItemServiceError, SearchResult},
+};
 use zealot_domain::{
     attribute::AttributeFilterDto,
     auth::Actor,
@@ -19,7 +22,10 @@ use zealot_domain::{
     item::{AddItemDto, Item, ItemDto, SearchResultDto, SearchScope, UpdateItemDto},
 };
 
-use crate::http::{common::HttpError, middleware::{auth_middleware, csrf_middleware}};
+use crate::http::{
+    common::HttpError,
+    middleware::{auth_middleware, csrf_middleware},
+};
 
 // ─── Embedded fonts for PDF export ───────────────────────────────────────────
 
@@ -46,9 +52,18 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .route("/{item_id}/attr", patch(set_attributes))
         .route("/{item_id}/attr/rename", patch(rename_attribute))
         .route("/{item_id}/attr/{key}", delete(delete_attribute))
-        .route("/{item_id}/assign_type/{type_name}", post(assign_type).delete(unassign_type))
-        .route_layer(middleware::from_fn_with_state(state.clone(), csrf_middleware))
-        .route_layer(middleware::map_request_with_state(state.clone(), auth_middleware))
+        .route(
+            "/{item_id}/assign_type/{type_name}",
+            post(assign_type).delete(unassign_type),
+        )
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            csrf_middleware,
+        ))
+        .route_layer(middleware::map_request_with_state(
+            state.clone(),
+            auth_middleware,
+        ))
         .with_state(state)
 }
 
@@ -69,7 +84,10 @@ fn item_service_err(err: ItemServiceError) -> HttpError {
         ItemServiceError::InvalidFilter(msg) => HttpError::UserError { err: msg },
         ItemServiceError::InvalidId(msg) => HttpError::UserError { err: msg },
         ItemServiceError::InvalidRegex(msg) => HttpError::UserError { err: msg },
-        ItemServiceError::Repo(e) => { tracing::error!("Item repo error: {e}"); HttpError::Internal },
+        ItemServiceError::Repo(e) => {
+            tracing::error!("Item repo error: {e}");
+            HttpError::Internal
+        }
     }
 }
 
@@ -86,6 +104,8 @@ struct RootItemsParams {
 }
 
 const MAX_SEARCH_LIMIT: i64 = 100;
+const DEFAULT_FILTER_LIMIT: i64 = 50;
+const MAX_FILTER_LIMIT: i64 = 100;
 
 #[derive(Deserialize)]
 struct SearchParams {
@@ -100,7 +120,9 @@ struct SearchParams {
     regex: bool,
 }
 
-fn default_search_limit() -> i64 { 20 }
+fn default_search_limit() -> i64 {
+    20
+}
 
 #[derive(Deserialize)]
 struct RecentParams {
@@ -110,11 +132,21 @@ struct RecentParams {
     offset: i64,
 }
 
-fn default_recent_limit() -> i64 { 30 }
+fn default_recent_limit() -> i64 {
+    30
+}
 
 #[derive(Deserialize)]
 struct FilterBody {
     filters: Vec<AttributeFilterDto>,
+    #[serde(default = "default_filter_limit")]
+    limit: i64,
+    #[serde(default)]
+    offset: i64,
+}
+
+fn default_filter_limit() -> i64 {
+    DEFAULT_FILTER_LIMIT
 }
 
 #[derive(Deserialize)]
@@ -146,7 +178,11 @@ async fn get_recent_items(
     Query(params): Query<RecentParams>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
     let account = require_account(&actor)?;
-    let items = state.services.item.get_recent_items(params.limit, params.offset, &account).map_err(item_service_err)?;
+    let items = state
+        .services
+        .item
+        .get_recent_items(params.limit, params.offset, &account)
+        .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
 
@@ -175,7 +211,12 @@ async fn get_by_id(
 ) -> Result<Json<ItemDto>, HttpError> {
     let account = require_account(&actor)?;
     let id = parse_item_id(item_id)?;
-    match state.services.item.get_item_by_id(&id, &account).map_err(item_service_err)? {
+    match state
+        .services
+        .item
+        .get_item_by_id(&id, &account)
+        .map_err(item_service_err)?
+    {
         Some(item) => {
             if let Err(e) = state.services.analysis.record_view(&id) {
                 tracing::warn!("Failed to record view for item {item_id}: {e}");
@@ -197,14 +238,27 @@ async fn search_items(
         None | Some("title") => SearchScope::Title,
         Some("content") => SearchScope::Content,
         Some("heading") => SearchScope::Heading,
-        Some(other) => return Err(HttpError::UserError { err: format!("unknown scope: {other}") }),
+        Some(other) => {
+            return Err(HttpError::UserError {
+                err: format!("unknown scope: {other}"),
+            });
+        }
     };
     let results = state
         .services
         .item
-        .search_items(&params.term, scope, params.regex, limit, params.offset, &account)
+        .search_items(
+            &params.term,
+            scope,
+            params.regex,
+            limit,
+            params.offset,
+            &account,
+        )
         .map_err(item_service_err)?;
-    Ok(Json(results.into_iter().map(search_result_to_dto).collect()))
+    Ok(Json(
+        results.into_iter().map(search_result_to_dto).collect(),
+    ))
 }
 
 fn search_result_to_dto(r: SearchResult) -> SearchResultDto {
@@ -266,10 +320,12 @@ async fn filter_items(
     Json(body): Json<FilterBody>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
     let account = require_account(&actor)?;
+    let limit = body.limit.clamp(1, MAX_FILTER_LIMIT);
+    let offset = body.offset.max(0);
     let items = state
         .services
         .item
-        .filter_items(&body.filters, &account)
+        .filter_items_paginated(&body.filters, limit, offset, &account)
         .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -279,13 +335,19 @@ async fn rebuild_links(
     Extension(actor): Extension<Actor>,
 ) -> Result<Json<serde_json::Value>, HttpError> {
     let account = require_account(&actor)?;
-    let attribute_count = state.services.item
+    let attribute_count = state
+        .services
+        .item
         .rebuild_links_for_account(&account)
         .map_err(item_service_err)?;
-    let wiki_count = state.services.item
+    let wiki_count = state
+        .services
+        .item
         .rebuild_wiki_links_for_account(&account)
         .map_err(item_service_err)?;
-    Ok(Json(serde_json::json!({ "rebuilt": attribute_count, "wiki_rebuilt": wiki_count })))
+    Ok(Json(
+        serde_json::json!({ "rebuilt": attribute_count, "wiki_rebuilt": wiki_count }),
+    ))
 }
 
 async fn add_item(
@@ -294,7 +356,12 @@ async fn add_item(
     Json(dto): Json<AddItemDto>,
 ) -> Result<Json<ItemDto>, HttpError> {
     let account = require_account(&actor)?;
-    match state.services.item.add_item(&dto, &account).map_err(item_service_err)? {
+    match state
+        .services
+        .item
+        .add_item(&dto, &account)
+        .map_err(item_service_err)?
+    {
         Some(item) => Ok(Json(ItemDto::from(&item))),
         None => Err(HttpError::Internal),
     }
@@ -308,7 +375,12 @@ async fn update_item(
 ) -> Result<Json<ItemDto>, HttpError> {
     let account = require_account(&actor)?;
     let id = parse_item_id(item_id)?;
-    match state.services.item.update_item(&id, &dto, &account).map_err(item_service_err)? {
+    match state
+        .services
+        .item
+        .update_item(&id, &dto, &account)
+        .map_err(item_service_err)?
+    {
         Some(item) => Ok(Json(ItemDto::from(&item))),
         None => Err(HttpError::NotFound),
     }
@@ -415,7 +487,10 @@ async fn export_pdf(
 ) -> Result<Response, HttpError> {
     let account = require_account(&actor)?;
     let id = parse_item_id(item_id)?;
-    let item = state.services.item.get_item_by_id(&id, &account)
+    let item = state
+        .services
+        .item
+        .get_item_by_id(&id, &account)
         .map_err(item_service_err)?
         .ok_or(HttpError::NotFound)?;
 
@@ -435,7 +510,10 @@ async fn export_docx(
 ) -> Result<Response, HttpError> {
     let account = require_account(&actor)?;
     let id = parse_item_id(item_id)?;
-    let item = state.services.item.get_item_by_id(&id, &account)
+    let item = state
+        .services
+        .item
+        .get_item_by_id(&id, &account)
         .map_err(item_service_err)?
         .ok_or(HttpError::NotFound)?;
 
@@ -445,7 +523,11 @@ async fn export_docx(
     })?;
 
     let filename = format!("{}.docx", sanitize_filename(&item.title));
-    Ok(download_response(bytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", &filename))
+    Ok(download_response(
+        bytes,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        &filename,
+    ))
 }
 
 // ─── Export helpers ───────────────────────────────────────────────────────────
@@ -462,7 +544,13 @@ fn download_response(bytes: Vec<u8>, content_type: &str, filename: &str) -> Resp
 
 fn sanitize_filename(name: &str) -> String {
     name.chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' || c == ' ' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' || c == ' ' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect::<String>()
         .trim()
         .to_string()
@@ -475,22 +563,33 @@ fn strip_zealotscript(content: &str) -> String {
     while let Some(c) = chars.next() {
         match c {
             // Skip bold/italic/strikethrough markers
-            '*' | '~' => { chars.next_if(|&n| n == c); }
+            '*' | '~' => {
+                chars.next_if(|&n| n == c);
+            }
             '_' => {}
-            '\\' => { chars.next(); } // escaped char — skip the backslash
+            '\\' => {
+                chars.next();
+            } // escaped char — skip the backslash
             // Wikilinks [[...]] → just the inner text
             '[' if chars.peek() == Some(&'[') => {
                 chars.next(); // consume second [
                 let mut inner = String::new();
                 loop {
                     match chars.next() {
-                        Some(']') if chars.peek() == Some(&']') => { chars.next(); break; }
+                        Some(']') if chars.peek() == Some(&']') => {
+                            chars.next();
+                            break;
+                        }
                         Some(ch) => inner.push(ch),
                         None => break,
                     }
                 }
                 // Strip type prefix "type:Name" → "Name"
-                let label = if let Some(pos) = inner.find(':') { &inner[pos+1..] } else { &inner };
+                let label = if let Some(pos) = inner.find(':') {
+                    &inner[pos + 1..]
+                } else {
+                    &inner
+                };
                 out.push_str(label);
             }
             // Regular markdown links [text](url) → text
@@ -516,7 +615,9 @@ fn strip_zealotscript(content: &str) -> String {
                 out.push_str(&text);
             }
             // Heading markers at line start are already stripped by line-level logic
-            '#' => { out.push(' '); }
+            '#' => {
+                out.push(' ');
+            }
             '`' => {}
             _ => out.push(c),
         }
@@ -525,7 +626,7 @@ fn strip_zealotscript(content: &str) -> String {
 }
 
 fn generate_pdf(item: &Item) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    use genpdf::{elements, fonts, style, Document, SimplePageDecorator};
+    use genpdf::{Document, SimplePageDecorator, elements, fonts, style};
 
     let font_family = fonts::FontFamily {
         regular: fonts::FontData::new(FONT_REGULAR.to_vec(), None)?,
@@ -545,7 +646,10 @@ fn generate_pdf(item: &Item) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
 
     // Title
     let title_style = style::Style::new().bold().with_font_size(20);
-    doc.push(elements::Paragraph::new(style::StyledString::new(item.title.clone(), title_style)));
+    doc.push(elements::Paragraph::new(style::StyledString::new(
+        item.title.clone(),
+        title_style,
+    )));
     doc.push(elements::Break::new(0.5));
 
     // Attributes
@@ -576,7 +680,9 @@ fn generate_pdf(item: &Item) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         if plain.trim().is_empty() {
             doc.push(elements::Break::new(0.3));
         } else {
-            doc.push(elements::Paragraph::new(style::StyledString::new(plain, body_style)));
+            doc.push(elements::Paragraph::new(style::StyledString::new(
+                plain, body_style,
+            )));
         }
     }
 
@@ -591,10 +697,7 @@ fn generate_docx(item: &Item) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let mut doc = Docx::new();
 
     // Title paragraph
-    let title_run = Run::new()
-        .add_text(&item.title)
-        .bold()
-        .size(48); // half-points, so 48 = 24pt
+    let title_run = Run::new().add_text(&item.title).bold().size(48); // half-points, so 48 = 24pt
     doc = doc.add_paragraph(Paragraph::new().add_run(title_run));
 
     // Attributes

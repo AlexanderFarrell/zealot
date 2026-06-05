@@ -50,20 +50,30 @@ fn event_to_lua(lua: &Lua, event: &ZealotEvent) -> mlua::Result<Table> {
         ZealotEvent::ItemDeleted { item_id, .. } => {
             t.set("item_id", i64::from(*item_id))?;
         }
-        ZealotEvent::CommentAdded { item_id, comment, .. } => {
+        ZealotEvent::CommentAdded {
+            item_id, comment, ..
+        } => {
             t.set("item_id", i64::from(*item_id))?;
             t.set("comment_id", i64::from(comment.comment_id))?;
             t.set("content", comment.content.clone())?;
         }
-        ZealotEvent::TypeAssigned { item, type_name, .. } => {
+        ZealotEvent::TypeAssigned {
+            item, type_name, ..
+        } => {
             t.set("item_id", i64::from(item.item_id))?;
             t.set("type_name", type_name.clone())?;
         }
-        ZealotEvent::TypeUnassigned { item, type_name, .. } => {
+        ZealotEvent::TypeUnassigned {
+            item, type_name, ..
+        } => {
             t.set("item_id", i64::from(item.item_id))?;
             t.set("type_name", type_name.clone())?;
         }
-        ZealotEvent::AttributeSet { item, attribute_key, .. } => {
+        ZealotEvent::AttributeSet {
+            item,
+            attribute_key,
+            ..
+        } => {
             t.set("item_id", i64::from(item.item_id))?;
             t.set("attribute_key", attribute_key.clone())?;
         }

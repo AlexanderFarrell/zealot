@@ -137,19 +137,26 @@ Omitted config fields mean no constraint. For `date`, `week`, `boolean`, and `it
 
 ### Filtering items by attribute
 
-`POST /item/filter` accepts an array of attribute filters:
+`POST /item/filter` accepts a request body with attribute filters and optional pagination:
 
 ```json
-[
-  { "key": "Status",   "op": "eq",  "value": "In Progress", "list_mode": "any" },
-  { "key": "Priority", "op": "gte", "value": "High",        "list_mode": "any" }
-]
+{
+  "filters": [
+    { "key": "Status",   "op": "eq",  "value": "In Progress", "list_mode": "any" },
+    { "key": "Priority", "op": "gte", "value": 8 }
+  ],
+  "limit": 50,
+  "offset": 0
+}
 ```
 
 | Field | Values |
 |---|---|
+| `filters` | array of `{key, op, value, list_mode?}` filters; all filters are ANDed |
 | `op` | `eq`, `=` · `ne`, `!=`, `<>` · `gt`, `>` · `lt`, `<` · `gte`, `>=` · `lte`, `<=` · `ilike` |
 | `list_mode` | `any` (default) · `all` · `none` — controls how list attributes are matched |
+| `limit` | optional result limit; default 50, maximum 100 |
+| `offset` | optional result offset; default 0 |
 
 `ilike` performs a case-insensitive substring match (useful for `text` attributes).
 

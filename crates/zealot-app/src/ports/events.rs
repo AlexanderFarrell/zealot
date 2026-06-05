@@ -1,44 +1,65 @@
 use std::cell::Cell;
 use std::fmt::Debug;
-use zealot_domain::{
-    comment::Comment,
-    common::id::Id,
-    item::Item,
-};
+use zealot_domain::{comment::Comment, common::id::Id, item::Item};
 
 #[derive(Debug, Clone)]
 pub enum ZealotEvent {
-    ItemCreated    { account_id: Id, item: Item },
-    ItemUpdated    { account_id: Id, item: Item },
-    ItemDeleted    { account_id: Id, item_id: Id },
-    CommentAdded   { account_id: Id, item_id: Id, comment: Comment },
-    TypeAssigned   { account_id: Id, item: Item, type_name: String },
-    TypeUnassigned { account_id: Id, item: Item, type_name: String },
-    AttributeSet   { account_id: Id, item: Item, attribute_key: String },
+    ItemCreated {
+        account_id: Id,
+        item: Item,
+    },
+    ItemUpdated {
+        account_id: Id,
+        item: Item,
+    },
+    ItemDeleted {
+        account_id: Id,
+        item_id: Id,
+    },
+    CommentAdded {
+        account_id: Id,
+        item_id: Id,
+        comment: Comment,
+    },
+    TypeAssigned {
+        account_id: Id,
+        item: Item,
+        type_name: String,
+    },
+    TypeUnassigned {
+        account_id: Id,
+        item: Item,
+        type_name: String,
+    },
+    AttributeSet {
+        account_id: Id,
+        item: Item,
+        attribute_key: String,
+    },
 }
 
 impl ZealotEvent {
     pub fn account_id(&self) -> &Id {
         match self {
-            Self::ItemCreated    { account_id, .. } => account_id,
-            Self::ItemUpdated    { account_id, .. } => account_id,
-            Self::ItemDeleted    { account_id, .. } => account_id,
-            Self::CommentAdded   { account_id, .. } => account_id,
-            Self::TypeAssigned   { account_id, .. } => account_id,
+            Self::ItemCreated { account_id, .. } => account_id,
+            Self::ItemUpdated { account_id, .. } => account_id,
+            Self::ItemDeleted { account_id, .. } => account_id,
+            Self::CommentAdded { account_id, .. } => account_id,
+            Self::TypeAssigned { account_id, .. } => account_id,
             Self::TypeUnassigned { account_id, .. } => account_id,
-            Self::AttributeSet   { account_id, .. } => account_id,
+            Self::AttributeSet { account_id, .. } => account_id,
         }
     }
 
     pub fn trigger_kind(&self) -> &'static str {
         match self {
-            Self::ItemCreated {..}    => "on_item_create",
-            Self::ItemUpdated {..}    => "on_item_update",
-            Self::ItemDeleted {..}    => "on_item_delete",
-            Self::CommentAdded {..}   => "on_comment_add",
-            Self::TypeAssigned {..}   => "on_type_assign",
-            Self::TypeUnassigned {..} => "on_type_unassign",
-            Self::AttributeSet {..}   => "on_attribute_set",
+            Self::ItemCreated { .. } => "on_item_create",
+            Self::ItemUpdated { .. } => "on_item_update",
+            Self::ItemDeleted { .. } => "on_item_delete",
+            Self::CommentAdded { .. } => "on_comment_add",
+            Self::TypeAssigned { .. } => "on_type_assign",
+            Self::TypeUnassigned { .. } => "on_type_unassign",
+            Self::AttributeSet { .. } => "on_attribute_set",
         }
     }
 }

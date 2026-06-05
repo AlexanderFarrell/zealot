@@ -30,9 +30,7 @@ pub fn register(
                     let dto = AddCommentDto {
                         item_id,
                         content,
-                        timestamp: chrono::Utc::now()
-                            .format("%Y-%m-%d %H:%M:%S")
-                            .to_string(),
+                        timestamp: chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
                     };
                     svc.comment
                         .add_comment(&dto, &account)

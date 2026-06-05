@@ -3,15 +3,15 @@ use std::collections::HashMap;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::ErrorCode;
 use serde_json::json;
-use wiremock::matchers::{method, path, query_param};
+use wiremock::matchers::{body_json, method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use zealot_mcp::client::ZealotClient;
 use zealot_mcp::tools::ZealotServer;
 use zealot_mcp::tools::automation::{
-    AttributeKeyParam, CreateAttributeKindParams, CreateItemTypeParams,
-    CreateRuleParams, ItemTypeIdParam, ItemTypeNameParam, JsonObject, RuleIdParam,
-    UpdateAttributeKindParams, UpdateItemTypeParams, UpdateRuleParams,
+    AttributeKeyParam, CreateAttributeKindParams, CreateItemTypeParams, CreateRuleParams,
+    ItemTypeIdParam, ItemTypeNameParam, JsonObject, RuleIdParam, UpdateAttributeKindParams,
+    UpdateItemTypeParams, UpdateRuleParams,
 };
 use zealot_mcp::tools::media::{CreateFolderParams, DeleteMediaParams, MediaPathParam};
 use zealot_mcp::tools::planner::{
@@ -19,9 +19,9 @@ use zealot_mcp::tools::planner::{
     MonthYearParam, UpdateCommentParams, UpdateRepeatParams, WeekParam,
 };
 use zealot_mcp::tools::wiki::{
-    AssignTypeParams, CreateItemParams, DeleteAttributeParams, GetItemByTitleParams,
-    ItemIdParam, ListItemsParams, RecentItemsParams, SearchItemsParams, SetAttributesParams,
-    UpdateItemParams,
+    AssignTypeParams, AttributeFilterParam, CreateItemParams, DeleteAttributeParams,
+    FilterItemsParams, GetItemByTitleParams, ItemIdParam, ListItemsParams, RecentItemsParams,
+    SearchItemsParams, SetAttributesParams, UpdateItemParams,
 };
 
 async fn make_server() -> (ZealotServer, MockServer) {
@@ -68,9 +68,7 @@ async fn api_err_network_error_is_internal_error() {
     let server = ZealotServer {
         client: ZealotClient::new("http://127.0.0.1:1", "key"),
     };
-    let result = server
-        .get_item(Parameters(ItemIdParam { id: 1 }))
-        .await;
+    let result = server.get_item(Parameters(ItemIdParam { id: 1 })).await;
     match result {
         Err(e) => assert_eq!(e.code, ErrorCode::INTERNAL_ERROR),
         Ok(_) => panic!("expected error"),
@@ -327,6 +325,105 @@ async fn search_items_scope_defaults_to_title() {
         }))
         .await
         .unwrap();
+}
+
+// ── Wiki: filter_items ───────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn filter_items_defaults_pagination() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("POST"))
+        .and(path("/item/filter"))
+        .and(body_json(json!({
+            "filters": [
+                {"key": "Status", "op": "eq", "value": "Open"}
+            ],
+            "limit": 50,
+            "offset": 0
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    server
+        .filter_items(Parameters(FilterItemsParams {
+            filters: vec![AttributeFilterParam {
+                key: "Status".to_string(),
+                op: "eq".to_string(),
+                value: json!("Open"),
+                list_mode: None,
+            }],
+            limit: None,
+            offset: None,
+        }))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn filter_items_passes_custom_pagination() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("POST"))
+        .and(path("/item/filter"))
+        .and(body_json(json!({
+            "filters": [
+                {"key": "Priority", "op": "gte", "value": 8}
+            ],
+            "limit": 10,
+            "offset": 5
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    server
+        .filter_items(Parameters(FilterItemsParams {
+            filters: vec![AttributeFilterParam {
+                key: "Priority".to_string(),
+                op: "gte".to_string(),
+                value: json!(8),
+                list_mode: None,
+            }],
+            limit: Some(10),
+            offset: Some(5),
+        }))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn filter_items_posts_list_mode_in_filter_body() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("POST"))
+        .and(path("/item/filter"))
+        .and(body_json(json!({
+            "filters": [
+                {"key": "Topics", "op": "ilike", "value": "rust", "list_mode": "any"}
+            ],
+            "limit": 5,
+            "offset": 0
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([{"item_id": 1}])))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    let result = server
+        .filter_items(Parameters(FilterItemsParams {
+            filters: vec![AttributeFilterParam {
+                key: "Topics".to_string(),
+                op: "ilike".to_string(),
+                value: json!("rust"),
+                list_mode: Some("any".to_string()),
+            }],
+            limit: Some(5),
+            offset: None,
+        }))
+        .await
+        .unwrap();
+    assert!(text_of(result).contains("item_id"));
 }
 
 // ── Wiki: get_item ────────────────────────────────────────────────────────────
@@ -612,7 +709,9 @@ async fn get_day_plan_correct_path() {
         .await;
 
     server
-        .get_day_plan(Parameters(DateParam { date: "2026-05-20".to_string() }))
+        .get_day_plan(Parameters(DateParam {
+            date: "2026-05-20".to_string(),
+        }))
         .await
         .unwrap();
 }
@@ -627,7 +726,9 @@ async fn get_day_plan_not_found_returns_invalid_params() {
         .await;
 
     let err = server
-        .get_day_plan(Parameters(DateParam { date: "2026-05-20".to_string() }))
+        .get_day_plan(Parameters(DateParam {
+            date: "2026-05-20".to_string(),
+        }))
         .await
         .unwrap_err();
     assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
@@ -646,7 +747,9 @@ async fn get_week_plan_correct_path() {
         .await;
 
     server
-        .get_week_plan(Parameters(WeekParam { week: "2026-W21".to_string() }))
+        .get_week_plan(Parameters(WeekParam {
+            week: "2026-W21".to_string(),
+        }))
         .await
         .unwrap();
 }
@@ -664,7 +767,10 @@ async fn get_month_plan_correct_path() {
         .await;
 
     server
-        .get_month_plan(Parameters(MonthYearParam { month: 5, year: 2026 }))
+        .get_month_plan(Parameters(MonthYearParam {
+            month: 5,
+            year: 2026,
+        }))
         .await
         .unwrap();
 }
@@ -682,7 +788,9 @@ async fn get_repeat_entries_correct_path() {
         .await;
 
     server
-        .get_repeat_entries(Parameters(DateParam { date: "2026-05-20".to_string() }))
+        .get_repeat_entries(Parameters(DateParam {
+            date: "2026-05-20".to_string(),
+        }))
         .await
         .unwrap();
 }
@@ -776,9 +884,7 @@ async fn get_repeat_entries_for_range_mcp_passthrough() {
         .and(path("/repeat/range"))
         .and(query_param("start", "2026-06-01"))
         .and(query_param("end", "2026-06-07"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(json!([{"status": "Complete"}])),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([{"status": "Complete"}])))
         .expect(1)
         .mount(&mock)
         .await;
@@ -822,7 +928,9 @@ async fn get_comments_for_day_correct_path() {
         .await;
 
     server
-        .get_comments_for_day(Parameters(DateParam { date: "2026-05-20".to_string() }))
+        .get_comments_for_day(Parameters(DateParam {
+            date: "2026-05-20".to_string(),
+        }))
         .await
         .unwrap();
 }

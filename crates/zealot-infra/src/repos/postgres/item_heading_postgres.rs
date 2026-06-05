@@ -57,7 +57,11 @@ impl ItemHeadingRepo for ItemHeadingPostgresRepo {
         })
     }
 
-    fn replace_for_item(&self, item_id: &Id, headings: &[(u8, u32, String)]) -> Result<(), RepoError> {
+    fn replace_for_item(
+        &self,
+        item_id: &Id,
+        headings: &[(u8, u32, String)],
+    ) -> Result<(), RepoError> {
         let item_id_val = i64::from(*item_id);
         let headings = headings.to_vec();
         let pool = self.pool.clone();

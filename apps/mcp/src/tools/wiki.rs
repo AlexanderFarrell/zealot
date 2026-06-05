@@ -1,15 +1,18 @@
 use std::collections::HashMap;
 
 use rmcp::{
-    model::{CallToolResult, Content},
     ErrorData as McpError,
     handler::server::wrapper::Parameters,
+    model::{CallToolResult, Content},
 };
 use schemars::JsonSchema;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::tools::{ZealotServer, api_err};
+
+const DEFAULT_FILTER_LIMIT: i64 = 50;
+const MAX_FILTER_LIMIT: i64 = 100;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ItemIdParam {
@@ -43,6 +46,29 @@ pub struct SearchItemsParams {
     pub scope: Option<String>,
     /// If true, treat `term` as a case-insensitive regular expression
     pub regex: Option<bool>,
+}
+
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+pub struct AttributeFilterParam {
+    /// Attribute key/name to filter on
+    pub key: String,
+    /// Operator: eq, ne, gt, lt, gte, lte, or ilike
+    pub op: String,
+    /// JSON value to compare against
+    pub value: serde_json::Value,
+    /// List matching mode: any (default), all, or none
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub list_mode: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct FilterItemsParams {
+    /// Attribute filters. All filters are ANDed together.
+    pub filters: Vec<AttributeFilterParam>,
+    /// Maximum number of items to return (default 50, max 100)
+    pub limit: Option<i64>,
+    /// Offset for pagination (default 0)
+    pub offset: Option<i64>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -101,7 +127,9 @@ fn pretty(v: serde_json::Value) -> String {
 
 #[rmcp::tool_router(router = wiki_tool_router, vis = "pub")]
 impl ZealotServer {
-    #[rmcp::tool(description = "List root-level wiki items. Optionally filter by type name (e.g. 'Goal', 'Project').")]
+    #[rmcp::tool(
+        description = "List root-level wiki items. Optionally filter by type name (e.g. 'Goal', 'Project')."
+    )]
     pub async fn list_items(
         &self,
         Parameters(p): Parameters<ListItemsParams>,
@@ -114,7 +142,9 @@ impl ZealotServer {
         Ok(CallToolResult::success(vec![Content::text(pretty(items))]))
     }
 
-    #[rmcp::tool(description = "List recently modified items. Returns up to `limit` items starting from `offset`.")]
+    #[rmcp::tool(
+        description = "List recently modified items. Returns up to `limit` items starting from `offset`."
+    )]
     pub async fn list_recent_items(
         &self,
         Parameters(p): Parameters<RecentItemsParams>,
@@ -129,7 +159,9 @@ impl ZealotServer {
         Ok(CallToolResult::success(vec![Content::text(pretty(items))]))
     }
 
-    #[rmcp::tool(description = "Search items by title, body content, or headings. `scope` controls what is searched: \"title\" (default), \"content\" (body text), or \"heading\". Set `regex: true` to treat `term` as a case-insensitive regular expression. Results include `match_scope` and a `snippet` context field. Supports pagination via `limit` (default 20, max 100) and `offset`. Example: `{\"term\": \"architecture\", \"scope\": \"content\"}` or `{\"term\": \"^Z[0-9]+\", \"scope\": \"title\", \"regex\": true}`.")]
+    #[rmcp::tool(
+        description = "Search items by title, body content, or headings. `scope` controls what is searched: \"title\" (default), \"content\" (body text), or \"heading\". Set `regex: true` to treat `term` as a case-insensitive regular expression. Results include `match_scope` and a `snippet` context field. Supports pagination via `limit` (default 20, max 100) and `offset`. Example: `{\"term\": \"architecture\", \"scope\": \"content\"}` or `{\"term\": \"^Z[0-9]+\", \"scope\": \"title\", \"regex\": true}`."
+    )]
     pub async fn search_items(
         &self,
         Parameters(p): Parameters<SearchItemsParams>,
@@ -144,15 +176,38 @@ impl ZealotServer {
         if p.regex.unwrap_or(false) {
             url.push_str("&regex=true");
         }
+        let items: serde_json::Value = self.client.get(&url).await.map_err(api_err)?;
+        Ok(CallToolResult::success(vec![Content::text(pretty(items))]))
+    }
+
+    #[rmcp::tool(
+        description = "Filter items by attribute values. Pass `filters` as an array of {key, op, value, list_mode?}; supported ops are eq, ne, gt, lt, gte, lte, and ilike. All filters are ANDed. Supports pagination via `limit` (default 50, max 100) and `offset`."
+    )]
+    pub async fn filter_items(
+        &self,
+        Parameters(p): Parameters<FilterItemsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let limit = p
+            .limit
+            .unwrap_or(DEFAULT_FILTER_LIMIT)
+            .clamp(1, MAX_FILTER_LIMIT);
+        let offset = p.offset.unwrap_or(0).max(0);
+        let body = json!({
+            "filters": p.filters,
+            "limit": limit,
+            "offset": offset,
+        });
         let items: serde_json::Value = self
             .client
-            .get(&url)
+            .post("/item/filter", &body)
             .await
             .map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text(pretty(items))]))
     }
 
-    #[rmcp::tool(description = "Get a specific item by its numeric ID. Returns full item including attributes, types, and links.")]
+    #[rmcp::tool(
+        description = "Get a specific item by its numeric ID. Returns full item including attributes, types, and links."
+    )]
     pub async fn get_item(
         &self,
         Parameters(p): Parameters<ItemIdParam>,
@@ -165,23 +220,24 @@ impl ZealotServer {
         Ok(CallToolResult::success(vec![Content::text(pretty(item))]))
     }
 
-    #[rmcp::tool(description = "Get a specific item by its exact title. Returns full item including attributes, types, and links.")]
+    #[rmcp::tool(
+        description = "Get a specific item by its exact title. Returns full item including attributes, types, and links."
+    )]
     pub async fn get_item_by_title(
         &self,
         Parameters(p): Parameters<GetItemByTitleParams>,
     ) -> Result<CallToolResult, McpError> {
         let item: serde_json::Value = self
             .client
-            .get(&format!(
-                "/item/title/{}",
-                urlencoding::encode(&p.title)
-            ))
+            .get(&format!("/item/title/{}", urlencoding::encode(&p.title)))
             .await
             .map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text(pretty(item))]))
     }
 
-    #[rmcp::tool(description = "Get all child items of a given item. Returns items that are children (sub-items) of the specified parent.")]
+    #[rmcp::tool(
+        description = "Get all child items of a given item. Returns items that are children (sub-items) of the specified parent."
+    )]
     pub async fn get_children(
         &self,
         Parameters(p): Parameters<ItemIdParam>,
@@ -194,7 +250,9 @@ impl ZealotServer {
         Ok(CallToolResult::success(vec![Content::text(pretty(items))]))
     }
 
-    #[rmcp::tool(description = "Get all items related to a given item (linked items, blocked by, tagged, etc.).")]
+    #[rmcp::tool(
+        description = "Get all items related to a given item (linked items, blocked by, tagged, etc.)."
+    )]
     pub async fn get_related_items(
         &self,
         Parameters(p): Parameters<ItemIdParam>,
@@ -207,7 +265,9 @@ impl ZealotServer {
         Ok(CallToolResult::success(vec![Content::text(pretty(items))]))
     }
 
-    #[rmcp::tool(description = "Create a new wiki item with a title and content body. Optionally provide attributes as a JSON object.")]
+    #[rmcp::tool(
+        description = "Create a new wiki item with a title and content body. Optionally provide attributes as a JSON object."
+    )]
     pub async fn create_item(
         &self,
         Parameters(p): Parameters<CreateItemParams>,
@@ -221,15 +281,21 @@ impl ZealotServer {
         Ok(CallToolResult::success(vec![Content::text(pretty(item))]))
     }
 
-    #[rmcp::tool(description = "Update an existing item's title and/or content by ID. Only provided fields are changed.")]
+    #[rmcp::tool(
+        description = "Update an existing item's title and/or content by ID. Only provided fields are changed."
+    )]
     pub async fn update_item(
         &self,
         Parameters(p): Parameters<UpdateItemParams>,
     ) -> Result<CallToolResult, McpError> {
         let mut body = serde_json::Map::new();
         body.insert("item_id".into(), json!(p.id));
-        if let Some(t) = p.title { body.insert("title".into(), json!(t)); }
-        if let Some(c) = p.content { body.insert("content".into(), json!(c)); }
+        if let Some(t) = p.title {
+            body.insert("title".into(), json!(t));
+        }
+        if let Some(c) = p.content {
+            body.insert("content".into(), json!(c));
+        }
         let body = serde_json::Value::Object(body);
         let item: serde_json::Value = self
             .client
@@ -248,20 +314,25 @@ impl ZealotServer {
             .delete(&format!("/item/{}", p.id))
             .await
             .map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text("deleted".to_string())]))
+        Ok(CallToolResult::success(vec![Content::text(
+            "deleted".to_string(),
+        )]))
     }
 
-    #[rmcp::tool(description = "Set one or more attributes on an item. Pass a JSON object of key→value pairs. Existing keys are overwritten, others are preserved.")]
+    #[rmcp::tool(
+        description = "Set one or more attributes on an item. Pass a JSON object of key→value pairs. Existing keys are overwritten, others are preserved."
+    )]
     pub async fn set_item_attributes(
         &self,
         Parameters(p): Parameters<SetAttributesParams>,
     ) -> Result<CallToolResult, McpError> {
-        self
-            .client
+        self.client
             .patch_no_response(&format!("/item/{}/attr", p.id), &p.attributes)
             .await
             .map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text("attributes updated".to_string())]))
+        Ok(CallToolResult::success(vec![Content::text(
+            "attributes updated".to_string(),
+        )]))
     }
 
     #[rmcp::tool(description = "Delete a single attribute from an item by its key.")]
@@ -270,19 +341,26 @@ impl ZealotServer {
         Parameters(p): Parameters<DeleteAttributeParams>,
     ) -> Result<CallToolResult, McpError> {
         self.client
-            .delete(&format!("/item/{}/attr/{}", p.id, urlencoding::encode(&p.key)))
+            .delete(&format!(
+                "/item/{}/attr/{}",
+                p.id,
+                urlencoding::encode(&p.key)
+            ))
             .await
             .map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text("attribute deleted".to_string())]))
+        Ok(CallToolResult::success(vec![Content::text(
+            "attribute deleted".to_string(),
+        )]))
     }
 
-    #[rmcp::tool(description = "Assign an item type to an item (e.g. assign 'Goal' type to an item). An item can have multiple types.")]
+    #[rmcp::tool(
+        description = "Assign an item type to an item (e.g. assign 'Goal' type to an item). An item can have multiple types."
+    )]
     pub async fn assign_item_type(
         &self,
         Parameters(p): Parameters<AssignTypeParams>,
     ) -> Result<CallToolResult, McpError> {
-        self
-            .client
+        self.client
             .post_no_response(
                 &format!(
                     "/item/{}/assign_type/{}",

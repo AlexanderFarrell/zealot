@@ -28,7 +28,10 @@ pub enum RepeatServiceError {
 
 impl RepeatService {
     pub fn new(repo: &Arc<dyn RepeatRepo>, item_service: &Arc<ItemService>) -> Self {
-        Self { repo: repo.clone(), item_service: item_service.clone() }
+        Self {
+            repo: repo.clone(),
+            item_service: item_service.clone(),
+        }
     }
 
     pub async fn get_for_day(
@@ -65,10 +68,7 @@ impl RepeatService {
         Ok(entries)
     }
 
-    pub fn get_all_repeat_items(
-        &self,
-        account: &Account,
-    ) -> Result<Vec<Item>, RepeatServiceError> {
+    pub fn get_all_repeat_items(&self, account: &Account) -> Result<Vec<Item>, RepeatServiceError> {
         self.item_service
             .get_items_by_type("Repeat", account)
             .map_err(|_| RepeatServiceError::NotFound)

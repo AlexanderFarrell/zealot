@@ -99,7 +99,11 @@ impl MediaService {
     }
 
     /// Creates a folder (and any intermediate directories) at `folder_path`.
-    pub fn make_folder(&self, folder_path: &str, account: &Account) -> Result<(), MediaServiceError> {
+    pub fn make_folder(
+        &self,
+        folder_path: &str,
+        account: &Account,
+    ) -> Result<(), MediaServiceError> {
         if folder_path.is_empty() {
             return Err(MediaServiceError::InvalidPath {
                 reason: String::from("folder path must not be empty"),

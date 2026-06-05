@@ -14,7 +14,9 @@ impl BroadcastEventPort {
 
 impl EventPort for BroadcastEventPort {
     fn emit(&self, event: ZealotEvent) {
-        if is_inside_rule_execution() { return; }
+        if is_inside_rule_execution() {
+            return;
+        }
         let _ = self.tx.send(event);
     }
 }

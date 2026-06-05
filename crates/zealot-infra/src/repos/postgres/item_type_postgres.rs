@@ -72,8 +72,10 @@ fn rows_to_item_type_summaries(
     rows.into_iter()
         .map(|row| {
             Ok(ItemTypeSummary {
-                type_id: Id::try_from(row.type_id as i64).map_err(|err| RepoError::DatabaseError {
-                    err: err.to_string(),
+                type_id: Id::try_from(row.type_id as i64).map_err(|err| {
+                    RepoError::DatabaseError {
+                        err: err.to_string(),
+                    }
                 })?,
                 is_system: row.account_id.is_none(),
                 name: row.name,
@@ -218,10 +220,16 @@ impl ItemTypeRepo for ItemTypePostgresRepo {
 
                 let mut refs_by_item: HashMap<Id, Vec<ItemTypeRef>> = HashMap::new();
                 for row in rows {
-                    let item_id = Id::try_from(row.item_id as i64)
-                        .map_err(|err| RepoError::DatabaseError { err: err.to_string() })?;
-                    let type_id = Id::try_from(row.type_id as i64)
-                        .map_err(|err| RepoError::DatabaseError { err: err.to_string() })?;
+                    let item_id = Id::try_from(row.item_id as i64).map_err(|err| {
+                        RepoError::DatabaseError {
+                            err: err.to_string(),
+                        }
+                    })?;
+                    let type_id = Id::try_from(row.type_id as i64).map_err(|err| {
+                        RepoError::DatabaseError {
+                            err: err.to_string(),
+                        }
+                    })?;
                     refs_by_item.entry(item_id).or_default().push(ItemTypeRef {
                         type_id,
                         is_system: row.account_id.is_none(),
@@ -262,8 +270,9 @@ impl ItemTypeRepo for ItemTypePostgresRepo {
                 item_ids
                     .into_iter()
                     .map(|item_id| {
-                        Id::try_from(item_id as i64)
-                            .map_err(|err| RepoError::DatabaseError { err: err.to_string() })
+                        Id::try_from(item_id as i64).map_err(|err| RepoError::DatabaseError {
+                            err: err.to_string(),
+                        })
                     })
                     .collect()
             })
@@ -388,14 +397,13 @@ impl ItemTypeRepo for ItemTypePostgresRepo {
         let pool = self.pool.clone();
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
-                let result = sqlx::query(
-                    "DELETE FROM item_type WHERE type_id = $1 AND account_id = $2",
-                )
-                .bind(type_id_val)
-                .bind(account_id_val)
-                .execute(&pool)
-                .await
-                .map_err(RepoError::from)?;
+                let result =
+                    sqlx::query("DELETE FROM item_type WHERE type_id = $1 AND account_id = $2")
+                        .bind(type_id_val)
+                        .bind(account_id_val)
+                        .execute(&pool)
+                        .await
+                        .map_err(RepoError::from)?;
 
                 Ok(result.rows_affected() > 0)
             })

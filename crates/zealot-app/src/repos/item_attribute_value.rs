@@ -18,6 +18,8 @@ pub trait ItemAttributeValueRepo: Debug + Send + Sync {
         &self,
         filters: &Vec<AttributeFilter>,
         account_id: &Id,
+        limit: Option<i64>,
+        offset: i64,
     ) -> Result<Vec<Id>, RepoError>;
     fn replace_item_attributes(
         &self,

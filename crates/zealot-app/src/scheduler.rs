@@ -1,7 +1,7 @@
-use tokio::time::{sleep, Duration};
-use chrono::Utc;
-use zealot_domain::rule::TriggerKind;
 use crate::{app::AppState, ports::rule_runner::RuleContext};
+use chrono::Utc;
+use tokio::time::{Duration, sleep};
+use zealot_domain::rule::TriggerKind;
 
 pub fn start(state: AppState) {
     tokio::spawn(async move {
@@ -42,7 +42,9 @@ fn is_due(
     match trigger {
         TriggerKind::Cron { expression } => {
             use croner::Cron;
-            let Ok(cron) = Cron::new(expression).parse() else { return false };
+            let Ok(cron) = Cron::new(expression).parse() else {
+                return false;
+            };
             let last = last_run_at.unwrap_or(chrono::NaiveDateTime::MIN);
             let secs_since_last = (now - last).num_seconds();
             secs_since_last >= 55 && cron.is_time_matching(&now.and_utc()).unwrap_or(false)
@@ -68,7 +70,7 @@ mod tests {
     fn interval_due_when_enough_time_elapsed() {
         let trigger = TriggerKind::Interval { seconds: 65 };
         let last = dt("2024-01-01 12:00:00");
-        let now  = dt("2024-01-01 12:01:06");
+        let now = dt("2024-01-01 12:01:06");
         assert!(is_due(&trigger, Some(last), now));
     }
 
@@ -76,15 +78,17 @@ mod tests {
     fn interval_not_due_when_too_soon() {
         let trigger = TriggerKind::Interval { seconds: 65 };
         let last = dt("2024-01-01 12:00:00");
-        let now  = dt("2024-01-01 12:00:30");
+        let now = dt("2024-01-01 12:00:30");
         assert!(!is_due(&trigger, Some(last), now));
     }
 
     #[test]
     fn cron_not_due_when_run_recently() {
-        let trigger = TriggerKind::Cron { expression: "* * * * *".to_string() };
+        let trigger = TriggerKind::Cron {
+            expression: "* * * * *".to_string(),
+        };
         let last = dt("2024-01-01 12:00:00");
-        let now  = dt("2024-01-01 12:00:05");
+        let now = dt("2024-01-01 12:00:05");
         assert!(!is_due(&trigger, Some(last), now));
     }
 }

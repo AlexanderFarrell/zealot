@@ -243,16 +243,8 @@ impl From<&Item> for ItemDto {
             title: value.title.clone(),
             content: value.content.clone(),
             attributes: serde_json::to_value(&value.attributes).unwrap(), // Serde JSON serialization failure is not expected.
-            types: value
-                .types
-                .iter()
-                .map(ItemTypeRefDto::from)
-                .collect(),
-            links: value
-                .links
-                .iter()
-                .map(ItemLinkDto::from)
-                .collect(),
+            types: value.types.iter().map(ItemTypeRefDto::from).collect(),
+            links: value.links.iter().map(ItemLinkDto::from).collect(),
         }
     }
 }

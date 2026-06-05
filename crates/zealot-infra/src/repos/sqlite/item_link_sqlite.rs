@@ -2,11 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use sqlx::SqlitePool;
 use zealot_app::repos::{common::RepoError, item_link::ItemLinkRepo};
-use zealot_domain::{
-    account::Account,
-    common::id::Id,
-    item::ItemLink,
-};
+use zealot_domain::{account::Account, common::id::Id, item::ItemLink};
 
 #[derive(Debug)]
 pub struct ItemLinkSqliteRepo {
@@ -63,14 +59,23 @@ impl ItemLinkRepo for ItemLinkSqliteRepo {
                 let rows = query.fetch_all(&pool).await.map_err(RepoError::from)?;
                 let mut links_by_item: HashMap<Id, Vec<ItemLink>> = HashMap::new();
                 for row in rows {
-                    let first_item_id = Id::try_from(row.first_item_id)
-                        .map_err(|err| RepoError::DatabaseError { err: err.to_string() })?;
-                    let second_item_id = Id::try_from(row.second_item_id)
-                        .map_err(|err| RepoError::DatabaseError { err: err.to_string() })?;
-                    links_by_item.entry(first_item_id).or_default().push(ItemLink {
-                        other_item_id: second_item_id,
-                        relationship: row.relationship,
-                    });
+                    let first_item_id = Id::try_from(row.first_item_id).map_err(|err| {
+                        RepoError::DatabaseError {
+                            err: err.to_string(),
+                        }
+                    })?;
+                    let second_item_id = Id::try_from(row.second_item_id).map_err(|err| {
+                        RepoError::DatabaseError {
+                            err: err.to_string(),
+                        }
+                    })?;
+                    links_by_item
+                        .entry(first_item_id)
+                        .or_default()
+                        .push(ItemLink {
+                            other_item_id: second_item_id,
+                            relationship: row.relationship,
+                        });
                 }
 
                 Ok(links_by_item)
@@ -160,8 +165,10 @@ impl ItemLinkRepo for ItemLinkSqliteRepo {
                 let mut seen = HashSet::new();
                 let mut related_ids = Vec::new();
                 for raw_id in outgoing.into_iter().chain(incoming) {
-                    let related_id = Id::try_from(raw_id)
-                        .map_err(|err| RepoError::DatabaseError { err: err.to_string() })?;
+                    let related_id =
+                        Id::try_from(raw_id).map_err(|err| RepoError::DatabaseError {
+                            err: err.to_string(),
+                        })?;
                     if seen.insert(related_id) {
                         related_ids.push(related_id);
                     }
@@ -187,7 +194,10 @@ impl ItemLinkRepo for ItemLinkSqliteRepo {
         }
         let links: Vec<ItemLink> = deduped
             .into_keys()
-            .map(|(other_item_id, relationship)| ItemLink { other_item_id, relationship })
+            .map(|(other_item_id, relationship)| ItemLink {
+                other_item_id,
+                relationship,
+            })
             .collect();
         let pool = self.pool.clone();
 

@@ -19,27 +19,29 @@ impl RulePostgresRepo {
 
 #[derive(sqlx::FromRow)]
 struct RuleRow {
-    rule_id:        i64,
-    account_id:     i64,
-    name:           String,
-    description:    String,
-    trigger_kind:   String,
+    rule_id: i64,
+    account_id: i64,
+    name: String,
+    description: String,
+    trigger_kind: String,
     trigger_config: String,
-    script:         String,
-    enabled:        bool,
-    created_at:     DateTime<Utc>,
-    last_run_at:    Option<DateTime<Utc>>,
-    last_error:     Option<String>,
-    last_output:    Option<String>,
+    script: String,
+    enabled: bool,
+    created_at: DateTime<Utc>,
+    last_run_at: Option<DateTime<Utc>>,
+    last_error: Option<String>,
+    last_output: Option<String>,
 }
 
 fn row_to_rule(row: RuleRow) -> Result<Rule, RepoError> {
-    let rule_id = Id::try_from(row.rule_id)
-        .map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
+    let rule_id =
+        Id::try_from(row.rule_id).map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
     let account_id = Id::try_from(row.account_id)
         .map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
-    let trigger: TriggerKind = serde_json::from_str(&row.trigger_config)
-        .map_err(|e| RepoError::DatabaseError { err: format!("invalid trigger_config: {}", e) })?;
+    let trigger: TriggerKind =
+        serde_json::from_str(&row.trigger_config).map_err(|e| RepoError::DatabaseError {
+            err: format!("invalid trigger_config: {}", e),
+        })?;
     Ok(Rule {
         rule_id,
         account_id,
@@ -55,8 +57,7 @@ fn row_to_rule(row: RuleRow) -> Result<Rule, RepoError> {
     })
 }
 
-const SELECT_COLS: &str =
-    "rule_id, account_id, name, description, trigger_kind, trigger_config, script, enabled, created_at, last_run_at, last_error, last_output";
+const SELECT_COLS: &str = "rule_id, account_id, name, description, trigger_kind, trigger_config, script, enabled, created_at, last_run_at, last_error, last_output";
 
 impl RuleRepo for RulePostgresRepo {
     fn get_all_rules(&self, account_id: &Id) -> Result<Vec<Rule>, RepoError> {

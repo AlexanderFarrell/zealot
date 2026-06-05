@@ -50,10 +50,7 @@ pub async fn csrf_middleware(
     Ok(next.run(req).await)
 }
 
-pub async fn auth_middleware<B>(
-    State(state): State<AppState>,
-    mut req: Request<B>,
-) -> Request<B> {
+pub async fn auth_middleware<B>(State(state): State<AppState>, mut req: Request<B>) -> Request<B> {
     let headers = req.headers().clone();
     let actor = resolve_actor(&state, headers).await;
     req.extensions_mut().insert(actor);
@@ -79,7 +76,12 @@ async fn resolve_actor(state: &AppState, headers: HeaderMap) -> Actor {
     // 3. Session Management
     let jar = CookieJar::from_headers(&headers);
     if let Some(cookie) = jar.get("session_id") {
-        match state.services.auth.authenticate_session(cookie.value()).await {
+        match state
+            .services
+            .auth
+            .authenticate_session(cookie.value())
+            .await
+        {
             Ok(actor) => return actor,
             Err(e) => {
                 tracing::warn!("Session lookup failed: {:?}", e);

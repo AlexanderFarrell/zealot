@@ -8,9 +8,16 @@ use axum::{
 use serde::Deserialize;
 use sqlx::types::chrono::NaiveDate;
 use zealot_app::{app::AppState, services::repeat::RepeatServiceError};
-use zealot_domain::{auth::Actor, item::ItemDto, repeat::{RepeatEntryDto, UpdateRepeatEntryDto}};
+use zealot_domain::{
+    auth::Actor,
+    item::ItemDto,
+    repeat::{RepeatEntryDto, UpdateRepeatEntryDto},
+};
 
-use crate::http::{common::HttpError, middleware::{auth_middleware, csrf_middleware}};
+use crate::http::{
+    common::HttpError,
+    middleware::{auth_middleware, csrf_middleware},
+};
 
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
@@ -18,8 +25,14 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .route("/day/{date}", get(get_for_day))
         .route("/range", get(get_for_range))
         .route("/status", put(set_status))
-        .route_layer(middleware::from_fn_with_state(state.clone(), csrf_middleware))
-        .route_layer(middleware::map_request_with_state(state.clone(), auth_middleware))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            csrf_middleware,
+        ))
+        .route_layer(middleware::map_request_with_state(
+            state.clone(),
+            auth_middleware,
+        ))
         .with_state(state)
 }
 
@@ -41,7 +54,10 @@ fn require_account(actor: &Actor) -> Result<zealot_domain::account::Account, Htt
 fn repeat_service_err(err: RepeatServiceError) -> HttpError {
     match err {
         RepeatServiceError::NotFound => HttpError::NotFound,
-        RepeatServiceError::Repo(e) => { tracing::error!("Repeat repo error: {e}"); HttpError::Internal },
+        RepeatServiceError::Repo(e) => {
+            tracing::error!("Repeat repo error: {e}");
+            HttpError::Internal
+        }
     }
 }
 
@@ -53,15 +69,18 @@ async fn get_for_day(
     Path(date): Path<String>,
 ) -> Result<Json<Vec<RepeatEntryDto>>, HttpError> {
     let account = require_account(&actor)?;
-    let day = NaiveDate::parse_from_str(&date, "%Y-%m-%d")
-        .map_err(|e| HttpError::UserError { err: format!("invalid date '{}': {}", date, e) })?;
+    let day = NaiveDate::parse_from_str(&date, "%Y-%m-%d").map_err(|e| HttpError::UserError {
+        err: format!("invalid date '{}': {}", date, e),
+    })?;
     let entries = state
         .services
         .repeat
         .get_for_day(&day, &account)
         .await
         .map_err(repeat_service_err)?;
-    Ok(Json(entries.into_iter().map(RepeatEntryDto::from).collect()))
+    Ok(Json(
+        entries.into_iter().map(RepeatEntryDto::from).collect(),
+    ))
 }
 
 async fn get_items(
@@ -83,12 +102,18 @@ async fn get_for_range(
     Query(params): Query<RangeParams>,
 ) -> Result<Json<Vec<RepeatEntryDto>>, HttpError> {
     let account = require_account(&actor)?;
-    let start = NaiveDate::parse_from_str(&params.start, "%Y-%m-%d")
-        .map_err(|e| HttpError::UserError { err: format!("invalid start date '{}': {}", params.start, e) })?;
-    let end = NaiveDate::parse_from_str(&params.end, "%Y-%m-%d")
-        .map_err(|e| HttpError::UserError { err: format!("invalid end date '{}': {}", params.end, e) })?;
+    let start =
+        NaiveDate::parse_from_str(&params.start, "%Y-%m-%d").map_err(|e| HttpError::UserError {
+            err: format!("invalid start date '{}': {}", params.start, e),
+        })?;
+    let end =
+        NaiveDate::parse_from_str(&params.end, "%Y-%m-%d").map_err(|e| HttpError::UserError {
+            err: format!("invalid end date '{}': {}", params.end, e),
+        })?;
     if end < start {
-        return Err(HttpError::UserError { err: "end date must not be before start date".to_string() });
+        return Err(HttpError::UserError {
+            err: "end date must not be before start date".to_string(),
+        });
     }
     let entries = state
         .services
@@ -96,7 +121,9 @@ async fn get_for_range(
         .get_for_range(&start, &end, &account)
         .await
         .map_err(repeat_service_err)?;
-    Ok(Json(entries.into_iter().map(RepeatEntryDto::from).collect()))
+    Ok(Json(
+        entries.into_iter().map(RepeatEntryDto::from).collect(),
+    ))
 }
 
 async fn set_status(

@@ -19,37 +19,40 @@ impl RuleSqliteRepo {
 
 #[derive(sqlx::FromRow)]
 struct RuleRow {
-    rule_id:        i64,
-    account_id:     i64,
-    name:           String,
-    description:    String,
-    trigger_kind:   String,
+    rule_id: i64,
+    account_id: i64,
+    name: String,
+    description: String,
+    trigger_kind: String,
     trigger_config: String,
-    script:         String,
-    enabled:        bool,
-    created_at:     i64,
-    last_run_at:    Option<i64>,
-    last_error:     Option<String>,
-    last_output:    Option<String>,
+    script: String,
+    enabled: bool,
+    created_at: i64,
+    last_run_at: Option<i64>,
+    last_error: Option<String>,
+    last_output: Option<String>,
 }
 
 fn row_to_rule(row: RuleRow) -> Result<Rule, RepoError> {
-    let rule_id = Id::try_from(row.rule_id)
-        .map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
+    let rule_id =
+        Id::try_from(row.rule_id).map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
     let account_id = Id::try_from(row.account_id)
         .map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
-    let trigger: TriggerKind = serde_json::from_str(&row.trigger_config)
-        .map_err(|e| RepoError::DatabaseError { err: format!("invalid trigger_config: {}", e) })?;
-    let created_at = NaiveDateTime::from_timestamp_opt(row.created_at, 0)
-        .ok_or_else(|| RepoError::DatabaseError {
-            err: format!("invalid created_at timestamp: {}", row.created_at),
+    let trigger: TriggerKind =
+        serde_json::from_str(&row.trigger_config).map_err(|e| RepoError::DatabaseError {
+            err: format!("invalid trigger_config: {}", e),
         })?;
-    let last_run_at = row.last_run_at
+    let created_at = NaiveDateTime::from_timestamp_opt(row.created_at, 0).ok_or_else(|| {
+        RepoError::DatabaseError {
+            err: format!("invalid created_at timestamp: {}", row.created_at),
+        }
+    })?;
+    let last_run_at = row
+        .last_run_at
         .map(|ts| {
-            NaiveDateTime::from_timestamp_opt(ts, 0)
-                .ok_or_else(|| RepoError::DatabaseError {
-                    err: format!("invalid last_run_at timestamp: {}", ts),
-                })
+            NaiveDateTime::from_timestamp_opt(ts, 0).ok_or_else(|| RepoError::DatabaseError {
+                err: format!("invalid last_run_at timestamp: {}", ts),
+            })
         })
         .transpose()?;
     Ok(Rule {
@@ -67,8 +70,7 @@ fn row_to_rule(row: RuleRow) -> Result<Rule, RepoError> {
     })
 }
 
-const SELECT_COLS: &str =
-    "rule_id, account_id, name, description, trigger_kind, trigger_config, script, enabled, created_at, last_run_at, last_error, last_output";
+const SELECT_COLS: &str = "rule_id, account_id, name, description, trigger_kind, trigger_config, script, enabled, created_at, last_run_at, last_error, last_output";
 
 impl RuleRepo for RuleSqliteRepo {
     fn get_all_rules(&self, account_id: &Id) -> Result<Vec<Rule>, RepoError> {
@@ -132,7 +134,11 @@ impl RuleRepo for RuleSqliteRepo {
         })
     }
 
-    fn get_enabled_event_rules(&self, trigger_kind: &str, account_id: &Id) -> Result<Vec<Rule>, RepoError> {
+    fn get_enabled_event_rules(
+        &self,
+        trigger_kind: &str,
+        account_id: &Id,
+    ) -> Result<Vec<Rule>, RepoError> {
         let account_id_val = i64::from(*account_id);
         let trigger_kind = trigger_kind.to_owned();
         let pool = self.pool.clone();
@@ -187,13 +193,20 @@ impl RuleRepo for RuleSqliteRepo {
         })
     }
 
-    fn update_rule(&self, rule_id: &Id, dto: &UpdateRuleDto, account_id: &Id) -> Result<Option<Rule>, RepoError> {
+    fn update_rule(
+        &self,
+        rule_id: &Id,
+        dto: &UpdateRuleDto,
+        account_id: &Id,
+    ) -> Result<Option<Rule>, RepoError> {
         let rule_id_val = i64::from(*rule_id);
         let account_id_val = i64::from(*account_id);
         let new_name = dto.name.clone();
         let new_description = dto.description.clone();
         let new_trigger_kind = dto.trigger.as_ref().map(|t| t.kind_str().to_owned());
-        let new_trigger_config = dto.trigger.as_ref()
+        let new_trigger_config = dto
+            .trigger
+            .as_ref()
             .map(|t| serde_json::to_string(t))
             .transpose()
             .map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;

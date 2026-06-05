@@ -1,5 +1,5 @@
 use reqwest::{Client, StatusCode};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -87,7 +87,11 @@ impl ZealotClient {
         self.parse(resp).await
     }
 
-    pub async fn post_no_response<B: Serialize>(&self, path: &str, body: &B) -> Result<(), ApiError> {
+    pub async fn post_no_response<B: Serialize>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> Result<(), ApiError> {
         let resp = self
             .inner
             .post(self.url(path))
@@ -106,7 +110,11 @@ impl ZealotClient {
         Ok(())
     }
 
-    pub async fn put_no_response<B: Serialize>(&self, path: &str, body: &B) -> Result<(), ApiError> {
+    pub async fn put_no_response<B: Serialize>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> Result<(), ApiError> {
         let resp = self
             .inner
             .put(self.url(path))
@@ -125,7 +133,11 @@ impl ZealotClient {
         Ok(())
     }
 
-    pub async fn patch_no_response<B: Serialize>(&self, path: &str, body: &B) -> Result<(), ApiError> {
+    pub async fn patch_no_response<B: Serialize>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> Result<(), ApiError> {
         let resp = self
             .inner
             .patch(self.url(path))
@@ -169,7 +181,10 @@ impl ZealotClient {
         }
         let body = resp.text().await.unwrap_or_default();
         if !status.is_success() {
-            return Err(ApiError::Http { status, message: body });
+            return Err(ApiError::Http {
+                status,
+                message: body,
+            });
         }
         serde_json::from_str(&body).map_err(|e| ApiError::Http {
             status,

@@ -36,7 +36,7 @@ impl Actor {
     pub fn is_authenticated(&self) -> bool {
         match self.source {
             AuthSource::Anonymous => false,
-            _ => true
+            _ => true,
         }
-    } 
+    }
 }

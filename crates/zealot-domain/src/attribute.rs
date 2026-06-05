@@ -127,7 +127,12 @@ pub struct AttributeFilterDto {
     pub key: String,
     pub op: String,
     pub value: Value,
+    #[serde(default = "default_filter_list_mode")]
     pub list_mode: String,
+}
+
+fn default_filter_list_mode() -> String {
+    String::from("any")
 }
 
 #[derive(Debug, Clone)]
@@ -479,6 +484,7 @@ impl TryFrom<&str> for AttributeFilterOp {
             ">=" => Ok(Self::GreaterThanOrEqualTo),
             "lte" => Ok(Self::LessThanOrEqualTo),
             "<=" => Ok(Self::LessThanOrEqualTo),
+            "ilike" => Ok(Self::LikeCaseInsensitive),
             _ => Err(format!("{} operation not supported", value)),
         }
     }
@@ -582,6 +588,21 @@ mod attribute_tests {
             attribute,
             Attribute::Scalar(AttributeScalar::Text(String::from("hello")))
         );
+    }
+
+    #[test]
+    fn attribute_filter_dto_defaults_list_mode_to_any() {
+        let dto: AttributeFilterDto =
+            serde_json::from_value(json!({"key": "Status", "op": "eq", "value": "Open"})).unwrap();
+
+        assert_eq!(dto.list_mode, "any");
+    }
+
+    #[test]
+    fn parses_ilike_filter_operator() {
+        let op = AttributeFilterOp::try_from("ilike").unwrap();
+
+        assert!(matches!(op, AttributeFilterOp::LikeCaseInsensitive));
     }
 }
 

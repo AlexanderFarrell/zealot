@@ -14,7 +14,10 @@ use zealot_domain::{
     item_type::{AddItemTypeDto, ItemTypeDto, ItemTypeSummaryDto, UpdateItemTypeDto},
 };
 
-use crate::http::{common::HttpError, middleware::{auth_middleware, csrf_middleware}};
+use crate::http::{
+    common::HttpError,
+    middleware::{auth_middleware, csrf_middleware},
+};
 
 #[derive(Deserialize)]
 struct DeleteParams {
@@ -37,7 +40,10 @@ pub fn routes(state: AppState) -> Router<AppState> {
             "/{type_id}/attr_kind",
             post(add_attr_kinds).delete(remove_attr_kinds),
         )
-        .route_layer(middleware::from_fn_with_state(state.clone(), csrf_middleware))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            csrf_middleware,
+        ))
         .route_layer(middleware::map_request_with_state(
             state.clone(),
             auth_middleware,
@@ -57,7 +63,10 @@ fn item_type_service_err(err: ItemTypeServiceError) -> HttpError {
         ItemTypeServiceError::NotFound => HttpError::NotFound,
         ItemTypeServiceError::ReadOnly(err) => HttpError::UserError { err },
         ItemTypeServiceError::InUse(message) => HttpError::Conflict { message },
-        ItemTypeServiceError::Repo(e) => { tracing::error!("ItemType repo error: {e}"); HttpError::Internal },
+        ItemTypeServiceError::Repo(e) => {
+            tracing::error!("ItemType repo error: {e}");
+            HttpError::Internal
+        }
     }
 }
 

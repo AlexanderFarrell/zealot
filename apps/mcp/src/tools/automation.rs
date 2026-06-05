@@ -1,7 +1,7 @@
 use rmcp::{
-    model::{CallToolResult, Content},
     ErrorData as McpError,
     handler::server::wrapper::Parameters,
+    model::{CallToolResult, Content},
 };
 use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde::Deserialize;
@@ -124,13 +124,17 @@ fn pretty(v: serde_json::Value) -> String {
 impl ZealotServer {
     // Rules
 
-    #[rmcp::tool(description = "List all automation rules. Rules are Lua scripts triggered by events, schedules, or manually.")]
+    #[rmcp::tool(
+        description = "List all automation rules. Rules are Lua scripts triggered by events, schedules, or manually."
+    )]
     pub async fn list_rules(&self) -> Result<CallToolResult, McpError> {
         let rules: serde_json::Value = self.client.get("/rule").await.map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text(pretty(rules))]))
     }
 
-    #[rmcp::tool(description = "Get a single rule by its numeric ID, including the full Lua script.")]
+    #[rmcp::tool(
+        description = "Get a single rule by its numeric ID, including the full Lua script."
+    )]
     pub async fn get_rule(
         &self,
         Parameters(p): Parameters<RuleIdParam>,
@@ -143,7 +147,9 @@ impl ZealotServer {
         Ok(CallToolResult::success(vec![Content::text(pretty(rule))]))
     }
 
-    #[rmcp::tool(description = "Create a new automation rule with a trigger and Lua script. Trigger shapes: {\"kind\":\"manual\"}, {\"kind\":\"cron\",\"expression\":\"0 9 * * *\"}, {\"kind\":\"on_item_create\"}, {\"kind\":\"on_type_assign\",\"type_name\":\"Goal\"}.")]
+    #[rmcp::tool(
+        description = "Create a new automation rule with a trigger and Lua script. Trigger shapes: {\"kind\":\"manual\"}, {\"kind\":\"cron\",\"expression\":\"0 9 * * *\"}, {\"kind\":\"on_item_create\"}, {\"kind\":\"on_type_assign\",\"type_name\":\"Goal\"}."
+    )]
     pub async fn create_rule(
         &self,
         Parameters(p): Parameters<CreateRuleParams>,
@@ -159,7 +165,9 @@ impl ZealotServer {
         Ok(CallToolResult::success(vec![Content::text(pretty(rule))]))
     }
 
-    #[rmcp::tool(description = "Update an existing rule's name, description, trigger, script, or enabled state.")]
+    #[rmcp::tool(
+        description = "Update an existing rule's name, description, trigger, script, or enabled state."
+    )]
     pub async fn update_rule(
         &self,
         Parameters(p): Parameters<UpdateRuleParams>,
@@ -188,10 +196,14 @@ impl ZealotServer {
             .delete(&format!("/rule/{}", p.rule_id))
             .await
             .map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text("rule deleted".to_string())]))
+        Ok(CallToolResult::success(vec![Content::text(
+            "rule deleted".to_string(),
+        )]))
     }
 
-    #[rmcp::tool(description = "Run a rule immediately regardless of its trigger. Returns the execution result including any output or errors from the Lua script.")]
+    #[rmcp::tool(
+        description = "Run a rule immediately regardless of its trigger. Returns the execution result including any output or errors from the Lua script."
+    )]
     pub async fn run_rule(
         &self,
         Parameters(p): Parameters<RuleIdParam>,
@@ -206,29 +218,32 @@ impl ZealotServer {
 
     // Item Types
 
-    #[rmcp::tool(description = "List all item types defined in this Zealot instance (e.g. Goal, Project, Habit, Task).")]
+    #[rmcp::tool(
+        description = "List all item types defined in this Zealot instance (e.g. Goal, Project, Habit, Task)."
+    )]
     pub async fn list_item_types(&self) -> Result<CallToolResult, McpError> {
         let types: serde_json::Value = self.client.get("/item_type").await.map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text(pretty(types))]))
     }
 
-    #[rmcp::tool(description = "Get a specific item type by its name. Returns the type definition including required attributes.")]
+    #[rmcp::tool(
+        description = "Get a specific item type by its name. Returns the type definition including required attributes."
+    )]
     pub async fn get_item_type_by_name(
         &self,
         Parameters(p): Parameters<ItemTypeNameParam>,
     ) -> Result<CallToolResult, McpError> {
         let t: serde_json::Value = self
             .client
-            .get(&format!(
-                "/item_type/name/{}",
-                urlencoding::encode(&p.name)
-            ))
+            .get(&format!("/item_type/name/{}", urlencoding::encode(&p.name)))
             .await
             .map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text(pretty(t))]))
     }
 
-    #[rmcp::tool(description = "Create a new item type with a name, optional description, icon, and color.")]
+    #[rmcp::tool(
+        description = "Create a new item type with a name, optional description, icon, and color."
+    )]
     pub async fn create_item_type(
         &self,
         Parameters(p): Parameters<CreateItemTypeParams>,
@@ -239,8 +254,11 @@ impl ZealotServer {
             "icon": p.icon,
             "color": p.color,
         });
-        let t: serde_json::Value =
-            self.client.post("/item_type", &body).await.map_err(api_err)?;
+        let t: serde_json::Value = self
+            .client
+            .post("/item_type", &body)
+            .await
+            .map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text(pretty(t))]))
     }
 
@@ -263,7 +281,9 @@ impl ZealotServer {
         Ok(CallToolResult::success(vec![Content::text(pretty(t))]))
     }
 
-    #[rmcp::tool(description = "Delete an item type by its numeric ID. Items with this type are not deleted.")]
+    #[rmcp::tool(
+        description = "Delete an item type by its numeric ID. Items with this type are not deleted."
+    )]
     pub async fn delete_item_type(
         &self,
         Parameters(p): Parameters<ItemTypeIdParam>,
@@ -272,12 +292,16 @@ impl ZealotServer {
             .delete(&format!("/item_type/{}", p.type_id))
             .await
             .map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text("item type deleted".to_string())]))
+        Ok(CallToolResult::success(vec![Content::text(
+            "item type deleted".to_string(),
+        )]))
     }
 
     // Attribute Kinds
 
-    #[rmcp::tool(description = "List all attribute kind definitions (the schema for custom item attributes).")]
+    #[rmcp::tool(
+        description = "List all attribute kind definitions (the schema for custom item attributes)."
+    )]
     pub async fn list_attribute_kinds(&self) -> Result<CallToolResult, McpError> {
         let kinds: serde_json::Value = self.client.get("/attribute").await.map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text(pretty(kinds))]))
@@ -296,7 +320,9 @@ impl ZealotServer {
         Ok(CallToolResult::success(vec![Content::text(pretty(kind))]))
     }
 
-    #[rmcp::tool(description = "Create a new attribute kind (custom field schema). base_type: text, integer, decimal, date, week, boolean, dropdown, item, list. For dropdown, config: {\"values\":[\"opt1\",\"opt2\"]}.")]
+    #[rmcp::tool(
+        description = "Create a new attribute kind (custom field schema). base_type: text, integer, decimal, date, week, boolean, dropdown, item, list. For dropdown, config: {\"values\":[\"opt1\",\"opt2\"]}."
+    )]
     pub async fn create_attribute_kind(
         &self,
         Parameters(p): Parameters<CreateAttributeKindParams>,
@@ -307,12 +333,17 @@ impl ZealotServer {
             "base_type": p.base_type,
             "config": p.config.map(|c| c.0).unwrap_or(json!({})),
         });
-        let kind: serde_json::Value =
-            self.client.post("/attribute", &body).await.map_err(api_err)?;
+        let kind: serde_json::Value = self
+            .client
+            .post("/attribute", &body)
+            .await
+            .map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text(pretty(kind))]))
     }
 
-    #[rmcp::tool(description = "Update an attribute kind's description or config by its numeric ID.")]
+    #[rmcp::tool(
+        description = "Update an attribute kind's description or config by its numeric ID."
+    )]
     pub async fn update_attribute_kind(
         &self,
         Parameters(p): Parameters<UpdateAttributeKindParams>,

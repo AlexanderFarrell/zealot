@@ -35,7 +35,14 @@ pub async fn run_http(state: AppState, config: ZealotConfig) -> Result<(), Strin
 fn build_router(state: AppState) -> Router {
     let cors = CorsLayer::new()
         .allow_origin("tauri://localhost".parse::<HeaderValue>().unwrap())
-        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE, Method::OPTIONS])
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::PATCH,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
         .allow_headers([
             HeaderName::from_static("content-type"),
             HeaderName::from_static("x-api-key"),

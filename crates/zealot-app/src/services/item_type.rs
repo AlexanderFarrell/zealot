@@ -165,7 +165,9 @@ impl ItemTypeService {
         let current = current.ok_or(ItemTypeServiceError::NotFound)?;
 
         if !force {
-            let count = self.repo.count_items_for_type(type_id)
+            let count = self
+                .repo
+                .count_items_for_type(type_id)
                 .map_err(ItemTypeServiceError::Repo)?;
             if count > 0 {
                 return Err(ItemTypeServiceError::InUse(format!(
@@ -227,10 +229,18 @@ mod tests {
 
     impl MockItemTypeRepo {
         fn with_type(item_type: ItemType, item_count: i64) -> Self {
-            Self { item_type: Some(item_type), item_count, deleted: AtomicBool::new(false) }
+            Self {
+                item_type: Some(item_type),
+                item_count,
+                deleted: AtomicBool::new(false),
+            }
         }
         fn empty() -> Self {
-            Self { item_type: None, item_count: 0, deleted: AtomicBool::new(false) }
+            Self {
+                item_type: None,
+                item_count: 0,
+                deleted: AtomicBool::new(false),
+            }
         }
     }
 
@@ -244,29 +254,75 @@ mod tests {
         }
     }
 
-    fn account_id() -> Id { Id::try_from(1i64).unwrap() }
-    fn type_id() -> Id { Id::try_from(1i64).unwrap() }
+    fn account_id() -> Id {
+        Id::try_from(1i64).unwrap()
+    }
+    fn type_id() -> Id {
+        Id::try_from(1i64).unwrap()
+    }
 
     impl ItemTypeRepo for MockItemTypeRepo {
-        fn get_item_types(&self, _: &Id) -> Result<Vec<ItemType>, RepoError> { Ok(vec![]) }
-        fn get_item_type_summaries(&self, _: &Id) -> Result<Vec<ItemTypeSummary>, RepoError> { Ok(vec![]) }
+        fn get_item_types(&self, _: &Id) -> Result<Vec<ItemType>, RepoError> {
+            Ok(vec![])
+        }
+        fn get_item_type_summaries(&self, _: &Id) -> Result<Vec<ItemTypeSummary>, RepoError> {
+            Ok(vec![])
+        }
         fn get_item_type(&self, _: &Id, _: &Id) -> Result<Option<ItemType>, RepoError> {
             Ok(self.item_type.clone())
         }
-        fn get_item_type_by_name(&self, _: &str, _: &Id) -> Result<Option<ItemType>, RepoError> { Ok(None) }
-        fn get_item_type_refs_for_items(&self, _: &Vec<Id>, _: &Id) -> Result<HashMap<Id, Vec<ItemTypeRef>>, RepoError> { Ok(HashMap::new()) }
-        fn get_item_ids_for_type_name(&self, _: &str, _: &Id) -> Result<Vec<Id>, RepoError> { Ok(vec![]) }
-        fn add_item_type(&self, _: &AddItemTypeDto, _: &Id) -> Result<Option<ItemType>, RepoError> { Ok(None) }
-        fn update_item_type(&self, _: &UpdateItemTypeDto, _: &Id) -> Result<Option<ItemType>, RepoError> { Ok(None) }
-        fn count_items_for_type(&self, _: &Id) -> Result<i64, RepoError> { Ok(self.item_count) }
+        fn get_item_type_by_name(&self, _: &str, _: &Id) -> Result<Option<ItemType>, RepoError> {
+            Ok(None)
+        }
+        fn get_item_type_refs_for_items(
+            &self,
+            _: &Vec<Id>,
+            _: &Id,
+        ) -> Result<HashMap<Id, Vec<ItemTypeRef>>, RepoError> {
+            Ok(HashMap::new())
+        }
+        fn get_item_ids_for_type_name(&self, _: &str, _: &Id) -> Result<Vec<Id>, RepoError> {
+            Ok(vec![])
+        }
+        fn add_item_type(&self, _: &AddItemTypeDto, _: &Id) -> Result<Option<ItemType>, RepoError> {
+            Ok(None)
+        }
+        fn update_item_type(
+            &self,
+            _: &UpdateItemTypeDto,
+            _: &Id,
+        ) -> Result<Option<ItemType>, RepoError> {
+            Ok(None)
+        }
+        fn count_items_for_type(&self, _: &Id) -> Result<i64, RepoError> {
+            Ok(self.item_count)
+        }
         fn delete_item_type(&self, _: &Id, _: &Id) -> Result<bool, RepoError> {
             self.deleted.store(true, Ordering::Relaxed);
             Ok(true)
         }
-        fn add_attr_kinds_to_item_type(&self, _: &Vec<String>, _: &Id, _: &Id) -> Result<(), RepoError> { Ok(()) }
-        fn remove_attr_kinds_from_item_type(&self, _: &Vec<String>, _: &Id, _: &Id) -> Result<(), RepoError> { Ok(()) }
-        fn assign_item_types(&self, _: &Vec<String>, _: &Id, _: &Id) -> Result<(), RepoError> { Ok(()) }
-        fn unassign_item_types(&self, _: &Vec<String>, _: &Id, _: &Id) -> Result<(), RepoError> { Ok(()) }
+        fn add_attr_kinds_to_item_type(
+            &self,
+            _: &Vec<String>,
+            _: &Id,
+            _: &Id,
+        ) -> Result<(), RepoError> {
+            Ok(())
+        }
+        fn remove_attr_kinds_from_item_type(
+            &self,
+            _: &Vec<String>,
+            _: &Id,
+            _: &Id,
+        ) -> Result<(), RepoError> {
+            Ok(())
+        }
+        fn assign_item_types(&self, _: &Vec<String>, _: &Id, _: &Id) -> Result<(), RepoError> {
+            Ok(())
+        }
+        fn unassign_item_types(&self, _: &Vec<String>, _: &Id, _: &Id) -> Result<(), RepoError> {
+            Ok(())
+        }
     }
 
     #[test]

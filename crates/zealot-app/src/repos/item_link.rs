@@ -1,10 +1,6 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use zealot_domain::{
-    account::Account,
-    common::id::Id,
-    item::ItemLink,
-};
+use zealot_domain::{account::Account, common::id::Id, item::ItemLink};
 
 use crate::repos::common::RepoError;
 

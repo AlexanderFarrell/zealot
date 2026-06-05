@@ -49,7 +49,11 @@ impl CommentService {
         }
     }
 
-    fn hydrate(&self, core: CommentCore, account: &Account) -> Result<Comment, CommentServiceError> {
+    fn hydrate(
+        &self,
+        core: CommentCore,
+        account: &Account,
+    ) -> Result<Comment, CommentServiceError> {
         let item = self
             .item_service
             .get_item_by_id(&core.item_id, account)
@@ -69,7 +73,10 @@ impl CommentService {
         cores: Vec<CommentCore>,
         account: &Account,
     ) -> Result<Vec<Comment>, CommentServiceError> {
-        cores.into_iter().map(|c| self.hydrate(c, account)).collect()
+        cores
+            .into_iter()
+            .map(|c| self.hydrate(c, account))
+            .collect()
     }
 
     /// Gets all comments on a particular day for all items.

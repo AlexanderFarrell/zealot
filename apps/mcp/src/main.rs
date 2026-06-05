@@ -16,6 +16,6 @@ async fn main() -> anyhow::Result<()> {
 
     match config.mode {
         Mode::Stdio => server::run_stdio(config).await,
-        Mode::Http  => server::run_http(config).await,
+        Mode::Http => server::run_http(config).await,
     }
 }

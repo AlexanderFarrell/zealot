@@ -1,6 +1,6 @@
+use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
-use std::future::Future;
 
 use chrono::Utc;
 use zealot_app::{
@@ -15,7 +15,7 @@ type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 #[derive(Debug, Clone)]
 pub struct LuaRuleRunner {
-    repos:    Arc<ZealotRepos>,
+    repos: Arc<ZealotRepos>,
     services: Arc<ZealotServices>,
 }
 
@@ -33,23 +33,31 @@ impl LuaRuleRunner {
         let duration_ms = start.elapsed().as_millis() as u64;
         let output: Option<String> = {
             let lines = output_buf.lock().unwrap();
-            if lines.is_empty() { None } else { Some(lines.join("\n")) }
+            if lines.is_empty() {
+                None
+            } else {
+                Some(lines.join("\n"))
+            }
         };
 
         let (success, error) = match result {
             Ok(()) => (true, None),
-            Err(e)  => (false, Some(e.to_string())),
+            Err(e) => (false, Some(e.to_string())),
         };
 
         let now = Utc::now().naive_utc();
-        let _ = self.repos.rule.record_run(
-            &rule.rule_id,
-            now,
-            error.as_deref(),
-            output.as_deref(),
-        );
+        let _ = self
+            .repos
+            .rule
+            .record_run(&rule.rule_id, now, error.as_deref(), output.as_deref());
 
-        RuleRunResult { rule_id: rule.rule_id, success, output, error, duration_ms }
+        RuleRunResult {
+            rule_id: rule.rule_id,
+            success,
+            output,
+            error,
+            duration_ms,
+        }
     }
 
     async fn run_script(
@@ -62,7 +70,13 @@ impl LuaRuleRunner {
         use crate::sandbox::{execute_script, new_sandbox};
 
         let lua = new_sandbox()?;
-        setup_zealot_globals(&lua, context, self.services.clone(), rule.account_id, output_buf)?;
+        setup_zealot_globals(
+            &lua,
+            context,
+            self.services.clone(),
+            rule.account_id,
+            output_buf,
+        )?;
         execute_script(lua, rule.script.clone()).await
     }
 
@@ -70,7 +84,11 @@ impl LuaRuleRunner {
         let account_id = *event.account_id();
         let trigger_kind = event.trigger_kind();
 
-        let rules = match self.repos.rule.get_enabled_event_rules(trigger_kind, &account_id) {
+        let rules = match self
+            .repos
+            .rule
+            .get_enabled_event_rules(trigger_kind, &account_id)
+        {
             Ok(r) => r,
             Err(e) => {
                 tracing::error!("Failed to load event rules: {e}");
@@ -82,9 +100,11 @@ impl LuaRuleRunner {
         for rule in rules {
             let context = RuleContext::Event(event.clone());
             let runner = self.clone();
-            let result = with_rule_depth_guard_async(|| async move {
-                runner.execute_one(&rule, context).await
-            }).await;
+            let result =
+                with_rule_depth_guard_async(
+                    || async move { runner.execute_one(&rule, context).await },
+                )
+                .await;
             results.push(result);
         }
         results
@@ -96,7 +116,11 @@ impl RuleRunnerPort for LuaRuleRunner {
         Box::pin(self.run_event_rules_inner(event))
     }
 
-    fn run_rule<'a>(&'a self, rule: &'a Rule, context: RuleContext) -> BoxFuture<'a, RuleRunResult> {
+    fn run_rule<'a>(
+        &'a self,
+        rule: &'a Rule,
+        context: RuleContext,
+    ) -> BoxFuture<'a, RuleRunResult> {
         Box::pin(self.execute_one(rule, context))
     }
 }

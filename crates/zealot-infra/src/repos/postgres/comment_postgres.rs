@@ -51,7 +51,12 @@ impl CommentRepo for CommentPostgresRepo {
         account_id: &Id,
     ) -> Result<Vec<CommentCore>, RepoError> {
         let day_start = day.and_hms_opt(0, 0, 0).unwrap().and_utc();
-        let day_end = day.succ_opt().unwrap().and_hms_opt(0, 0, 0).unwrap().and_utc();
+        let day_end = day
+            .succ_opt()
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_utc();
         let account_id_val = i64::from(*account_id);
         let pool = self.pool.clone();
 
@@ -77,11 +82,7 @@ impl CommentRepo for CommentPostgresRepo {
         })
     }
 
-    fn get_for_item(
-        &self,
-        item_id: &Id,
-        account_id: &Id,
-    ) -> Result<Vec<CommentCore>, RepoError> {
+    fn get_for_item(&self, item_id: &Id, account_id: &Id) -> Result<Vec<CommentCore>, RepoError> {
         let item_id_val = i64::from(*item_id);
         let account_id_val = i64::from(*account_id);
         let pool = self.pool.clone();

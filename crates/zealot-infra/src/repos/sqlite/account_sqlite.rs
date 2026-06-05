@@ -63,13 +63,11 @@ impl AccountRepo for AccountSqliteRepo {
     fn get_password_hash_by_username(&self, username: &str) -> Result<Option<String>, RepoError> {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
-                sqlx::query_scalar::<_, String>(
-                    "SELECT password FROM account WHERE username = ?",
-                )
-                .bind(username)
-                .fetch_optional(&self.pool)
-                .await
-                .map_err(RepoError::from)
+                sqlx::query_scalar::<_, String>("SELECT password FROM account WHERE username = ?")
+                    .bind(username)
+                    .fetch_optional(&self.pool)
+                    .await
+                    .map_err(RepoError::from)
             })
         })
     }
@@ -166,7 +164,12 @@ impl AccountRepo for AccountSqliteRepo {
         })
     }
 
-    fn insert_api_key(&self, account_id: &Id, key_hash: &str, label: &str) -> Result<ApiKeyRecord, RepoError> {
+    fn insert_api_key(
+        &self,
+        account_id: &Id,
+        key_hash: &str,
+        label: &str,
+    ) -> Result<ApiKeyRecord, RepoError> {
         let id_val = i64::from(*account_id);
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
@@ -211,34 +214,34 @@ impl AccountRepo for AccountSqliteRepo {
         let account_id_val = i64::from(*account_id);
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
-                sqlx::query(
-                    "DELETE FROM api_key WHERE api_key_id = ? AND account_id = ?",
-                )
-                .bind(key_id_val)
-                .bind(account_id_val)
-                .execute(&self.pool)
-                .await
-                .map(|_| ())
-                .map_err(RepoError::from)
+                sqlx::query("DELETE FROM api_key WHERE api_key_id = ? AND account_id = ?")
+                    .bind(key_id_val)
+                    .bind(account_id_val)
+                    .execute(&self.pool)
+                    .await
+                    .map(|_| ())
+                    .map_err(RepoError::from)
             })
         })
     }
 
-    fn update_settings(&self, account_id: &Id, settings: &serde_json::Value) -> Result<(), RepoError> {
+    fn update_settings(
+        &self,
+        account_id: &Id,
+        settings: &serde_json::Value,
+    ) -> Result<(), RepoError> {
         let id_val = i64::from(*account_id);
         let settings_str = serde_json::to_string(settings)
             .map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
-                sqlx::query(
-                    "UPDATE account SET settings = ? WHERE account_id = ?",
-                )
-                .bind(settings_str)
-                .bind(id_val)
-                .execute(&self.pool)
-                .await
-                .map(|_| ())
-                .map_err(RepoError::from)
+                sqlx::query("UPDATE account SET settings = ? WHERE account_id = ?")
+                    .bind(settings_str)
+                    .bind(id_val)
+                    .execute(&self.pool)
+                    .await
+                    .map(|_| ())
+                    .map_err(RepoError::from)
             })
         })
     }

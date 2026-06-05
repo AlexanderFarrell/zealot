@@ -104,7 +104,10 @@ async fn get_returns_http_error_when_json_invalid() {
     let result: Result<serde_json::Value, _> = client.get("/item").await;
     match result {
         Err(ApiError::Http { message, .. }) => {
-            assert!(message.contains("JSON decode failed"), "message was: {message}");
+            assert!(
+                message.contains("JSON decode failed"),
+                "message was: {message}"
+            );
         }
         other => panic!("expected Http error, got {other:?}"),
     }
@@ -172,7 +175,10 @@ async fn patch_success_sends_patch_method() {
         .await;
 
     let client = make_client(&server);
-    let result: serde_json::Value = client.patch("/item/5", &json!({"title": "Updated"})).await.unwrap();
+    let result: serde_json::Value = client
+        .patch("/item/5", &json!({"title": "Updated"}))
+        .await
+        .unwrap();
     assert_eq!(result["id"], 5);
 }
 
@@ -259,7 +265,10 @@ async fn delete_returns_not_found_on_404() {
         .await;
 
     let client = make_client(&server);
-    assert!(matches!(client.delete("/item/999").await, Err(ApiError::NotFound)));
+    assert!(matches!(
+        client.delete("/item/999").await,
+        Err(ApiError::NotFound)
+    ));
 }
 
 #[tokio::test]
@@ -293,7 +302,10 @@ async fn post_no_response_success() {
         .await;
 
     let client = make_client(&server);
-    client.post_no_response("/item/7/assign_type/Goal", &json!({})).await.unwrap();
+    client
+        .post_no_response("/item/7/assign_type/Goal", &json!({}))
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -307,7 +319,9 @@ async fn post_no_response_not_found() {
 
     let client = make_client(&server);
     assert!(matches!(
-        client.post_no_response("/item/7/assign_type/Goal", &json!({})).await,
+        client
+            .post_no_response("/item/7/assign_type/Goal", &json!({}))
+            .await,
         Err(ApiError::NotFound)
     ));
 }
@@ -322,7 +336,10 @@ async fn post_no_response_http_error() {
         .await;
 
     let client = make_client(&server);
-    match client.post_no_response("/item/7/assign_type/Goal", &json!({})).await {
+    match client
+        .post_no_response("/item/7/assign_type/Goal", &json!({}))
+        .await
+    {
         Err(ApiError::Http { status, .. }) => assert_eq!(status.as_u16(), 500),
         other => panic!("expected Http error, got {other:?}"),
     }
@@ -340,7 +357,10 @@ async fn put_no_response_success() {
         .await;
 
     let client = make_client(&server);
-    client.put_no_response("/repeat/status", &json!({})).await.unwrap();
+    client
+        .put_no_response("/repeat/status", &json!({}))
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -371,7 +391,10 @@ async fn patch_no_response_success() {
         .await;
 
     let client = make_client(&server);
-    client.patch_no_response("/item/5/attr", &json!({"priority": "high"})).await.unwrap();
+    client
+        .patch_no_response("/item/5/attr", &json!({"priority": "high"}))
+        .await
+        .unwrap();
 }
 
 #[tokio::test]

@@ -65,12 +65,25 @@ fn row_to_attribute_kind(row: AttributeKindRow) -> Result<AttributeKind, RepoErr
 
     let (base_type, spec) = match row.base_type.as_str() {
         "text" => {
-            let min_len = config.get("min_len").and_then(|v| v.as_u64()).map(|v| v as usize);
-            let max_len = config.get("max_len").and_then(|v| v.as_u64()).map(|v| v as usize);
-            let pattern = config.get("pattern").and_then(|v| v.as_str()).map(String::from);
+            let min_len = config
+                .get("min_len")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as usize);
+            let max_len = config
+                .get("max_len")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as usize);
+            let pattern = config
+                .get("pattern")
+                .and_then(|v| v.as_str())
+                .map(String::from);
             (
                 AttributeBaseType::Scalar(AttributeBaseScalarType::Text),
-                AttributeKindSpec::Text { min_len, max_len, pattern },
+                AttributeKindSpec::Text {
+                    min_len,
+                    max_len,
+                    pattern,
+                },
             )
         }
         "integer" => {
@@ -128,13 +141,15 @@ fn row_to_attribute_kind(row: AttributeKindRow) -> Result<AttributeKind, RepoErr
             let inner = parse_scalar_type(inner_type_str).unwrap_or(AttributeBaseScalarType::Text);
             (
                 AttributeBaseType::List(inner.clone()),
-                AttributeKindSpec::List { list_type: AttributeBaseType::List(inner) },
+                AttributeKindSpec::List {
+                    list_type: AttributeBaseType::List(inner),
+                },
             )
         }
         other => {
             return Err(RepoError::DatabaseError {
                 err: format!("unknown base_type: {}", other),
-            })
+            });
         }
     };
 
@@ -154,7 +169,11 @@ fn row_to_attribute_kind(row: AttributeKindRow) -> Result<AttributeKind, RepoErr
 #[allow(dead_code)]
 fn spec_to_config(spec: &AttributeKindSpec) -> Value {
     match spec {
-        AttributeKindSpec::Text { min_len, max_len, pattern } => {
+        AttributeKindSpec::Text {
+            min_len,
+            max_len,
+            pattern,
+        } => {
             let mut m = serde_json::Map::new();
             if let Some(v) = min_len {
                 m.insert("min_len".into(), Value::Number((*v as u64).into()));
@@ -303,8 +322,7 @@ impl AttributeRepo for AttributePostgresRepo {
         let key = dto.key.clone();
         let description = dto.description.clone();
         let base_type = dto.base_type.clone();
-        let config =
-            serde_json::to_value(&dto.config).unwrap_or(Value::Object(Default::default()));
+        let config = serde_json::to_value(&dto.config).unwrap_or(Value::Object(Default::default()));
         let pool = self.pool.clone();
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
@@ -368,7 +386,11 @@ impl AttributeRepo for AttributePostgresRepo {
         })
     }
 
-    fn count_attribute_values_for_kind(&self, key: &str, account_id: &Id) -> Result<i64, RepoError> {
+    fn count_attribute_values_for_kind(
+        &self,
+        key: &str,
+        account_id: &Id,
+    ) -> Result<i64, RepoError> {
         let account_id_val = i64::from(*account_id);
         let key = key.to_string();
         let pool = self.pool.clone();
@@ -386,7 +408,11 @@ impl AttributeRepo for AttributePostgresRepo {
         })
     }
 
-    fn delete_attribute_values_for_kind(&self, key: &str, account_id: &Id) -> Result<(), RepoError> {
+    fn delete_attribute_values_for_kind(
+        &self,
+        key: &str,
+        account_id: &Id,
+    ) -> Result<(), RepoError> {
         let account_id_val = i64::from(*account_id);
         let key = key.to_string();
         let pool = self.pool.clone();

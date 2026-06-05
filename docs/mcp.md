@@ -128,7 +128,7 @@ codex --mcp-server "http://zealot-mcp.example.com:3100/mcp" "Show me today's pla
 
 ## Tool reference
 
-The MCP server exposes 38 tools grouped below by workflow.
+The MCP server exposes 39 tools grouped below by workflow.
 
 ### Items — wiki management
 
@@ -139,6 +139,7 @@ These tools cover the core Zealot data model. Every piece of information in Zeal
 | `list_items` | `type_filter?` | List root-level items, optionally filtered by type name (e.g. `"Goal"`, `"Project"`) |
 | `list_recent_items` | `limit?` (default 30), `offset?` | List recently modified items with pagination |
 | `search_items` | `term` | Search items by title keyword; results sorted by relevance |
+| `filter_items` | `filters`, `limit?` (default 50, max 100), `offset?` | Filter items by attribute values; filters are ANDed and support `eq`, `ne`, `gt`, `lt`, `gte`, `lte`, and `ilike` |
 | `get_item` | `id` | Fetch a single item by numeric ID — returns full attributes, types, and links |
 | `get_item_by_title` | `title` | Fetch a single item by exact title |
 | `get_children` | `id` | List all child items of a parent |
@@ -342,10 +343,6 @@ Before calling `create_rule`, `update_rule`, or `run_rule`, show the Lua script 
 ### No export via MCP
 
 Item export to PDF or DOCX is not exposed through MCP tools. Use the HTTP API directly: `GET /item/{id}/export?format=pdf`. See [HTTP API](./api.md).
-
-### No filtered queries
-
-The HTTP API supports rich attribute-based filtering (`GET /item/filter`), but MCP does not expose this endpoint. Work around it with `search_items` (keyword search) or `list_items` with `type_filter`, then filter client-side.
 
 ### No batch operations
 

@@ -16,10 +16,19 @@ pub trait RuleRepo: Debug + Send + Sync {
     fn get_enabled_scheduled_rules(&self) -> Result<Vec<(Rule, Id)>, RepoError>;
 
     /// Returns enabled event-triggered rules matching the given trigger_kind for an account.
-    fn get_enabled_event_rules(&self, trigger_kind: &str, account_id: &Id) -> Result<Vec<Rule>, RepoError>;
+    fn get_enabled_event_rules(
+        &self,
+        trigger_kind: &str,
+        account_id: &Id,
+    ) -> Result<Vec<Rule>, RepoError>;
 
     fn add_rule(&self, dto: &AddRuleDto, account_id: &Id) -> Result<Rule, RepoError>;
-    fn update_rule(&self, rule_id: &Id, dto: &UpdateRuleDto, account_id: &Id) -> Result<Option<Rule>, RepoError>;
+    fn update_rule(
+        &self,
+        rule_id: &Id,
+        dto: &UpdateRuleDto,
+        account_id: &Id,
+    ) -> Result<Option<Rule>, RepoError>;
     fn delete_rule(&self, rule_id: &Id, account_id: &Id) -> Result<(), RepoError>;
 
     /// Persist timing and error state after a rule execution.

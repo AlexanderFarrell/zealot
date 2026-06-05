@@ -28,20 +28,26 @@ struct CommentRow {
 fn row_to_comment_core(row: CommentRow) -> Result<CommentCore, RepoError> {
     let comment_id = Id::try_from(row.comment_id)
         .map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
-    let item_id = Id::try_from(row.item_id)
-        .map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
-    let timestamp = NaiveDateTime::from_timestamp_opt(row.time, 0).ok_or_else(|| {
-        RepoError::DatabaseError {
+    let item_id =
+        Id::try_from(row.item_id).map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
+    let timestamp =
+        NaiveDateTime::from_timestamp_opt(row.time, 0).ok_or_else(|| RepoError::DatabaseError {
             err: format!("invalid unix timestamp: {}", row.time),
-        }
-    })?;
-    Ok(CommentCore { comment_id, item_id, timestamp, content: row.content })
+        })?;
+    Ok(CommentCore {
+        comment_id,
+        item_id,
+        timestamp,
+        content: row.content,
+    })
 }
 
 fn parse_timestamp(s: &str) -> Result<i64, RepoError> {
     NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S")
         .map(|dt| dt.and_utc().timestamp())
-        .map_err(|e| RepoError::DatabaseError { err: format!("invalid timestamp '{}': {}", s, e) })
+        .map_err(|e| RepoError::DatabaseError {
+            err: format!("invalid timestamp '{}': {}", s, e),
+        })
 }
 
 impl CommentRepo for CommentSqliteRepo {
@@ -51,7 +57,13 @@ impl CommentRepo for CommentSqliteRepo {
         account_id: &Id,
     ) -> Result<Vec<CommentCore>, RepoError> {
         let day_start = day.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp();
-        let day_end = day.succ_opt().unwrap().and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp();
+        let day_end = day
+            .succ_opt()
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_utc()
+            .timestamp();
         let account_id_val = i64::from(*account_id);
         let pool = self.pool.clone();
 
@@ -77,11 +89,7 @@ impl CommentRepo for CommentSqliteRepo {
         })
     }
 
-    fn get_for_item(
-        &self,
-        item_id: &Id,
-        account_id: &Id,
-    ) -> Result<Vec<CommentCore>, RepoError> {
+    fn get_for_item(&self, item_id: &Id, account_id: &Id) -> Result<Vec<CommentCore>, RepoError> {
         let item_id_val = i64::from(*item_id);
         let account_id_val = i64::from(*account_id);
         let pool = self.pool.clone();
@@ -157,11 +165,7 @@ impl CommentRepo for CommentSqliteRepo {
     ) -> Result<Option<CommentCore>, RepoError> {
         let comment_id_val = dto.comment_id;
         let account_id_val = i64::from(*account_id);
-        let new_timestamp = dto
-            .timestamp
-            .as_deref()
-            .map(parse_timestamp)
-            .transpose()?;
+        let new_timestamp = dto.timestamp.as_deref().map(parse_timestamp).transpose()?;
         let new_content = dto.content.clone();
         let pool = self.pool.clone();
 
@@ -200,11 +204,7 @@ impl CommentRepo for CommentSqliteRepo {
         })
     }
 
-    fn delete_comment(
-        &self,
-        comment_id: &Id,
-        account_id: &Id,
-    ) -> Result<(), RepoError> {
+    fn delete_comment(&self, comment_id: &Id, account_id: &Id) -> Result<(), RepoError> {
         let comment_id_val = i64::from(*comment_id);
         let account_id_val = i64::from(*account_id);
         let pool = self.pool.clone();

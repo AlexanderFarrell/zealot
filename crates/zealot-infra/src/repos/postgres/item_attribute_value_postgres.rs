@@ -160,9 +160,7 @@ fn scalar_to_cols(
         AttributeScalar::Boolean(b) => (None, None, Some(*b as i32), None, None),
         AttributeScalar::Decimal(f) => (None, Some(*f), None, None, None),
         AttributeScalar::Date(d) => {
-            let dt = d
-                .and_hms_opt(0, 0, 0)
-                .map(|ndt| ndt.and_utc());
+            let dt = d.and_hms_opt(0, 0, 0).map(|ndt| ndt.and_utc());
             (None, None, None, dt, None)
         }
         AttributeScalar::Item(id) => (None, None, None, None, Some(i64::from(*id) as i32)),
@@ -372,17 +370,33 @@ fn build_attr_filter_clause(
     kind_map: &HashMap<String, AttributeBaseScalarType>,
     param_offset: usize,
 ) -> Result<(String, Vec<SqlValue>), RepoError> {
-    let op_str = match filter.op {
-        AttributeFilterOp::Equal => "=",
-        AttributeFilterOp::NotEqual => "!=",
-        AttributeFilterOp::GreaterThan => ">",
-        AttributeFilterOp::LessThan => "<",
-        AttributeFilterOp::GreaterThanOrEqualTo => ">=",
-        AttributeFilterOp::LessThanOrEqualTo => "<=",
-        AttributeFilterOp::LikeCaseInsensitive => "ILIKE",
-    };
-
     let (col, value) = attr_filter_col_and_val(filter, kind_map)?;
+    let (op_str, value) = match &filter.op {
+        AttributeFilterOp::Equal => ("=", value),
+        AttributeFilterOp::NotEqual => ("!=", value),
+        AttributeFilterOp::GreaterThan => (">", value),
+        AttributeFilterOp::LessThan => ("<", value),
+        AttributeFilterOp::GreaterThanOrEqualTo => (">=", value),
+        AttributeFilterOp::LessThanOrEqualTo => ("<=", value),
+        AttributeFilterOp::LikeCaseInsensitive => {
+            if col != "value_text" {
+                return Err(RepoError::DatabaseError {
+                    err: format!(
+                        "filter '{}' only supports ilike for text values",
+                        filter.key
+                    ),
+                });
+            }
+            match value {
+                SqlValue::Str(value) => ("ILIKE", SqlValue::Str(format!("%{}%", value))),
+                _ => {
+                    return Err(RepoError::DatabaseError {
+                        err: format!("filter '{}' expects a string value for ilike", filter.key),
+                    });
+                }
+            }
+        }
+    };
 
     // Each filter clause uses 4 params: key, val, key, val (for alv + a sub-selects)
     let p1 = param_offset;
@@ -390,7 +404,7 @@ fn build_attr_filter_clause(
     let p3 = param_offset + 2;
     let p4 = param_offset + 3;
 
-    let clause = match filter.list_mode {
+    let clause = match &filter.list_mode {
         AttributeListMode::Any => format!(
             "(EXISTS (SELECT 1 FROM attribute_list_value alv WHERE alv.item_id = i.item_id AND alv.key = ${p1} AND alv.{col} {op} ${p2})
              OR EXISTS (SELECT 1 FROM attribute a WHERE a.item_id = i.item_id AND a.key = ${p3} AND a.{col} {op} ${p4}))",
@@ -519,6 +533,8 @@ impl ItemAttributeValueRepo for ItemAttributeValuePostgresRepo {
         &self,
         filters: &Vec<AttributeFilter>,
         account_id: &Id,
+        limit: Option<i64>,
+        offset: i64,
     ) -> Result<Vec<Id>, RepoError> {
         if filters.is_empty() {
             return Err(RepoError::DatabaseError {
@@ -529,6 +545,8 @@ impl ItemAttributeValueRepo for ItemAttributeValuePostgresRepo {
         let account_id_val = i64::from(*account_id);
         let pool = self.pool.clone();
         let filters = filters.clone();
+        let limit = limit.map(|limit| limit.max(1));
+        let offset = offset.max(0);
 
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
@@ -545,11 +563,17 @@ impl ItemAttributeValueRepo for ItemAttributeValuePostgresRepo {
                     values.extend(clause_values);
                 }
 
-                let sql = format!(
+                let mut sql = format!(
                     "SELECT DISTINCT i.item_id FROM item i
-                     WHERE i.account_id = $1 AND {}",
+                     WHERE i.account_id = $1 AND {}
+                     ORDER BY i.item_id",
                     where_parts.join(" AND ")
                 );
+                if limit.is_some() {
+                    let limit_param = 2 + values.len();
+                    let offset_param = limit_param + 1;
+                    sql.push_str(&format!(" LIMIT ${limit_param} OFFSET ${offset_param}"));
+                }
 
                 let mut query = sqlx::query_scalar::<_, i32>(&sql).bind(account_id_val);
                 for value in &values {
@@ -559,6 +583,9 @@ impl ItemAttributeValueRepo for ItemAttributeValuePostgresRepo {
                         SqlValue::Float(v) => query.bind(*v),
                         SqlValue::Date(v) => query.bind(*v),
                     };
+                }
+                if let Some(limit) = limit {
+                    query = query.bind(limit).bind(offset);
                 }
 
                 let item_ids = query.fetch_all(&pool).await.map_err(RepoError::from)?;

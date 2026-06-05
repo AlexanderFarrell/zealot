@@ -3,8 +3,8 @@ use std::{
     sync::Arc,
 };
 
-use serde_json::Value;
 use regex::Regex;
+use serde_json::Value;
 use zealot_domain::{
     account::Account,
     attribute::{
@@ -13,8 +13,8 @@ use zealot_domain::{
     },
     common::id::Id,
     item::{
-        relationship, AddItemCoreDto, AddItemDto, Item, ItemCore, ItemLink, ItemLinkDto,
-        SearchScope, UpdateItemCoreDto, UpdateItemDto,
+        AddItemCoreDto, AddItemDto, Item, ItemCore, ItemLink, ItemLinkDto, SearchScope,
+        UpdateItemCoreDto, UpdateItemDto, relationship,
     },
     item_type::{ItemType, ItemTypeRef},
 };
@@ -22,14 +22,9 @@ use zealot_domain::{
 use crate::{
     ports::events::{EventPort, ZealotEvent},
     repos::{
-        attribute::AttributeRepo,
-        common::RepoError,
-        item::ItemRepo,
-        item_attribute_value::ItemAttributeValueRepo,
-        item_external_link::ItemExternalLinkRepo,
-        item_heading::ItemHeadingRepo,
-        item_link::ItemLinkRepo,
-        item_type::ItemTypeRepo,
+        attribute::AttributeRepo, common::RepoError, item::ItemRepo,
+        item_attribute_value::ItemAttributeValueRepo, item_external_link::ItemExternalLinkRepo,
+        item_heading::ItemHeadingRepo, item_link::ItemLinkRepo, item_type::ItemTypeRepo,
     },
 };
 
@@ -105,7 +100,10 @@ impl ItemService {
             .get_item_by_id(item_id, account)
             .map_err(ItemServiceError::Repo)?
         {
-            Some(item) => Ok(self.hydrate_items(vec![item], &account.account_id)?.into_iter().next()),
+            Some(item) => Ok(self
+                .hydrate_items(vec![item], &account.account_id)?
+                .into_iter()
+                .next()),
             None => Ok(None),
         }
     }
@@ -170,21 +168,31 @@ impl ItemService {
                     .search_items_by_title(term, fetch_limit, fetch_offset, account)
                     .map_err(ItemServiceError::Repo)?;
                 let filtered = if let Some(re) = &compiled_regex {
-                    items.into_iter().filter(|i| re.is_match(&i.title)).collect()
+                    items
+                        .into_iter()
+                        .filter(|i| re.is_match(&i.title))
+                        .collect()
                 } else {
                     items
                 };
                 let paged = if use_regex {
-                    filtered.into_iter().skip(offset as usize).take(limit as usize).collect()
+                    filtered
+                        .into_iter()
+                        .skip(offset as usize)
+                        .take(limit as usize)
+                        .collect()
                 } else {
                     filtered
                 };
                 let hydrated = self.hydrate_items(paged, &account.account_id)?;
-                Ok(hydrated.into_iter().map(|item| SearchResult {
-                    item,
-                    match_scope: SearchScope::Title,
-                    snippet: None,
-                }).collect())
+                Ok(hydrated
+                    .into_iter()
+                    .map(|item| SearchResult {
+                        item,
+                        match_scope: SearchScope::Title,
+                        snippet: None,
+                    })
+                    .collect())
             }
             SearchScope::Content => {
                 let fetch_limit = if use_regex { 500 } else { limit };
@@ -194,24 +202,36 @@ impl ItemService {
                     .search_items_by_content(term, fetch_limit, fetch_offset, account)
                     .map_err(ItemServiceError::Repo)?;
                 let filtered: Vec<ItemCore> = if let Some(re) = &compiled_regex {
-                    items.into_iter().filter(|i| re.is_match(&i.content)).collect()
+                    items
+                        .into_iter()
+                        .filter(|i| re.is_match(&i.content))
+                        .collect()
                 } else {
                     items
                 };
                 let paged: Vec<ItemCore> = if use_regex {
-                    filtered.into_iter().skip(offset as usize).take(limit as usize).collect()
+                    filtered
+                        .into_iter()
+                        .skip(offset as usize)
+                        .take(limit as usize)
+                        .collect()
                 } else {
                     filtered
                 };
-                let snippets: Vec<Option<String>> = paged.iter()
+                let snippets: Vec<Option<String>> = paged
+                    .iter()
                     .map(|i| extract_snippet(&i.content, term, compiled_regex.as_ref()))
                     .collect();
                 let hydrated = self.hydrate_items(paged, &account.account_id)?;
-                Ok(hydrated.into_iter().zip(snippets).map(|(item, snippet)| SearchResult {
-                    item,
-                    match_scope: SearchScope::Content,
-                    snippet,
-                }).collect())
+                Ok(hydrated
+                    .into_iter()
+                    .zip(snippets)
+                    .map(|(item, snippet)| SearchResult {
+                        item,
+                        match_scope: SearchScope::Content,
+                        snippet,
+                    })
+                    .collect())
             }
             SearchScope::Heading => {
                 let fetch_limit = if use_regex { 500 } else { limit };
@@ -226,23 +246,36 @@ impl ItemService {
                     pairs
                 };
                 let paged: Vec<(ItemCore, String)> = if use_regex {
-                    filtered.into_iter().skip(offset as usize).take(limit as usize).collect()
+                    filtered
+                        .into_iter()
+                        .skip(offset as usize)
+                        .take(limit as usize)
+                        .collect()
                 } else {
                     filtered
                 };
                 let heading_texts: Vec<String> = paged.iter().map(|(_, h)| h.clone()).collect();
                 let cores: Vec<ItemCore> = paged.into_iter().map(|(c, _)| c).collect();
                 let hydrated = self.hydrate_items(cores, &account.account_id)?;
-                Ok(hydrated.into_iter().zip(heading_texts).map(|(item, heading)| SearchResult {
-                    item,
-                    match_scope: SearchScope::Heading,
-                    snippet: Some(heading),
-                }).collect())
+                Ok(hydrated
+                    .into_iter()
+                    .zip(heading_texts)
+                    .map(|(item, heading)| SearchResult {
+                        item,
+                        match_scope: SearchScope::Heading,
+                        snippet: Some(heading),
+                    })
+                    .collect())
             }
         }
     }
 
-    pub fn get_recent_items(&self, limit: i64, offset: i64, account: &Account) -> Result<Vec<Item>, ItemServiceError> {
+    pub fn get_recent_items(
+        &self,
+        limit: i64,
+        offset: i64,
+        account: &Account,
+    ) -> Result<Vec<Item>, ItemServiceError> {
         let items = self
             .item_repo
             .get_recent_items(limit, offset, account)
@@ -262,6 +295,8 @@ impl ItemService {
                     list_mode: AttributeListMode::Any,
                 }],
                 &account.account_id,
+                None,
+                0,
             )
             .map_err(ItemServiceError::Repo)?;
         self.hydrate_item_ids(&ids, account)
@@ -320,6 +355,26 @@ impl ItemService {
         filter_dtos: &Vec<AttributeFilterDto>,
         account: &Account,
     ) -> Result<Vec<Item>, ItemServiceError> {
+        self.filter_items_with_pagination(filter_dtos, None, 0, account)
+    }
+
+    pub fn filter_items_paginated(
+        &self,
+        filter_dtos: &Vec<AttributeFilterDto>,
+        limit: i64,
+        offset: i64,
+        account: &Account,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        self.filter_items_with_pagination(filter_dtos, Some(limit), offset, account)
+    }
+
+    fn filter_items_with_pagination(
+        &self,
+        filter_dtos: &Vec<AttributeFilterDto>,
+        limit: Option<i64>,
+        offset: i64,
+        account: &Account,
+    ) -> Result<Vec<Item>, ItemServiceError> {
         let filters: Vec<AttributeFilter> = filter_dtos
             .iter()
             .map(|dto| AttributeFilter::try_from(dto).map_err(ItemServiceError::InvalidFilter))
@@ -327,9 +382,8 @@ impl ItemService {
 
         let ids = self
             .item_attribute_value_repo
-            .find_item_ids_by_filters(&filters, &account.account_id)
-            .map_err(ItemServiceError::Repo)
-            ?;
+            .find_item_ids_by_filters(&filters, &account.account_id, limit, offset)
+            .map_err(ItemServiceError::Repo)?;
         self.hydrate_item_ids(&ids, account)
     }
 
@@ -341,7 +395,9 @@ impl ItemService {
         account: &Account,
     ) -> Result<Option<Item>, ItemServiceError> {
         if dto.title.trim().is_empty() {
-            return Err(ItemServiceError::InvalidFilter(String::from("title is required")));
+            return Err(ItemServiceError::InvalidFilter(String::from(
+                "title is required",
+            )));
         }
 
         let attributes = match &dto.attributes {
@@ -413,11 +469,16 @@ impl ItemService {
         account: &Account,
     ) -> Result<Option<Item>, ItemServiceError> {
         if matches!(dto.title.as_ref(), Some(title) if title.trim().is_empty()) {
-            return Err(ItemServiceError::InvalidFilter(String::from("title is required")));
+            return Err(ItemServiceError::InvalidFilter(String::from(
+                "title is required",
+            )));
         }
 
-        let current_item = self.get_item_by_id(item_id, account)?.ok_or(ItemServiceError::NotFound)?;
-        let item_types = self.resolve_assigned_item_types(&current_item.types, &account.account_id)?;
+        let current_item = self
+            .get_item_by_id(item_id, account)?
+            .ok_or(ItemServiceError::NotFound)?;
+        let item_types =
+            self.resolve_assigned_item_types(&current_item.types, &account.account_id)?;
 
         let parsed_attributes = match &dto.attributes {
             Some(raw) => Some(self.parse_attributes_map(raw, &account.account_id)?),
@@ -446,7 +507,9 @@ impl ItemService {
             content: dto.content.clone(),
         };
 
-        let title_changed = dto.title.as_ref()
+        let title_changed = dto
+            .title
+            .as_ref()
             .map(|new_title| new_title != &current_item.title)
             .unwrap_or(false);
 
@@ -492,7 +555,9 @@ impl ItemService {
     }
 
     pub fn delete_item(&self, item_id: &Id, account: &Account) -> Result<(), ItemServiceError> {
-        self.item_repo.delete_item(item_id, account).map_err(ItemServiceError::Repo)?;
+        self.item_repo
+            .delete_item(item_id, account)
+            .map_err(ItemServiceError::Repo)?;
         self.event_port.emit(ZealotEvent::ItemDeleted {
             account_id: account.account_id,
             item_id: *item_id,
@@ -511,8 +576,11 @@ impl ItemService {
                 "please only update 10 attributes at a time",
             )));
         }
-        let current_item = self.get_item_by_id(item_id, account)?.ok_or(ItemServiceError::NotFound)?;
-        let item_types = self.resolve_assigned_item_types(&current_item.types, &account.account_id)?;
+        let current_item = self
+            .get_item_by_id(item_id, account)?
+            .ok_or(ItemServiceError::NotFound)?;
+        let item_types =
+            self.resolve_assigned_item_types(&current_item.types, &account.account_id)?;
         let parsed = self.parse_attributes_map(raw, &account.account_id)?;
         let mut merged_attributes = current_item.attributes;
         for (key, value) in &parsed {
@@ -551,7 +619,9 @@ impl ItemService {
                 "old_key and new_key must be different",
             )));
         }
-        let current_item = self.get_item_by_id(item_id, account)?.ok_or(ItemServiceError::NotFound)?;
+        let current_item = self
+            .get_item_by_id(item_id, account)?
+            .ok_or(ItemServiceError::NotFound)?;
         if !current_item.attributes.contains_key(old_key) {
             return Err(ItemServiceError::InvalidFilter(format!(
                 "attribute '{old_key}' does not exist"
@@ -562,11 +632,12 @@ impl ItemService {
                 "attribute '{new_key}' already exists"
             )));
         }
-        let item_types = self.resolve_assigned_item_types(&current_item.types, &account.account_id)?;
+        let item_types =
+            self.resolve_assigned_item_types(&current_item.types, &account.account_id)?;
         let mut merged_attributes = current_item.attributes;
-        let attribute = merged_attributes
-            .remove(old_key)
-            .ok_or_else(|| ItemServiceError::InvalidFilter(format!("attribute '{old_key}' does not exist")))?;
+        let attribute = merged_attributes.remove(old_key).ok_or_else(|| {
+            ItemServiceError::InvalidFilter(format!("attribute '{old_key}' does not exist"))
+        })?;
         merged_attributes.insert(String::from(new_key), attribute);
         self.ensure_valid_for_types(&item_types, &merged_attributes)?;
         self.item_attribute_value_repo
@@ -580,8 +651,11 @@ impl ItemService {
         key: &str,
         account: &Account,
     ) -> Result<(), ItemServiceError> {
-        let current_item = self.get_item_by_id(item_id, account)?.ok_or(ItemServiceError::NotFound)?;
-        let item_types = self.resolve_assigned_item_types(&current_item.types, &account.account_id)?;
+        let current_item = self
+            .get_item_by_id(item_id, account)?
+            .ok_or(ItemServiceError::NotFound)?;
+        let item_types =
+            self.resolve_assigned_item_types(&current_item.types, &account.account_id)?;
         let mut merged_attributes = current_item.attributes;
         merged_attributes.remove(key);
         self.ensure_valid_for_types(&item_types, &merged_attributes)?;
@@ -616,12 +690,16 @@ impl ItemService {
         item_id: &Id,
         account: &Account,
     ) -> Result<(), ItemServiceError> {
-        let current_item = self.get_item_by_id(item_id, account)?.ok_or(ItemServiceError::NotFound)?;
+        let current_item = self
+            .get_item_by_id(item_id, account)?
+            .ok_or(ItemServiceError::NotFound)?;
         let item_type = self
             .item_type_repo
             .get_item_type_by_name(type_name, &account.account_id)
             .map_err(ItemServiceError::Repo)?
-            .ok_or_else(|| ItemServiceError::InvalidFilter(format!("unknown item type: {type_name}")))?;
+            .ok_or_else(|| {
+                ItemServiceError::InvalidFilter(format!("unknown item type: {type_name}"))
+            })?;
         self.ensure_valid_for_types(&vec![item_type], &current_item.attributes)?;
         self.item_type_repo
             .assign_item_types(&vec![type_name.to_string()], item_id, &account.account_id)
@@ -654,15 +732,17 @@ impl ItemService {
         }
         Ok(())
     }
-    
+
     /// Re-syncs `item_item_link` from all item-typed attributes for every item
     /// owned by the account. Returns the number of items processed.
     pub fn rebuild_links_for_account(&self, account: &Account) -> Result<usize, ItemServiceError> {
-        let item_ids = self.item_repo
+        let item_ids = self
+            .item_repo
             .get_all_item_ids_for_user(&account.account_id)
             .map_err(ItemServiceError::Repo)?;
 
-        let all_attributes = self.item_attribute_value_repo
+        let all_attributes = self
+            .item_attribute_value_repo
             .get_attributes_for_items(&item_ids, &account.account_id)
             .map_err(ItemServiceError::Repo)?;
 
@@ -690,7 +770,8 @@ impl ItemService {
             let attr = if let Some(kind) = kinds.get(key.as_str()) {
                 Attribute::single_from_json(value, kind).map_err(ItemServiceError::Attribute)?
             } else {
-                Attribute::single_from_json_without_kind(value).map_err(ItemServiceError::Attribute)?
+                Attribute::single_from_json_without_kind(value)
+                    .map_err(ItemServiceError::Attribute)?
             };
             result.insert(key.clone(), attr);
         }
@@ -700,8 +781,8 @@ impl ItemService {
     fn parse_links(&self, raw: &Vec<ItemLinkDto>) -> Result<Vec<ItemLink>, ItemServiceError> {
         raw.iter()
             .map(|link| {
-                let other_item_id =
-                    Id::try_from(link.other_item_id).map_err(|err| ItemServiceError::InvalidId(err.to_string()))?;
+                let other_item_id = Id::try_from(link.other_item_id)
+                    .map_err(|err| ItemServiceError::InvalidId(err.to_string()))?;
                 Ok(ItemLink {
                     other_item_id,
                     relationship: link.relationship.clone(),
@@ -775,7 +856,9 @@ impl ItemService {
                 .item_type_repo
                 .get_item_type_by_name(name, account_id)
                 .map_err(ItemServiceError::Repo)?
-                .ok_or_else(|| ItemServiceError::InvalidFilter(format!("unknown item type: {name}")))?;
+                .ok_or_else(|| {
+                    ItemServiceError::InvalidFilter(format!("unknown item type: {name}"))
+                })?;
             resolved.push(item_type);
         }
 
@@ -808,7 +891,10 @@ impl ItemService {
         item_types: &Vec<ItemType>,
         attributes: &HashMap<String, Attribute>,
     ) -> Result<(), ItemServiceError> {
-        if let Some(item_type) = item_types.iter().find(|item_type| !item_type.is_valid(attributes)) {
+        if let Some(item_type) = item_types
+            .iter()
+            .find(|item_type| !item_type.is_valid(attributes))
+        {
             return Err(ItemServiceError::InvalidFilter(format!(
                 "item is missing required attributes for type '{}'",
                 item_type.name
@@ -834,13 +920,16 @@ impl ItemService {
             .map_err(ItemServiceError::Repo)?;
 
         for (key, attr) in parsed {
-            let is_item_typed = kinds.get(key.as_str()).map(|k| {
-                matches!(
-                    &k.base_type,
-                    AttributeBaseType::Scalar(AttributeBaseScalarType::Item)
-                        | AttributeBaseType::List(AttributeBaseScalarType::Item)
-                )
-            }).unwrap_or(false);
+            let is_item_typed = kinds
+                .get(key.as_str())
+                .map(|k| {
+                    matches!(
+                        &k.base_type,
+                        AttributeBaseType::Scalar(AttributeBaseScalarType::Item)
+                            | AttributeBaseType::List(AttributeBaseScalarType::Item)
+                    )
+                })
+                .unwrap_or(false);
 
             if !is_item_typed {
                 continue;
@@ -851,7 +940,11 @@ impl ItemService {
                 Attribute::List(scalars) => scalars
                     .iter()
                     .filter_map(|s| {
-                        if let AttributeScalar::Item(id) = s { Some(*id) } else { None }
+                        if let AttributeScalar::Item(id) = s {
+                            Some(*id)
+                        } else {
+                            None
+                        }
                     })
                     .collect(),
                 _ => vec![],
@@ -875,7 +968,10 @@ impl ItemService {
                 let mut inner = String::new();
                 loop {
                     match chars.next() {
-                        Some(']') if chars.peek() == Some(&']') => { chars.next(); break; }
+                        Some(']') if chars.peek() == Some(&']') => {
+                            chars.next();
+                            break;
+                        }
                         Some(ch) => inner.push(ch),
                         None => break,
                     }
@@ -902,7 +998,8 @@ impl ItemService {
         let titles = Self::extract_wiki_link_titles(content);
         let mut resolved_ids: Vec<Id> = Vec::new();
         for title in &titles {
-            let items = self.item_repo
+            let items = self
+                .item_repo
                 .get_items_by_title(title, account)
                 .map_err(ItemServiceError::Repo)?;
             for item in items {
@@ -916,11 +1013,16 @@ impl ItemService {
             .map_err(ItemServiceError::Repo)
     }
 
-    pub fn rebuild_wiki_links_for_account(&self, account: &Account) -> Result<usize, ItemServiceError> {
-        let item_ids = self.item_repo
+    pub fn rebuild_wiki_links_for_account(
+        &self,
+        account: &Account,
+    ) -> Result<usize, ItemServiceError> {
+        let item_ids = self
+            .item_repo
             .get_all_item_ids_for_user(&account.account_id)
             .map_err(ItemServiceError::Repo)?;
-        let items = self.item_repo
+        let items = self
+            .item_repo
             .get_items_by_ids(&item_ids, account)
             .map_err(ItemServiceError::Repo)?;
         let count = items.len();
@@ -979,7 +1081,9 @@ impl ItemService {
                         }
                     }
                     let url = url.trim().to_string();
-                    if (url.starts_with("http://") || url.starts_with("https://")) && !urls.contains(&url) {
+                    if (url.starts_with("http://") || url.starts_with("https://"))
+                        && !urls.contains(&url)
+                    {
                         urls.push(url);
                     }
                 }
@@ -990,7 +1094,10 @@ impl ItemService {
                 let mut candidate = String::from('h');
                 for _ in 0..6 {
                     match chars.peek() {
-                        Some(&ch) => { candidate.push(ch); chars.next(); }
+                        Some(&ch) => {
+                            candidate.push(ch);
+                            chars.next();
+                        }
                         None => break,
                     }
                 }
@@ -998,14 +1105,21 @@ impl ItemService {
                     // collect one more char for https://
                     if candidate == "https:/" {
                         match chars.peek() {
-                            Some(&'/') => { candidate.push('/'); chars.next(); }
-                            _ => { continue; }
+                            Some(&'/') => {
+                                candidate.push('/');
+                                chars.next();
+                            }
+                            _ => {
+                                continue;
+                            }
                         }
                     }
                     let mut url = candidate;
                     loop {
                         match chars.peek() {
-                            Some(&ch) if !ch.is_whitespace() && ch != ')' && ch != '"' && ch != '\'' => {
+                            Some(&ch)
+                                if !ch.is_whitespace() && ch != ')' && ch != '"' && ch != '\'' =>
+                            {
                                 url.push(ch);
                                 chars.next();
                             }
@@ -1110,7 +1224,8 @@ mod tests {
 
     #[test]
     fn extract_wiki_link_titles_type_prefix() {
-        let titles = ItemService::extract_wiki_link_titles("[[Project:My Project]] and [[My Note]]");
+        let titles =
+            ItemService::extract_wiki_link_titles("[[Project:My Project]] and [[My Note]]");
         assert_eq!(titles, vec!["My Project", "My Note"]);
     }
 
@@ -1187,7 +1302,10 @@ mod tests {
         let snippet = extract_snippet(content, "target keyword", None);
         assert!(snippet.is_some());
         let s = snippet.unwrap();
-        assert!(s.contains("target keyword"), "snippet should include the match term");
+        assert!(
+            s.contains("target keyword"),
+            "snippet should include the match term"
+        );
     }
 
     #[test]

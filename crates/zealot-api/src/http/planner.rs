@@ -11,7 +11,10 @@ use zealot_app::{
 };
 use zealot_domain::{attribute::Week, auth::Actor, item::ItemDto};
 
-use crate::http::{common::HttpError, middleware::{auth_middleware, csrf_middleware}};
+use crate::http::{
+    common::HttpError,
+    middleware::{auth_middleware, csrf_middleware},
+};
 
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
@@ -19,7 +22,10 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .route("/week/{week}", get(get_for_week))
         .route("/month/{month}/year/{year}", get(get_for_month))
         .route("/year/{year}", get(get_for_year))
-        .route_layer(middleware::from_fn_with_state(state.clone(), csrf_middleware))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            csrf_middleware,
+        ))
         .route_layer(middleware::map_request_with_state(
             state.clone(),
             auth_middleware,
@@ -42,7 +48,10 @@ fn item_service_err(err: ItemServiceError) -> HttpError {
         ItemServiceError::InvalidFilter(msg) => HttpError::UserError { err: msg },
         ItemServiceError::InvalidId(msg) => HttpError::UserError { err: msg },
         ItemServiceError::InvalidRegex(msg) => HttpError::UserError { err: msg },
-        ItemServiceError::Repo(e) => { tracing::error!("Planner repo error: {e}"); HttpError::Internal },
+        ItemServiceError::Repo(e) => {
+            tracing::error!("Planner repo error: {e}");
+            HttpError::Internal
+        }
     }
 }
 

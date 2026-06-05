@@ -1,16 +1,14 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use axum::http::HeaderValue;
+use axum::routing::get;
+use axum::{body::Body, extract::Request, middleware, response::Response};
 use rmcp::ServiceExt;
 use rmcp::transport::stdio;
 use rmcp::transport::streamable_http_server::{
-    StreamableHttpServerConfig,
-    session::local::LocalSessionManager,
-    tower::StreamableHttpService,
+    StreamableHttpServerConfig, session::local::LocalSessionManager, tower::StreamableHttpService,
 };
-use axum::routing::get;
-use axum::{body::Body, middleware, extract::Request, response::Response};
-use axum::http::HeaderValue;
 use tower_http::cors::CorsLayer;
 
 use crate::{config::Config, tools::ZealotServer};
@@ -35,7 +33,7 @@ async fn sse_to_json_compat(mut req: Request, next: middleware::Next) -> Respons
     }
 
     let is_post = req.method() == axum::http::Method::POST;
-    let is_get  = req.method() == axum::http::Method::GET;
+    let is_get = req.method() == axum::http::Method::GET;
 
     // LibreChat sends GET /mcp without a session ID before it has one.
     // rmcp returns 400 for this, which LibreChat treats as a fatal transport

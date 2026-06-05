@@ -1,7 +1,10 @@
 use clap::{Parser, ValueEnum};
 
 #[derive(Debug, Clone, Parser)]
-#[command(name = "zealot-mcp", about = "Zealot MCP server — connect Claude to your Zealot wiki and planner")]
+#[command(
+    name = "zealot-mcp",
+    about = "Zealot MCP server — connect Claude to your Zealot wiki and planner"
+)]
 pub struct Config {
     /// Base URL of the Zealot API server
     #[arg(long, env = "ZEALOT_URL", default_value = "http://localhost:7377")]

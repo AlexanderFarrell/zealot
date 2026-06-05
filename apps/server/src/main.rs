@@ -11,8 +11,7 @@ use zealot_app::{
 };
 use zealot_infra::{
     ports::{
-        broadcast_event_port::BroadcastEventPort,
-        media::filesystem::MediaFilesystemPort,
+        broadcast_event_port::BroadcastEventPort, media::filesystem::MediaFilesystemPort,
         password::bcrypt_password::BcryptPasswordPort,
     },
     repos::get_repo_from_config,
@@ -33,9 +32,9 @@ async fn main() -> Result<(), String> {
     // Build services once with a noop runner to resolve the circular dependency
     // (LuaRuleRunner needs ZealotServices; ZealotServices needs a rule_runner port).
     let bootstrap_ports = ZealotPorts {
-        media:       Arc::new(MediaFilesystemPort::new(&config)),
-        password:    Arc::new(BcryptPasswordPort::new()),
-        events:      Arc::new(NoopEventPort),
+        media: Arc::new(MediaFilesystemPort::new(&config)),
+        password: Arc::new(BcryptPasswordPort::new()),
+        events: Arc::new(NoopEventPort),
         rule_runner: Arc::new(NoopRuleRunner),
     };
     let services = Arc::new(ZealotServices::new(bootstrap_ports.clone(), repos.clone()));
@@ -43,7 +42,7 @@ async fn main() -> Result<(), String> {
     let (tx, mut rx) = tokio::sync::broadcast::channel::<ZealotEvent>(256);
 
     let ports = ZealotPorts {
-        events:      Arc::new(BroadcastEventPort::new(tx)),
+        events: Arc::new(BroadcastEventPort::new(tx)),
         rule_runner: Arc::new(LuaRuleRunner::new(Arc::new(repos.clone()), services)),
         ..bootstrap_ports
     };
@@ -56,7 +55,9 @@ async fn main() -> Result<(), String> {
     tokio::spawn(async move {
         loop {
             match rx.recv().await {
-                Ok(event) => { event_runner.run_event_rules(event).await; }
+                Ok(event) => {
+                    event_runner.run_event_rules(event).await;
+                }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                     tracing::warn!("Event loop lagged, skipped {n} events");
                 }

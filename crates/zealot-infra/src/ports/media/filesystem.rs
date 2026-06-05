@@ -1,6 +1,5 @@
 use std::{
-    fs,
-    io,
+    fs, io,
     path::{Path, PathBuf},
 };
 
@@ -37,7 +36,11 @@ impl MediaFilesystemPort {
     /// Resolves a relative path into an absolute filesystem path inside the
     /// user's root directory. Performs a secondary bounds check after joining
     /// (defense-in-depth on top of domain-layer sanitization).
-    fn resolve_path(&self, rel: &Path, account: &Account) -> Result<PathBuf, PortError<MediaError>> {
+    fn resolve_path(
+        &self,
+        rel: &Path,
+        account: &Account,
+    ) -> Result<PathBuf, PortError<MediaError>> {
         let root = self.user_root(account);
         let full = root.join(rel);
 
@@ -122,7 +125,11 @@ impl MediaPort for MediaFilesystemPort {
 
     /// Downloads a file: reads its bytes and returns a `File` with stat and
     /// contents. Returns `None` if the path does not exist.
-    fn download(&self, path: &Path, account: &Account) -> Result<Option<File>, PortError<MediaError>> {
+    fn download(
+        &self,
+        path: &Path,
+        account: &Account,
+    ) -> Result<Option<File>, PortError<MediaError>> {
         let full = self.resolve_path(path, account)?;
 
         let metadata = match fs::metadata(&full) {

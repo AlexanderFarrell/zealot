@@ -28,8 +28,9 @@ struct ItemRow {
 
 fn row_to_item_core(row: ItemRow) -> Result<ItemCore, RepoError> {
     Ok(ItemCore {
-        item_id: Id::try_from(row.item_id as i64)
-            .map_err(|err| RepoError::DatabaseError { err: err.to_string() })?,
+        item_id: Id::try_from(row.item_id as i64).map_err(|err| RepoError::DatabaseError {
+            err: err.to_string(),
+        })?,
         title: row.title,
         content: row.content,
     })
@@ -319,7 +320,12 @@ impl ItemRepo for ItemPostgresRepo {
         })
     }
 
-    fn get_recent_items(&self, limit: i64, offset: i64, account: &Account) -> Result<Vec<ItemCore>, RepoError> {
+    fn get_recent_items(
+        &self,
+        limit: i64,
+        offset: i64,
+        account: &Account,
+    ) -> Result<Vec<ItemCore>, RepoError> {
         let account_id_val = i64::from(account.account_id);
         let pool = self.pool.clone();
 
@@ -443,7 +449,10 @@ impl ItemRepo for ItemPostgresRepo {
                     .await
                     .map_err(RepoError::from)?
                     .into_iter()
-                    .map(|id| Id::try_from(id as i64).map_err(|e| RepoError::DatabaseError { err: e.to_string() }))
+                    .map(|id| {
+                        Id::try_from(id as i64)
+                            .map_err(|e| RepoError::DatabaseError { err: e.to_string() })
+                    })
                     .collect()
             })
         })

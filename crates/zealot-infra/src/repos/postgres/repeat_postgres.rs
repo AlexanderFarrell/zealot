@@ -115,10 +115,15 @@ impl RepeatRepo for RepeatPostgresRepo {
                 for id in &item_ids {
                     entry_query = entry_query.bind(*id);
                 }
-                let entry_rows = entry_query.fetch_all(&pool).await.map_err(RepoError::from)?;
+                let entry_rows = entry_query
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
 
-                let mut entry_map: HashMap<i64, RepeatEntryRow> =
-                    entry_rows.into_iter().map(|r| (r.item_id as i64, r)).collect();
+                let mut entry_map: HashMap<i64, RepeatEntryRow> = entry_rows
+                    .into_iter()
+                    .map(|r| (r.item_id as i64, r))
+                    .collect();
 
                 item_ids
                     .into_iter()
@@ -136,7 +141,12 @@ impl RepeatRepo for RepeatPostgresRepo {
                             None => (RepeatStatus::NotComplete, String::new()),
                         };
 
-                        Ok(RepeatEntryCore { item_id, status, date: day, comment })
+                        Ok(RepeatEntryCore {
+                            item_id,
+                            status,
+                            date: day,
+                            comment,
+                        })
                     })
                     .collect()
             })
@@ -204,17 +214,21 @@ impl RepeatRepo for RepeatPostgresRepo {
                 for id in &item_ids {
                     entry_query = entry_query.bind(*id);
                 }
-                let entry_rows = entry_query.fetch_all(&pool).await.map_err(RepoError::from)?;
+                let entry_rows = entry_query
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
 
-                let mut entry_map: HashMap<(i64, NaiveDate), RepeatEntryWithDateRow> =
-                    entry_rows.into_iter().map(|r| ((r.item_id as i64, r.date), r)).collect();
+                let mut entry_map: HashMap<(i64, NaiveDate), RepeatEntryWithDateRow> = entry_rows
+                    .into_iter()
+                    .map(|r| ((r.item_id as i64, r.date), r))
+                    .collect();
 
                 // Loop over each day in [start, end] and produce one core per scheduled item.
                 let mut result: Vec<RepeatEntryCore> = Vec::new();
                 let mut current = start;
                 loop {
-                    let weekday_pos =
-                        current.weekday().number_from_sunday() as usize; // 1=Sun..7=Sat
+                    let weekday_pos = current.weekday().number_from_sunday() as usize; // 1=Sun..7=Sat
                     for item in &item_rows {
                         let scheduled = item
                             .schedule
@@ -241,7 +255,12 @@ impl RepeatRepo for RepeatPostgresRepo {
                             }
                             None => (RepeatStatus::NotComplete, String::new()),
                         };
-                        result.push(RepeatEntryCore { item_id, status, date: current, comment });
+                        result.push(RepeatEntryCore {
+                            item_id,
+                            status,
+                            date: current,
+                            comment,
+                        });
                     }
                     if current >= end {
                         break;
@@ -264,7 +283,9 @@ impl RepeatRepo for RepeatPostgresRepo {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
                 let date = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d").map_err(|e| {
-                    RepoError::DatabaseError { err: format!("invalid date '{}': {}", date_str, e) }
+                    RepoError::DatabaseError {
+                        err: format!("invalid date '{}': {}", date_str, e),
+                    }
                 })?;
 
                 let exists: Option<i32> = sqlx::query_scalar(

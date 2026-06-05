@@ -14,7 +14,10 @@ use zealot_domain::{
     common::id::Id,
 };
 
-use crate::http::{common::HttpError, middleware::{auth_middleware, csrf_middleware}};
+use crate::http::{
+    common::HttpError,
+    middleware::{auth_middleware, csrf_middleware},
+};
 
 #[derive(Deserialize)]
 struct DeleteParams {
@@ -25,10 +28,22 @@ struct DeleteParams {
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/", get(get_attribute_kinds).post(add_attribute_kind))
-        .route("/id/{kind_id}", get(get_attribute_kind_by_id).patch(update_attribute_kind))
-        .route("/key/{key}", get(get_attribute_kind_by_key).delete(delete_attribute_kind))
-        .route_layer(middleware::from_fn_with_state(state.clone(), csrf_middleware))
-        .route_layer(middleware::map_request_with_state(state.clone(), auth_middleware))
+        .route(
+            "/id/{kind_id}",
+            get(get_attribute_kind_by_id).patch(update_attribute_kind),
+        )
+        .route(
+            "/key/{key}",
+            get(get_attribute_kind_by_key).delete(delete_attribute_kind),
+        )
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            csrf_middleware,
+        ))
+        .route_layer(middleware::map_request_with_state(
+            state.clone(),
+            auth_middleware,
+        ))
         .with_state(state)
 }
 
@@ -59,7 +74,11 @@ async fn get_attribute_kind_by_id(
 ) -> Result<Json<serde_json::Value>, HttpError> {
     let account = require_account(&actor)?;
     let id = Id::try_from(kind_id).map_err(|e| HttpError::UserError { err: e.to_string() })?;
-    match state.services.attribute.get_kind_by_id(&id, &account.account_id) {
+    match state
+        .services
+        .attribute
+        .get_kind_by_id(&id, &account.account_id)
+    {
         Ok(Some(kind)) => Ok(Json(kind_to_json(&kind))),
         Ok(None) => Err(HttpError::NotFound),
         Err(_) => Err(HttpError::Internal),
@@ -72,7 +91,11 @@ async fn get_attribute_kind_by_key(
     Path(key): Path<String>,
 ) -> Result<Json<serde_json::Value>, HttpError> {
     let account = require_account(&actor)?;
-    match state.services.attribute.get_kind_by_key(&key, &account.account_id) {
+    match state
+        .services
+        .attribute
+        .get_kind_by_key(&key, &account.account_id)
+    {
         Ok(Some(kind)) => Ok(Json(kind_to_json(&kind))),
         Ok(None) => Err(HttpError::NotFound),
         Err(_) => Err(HttpError::Internal),
@@ -85,7 +108,11 @@ async fn add_attribute_kind(
     Json(dto): Json<AddAttributeKindDto>,
 ) -> Result<Json<serde_json::Value>, HttpError> {
     let account = require_account(&actor)?;
-    match state.services.attribute.add_attribute_kind(&dto, &account.account_id) {
+    match state
+        .services
+        .attribute
+        .add_attribute_kind(&dto, &account.account_id)
+    {
         Ok(Some(kind)) => Ok(Json(kind_to_json(&kind))),
         Ok(None) => Err(HttpError::Internal),
         Err(_) => Err(HttpError::Internal),
@@ -100,7 +127,11 @@ async fn update_attribute_kind(
 ) -> Result<Json<serde_json::Value>, HttpError> {
     let account = require_account(&actor)?;
     dto.kind_id = kind_id;
-    match state.services.attribute.update_attribute_kind(&dto, &account.account_id) {
+    match state
+        .services
+        .attribute
+        .update_attribute_kind(&dto, &account.account_id)
+    {
         Ok(Some(kind)) => Ok(Json(kind_to_json(&kind))),
         Ok(None) => Err(HttpError::NotFound),
         Err(_) => Err(HttpError::Internal),
@@ -156,17 +187,31 @@ fn base_type_str(bt: &zealot_domain::attribute::AttributeBaseType) -> &'static s
 fn spec_to_config_json(spec: &zealot_domain::attribute::AttributeKindSpec) -> serde_json::Value {
     use zealot_domain::attribute::{AttributeBaseType, AttributeKindSpec};
     match spec {
-        AttributeKindSpec::Text { min_len, max_len, pattern } => {
+        AttributeKindSpec::Text {
+            min_len,
+            max_len,
+            pattern,
+        } => {
             let mut m = serde_json::Map::new();
-            if let Some(v) = min_len { m.insert("min_len".into(), (*v as u64).into()); }
-            if let Some(v) = max_len { m.insert("max_len".into(), (*v as u64).into()); }
-            if let Some(v) = pattern { m.insert("pattern".into(), v.clone().into()); }
+            if let Some(v) = min_len {
+                m.insert("min_len".into(), (*v as u64).into());
+            }
+            if let Some(v) = max_len {
+                m.insert("max_len".into(), (*v as u64).into());
+            }
+            if let Some(v) = pattern {
+                m.insert("pattern".into(), v.clone().into());
+            }
             serde_json::Value::Object(m)
         }
         AttributeKindSpec::Integer { min, max } => {
             let mut m = serde_json::Map::new();
-            if let Some(v) = min { m.insert("min".into(), (*v).into()); }
-            if let Some(v) = max { m.insert("max".into(), (*v).into()); }
+            if let Some(v) = min {
+                m.insert("min".into(), (*v).into());
+            }
+            if let Some(v) = max {
+                m.insert("max".into(), (*v).into());
+            }
             serde_json::Value::Object(m)
         }
         AttributeKindSpec::Decimal { min, max } => {

@@ -2,7 +2,6 @@ use std::fmt::Debug;
 
 use crate::ports::{common::PortError, password};
 
-
 #[derive(Debug, thiserror::Error)]
 pub enum PasswordError {
     #[error("failed to hash password")]

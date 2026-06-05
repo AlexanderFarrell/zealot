@@ -28,8 +28,9 @@ struct ItemRow {
 
 fn row_to_item_core(row: ItemRow) -> Result<ItemCore, RepoError> {
     Ok(ItemCore {
-        item_id: Id::try_from(row.item_id)
-            .map_err(|err| RepoError::DatabaseError { err: err.to_string() })?,
+        item_id: Id::try_from(row.item_id).map_err(|err| RepoError::DatabaseError {
+            err: err.to_string(),
+        })?,
         title: row.title,
         content: row.content,
     })
@@ -69,7 +70,11 @@ async fn fetch_items_by_ids(
 }
 
 impl ItemRepo for ItemSqliteRepo {
-    fn get_item_by_id(&self, item_id: &Id, account: &Account) -> Result<Option<ItemCore>, RepoError> {
+    fn get_item_by_id(
+        &self,
+        item_id: &Id,
+        account: &Account,
+    ) -> Result<Option<ItemCore>, RepoError> {
         let item_id_val = i64::from(*item_id);
         let account_id_val = i64::from(account.account_id);
         let pool = self.pool.clone();
@@ -91,7 +96,11 @@ impl ItemRepo for ItemSqliteRepo {
         })
     }
 
-    fn get_items_by_ids(&self, item_ids: &Vec<Id>, account: &Account) -> Result<Vec<ItemCore>, RepoError> {
+    fn get_items_by_ids(
+        &self,
+        item_ids: &Vec<Id>,
+        account: &Account,
+    ) -> Result<Vec<ItemCore>, RepoError> {
         let pool = self.pool.clone();
         let item_ids = item_ids.clone();
         let account_id_val = i64::from(account.account_id);
@@ -102,7 +111,11 @@ impl ItemRepo for ItemSqliteRepo {
         })
     }
 
-    fn get_items_by_title(&self, title: &str, account: &Account) -> Result<Vec<ItemCore>, RepoError> {
+    fn get_items_by_title(
+        &self,
+        title: &str,
+        account: &Account,
+    ) -> Result<Vec<ItemCore>, RepoError> {
         let title = title.to_string();
         let account_id_val = i64::from(account.account_id);
         let pool = self.pool.clone();
@@ -124,7 +137,13 @@ impl ItemRepo for ItemSqliteRepo {
         })
     }
 
-    fn search_items_by_title(&self, term: &str, limit: i64, offset: i64, account: &Account) -> Result<Vec<ItemCore>, RepoError> {
+    fn search_items_by_title(
+        &self,
+        term: &str,
+        limit: i64,
+        offset: i64,
+        account: &Account,
+    ) -> Result<Vec<ItemCore>, RepoError> {
         let trimmed = term.trim();
         let account_id_val = i64::from(account.account_id);
         let pool = self.pool.clone();
@@ -174,7 +193,13 @@ impl ItemRepo for ItemSqliteRepo {
         })
     }
 
-    fn search_items_by_content(&self, term: &str, limit: i64, offset: i64, account: &Account) -> Result<Vec<ItemCore>, RepoError> {
+    fn search_items_by_content(
+        &self,
+        term: &str,
+        limit: i64,
+        offset: i64,
+        account: &Account,
+    ) -> Result<Vec<ItemCore>, RepoError> {
         let trimmed = term.trim();
         let account_id_val = i64::from(account.account_id);
         let pool = self.pool.clone();
@@ -219,7 +244,13 @@ impl ItemRepo for ItemSqliteRepo {
         })
     }
 
-    fn search_items_by_heading(&self, term: &str, limit: i64, offset: i64, account: &Account) -> Result<Vec<(ItemCore, String)>, RepoError> {
+    fn search_items_by_heading(
+        &self,
+        term: &str,
+        limit: i64,
+        offset: i64,
+        account: &Account,
+    ) -> Result<Vec<(ItemCore, String)>, RepoError> {
         let trimmed = term.trim();
         let account_id_val = i64::from(account.account_id);
         let pool = self.pool.clone();
@@ -264,11 +295,20 @@ impl ItemRepo for ItemSqliteRepo {
         })
     }
 
-    fn regex_items_by_title(&self, term: &str, account: &Account) -> Result<Vec<ItemCore>, RepoError> {
+    fn regex_items_by_title(
+        &self,
+        term: &str,
+        account: &Account,
+    ) -> Result<Vec<ItemCore>, RepoError> {
         self.search_items_by_title(term, 20, 0, account)
     }
 
-    fn get_recent_items(&self, limit: i64, offset: i64, account: &Account) -> Result<Vec<ItemCore>, RepoError> {
+    fn get_recent_items(
+        &self,
+        limit: i64,
+        offset: i64,
+        account: &Account,
+    ) -> Result<Vec<ItemCore>, RepoError> {
         let account_id_val = i64::from(account.account_id);
         let pool = self.pool.clone();
 
@@ -291,7 +331,11 @@ impl ItemRepo for ItemSqliteRepo {
         })
     }
 
-    fn add_item(&self, dto: &AddItemCoreDto, account: &Account) -> Result<Option<ItemCore>, RepoError> {
+    fn add_item(
+        &self,
+        dto: &AddItemCoreDto,
+        account: &Account,
+    ) -> Result<Option<ItemCore>, RepoError> {
         let title = dto.title.clone();
         let content = dto.content.clone();
         let account_id_val = i64::from(account.account_id);
@@ -316,7 +360,11 @@ impl ItemRepo for ItemSqliteRepo {
         })
     }
 
-    fn update_item(&self, dto: &UpdateItemCoreDto, account: &Account) -> Result<Option<ItemCore>, RepoError> {
+    fn update_item(
+        &self,
+        dto: &UpdateItemCoreDto,
+        account: &Account,
+    ) -> Result<Option<ItemCore>, RepoError> {
         let title = dto.title.clone();
         let content = dto.content.clone();
         let item_id_val = i64::from(dto.item_id);
@@ -384,7 +432,10 @@ impl ItemRepo for ItemSqliteRepo {
                     .await
                     .map_err(RepoError::from)?
                     .into_iter()
-                    .map(|id| Id::try_from(id).map_err(|e| RepoError::DatabaseError { err: e.to_string() }))
+                    .map(|id| {
+                        Id::try_from(id)
+                            .map_err(|e| RepoError::DatabaseError { err: e.to_string() })
+                    })
                     .collect()
             })
         })

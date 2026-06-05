@@ -29,9 +29,11 @@ pub fn register(
                 let acct_id = acct_id;
                 async move {
                     let account = make_account(acct_id)?;
-                    let item_id = Id::try_from(id)
-                        .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
-                    match svc.item.get_item_by_id(&item_id, &account)
+                    let item_id =
+                        Id::try_from(id).map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+                    match svc
+                        .item
+                        .get_item_by_id(&item_id, &account)
                         .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?
                     {
                         Some(item) => Ok(LuaValue::Table(item_to_lua(&lua, &item)?)),
@@ -125,11 +127,17 @@ pub fn register(
                         let f = pair?;
                         let key: String = f.get("key")?;
                         let op: String = f.get("op")?;
-                        let list_mode: String =
-                            f.get::<String>("list_mode").unwrap_or_else(|_| "any".to_string());
+                        let list_mode: String = f
+                            .get::<String>("list_mode")
+                            .unwrap_or_else(|_| "any".to_string());
                         let value: LuaValue = f.get("value")?;
                         let value_json = lua_value_to_json(value)?;
-                        filter_dtos.push(AttributeFilterDto { key, op, value: value_json, list_mode });
+                        filter_dtos.push(AttributeFilterDto {
+                            key,
+                            op,
+                            value: value_json,
+                            list_mode,
+                        });
                     }
                     let items = svc
                         .item
@@ -147,37 +155,39 @@ pub fn register(
         let acct_id = account_id;
         items_table.set(
             "create",
-            lua.create_async_function(move |lua, (title, content, opts): (String, Option<String>, Option<Table>)| {
-                let svc = svc.clone();
-                let acct_id = acct_id;
-                async move {
-                    let account = make_account(acct_id)?;
-                    let content = content.unwrap_or_default();
-                    let types = opts
-                        .as_ref()
-                        .and_then(|o| o.get::<Table>("types").ok())
-                        .map(|t| {
-                            t.sequence_values::<String>()
-                                .collect::<mlua::Result<Vec<_>>>()
-                        })
-                        .transpose()?;
-                    let dto = AddItemDto {
-                        title,
-                        content,
-                        attributes: None,
-                        types,
-                        links: None,
-                    };
-                    match svc
-                        .item
-                        .add_item(&dto, &account)
-                        .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?
-                    {
-                        Some(item) => Ok(LuaValue::Table(item_to_lua(&lua, &item)?)),
-                        None => Ok(LuaValue::Nil),
+            lua.create_async_function(
+                move |lua, (title, content, opts): (String, Option<String>, Option<Table>)| {
+                    let svc = svc.clone();
+                    let acct_id = acct_id;
+                    async move {
+                        let account = make_account(acct_id)?;
+                        let content = content.unwrap_or_default();
+                        let types = opts
+                            .as_ref()
+                            .and_then(|o| o.get::<Table>("types").ok())
+                            .map(|t| {
+                                t.sequence_values::<String>()
+                                    .collect::<mlua::Result<Vec<_>>>()
+                            })
+                            .transpose()?;
+                        let dto = AddItemDto {
+                            title,
+                            content,
+                            attributes: None,
+                            types,
+                            links: None,
+                        };
+                        match svc
+                            .item
+                            .add_item(&dto, &account)
+                            .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?
+                        {
+                            Some(item) => Ok(LuaValue::Table(item_to_lua(&lua, &item)?)),
+                            None => Ok(LuaValue::Nil),
+                        }
                     }
-                }
-            })?,
+                },
+            )?,
         )?;
     }
 
@@ -192,8 +202,8 @@ pub fn register(
                 let acct_id = acct_id;
                 async move {
                     let account = make_account(acct_id)?;
-                    let item_id = Id::try_from(id)
-                        .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+                    let item_id =
+                        Id::try_from(id).map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
                     let title: Option<String> = opts.get("title").ok();
                     let content: Option<String> = opts.get("content").ok();
                     let dto = UpdateItemDto {
@@ -222,24 +232,22 @@ pub fn register(
         let acct_id = account_id;
         items_table.set(
             "set_attribute",
-            lua.create_async_function(
-                move |_, (id, key, value): (i64, String, LuaValue)| {
-                    let svc = svc.clone();
-                    let acct_id = acct_id;
-                    async move {
-                        let account = make_account(acct_id)?;
-                        let item_id = Id::try_from(id)
-                            .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
-                        let value_json = lua_value_to_json(value)?;
-                        let mut map = std::collections::HashMap::new();
-                        map.insert(key, value_json);
-                        svc.item
-                            .set_attributes(&item_id, &map, &account)
-                            .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
-                        Ok(true)
-                    }
-                },
-            )?,
+            lua.create_async_function(move |_, (id, key, value): (i64, String, LuaValue)| {
+                let svc = svc.clone();
+                let acct_id = acct_id;
+                async move {
+                    let account = make_account(acct_id)?;
+                    let item_id =
+                        Id::try_from(id).map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+                    let value_json = lua_value_to_json(value)?;
+                    let mut map = std::collections::HashMap::new();
+                    map.insert(key, value_json);
+                    svc.item
+                        .set_attributes(&item_id, &map, &account)
+                        .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+                    Ok(true)
+                }
+            })?,
         )?;
     }
 
@@ -254,8 +262,8 @@ pub fn register(
                 let acct_id = acct_id;
                 async move {
                     let account = make_account(acct_id)?;
-                    let item_id = Id::try_from(id)
-                        .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+                    let item_id =
+                        Id::try_from(id).map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
                     svc.item
                         .assign_type(&type_name, &item_id, &account)
                         .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
@@ -276,8 +284,8 @@ pub fn register(
                 let acct_id = acct_id;
                 async move {
                     let account = make_account(acct_id)?;
-                    let item_id = Id::try_from(id)
-                        .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+                    let item_id =
+                        Id::try_from(id).map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
                     svc.item
                         .delete_item(&item_id, &account)
                         .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
@@ -299,8 +307,7 @@ pub fn item_to_lua(lua: &Lua, item: &Item) -> mlua::Result<Table> {
 
     let attrs = lua.create_table()?;
     for (key, attr) in &item.attributes {
-        let v = serde_json::to_value(attr)
-            .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+        let v = serde_json::to_value(attr).map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
         attrs.set(key.clone(), json_to_lua(lua, v)?)?;
     }
     t.set("attributes", attrs)?;
@@ -315,7 +322,10 @@ pub fn item_to_lua(lua: &Lua, item: &Item) -> mlua::Result<Table> {
     for (i, link) in item.links.iter().enumerate() {
         let lt = lua.create_table()?;
         lt.set("id", i64::from(link.other_item_id))?;
-        lt.set("relationship", format!("{:?}", link.relationship).to_lowercase())?;
+        lt.set(
+            "relationship",
+            format!("{:?}", link.relationship).to_lowercase(),
+        )?;
         links.set(i + 1, lt)?;
     }
     t.set("links", links)?;
@@ -355,7 +365,9 @@ fn lua_value_to_json(value: LuaValue) -> mlua::Result<JsonValue> {
             Ok(JsonValue::Number(num))
         }
         LuaValue::String(s) => Ok(JsonValue::String(s.to_str()?.to_owned())),
-        _ => Err(mlua::Error::RuntimeError("unsupported value type".to_string())),
+        _ => Err(mlua::Error::RuntimeError(
+            "unsupported value type".to_string(),
+        )),
     }
 }
 

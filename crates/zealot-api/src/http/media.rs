@@ -14,7 +14,10 @@ use zealot_domain::{
     media::{FileStatDto, MakeFolderDto, RenameMediaDto},
 };
 
-use crate::http::{common::HttpError, middleware::{auth_middleware, csrf_middleware}};
+use crate::http::{
+    common::HttpError,
+    middleware::{auth_middleware, csrf_middleware},
+};
 
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
@@ -24,8 +27,14 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .route("/{*path}", get(get_entry).post(upload).delete(delete_entry))
         // Catch root path (no trailing segment).
         .route("/", get(get_root))
-        .route_layer(middleware::from_fn_with_state(state.clone(), csrf_middleware))
-        .route_layer(middleware::map_request_with_state(state.clone(), auth_middleware))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            csrf_middleware,
+        ))
+        .route_layer(middleware::map_request_with_state(
+            state.clone(),
+            auth_middleware,
+        ))
         .with_state(state)
 }
 
@@ -79,7 +88,10 @@ fn serve_file(bytes: Vec<u8>, filename: &str, request_headers: &HeaderMap) -> Re
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, content_type)
-        .header(header::ETAG, HeaderValue::from_str(&etag).unwrap_or_else(|_| HeaderValue::from_static("")))
+        .header(
+            header::ETAG,
+            HeaderValue::from_str(&etag).unwrap_or_else(|_| HeaderValue::from_static("")),
+        )
         .body(Body::from(bytes))
         .unwrap()
 }
@@ -127,7 +139,9 @@ async fn get_at_path(
         }
         MediaEntry::Directory(stats) => {
             let files: Vec<FileStatDto> = stats.into_iter().map(FileStatDto::from).collect();
-            Ok(axum::response::IntoResponse::into_response(Json(DirectoryResponse { files })))
+            Ok(axum::response::IntoResponse::into_response(Json(
+                DirectoryResponse { files },
+            )))
         }
     }
 }
@@ -162,10 +176,7 @@ async fn upload(
         .await
         .map_err(|e| HttpError::UserError { err: e.to_string() })?
     {
-        let filename = field
-            .file_name()
-            .map(String::from)
-            .unwrap_or_default();
+        let filename = field.file_name().map(String::from).unwrap_or_default();
 
         if filename.is_empty() {
             continue;
@@ -223,4 +234,3 @@ async fn delete_entry(
         .map(|_| StatusCode::OK)
         .map_err(media_service_err)
 }
-

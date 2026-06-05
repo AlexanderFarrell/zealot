@@ -1,12 +1,10 @@
-pub mod wiki;
-pub mod planner;
 pub mod automation;
 pub mod media;
+pub mod planner;
+pub mod wiki;
 
 use rmcp::{
-    ErrorData as McpError,
-    RoleServer,
-    ServerHandler,
+    ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::router::tool::ToolRouter,
     model::{
         GetPromptRequestParams, GetPromptResult, Implementation, ListPromptsResult,
@@ -15,7 +13,10 @@ use rmcp::{
     service::RequestContext,
 };
 
-use crate::{client::{ApiError, ZealotClient}, config::Config};
+use crate::{
+    client::{ApiError, ZealotClient},
+    config::Config,
+};
 
 #[derive(Clone)]
 pub struct ZealotServer {
@@ -41,10 +42,9 @@ impl ZealotServer {
 pub fn api_err(e: ApiError) -> McpError {
     match e {
         ApiError::NotFound => McpError::invalid_params("not found", None),
-        ApiError::Http { status, message } => McpError::internal_error(
-            format!("upstream HTTP {status}: {message}"),
-            None,
-        ),
+        ApiError::Http { status, message } => {
+            McpError::internal_error(format!("upstream HTTP {status}: {message}"), None)
+        }
         e => McpError::internal_error(e.to_string(), None),
     }
 }

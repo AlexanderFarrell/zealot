@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use zealot_domain::{account::Account, common::id::Id, item::ItemCore};
 
-use crate::repos::{item::ItemRepo, item_view::ItemViewRepo};
 use crate::repos::common::RepoError;
+use crate::repos::{item::ItemRepo, item_view::ItemViewRepo};
 
 #[derive(Debug, Clone)]
 pub struct AnalysisService {
@@ -61,8 +61,7 @@ impl AnalysisService {
             .map_err(AnalysisServiceError::Repo)?;
 
         // Preserve the order returned by the view repo (already sorted by count desc).
-        let view_count_map: std::collections::HashMap<Id, i64> =
-            ranked.into_iter().collect();
+        let view_count_map: std::collections::HashMap<Id, i64> = ranked.into_iter().collect();
 
         let mut result: Vec<MostViewedItem> = items
             .into_iter()
@@ -99,26 +98,95 @@ mod tests {
     }
 
     impl ItemRepo for MockItemRepo {
-        fn get_item_by_id(&self, item_id: &Id, _account: &Account) -> Result<Option<ItemCore>, RepoError> {
+        fn get_item_by_id(
+            &self,
+            item_id: &Id,
+            _account: &Account,
+        ) -> Result<Option<ItemCore>, RepoError> {
             Ok(self.items.iter().find(|i| i.item_id == *item_id).cloned())
         }
-        fn get_items_by_ids(&self, item_ids: &Vec<Id>, _account: &Account) -> Result<Vec<ItemCore>, RepoError> {
-            let found = self.items.iter()
+        fn get_items_by_ids(
+            &self,
+            item_ids: &Vec<Id>,
+            _account: &Account,
+        ) -> Result<Vec<ItemCore>, RepoError> {
+            let found = self
+                .items
+                .iter()
                 .filter(|i| item_ids.contains(&i.item_id))
                 .cloned()
                 .collect();
             Ok(found)
         }
-        fn get_items_by_title(&self, _title: &str, _account: &Account) -> Result<Vec<ItemCore>, RepoError> { Ok(vec![]) }
-        fn search_items_by_title(&self, _term: &str, _limit: i64, _offset: i64, _account: &Account) -> Result<Vec<ItemCore>, RepoError> { Ok(vec![]) }
-        fn search_items_by_content(&self, _term: &str, _limit: i64, _offset: i64, _account: &Account) -> Result<Vec<ItemCore>, RepoError> { Ok(vec![]) }
-        fn search_items_by_heading(&self, _term: &str, _limit: i64, _offset: i64, _account: &Account) -> Result<Vec<(ItemCore, String)>, RepoError> { Ok(vec![]) }
-        fn regex_items_by_title(&self, _term: &str, _account: &Account) -> Result<Vec<ItemCore>, RepoError> { Ok(vec![]) }
-        fn get_recent_items(&self, _limit: i64, _offset: i64, _account: &Account) -> Result<Vec<ItemCore>, RepoError> { Ok(vec![]) }
-        fn get_all_item_ids_for_user(&self, _account_id: &Id) -> Result<Vec<Id>, RepoError> { Ok(vec![]) }
-        fn add_item(&self, _dto: &AddItemCoreDto, _account: &Account) -> Result<Option<ItemCore>, RepoError> { Ok(None) }
-        fn update_item(&self, _dto: &UpdateItemCoreDto, _account: &Account) -> Result<Option<ItemCore>, RepoError> { Ok(None) }
-        fn delete_item(&self, _item_id: &Id, _account: &Account) -> Result<(), RepoError> { Ok(()) }
+        fn get_items_by_title(
+            &self,
+            _title: &str,
+            _account: &Account,
+        ) -> Result<Vec<ItemCore>, RepoError> {
+            Ok(vec![])
+        }
+        fn search_items_by_title(
+            &self,
+            _term: &str,
+            _limit: i64,
+            _offset: i64,
+            _account: &Account,
+        ) -> Result<Vec<ItemCore>, RepoError> {
+            Ok(vec![])
+        }
+        fn search_items_by_content(
+            &self,
+            _term: &str,
+            _limit: i64,
+            _offset: i64,
+            _account: &Account,
+        ) -> Result<Vec<ItemCore>, RepoError> {
+            Ok(vec![])
+        }
+        fn search_items_by_heading(
+            &self,
+            _term: &str,
+            _limit: i64,
+            _offset: i64,
+            _account: &Account,
+        ) -> Result<Vec<(ItemCore, String)>, RepoError> {
+            Ok(vec![])
+        }
+        fn regex_items_by_title(
+            &self,
+            _term: &str,
+            _account: &Account,
+        ) -> Result<Vec<ItemCore>, RepoError> {
+            Ok(vec![])
+        }
+        fn get_recent_items(
+            &self,
+            _limit: i64,
+            _offset: i64,
+            _account: &Account,
+        ) -> Result<Vec<ItemCore>, RepoError> {
+            Ok(vec![])
+        }
+        fn get_all_item_ids_for_user(&self, _account_id: &Id) -> Result<Vec<Id>, RepoError> {
+            Ok(vec![])
+        }
+        fn add_item(
+            &self,
+            _dto: &AddItemCoreDto,
+            _account: &Account,
+        ) -> Result<Option<ItemCore>, RepoError> {
+            Ok(None)
+        }
+        fn update_item(
+            &self,
+            _dto: &UpdateItemCoreDto,
+            _account: &Account,
+        ) -> Result<Option<ItemCore>, RepoError> {
+            Ok(None)
+        }
+        fn delete_item(&self, _item_id: &Id, _account: &Account) -> Result<(), RepoError> {
+            Ok(())
+        }
     }
 
     #[derive(Debug)]
@@ -128,7 +196,9 @@ mod tests {
 
     impl MockItemViewRepo {
         fn new(views: Vec<(Id, i64)>) -> Self {
-            Self { views: Mutex::new(views) }
+            Self {
+                views: Mutex::new(views),
+            }
         }
     }
 
@@ -143,7 +213,11 @@ mod tests {
             Ok(())
         }
 
-        fn get_most_viewed(&self, limit: i64, _account_id: &Id) -> Result<Vec<(Id, i64)>, RepoError> {
+        fn get_most_viewed(
+            &self,
+            limit: i64,
+            _account_id: &Id,
+        ) -> Result<Vec<(Id, i64)>, RepoError> {
             let mut v = self.views.lock().unwrap().clone();
             v.sort_by(|a, b| b.1.cmp(&a.1));
             Ok(v.into_iter().take(limit as usize).collect())
@@ -190,7 +264,10 @@ mod tests {
             (id_c, 20),
         ]));
 
-        let service = AnalysisService::new(&(item_repo as Arc<dyn ItemRepo>), &(view_repo as Arc<dyn ItemViewRepo>));
+        let service = AnalysisService::new(
+            &(item_repo as Arc<dyn ItemRepo>),
+            &(view_repo as Arc<dyn ItemViewRepo>),
+        );
         let account = make_account();
 
         let results = service.get_most_viewed_items(10, &account).unwrap();
@@ -211,11 +288,12 @@ mod tests {
         let id_a = Id::try_from(1i64).unwrap();
         let id_b = Id::try_from(2i64).unwrap();
         let id_c = Id::try_from(3i64).unwrap();
-        let view_repo = Arc::new(MockItemViewRepo::new(vec![
-            (id_a, 3), (id_b, 7), (id_c, 1),
-        ]));
+        let view_repo = Arc::new(MockItemViewRepo::new(vec![(id_a, 3), (id_b, 7), (id_c, 1)]));
 
-        let service = AnalysisService::new(&(item_repo as Arc<dyn ItemRepo>), &(view_repo as Arc<dyn ItemViewRepo>));
+        let service = AnalysisService::new(
+            &(item_repo as Arc<dyn ItemRepo>),
+            &(view_repo as Arc<dyn ItemViewRepo>),
+        );
         let results = service.get_most_viewed_items(2, &make_account()).unwrap();
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].view_count, 7);
@@ -226,16 +304,24 @@ mod tests {
     fn get_most_viewed_empty_when_no_views() {
         let item_repo = Arc::new(MockItemRepo { items: vec![] });
         let view_repo = Arc::new(MockItemViewRepo::new(vec![]));
-        let service = AnalysisService::new(&(item_repo as Arc<dyn ItemRepo>), &(view_repo as Arc<dyn ItemViewRepo>));
+        let service = AnalysisService::new(
+            &(item_repo as Arc<dyn ItemRepo>),
+            &(view_repo as Arc<dyn ItemViewRepo>),
+        );
         let results = service.get_most_viewed_items(10, &make_account()).unwrap();
         assert!(results.is_empty());
     }
 
     #[test]
     fn record_view_increments_count() {
-        let item_repo = Arc::new(MockItemRepo { items: vec![make_item(1, "A")] });
+        let item_repo = Arc::new(MockItemRepo {
+            items: vec![make_item(1, "A")],
+        });
         let view_repo = Arc::new(MockItemViewRepo::new(vec![]));
-        let service = AnalysisService::new(&(item_repo as Arc<dyn ItemRepo>), &(view_repo as Arc<dyn ItemViewRepo>));
+        let service = AnalysisService::new(
+            &(item_repo as Arc<dyn ItemRepo>),
+            &(view_repo as Arc<dyn ItemViewRepo>),
+        );
         let id = Id::try_from(1i64).unwrap();
 
         service.record_view(&id).unwrap();

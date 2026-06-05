@@ -379,32 +379,55 @@ fn build_attr_filter_clause(
     filter: &AttributeFilter,
     kind_map: &HashMap<String, AttributeBaseScalarType>,
 ) -> Result<(String, Vec<SqlValue>), RepoError> {
-    let op_str = match filter.op {
-        AttributeFilterOp::Equal => "=",
-        AttributeFilterOp::NotEqual => "!=",
-        AttributeFilterOp::GreaterThan => ">",
-        AttributeFilterOp::LessThan => "<",
-        AttributeFilterOp::GreaterThanOrEqualTo => ">=",
-        AttributeFilterOp::LessThanOrEqualTo => "<=",
-        AttributeFilterOp::LikeCaseInsensitive => "LIKE",
+    let (col, value) = attr_filter_col_and_val(filter, kind_map)?;
+    let (op_str, value, case_insensitive) = match &filter.op {
+        AttributeFilterOp::Equal => ("=", value, false),
+        AttributeFilterOp::NotEqual => ("!=", value, false),
+        AttributeFilterOp::GreaterThan => (">", value, false),
+        AttributeFilterOp::LessThan => ("<", value, false),
+        AttributeFilterOp::GreaterThanOrEqualTo => (">=", value, false),
+        AttributeFilterOp::LessThanOrEqualTo => ("<=", value, false),
+        AttributeFilterOp::LikeCaseInsensitive => {
+            if col != "value_text" {
+                return Err(RepoError::DatabaseError {
+                    err: format!(
+                        "filter '{}' only supports ilike for text values",
+                        filter.key
+                    ),
+                });
+            }
+            match value {
+                SqlValue::Str(value) => ("LIKE", SqlValue::Str(format!("%{}%", value)), true),
+                _ => {
+                    return Err(RepoError::DatabaseError {
+                        err: format!("filter '{}' expects a string value for ilike", filter.key),
+                    });
+                }
+            }
+        }
+    };
+    let list_comparison = if case_insensitive {
+        format!("LOWER(alv.{col}) {op} LOWER(?)", col = col, op = op_str)
+    } else {
+        format!("alv.{col} {op} ?", col = col, op = op_str)
+    };
+    let scalar_comparison = if case_insensitive {
+        format!("LOWER(a.{col}) {op} LOWER(?)", col = col, op = op_str)
+    } else {
+        format!("a.{col} {op} ?", col = col, op = op_str)
     };
 
-    let (col, value) = attr_filter_col_and_val(filter, kind_map)?;
-    let clause = match filter.list_mode {
+    let clause = match &filter.list_mode {
         AttributeListMode::Any => {
             format!(
-                "(EXISTS (SELECT 1 FROM attribute_list_value alv WHERE alv.item_id = i.item_id AND alv.key = ? AND alv.{col} {op} ?)
-                 OR EXISTS (SELECT 1 FROM attribute a WHERE a.item_id = i.item_id AND a.key = ? AND a.{col} {op} ?))",
-                col = col,
-                op = op_str,
+                "(EXISTS (SELECT 1 FROM attribute_list_value alv WHERE alv.item_id = i.item_id AND alv.key = ? AND {list_comparison})
+                 OR EXISTS (SELECT 1 FROM attribute a WHERE a.item_id = i.item_id AND a.key = ? AND {scalar_comparison}))",
             )
         }
         AttributeListMode::None => {
             format!(
-                "(NOT EXISTS (SELECT 1 FROM attribute_list_value alv WHERE alv.item_id = i.item_id AND alv.key = ? AND alv.{col} {op} ?)
-                 AND NOT EXISTS (SELECT 1 FROM attribute a WHERE a.item_id = i.item_id AND a.key = ? AND a.{col} {op} ?))",
-                col = col,
-                op = op_str,
+                "(NOT EXISTS (SELECT 1 FROM attribute_list_value alv WHERE alv.item_id = i.item_id AND alv.key = ? AND {list_comparison})
+                 AND NOT EXISTS (SELECT 1 FROM attribute a WHERE a.item_id = i.item_id AND a.key = ? AND {scalar_comparison}))",
             )
         }
         AttributeListMode::All => {
@@ -524,6 +547,8 @@ impl ItemAttributeValueRepo for ItemAttributeValueSqliteRepo {
         &self,
         filters: &Vec<AttributeFilter>,
         account_id: &Id,
+        limit: Option<i64>,
+        offset: i64,
     ) -> Result<Vec<Id>, RepoError> {
         if filters.is_empty() {
             return Err(RepoError::DatabaseError {
@@ -534,6 +559,8 @@ impl ItemAttributeValueRepo for ItemAttributeValueSqliteRepo {
         let account_id_val = i64::from(*account_id);
         let pool = self.pool.clone();
         let filters = filters.clone();
+        let limit = limit.map(|limit| limit.max(1));
+        let offset = offset.max(0);
 
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
@@ -547,11 +574,15 @@ impl ItemAttributeValueRepo for ItemAttributeValueSqliteRepo {
                     values.extend(clause_values);
                 }
 
-                let sql = format!(
+                let mut sql = format!(
                     "SELECT DISTINCT i.item_id FROM item i
-                     WHERE i.account_id = ? AND {}",
+                     WHERE i.account_id = ? AND {}
+                     ORDER BY i.item_id",
                     where_parts.join(" AND ")
                 );
+                if limit.is_some() {
+                    sql.push_str(" LIMIT ? OFFSET ?");
+                }
 
                 let mut query = sqlx::query_scalar::<_, i64>(&sql).bind(account_id_val);
                 for value in &values {
@@ -560,6 +591,9 @@ impl ItemAttributeValueRepo for ItemAttributeValueSqliteRepo {
                         SqlValue::Int(value) => query.bind(*value),
                         SqlValue::Float(value) => query.bind(*value),
                     };
+                }
+                if let Some(limit) = limit {
+                    query = query.bind(limit).bind(offset);
                 }
 
                 let item_ids = query.fetch_all(&pool).await.map_err(RepoError::from)?;

@@ -152,7 +152,9 @@ pub struct ExportSummaryArgs {
 
 #[rmcp::prompt_router(vis = "pub")]
 impl ZealotServer {
-    #[rmcp::prompt(description = "Generate a concise daily briefing summarising today's scheduled items, habit status, and recent wiki activity.")]
+    #[rmcp::prompt(
+        description = "Generate a concise daily briefing summarising today's scheduled items, habit status, and recent wiki activity."
+    )]
     pub async fn daily_briefing(
         &self,
         Parameters(a): Parameters<DailyBriefingArgs>,
@@ -188,7 +190,9 @@ impl ZealotServer {
         Ok(GetPromptResult::new(vec![user_msg(msg)]))
     }
 
-    #[rmcp::prompt(description = "Given your goals for the week and what is already scheduled, suggest items to create, schedule, or prioritise.")]
+    #[rmcp::prompt(
+        description = "Given your goals for the week and what is already scheduled, suggest items to create, schedule, or prioritise."
+    )]
     pub async fn plan_my_week(
         &self,
         Parameters(a): Parameters<PlanMyWeekArgs>,
@@ -215,7 +219,9 @@ impl ZealotServer {
         Ok(GetPromptResult::new(vec![user_msg(msg)]))
     }
 
-    #[rmcp::prompt(description = "Turn a rough idea into a well-formed Zealot item: title, type, attributes, and content body.")]
+    #[rmcp::prompt(
+        description = "Turn a rough idea into a well-formed Zealot item: title, type, attributes, and content body."
+    )]
     pub async fn capture_idea(
         &self,
         Parameters(a): Parameters<CaptureIdeaArgs>,
@@ -246,7 +252,9 @@ impl ZealotServer {
         Ok(GetPromptResult::new(vec![user_msg(msg)]))
     }
 
-    #[rmcp::prompt(description = "Review all items of a given type and provide a structured reflection on progress, blockers, and next steps.")]
+    #[rmcp::prompt(
+        description = "Review all items of a given type and provide a structured reflection on progress, blockers, and next steps."
+    )]
     pub async fn reflect_on_goals(
         &self,
         Parameters(a): Parameters<ReflectOnGoalsArgs>,
@@ -280,7 +288,9 @@ impl ZealotServer {
         Ok(GetPromptResult::new(vec![user_msg(msg)]))
     }
 
-    #[rmcp::prompt(description = "Scaffold a complete project structure in Zealot: parent item, milestones, suggested attributes and types.")]
+    #[rmcp::prompt(
+        description = "Scaffold a complete project structure in Zealot: parent item, milestones, suggested attributes and types."
+    )]
     pub async fn create_project(
         &self,
         Parameters(a): Parameters<CreateProjectArgs>,
@@ -331,15 +341,19 @@ impl ZealotServer {
         Ok(GetPromptResult::new(vec![user_msg(msg)]))
     }
 
-    #[rmcp::prompt(description = "Review habit/repeat completion across a date range. Shows what was missed vs completed and suggests corrective actions.")]
+    #[rmcp::prompt(
+        description = "Review habit/repeat completion across a date range. Shows what was missed vs completed and suggests corrective actions."
+    )]
     pub async fn review_tasks(
         &self,
         Parameters(a): Parameters<ReviewTasksArgs>,
     ) -> Result<GetPromptResult, McpError> {
-        let start = NaiveDate::parse_from_str(&a.start_date, "%Y-%m-%d")
-            .map_err(|_| McpError::invalid_params("invalid start_date (expected YYYY-MM-DD)", None))?;
-        let end = NaiveDate::parse_from_str(&a.end_date, "%Y-%m-%d")
-            .map_err(|_| McpError::invalid_params("invalid end_date (expected YYYY-MM-DD)", None))?;
+        let start = NaiveDate::parse_from_str(&a.start_date, "%Y-%m-%d").map_err(|_| {
+            McpError::invalid_params("invalid start_date (expected YYYY-MM-DD)", None)
+        })?;
+        let end = NaiveDate::parse_from_str(&a.end_date, "%Y-%m-%d").map_err(|_| {
+            McpError::invalid_params("invalid end_date (expected YYYY-MM-DD)", None)
+        })?;
 
         let days = (end - start).num_days().min(14);
         let mut all_entries: Vec<serde_json::Value> = vec![];
@@ -372,7 +386,9 @@ impl ZealotServer {
         Ok(GetPromptResult::new(vec![user_msg(msg)]))
     }
 
-    #[rmcp::prompt(description = "Search for items matching a query, explore their relationships, and suggest meaningful new connections to create.")]
+    #[rmcp::prompt(
+        description = "Search for items matching a query, explore their relationships, and suggest meaningful new connections to create."
+    )]
     pub async fn search_and_connect(
         &self,
         Parameters(a): Parameters<SearchAndConnectArgs>,
@@ -422,7 +438,9 @@ impl ZealotServer {
         Ok(GetPromptResult::new(vec![user_msg(msg)]))
     }
 
-    #[rmcp::prompt(description = "Write a Zealot automation rule: describe the trigger and action in plain English and get a complete, ready-to-use Lua script.")]
+    #[rmcp::prompt(
+        description = "Write a Zealot automation rule: describe the trigger and action in plain English and get a complete, ready-to-use Lua script."
+    )]
     pub async fn automate_workflow(
         &self,
         Parameters(a): Parameters<AutomateWorkflowArgs>,
@@ -459,12 +477,15 @@ impl ZealotServer {
         Ok(GetPromptResult::new(vec![user_msg(msg)]))
     }
 
-    #[rmcp::prompt(description = "Build a map of your knowledge graph starting from a topic item, following relationships up to max_depth hops.")]
+    #[rmcp::prompt(
+        description = "Build a map of your knowledge graph starting from a topic item, following relationships up to max_depth hops."
+    )]
     pub async fn knowledge_graph_explore(
         &self,
         Parameters(a): Parameters<KnowledgeGraphArgs>,
     ) -> Result<GetPromptResult, McpError> {
-        let depth = a.max_depth
+        let depth = a
+            .max_depth
             .as_deref()
             .and_then(|s| s.parse::<u32>().ok())
             .unwrap_or(2)
@@ -550,7 +571,9 @@ impl ZealotServer {
         Ok(GetPromptResult::new(vec![user_msg(msg)]))
     }
 
-    #[rmcp::prompt(description = "Generate a structured summary document of your Zealot items, filtered by type or search term, in your choice of format.")]
+    #[rmcp::prompt(
+        description = "Generate a structured summary document of your Zealot items, filtered by type or search term, in your choice of format."
+    )]
     pub async fn export_summary(
         &self,
         Parameters(a): Parameters<ExportSummaryArgs>,

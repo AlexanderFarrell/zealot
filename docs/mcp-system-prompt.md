@@ -58,7 +58,7 @@ To explore from a starting point: get the item, read its `links` to find parents
 | Find by keyword | `search_items` |
 | Find all of a type | `list_items` with `type_filter` |
 | Browse recent | `list_recent_items` |
-| Filter by attribute | (use rules engine or search) |
+| Filter by attribute | `filter_items` |
 | Today's schedule | `get_day_plan` |
 | This week's schedule | `get_week_plan` |
 

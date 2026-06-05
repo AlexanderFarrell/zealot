@@ -1,11 +1,22 @@
-use axum::{Extension, Json, Router, extract::State, middleware, routing::{get, post}};
+use axum::{
+    Extension, Json, Router,
+    extract::State,
+    middleware,
+    routing::{get, post},
+};
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use serde::Deserialize;
 use time::Duration;
 use zealot_app::{app::AppState, services::auth::AuthError};
-use zealot_domain::{account::{AccountDto, CreateApiKeyResponseDto, LoginBasicDto, RegisterBasicDto}, auth::Actor};
+use zealot_domain::{
+    account::{AccountDto, CreateApiKeyResponseDto, LoginBasicDto, RegisterBasicDto},
+    auth::Actor,
+};
 
-use crate::http::{common::HttpError, middleware::{auth_middleware, generate_csrf_token}};
+use crate::http::{
+    common::HttpError,
+    middleware::{auth_middleware, generate_csrf_token},
+};
 
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
@@ -14,7 +25,10 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .route("/register", post(register_basic))
         .route("/login", post(login_basic))
         .route("/logout", post(logout_basic))
-        .route_layer(middleware::map_request_with_state(state.clone(), auth_middleware))
+        .route_layer(middleware::map_request_with_state(
+            state.clone(),
+            auth_middleware,
+        ))
         .route("/api_key", post(create_api_key_with_credentials))
         .with_state(state)
 }
@@ -23,7 +37,9 @@ async fn is_logged_in(
     Extension(actor): Extension<Actor>,
     jar: CookieJar,
 ) -> Result<(CookieJar, Json<AccountDto>), HttpError> {
-    if actor.is_authenticated() && let Some(account) = actor.account {
+    if actor.is_authenticated()
+        && let Some(account) = actor.account
+    {
         let csrf_cookie = Cookie::build(("csfr_", generate_csrf_token()))
             .http_only(false)
             .same_site(SameSite::Lax)
@@ -43,7 +59,9 @@ async fn register_basic(
     Json(dto): Json<RegisterBasicDto>,
 ) -> Result<(CookieJar, Json<AccountDto>), HttpError> {
     if actor.is_authenticated() {
-        return Err(HttpError::UserError { err: String::from("Already logged in") });
+        return Err(HttpError::UserError {
+            err: String::from("Already logged in"),
+        });
     }
 
     match state.services.auth.register_account(&dto).await {
@@ -66,7 +84,7 @@ async fn register_basic(
             AuthError::RegisterError { err } => Err(HttpError::UserError { err }),
             AuthError::ServerError => Err(HttpError::Internal),
             AuthError::LoginError { .. } => Err(HttpError::Internal),
-        }
+        },
     }
 }
 
@@ -77,7 +95,9 @@ async fn login_basic(
     Json(dto): Json<LoginBasicDto>,
 ) -> Result<(CookieJar, Json<AccountDto>), HttpError> {
     if actor.is_authenticated() {
-        return Err(HttpError::UserError { err: String::from("Already logged in") });
+        return Err(HttpError::UserError {
+            err: String::from("Already logged in"),
+        });
     }
 
     match state.services.auth.login_account(&dto).await {
@@ -115,11 +135,16 @@ async fn create_api_key_with_credentials(
     State(state): State<AppState>,
     Json(dto): Json<CreateApiKeyWithCredentialsDto>,
 ) -> Result<Json<CreateApiKeyResponseDto>, HttpError> {
-    let login_dto = LoginBasicDto { username: dto.username, password: dto.password };
+    let login_dto = LoginBasicDto {
+        username: dto.username,
+        password: dto.password,
+    };
     match state.services.auth.login_account(&login_dto).await {
         Ok((account, _token)) => {
             let label = dto.label.unwrap_or_else(|| "Mobile".to_string());
-            let (record, raw_key) = state.services.account
+            let (record, raw_key) = state
+                .services
+                .account
                 .generate_api_key(&account.account_id, &label)
                 .map_err(|_| HttpError::Internal)?;
             Ok(Json(CreateApiKeyResponseDto {
@@ -143,12 +168,19 @@ async fn logout_basic(
     jar: CookieJar,
 ) -> Result<CookieJar, HttpError> {
     if !actor.is_authenticated() {
-        return Err(HttpError::UserError { err: String::from("Not logged in") });
+        return Err(HttpError::UserError {
+            err: String::from("Not logged in"),
+        });
     }
 
     let session_token = jar.get("session_id").map(|c| c.value().to_string());
 
-    match state.services.auth.logout_account(&actor, session_token.as_deref()).await {
+    match state
+        .services
+        .auth
+        .logout_account(&actor, session_token.as_deref())
+        .await
+    {
         Ok(_) => {
             let cleared = Cookie::build(("session_id", ""))
                 .path("/")

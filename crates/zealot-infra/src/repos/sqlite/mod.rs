@@ -10,8 +10,8 @@ use crate::repos::sqlite::{
     item_heading_sqlite::ItemHeadingSqliteRepo, item_link_sqlite::ItemLinkSqliteRepo,
     item_sqlite::ItemSqliteRepo, item_type_sqlite::ItemTypeSqliteRepo,
     item_view_sqlite::ItemViewSqliteRepo, meta_sqlite::MetaSqliteRepo,
-    repeat_sqlite::RepeatSqliteRepo, rule_sqlite::RuleSqliteRepo,
-    scope_sqlite::ScopeSqliteRepo, session_sqlite::SessionSqliteRepo,
+    repeat_sqlite::RepeatSqliteRepo, rule_sqlite::RuleSqliteRepo, scope_sqlite::ScopeSqliteRepo,
+    session_sqlite::SessionSqliteRepo,
 };
 
 pub mod account_sqlite;

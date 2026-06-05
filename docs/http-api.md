@@ -374,13 +374,17 @@ Returns `200 OK`.
   "filters": [
     { "key": "Status", "op": "eq", "value": "In Progress", "list_mode": "any" },
     { "key": "Priority", "op": "eq", "value": "High", "list_mode": "any" }
-  ]
+  ],
+  "limit": 50,
+  "offset": 0
 }
 ```
 
-Filter operators: `eq` / `=`, `ne` / `!=` / `<>`, `gt` / `>`, `lt` / `<`, `gte` / `>=`, `lte` / `<=`.
+Filter operators: `eq` / `=`, `ne` / `!=` / `<>`, `gt` / `>`, `lt` / `<`, `gte` / `>=`, `lte` / `<=`, `ilike`.
 
-`list_mode` applies when the attribute is a list type: `any` (any element matches), `all` (all elements match), `none` (no element matches). For scalar attributes use `any`.
+`list_mode` applies when the attribute is a list type: `any` (default; any element matches), `all` (all elements match), `none` (no element matches). For scalar attributes use `any`.
+
+`ilike` performs a case-insensitive substring match for text values. `limit` defaults to 50 and is capped at 100. `offset` defaults to 0.
 
 Returns array of `ItemDto`.
 
@@ -915,7 +919,9 @@ curl -s -X POST "$BASE/item/filter" \
   -d '{
     "filters": [
       {"key": "Status", "op": "eq", "value": "In Progress", "list_mode": "any"}
-    ]
+    ],
+    "limit": 50,
+    "offset": 0
   }' | jq '.[].title'
 ```
 

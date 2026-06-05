@@ -77,12 +77,12 @@ impl AuthService {
             });
         }
 
-        let account = self
-            .repo
-            .get_account_by_username(username)
-            .map_err(|_| ServiceError::DomainError {
-                err: AuthError::ServerError,
-            })?;
+        let account =
+            self.repo
+                .get_account_by_username(username)
+                .map_err(|_| ServiceError::DomainError {
+                    err: AuthError::ServerError,
+                })?;
 
         let Some(account) = account else {
             return Err(ServiceError::DomainError {
@@ -93,10 +93,7 @@ impl AuthService {
         Ok(Self::actor_from_account(account, AuthSource::PlainLogin))
     }
 
-    pub async fn authenticate_api_key(
-        &self,
-        key: &str,
-    ) -> Result<Actor, ServiceError<AuthError>> {
+    pub async fn authenticate_api_key(&self, key: &str) -> Result<Actor, ServiceError<AuthError>> {
         let key = key.trim();
 
         if key.is_empty() {
@@ -106,12 +103,12 @@ impl AuthService {
         }
 
         let key_hash = Self::hash_token(key);
-        let account = self
-            .repo
-            .get_account_by_api_key(&key_hash)
-            .map_err(|_| ServiceError::DomainError {
-                err: AuthError::ServerError,
-            })?;
+        let account =
+            self.repo
+                .get_account_by_api_key(&key_hash)
+                .map_err(|_| ServiceError::DomainError {
+                    err: AuthError::ServerError,
+                })?;
 
         let Some(account) = account else {
             return Err(ServiceError::DomainError {
@@ -133,7 +130,9 @@ impl AuthService {
             .get_account_by_token_hash(&token_hash)
             .map_err(|e| {
                 tracing::error!("get_account_by_token_hash failed: {e}");
-                ServiceError::DomainError { err: AuthError::ServerError }
+                ServiceError::DomainError {
+                    err: AuthError::ServerError,
+                }
             })?;
 
         let Some(account) = account else {
@@ -178,10 +177,9 @@ impl AuthService {
             });
         }
 
-        let email = Email::try_from(dto.email.clone())
-            .map_err(|err| AuthError::RegisterError {
-                err: format!("Invalid email: {}", err),
-            })?;
+        let email = Email::try_from(dto.email.clone()).map_err(|err| AuthError::RegisterError {
+            err: format!("Invalid email: {}", err),
+        })?;
 
         let existing_account = self
             .repo
@@ -227,10 +225,7 @@ impl AuthService {
     }
 
     /// Returns the account and the raw session token to be stored in the cookie.
-    pub async fn login_account(
-        &self,
-        dto: &LoginBasicDto,
-    ) -> Result<(Account, String), AuthError> {
+    pub async fn login_account(&self, dto: &LoginBasicDto) -> Result<(Account, String), AuthError> {
         let actor = self
             .authenticate_password(&dto.username, &dto.password)
             .await

@@ -13,16 +13,28 @@ use zealot_domain::{
     common::id::Id,
 };
 
-use crate::http::{common::HttpError, middleware::{auth_middleware, csrf_middleware}};
+use crate::http::{
+    common::HttpError,
+    middleware::{auth_middleware, csrf_middleware},
+};
 
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/day/{date}", get(get_for_day))
         .route("/item/{item_id}", get(get_for_item))
         .route("/", post(add_comment))
-        .route("/{comment_id}", patch(update_comment).delete(delete_comment))
-        .route_layer(middleware::from_fn_with_state(state.clone(), csrf_middleware))
-        .route_layer(middleware::map_request_with_state(state.clone(), auth_middleware))
+        .route(
+            "/{comment_id}",
+            patch(update_comment).delete(delete_comment),
+        )
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            csrf_middleware,
+        ))
+        .route_layer(middleware::map_request_with_state(
+            state.clone(),
+            auth_middleware,
+        ))
         .with_state(state)
 }
 
@@ -39,7 +51,10 @@ fn comment_service_err(err: CommentServiceError) -> HttpError {
     match err {
         CommentServiceError::NotFound => HttpError::NotFound,
         CommentServiceError::Unauthorized => HttpError::Unauthorized,
-        CommentServiceError::Repo(e) => { tracing::error!("Comment repo error: {e}"); HttpError::Internal },
+        CommentServiceError::Repo(e) => {
+            tracing::error!("Comment repo error: {e}");
+            HttpError::Internal
+        }
     }
 }
 
@@ -55,8 +70,9 @@ async fn get_for_day(
     Path(date): Path<String>,
 ) -> Result<Json<Vec<CommentDto>>, HttpError> {
     let account = require_account(&actor)?;
-    let day = NaiveDate::parse_from_str(&date, "%Y-%m-%d")
-        .map_err(|e| HttpError::UserError { err: format!("invalid date '{}': {}", date, e) })?;
+    let day = NaiveDate::parse_from_str(&date, "%Y-%m-%d").map_err(|e| HttpError::UserError {
+        err: format!("invalid date '{}': {}", date, e),
+    })?;
     let comments = state
         .services
         .comment

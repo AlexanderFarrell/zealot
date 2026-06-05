@@ -1,9 +1,22 @@
-use axum::{Extension, Json, Router, extract::{Path, State}, http::StatusCode, middleware, routing::{delete, get, patch, post}};
+use axum::{
+    Extension, Json, Router,
+    extract::{Path, State},
+    http::StatusCode,
+    middleware,
+    routing::{delete, get, patch, post},
+};
 use serde::Deserialize;
 use zealot_app::app::AppState;
-use zealot_domain::{account::{ApiKeyRecordDto, CreateApiKeyResponseDto}, auth::Actor, common::id::Id};
+use zealot_domain::{
+    account::{ApiKeyRecordDto, CreateApiKeyResponseDto},
+    auth::Actor,
+    common::id::Id,
+};
 
-use crate::http::{common::HttpError, middleware::{auth_middleware, csrf_middleware}};
+use crate::http::{
+    common::HttpError,
+    middleware::{auth_middleware, csrf_middleware},
+};
 
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
@@ -11,8 +24,14 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .route("/api-keys", get(list_api_keys))
         .route("/api-keys", post(create_api_key))
         .route("/api-keys/{id}", delete(revoke_api_key))
-        .route_layer(middleware::from_fn_with_state(state.clone(), csrf_middleware))
-        .route_layer(middleware::map_request_with_state(state.clone(), auth_middleware))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            csrf_middleware,
+        ))
+        .route_layer(middleware::map_request_with_state(
+            state.clone(),
+            auth_middleware,
+        ))
         .with_state(state)
 }
 
@@ -25,7 +44,9 @@ async fn update_settings(
         return Err(HttpError::Unauthorized);
     }
     let account = actor.account.ok_or(HttpError::Unauthorized)?;
-    state.services.account
+    state
+        .services
+        .account
         .update_settings(&account.account_id, settings)
         .map_err(|_| HttpError::Internal)?;
     Ok(StatusCode::OK)
@@ -39,7 +60,9 @@ async fn list_api_keys(
         return Err(HttpError::Unauthorized);
     }
     let account = actor.account.ok_or(HttpError::Unauthorized)?;
-    let keys = state.services.account
+    let keys = state
+        .services
+        .account
         .list_api_keys(&account.account_id)
         .map_err(|_| HttpError::Internal)?;
     Ok(Json(keys.into_iter().map(ApiKeyRecordDto::from).collect()))
@@ -60,7 +83,9 @@ async fn create_api_key(
     }
     let account = actor.account.ok_or(HttpError::Unauthorized)?;
     let label = body.label.unwrap_or_else(|| "Default".to_string());
-    let (record, raw_key) = state.services.account
+    let (record, raw_key) = state
+        .services
+        .account
         .generate_api_key(&account.account_id, &label)
         .map_err(|_| HttpError::Internal)?;
     Ok(Json(CreateApiKeyResponseDto {
@@ -80,8 +105,12 @@ async fn revoke_api_key(
         return Err(HttpError::Unauthorized);
     }
     let account = actor.account.ok_or(HttpError::Unauthorized)?;
-    let api_key_id = Id::try_from(id).map_err(|_| HttpError::UserError { err: "Invalid API key id".to_string() })?;
-    state.services.account
+    let api_key_id = Id::try_from(id).map_err(|_| HttpError::UserError {
+        err: "Invalid API key id".to_string(),
+    })?;
+    state
+        .services
+        .account
         .revoke_api_key(&api_key_id, &account.account_id)
         .map_err(|_| HttpError::Internal)?;
     Ok(StatusCode::NO_CONTENT)

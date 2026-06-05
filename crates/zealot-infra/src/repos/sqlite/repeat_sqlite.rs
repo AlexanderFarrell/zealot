@@ -101,8 +101,7 @@ impl RepeatRepo for RepeatSqliteRepo {
                 let item_ids: Vec<i64> = item_rows.iter().map(|r| r.item_id).collect();
 
                 // Batch-fetch existing repeat_entry records for these items on this date.
-                let placeholders =
-                    item_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+                let placeholders = item_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
                 let entry_sql = format!(
                     "SELECT re.item_id, re.status, re.comment
                      FROM repeat_entry re
@@ -118,8 +117,10 @@ impl RepeatRepo for RepeatSqliteRepo {
                 for id in &item_ids {
                     entry_query = entry_query.bind(*id);
                 }
-                let entry_rows =
-                    entry_query.fetch_all(&pool).await.map_err(RepoError::from)?;
+                let entry_rows = entry_query
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
 
                 let mut entry_map: HashMap<i64, RepeatEntryRow> =
                     entry_rows.into_iter().map(|r| (r.item_id, r)).collect();
@@ -141,7 +142,12 @@ impl RepeatRepo for RepeatSqliteRepo {
                             None => (RepeatStatus::NotComplete, String::new()),
                         };
 
-                        Ok(RepeatEntryCore { item_id, status, date: day, comment })
+                        Ok(RepeatEntryCore {
+                            item_id,
+                            status,
+                            date: day,
+                            comment,
+                        })
                     })
                     .collect()
             })
@@ -196,9 +202,7 @@ impl RepeatRepo for RepeatSqliteRepo {
                 let item_schedule: Vec<(i64, String, Option<NaiveDate>)> = item_rows
                     .iter()
                     .map(|r| {
-                        let end_date = r.end_date.map(|secs| {
-                            epoch + Duration::days(secs / 86400)
-                        });
+                        let end_date = r.end_date.map(|secs| epoch + Duration::days(secs / 86400));
                         (r.item_id, r.schedule.clone(), end_date)
                     })
                     .collect();
@@ -206,8 +210,7 @@ impl RepeatRepo for RepeatSqliteRepo {
                 let item_ids: Vec<i64> = item_rows.iter().map(|r| r.item_id).collect();
 
                 // Query 2: all repeat_entry rows in the date range for those items.
-                let placeholders =
-                    item_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+                let placeholders = item_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
                 let entry_sql = format!(
                     "SELECT re.item_id, re.date, re.status, re.comment
                      FROM repeat_entry re
@@ -223,15 +226,19 @@ impl RepeatRepo for RepeatSqliteRepo {
                 for id in &item_ids {
                     entry_query = entry_query.bind(*id);
                 }
-                let entry_rows =
-                    entry_query.fetch_all(&pool).await.map_err(RepoError::from)?;
+                let entry_rows = entry_query
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
 
                 let mut entry_map: HashMap<(i64, NaiveDate), RepeatEntryWithDateRow> = {
                     let mut map = HashMap::new();
                     for row in entry_rows {
-                        let date = NaiveDate::parse_from_str(&row.date, "%Y-%m-%d")
-                            .map_err(|e| RepoError::DatabaseError {
-                                err: format!("invalid date '{}': {}", row.date, e),
+                        let date =
+                            NaiveDate::parse_from_str(&row.date, "%Y-%m-%d").map_err(|e| {
+                                RepoError::DatabaseError {
+                                    err: format!("invalid date '{}': {}", row.date, e),
+                                }
                             })?;
                         map.insert((row.item_id, date), row);
                     }
@@ -242,8 +249,7 @@ impl RepeatRepo for RepeatSqliteRepo {
                 let mut result: Vec<RepeatEntryCore> = Vec::new();
                 let mut current = start;
                 loop {
-                    let weekday_pos =
-                        current.weekday().number_from_sunday() as usize; // 1=Sun..7=Sat
+                    let weekday_pos = current.weekday().number_from_sunday() as usize; // 1=Sun..7=Sat
                     for (item_id_val, schedule, item_end_date) in &item_schedule {
                         let scheduled = schedule
                             .as_bytes()
@@ -269,7 +275,12 @@ impl RepeatRepo for RepeatSqliteRepo {
                             }
                             None => (RepeatStatus::NotComplete, String::new()),
                         };
-                        result.push(RepeatEntryCore { item_id, status, date: current, comment });
+                        result.push(RepeatEntryCore {
+                            item_id,
+                            status,
+                            date: current,
+                            comment,
+                        });
                     }
                     if current >= end {
                         break;
@@ -281,11 +292,7 @@ impl RepeatRepo for RepeatSqliteRepo {
         })
     }
 
-    fn set_status(
-        &self,
-        dto: &UpdateRepeatEntryDto,
-        account: &Account,
-    ) -> Result<(), RepoError> {
+    fn set_status(&self, dto: &UpdateRepeatEntryDto, account: &Account) -> Result<(), RepoError> {
         let item_id_val = dto.item_id;
         let date_str = dto.date.clone();
         let account_id_val = i64::from(account.account_id);
@@ -312,14 +319,12 @@ impl RepeatRepo for RepeatSqliteRepo {
                 let mut tx = pool.begin().await.map_err(RepoError::from)?;
 
                 // Remove any existing entry for this (item, date).
-                sqlx::query(
-                    "DELETE FROM repeat_entry WHERE item_id = ? AND date = ?",
-                )
-                .bind(item_id_val)
-                .bind(&date_str)
-                .execute(&mut *tx)
-                .await
-                .map_err(RepoError::from)?;
+                sqlx::query("DELETE FROM repeat_entry WHERE item_id = ? AND date = ?")
+                    .bind(item_id_val)
+                    .bind(&date_str)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(RepoError::from)?;
 
                 // A missing status or "Not Complete" means no record is stored.
                 let status_str = status.as_deref().unwrap_or("Not Complete");
