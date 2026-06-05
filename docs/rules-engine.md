@@ -300,13 +300,13 @@ zealot.event.item    -- the full item table (see Item table structure below)
 **`on_item_delete`**
 ```
 zealot.event.kind      -- "on_item_delete"
-zealot.event.item_id   -- string ID of the deleted item
+zealot.event.item_id   -- integer ID of the deleted item
 ```
 
 **`on_comment_add`**
 ```
 zealot.event.kind        -- "on_comment_add"
-zealot.event.item_id     -- string ID of the item the comment was added to
+zealot.event.item_id     -- integer ID of the item the comment was added to
 zealot.event.content     -- the comment text
 zealot.event.timestamp   -- ISO datetime string
 ```
@@ -332,12 +332,12 @@ zealot.event.attribute_key  -- the key of the attribute that was changed
 Every item returned by the `zealot.items` API has these fields:
 
 ```
-item.id           -- string, the item's unique ID
+item.id           -- integer (i64), the item's unique numeric ID
 item.title        -- string
 item.content      -- string, the item's ZealotScript (markdown) content
 item.attributes   -- table, keys are attribute names, values are the attribute values
 item.types        -- array of strings (type names assigned to this item)
-item.links        -- array of { id: string, relationship: string } tables
+item.links        -- array of { id: integer, relationship: string } tables
 ```
 
 ### Reading attributes
@@ -452,7 +452,7 @@ Lua scripts can write content to items using `zealot.items.update`. Content is s
 "```\ncode here\n```\n"
 
 -- Admonitions (Zealot extension)
-"!!! note\n    Body text here\n"
+":::note\nBody text here\n:::\n"
 ```
 
 ### Building multi-line content

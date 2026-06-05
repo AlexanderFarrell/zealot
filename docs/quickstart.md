@@ -33,7 +33,7 @@ Both commands should print a version number without errors.
 ### 1. Download the source
 
 ```
-git clone https://github.com/your-org/zealot.git
+git clone https://github.com/AlexanderFarrell/zealot.git
 cd zealot
 ```
 

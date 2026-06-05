@@ -29,7 +29,7 @@ A minimal example — fetch today's plan from a shell script:
 
 ```bash
 curl -s -H "x-api-key: zlt_abc123" \
-  "http://localhost:8456/planner/day?date=$(date +%Y-%m-%d)" | jq '.items[].title'
+  "http://localhost:8456/planner/day/$(date +%Y-%m-%d)" | jq '.[].title'
 ```
 
 ---

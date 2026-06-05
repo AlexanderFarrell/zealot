@@ -21,9 +21,6 @@ Daily Planner — 2026-06-05
 └── [Daily Plan] Plan — 2026-06-05            (freeform scratchpad)
 ```
 
-> **Screenshot placeholder:** Daily planner view showing a mix of scheduled tasks and a daily plan note.
-> _Replace with `docs/screenshots/planner-daily.png` once captured._
-
 ---
 
 ### 2. Personal Wiki
@@ -42,9 +39,6 @@ Follow up with design team by Friday.
 :::
 ```
 
-> **Screenshot placeholder:** Item editor showing a wiki page body with wiki links and a callout block.
-> _Replace with `docs/screenshots/item-wiki-page.png` once captured._
-
 ---
 
 ### 3. Project Tracking
@@ -60,8 +54,6 @@ Website Redesign  [Project]
 └── Set up staging        [Task]  Status: Not Started
 ```
 
-> **Screenshot placeholder:** Item list filtered to a project's child tasks, showing Status and Date attribute columns.
-> _Replace with `docs/screenshots/project-task-list.png` once captured._
 
 ---
 
@@ -73,8 +65,6 @@ Two mechanisms handle recurring work.
 
 **Planner repeat tracking:** The daily planner has a dedicated section for repeat items — habits and recurring tasks with a per-day status (Complete, Skip, Not Complete). You assign items to the repeat tracker and check them off each day without creating new items.
 
-> **Screenshot placeholder:** Daily planner repeat section showing habit items with per-day status toggles.
-> _Replace with `docs/screenshots/planner-repeat.png` once captured._
 
 ---
 
@@ -90,8 +80,6 @@ Common patterns people build:
 - A nested hierarchy using parent-child relationships
 - Type-scoped views: filter the item list to show only items of type `Meeting` or `Goal`
 
-> **Screenshot placeholder:** Types configuration screen showing a set of user-defined item types.
-> _Replace with `docs/screenshots/settings-types.png` once captured._
 
 ---
 
@@ -112,15 +100,15 @@ The **rules engine** is Zealot's most distinctive feature. Rules are Lua 5.4 scr
 ```lua
 local item = zealot.event.item
 if item.attributes["Status"] == "Complete" then
-  zealot.items.set_attribute(item.id, "Completed Date", os.date("%Y-%m-%d"))
+  zealot.items.set_attribute(item.id, "Completed Date", zealot.date)
 end
 ```
 
 **Example — create a daily agenda item at 8 AM:**
 
 ```lua
-local today = os.date("%Y-%m-%d")
-local id = zealot.items.create({ title = "Daily Plan — " .. today })
+local today = zealot.date
+local id = zealot.items.create("Daily Plan — " .. today, "")
 zealot.items.set_attribute(id, "Date", today)
 zealot.items.assign_type(id, "Daily Plan")
 zealot.notify("Created: Daily Plan — " .. today)
@@ -128,8 +116,6 @@ zealot.notify("Created: Daily Plan — " .. today)
 
 Full API reference and cookbook: [Rules Engine](./rules-engine.md).
 
-> **Screenshot placeholder:** Rules screen showing a list of active rules and the output log from the last run.
-> _Replace with `docs/screenshots/rules-screen.png` once captured._
 
 ---
 
