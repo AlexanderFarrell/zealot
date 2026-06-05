@@ -10,6 +10,10 @@
 - [Building & Running](./building.md) — Build the backend, web app, mobile apps, and Docker stack
 - [Migrations](./migrations.md) — Database schema migration system
 
+## Reference
+
+- [Data Model](./data-model.md) — canonical reference for items, types, attributes, links, repeats, comments, rules, and ZealotScript
+
 ## Features
 
 - [ZealotScript](./zealotscript/README.md) — Zealot's markup language: syntax reference
@@ -26,7 +30,7 @@
 
 - [MCP Guide](./mcp.md) — Connect Claude, Codex, or any MCP client to Zealot: installation, tool reference, workflows, and safe operating rules
 - [MCP System Prompt](./mcp-system-prompt.md) — Agent-facing system prompt describing Zealot's data model and tool behavior
-- [HTTP API](./api.md) — REST API overview
+- [HTTP API](./http-api.md) — REST API reference
 
 ## Contributing
 
