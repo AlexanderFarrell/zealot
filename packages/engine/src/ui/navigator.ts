@@ -17,6 +17,7 @@ export type AppLocation =
     | { kind: 'analysis_recent' }
     | { kind: 'analysis_backlog' }
     | { kind: 'analysis_overdue' }
+    | { kind: 'analysis_most_viewed' }
     | { kind: 'rules' }
     | { kind: 'settings'; section: SettingsSection }
     | { kind: 'not_found'; path: string };
@@ -51,6 +52,7 @@ export interface Navigator {
     openAnalysisRecent(): void;
     openAnalysisBacklog(): void;
     openAnalysisOverdue(): void;
+    openAnalysisMostViewed(): void;
     openRules(): void;
     openSettings(section?: SettingsSection): void;
     getLocation(): AppLocation;

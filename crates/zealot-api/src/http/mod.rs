@@ -1,4 +1,5 @@
 mod account;
+mod analysis;
 mod attribute;
 mod auth;
 mod comment;
@@ -47,6 +48,7 @@ fn build_router(state: AppState) -> Router {
         .nest("/account", account::routes(state.clone()))
         .nest("/auth", auth::routes(state.clone()))
         .nest("/comment", comment::routes(state.clone()))
+        .nest("/analysis", analysis::routes(state.clone()))
         .nest("/item", item::routes(state.clone()))
         .nest("/item_type", item_type::routes(state.clone()))
         .nest("/attribute", attribute::routes(state.clone()))

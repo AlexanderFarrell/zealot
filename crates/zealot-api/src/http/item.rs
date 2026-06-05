@@ -164,7 +164,12 @@ async fn get_by_id(
     let account = require_account(&actor)?;
     let id = parse_item_id(item_id)?;
     match state.services.item.get_item_by_id(&id, &account).map_err(item_service_err)? {
-        Some(item) => Ok(Json(ItemDto::from(&item))),
+        Some(item) => {
+            if let Err(e) = state.services.analysis.record_view(&id) {
+                tracing::warn!("Failed to record view for item {item_id}: {e}");
+            }
+            Ok(Json(ItemDto::from(&item)))
+        }
         None => Err(HttpError::NotFound),
     }
 }

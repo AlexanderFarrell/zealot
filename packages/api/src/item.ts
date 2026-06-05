@@ -3,6 +3,17 @@ import { Item } from "@zealot/domain/src/item";
 import type { AddItemDto, ItemDto, UpdateItemDto } from "@zealot/domain/src/item";
 import { BaseAPI } from "./common";
 
+export interface MostViewedItemDto {
+    item_id: number;
+    title: string;
+    view_count: number;
+}
+
+export interface MostViewedEntry {
+    item: Item;
+    viewCount: number;
+}
+
 export interface AttributeFilterDto {
     key: string;
     op: string;        // "eq" | "ne" | "gt" | "lt" | "gte" | "lte"
@@ -88,6 +99,14 @@ export class ItemAPI extends BaseAPI {
 
     async RebuildLinks(): Promise<{ rebuilt: number }> {
         return await post_json(`${this.baseUrl}/item/rebuild-links`, {}) as { rebuilt: number };
+    }
+
+    async GetMostViewed(limit = 30): Promise<MostViewedEntry[]> {
+        const dtos = await get_json(`${this.baseUrl}/analysis/most-viewed?limit=${limit}`) as MostViewedItemDto[];
+        return dtos.map(d => ({
+            item: new Item({ item_id: d.item_id, title: d.title, content: '', attributes: {}, types: [], links: [] }),
+            viewCount: d.view_count,
+        }));
     }
 
     ExportPdfUrl(item_id: number): string {

@@ -10,9 +10,9 @@ use crate::repos::postgres::{
     item_external_link_postgres::ItemExternalLinkPostgresRepo,
     item_heading_postgres::ItemHeadingPostgresRepo, item_link_postgres::ItemLinkPostgresRepo,
     item_postgres::ItemPostgresRepo, item_type_postgres::ItemTypePostgresRepo,
-    meta_postgres::MetaPostgresRepo, repeat_postgres::RepeatPostgresRepo,
-    rule_postgres::RulePostgresRepo, scope_postgres::ScopePostgresRepo,
-    session_postgres::SessionPostgresRepo,
+    item_view_postgres::ItemViewPostgresRepo, meta_postgres::MetaPostgresRepo,
+    repeat_postgres::RepeatPostgresRepo, rule_postgres::RulePostgresRepo,
+    scope_postgres::ScopePostgresRepo, session_postgres::SessionPostgresRepo,
 };
 
 pub mod account_postgres;
@@ -24,6 +24,7 @@ pub mod item_heading_postgres;
 pub mod item_link_postgres;
 pub mod item_postgres;
 pub mod item_type_postgres;
+pub mod item_view_postgres;
 pub mod meta_postgres;
 pub mod repeat_postgres;
 pub mod rule_postgres;
@@ -41,6 +42,7 @@ pub fn get_postgres_repos(db: PgPool) -> ZealotRepos {
         item_heading: Arc::new(ItemHeadingPostgresRepo::new(db.clone())),
         item_link: Arc::new(ItemLinkPostgresRepo::new(db.clone())),
         item_type: Arc::new(ItemTypePostgresRepo::new(db.clone())),
+        item_view: Arc::new(ItemViewPostgresRepo::new(db.clone())),
         meta: Arc::new(MetaPostgresRepo::new(db.clone())),
         repeat: Arc::new(RepeatPostgresRepo::new(db.clone())),
         rule: Arc::new(RulePostgresRepo::new(db.clone())),

@@ -9,7 +9,8 @@ use crate::repos::sqlite::{
     item_external_link_sqlite::ItemExternalLinkSqliteRepo,
     item_heading_sqlite::ItemHeadingSqliteRepo, item_link_sqlite::ItemLinkSqliteRepo,
     item_sqlite::ItemSqliteRepo, item_type_sqlite::ItemTypeSqliteRepo,
-    meta_sqlite::MetaSqliteRepo, repeat_sqlite::RepeatSqliteRepo, rule_sqlite::RuleSqliteRepo,
+    item_view_sqlite::ItemViewSqliteRepo, meta_sqlite::MetaSqliteRepo,
+    repeat_sqlite::RepeatSqliteRepo, rule_sqlite::RuleSqliteRepo,
     scope_sqlite::ScopeSqliteRepo, session_sqlite::SessionSqliteRepo,
 };
 
@@ -22,6 +23,7 @@ pub mod item_heading_sqlite;
 pub mod item_link_sqlite;
 pub mod item_sqlite;
 pub mod item_type_sqlite;
+pub mod item_view_sqlite;
 pub mod meta_sqlite;
 pub mod repeat_sqlite;
 pub mod rule_sqlite;
@@ -39,6 +41,7 @@ pub fn get_sqlite_repos(pool: SqlitePool) -> ZealotRepos {
         item_heading: Arc::new(ItemHeadingSqliteRepo::new(pool.clone())),
         item_link: Arc::new(ItemLinkSqliteRepo::new(pool.clone())),
         item_type: Arc::new(ItemTypeSqliteRepo::new(pool.clone())),
+        item_view: Arc::new(ItemViewSqliteRepo::new(pool.clone())),
         meta: Arc::new(MetaSqliteRepo::new(pool.clone())),
         repeat: Arc::new(RepeatSqliteRepo::new(pool.clone())),
         rule: Arc::new(RuleSqliteRepo::new(pool.clone())),

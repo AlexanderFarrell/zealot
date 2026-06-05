@@ -4,7 +4,8 @@ use crate::repos::{
     account::AccountRepo, attribute::AttributeRepo, comment::CommentRepo, item::ItemRepo,
     item_attribute_value::ItemAttributeValueRepo, item_external_link::ItemExternalLinkRepo,
     item_heading::ItemHeadingRepo, item_link::ItemLinkRepo, item_type::ItemTypeRepo,
-    meta::MetaRepo, repeat::RepeatRepo, rule::RuleRepo, scope::ScopeRepo, session::SessionRepo,
+    item_view::ItemViewRepo, meta::MetaRepo, repeat::RepeatRepo, rule::RuleRepo, scope::ScopeRepo,
+    session::SessionRepo,
 };
 
 pub mod account;
@@ -17,6 +18,7 @@ pub mod item_external_link;
 pub mod item_heading;
 pub mod item_link;
 pub mod item_type;
+pub mod item_view;
 pub mod meta;
 pub mod repeat;
 pub mod rule;
@@ -34,6 +36,7 @@ pub struct ZealotRepos {
     pub item_heading: Arc<dyn ItemHeadingRepo>,
     pub item_link: Arc<dyn ItemLinkRepo>,
     pub item_type: Arc<dyn ItemTypeRepo>,
+    pub item_view: Arc<dyn ItemViewRepo>,
     // pub media: Arc<dyn MediaRepo>,
     pub meta: Arc<dyn MetaRepo>,
     pub repeat: Arc<dyn RepeatRepo>,

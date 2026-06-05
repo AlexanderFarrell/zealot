@@ -64,7 +64,7 @@ impl ZealotServices {
 
         Self {
             account: Arc::new(AccountService::new(&repos.account)),
-            analysis: Arc::new(AnalysisService::new(&repos.item)),
+            analysis: Arc::new(AnalysisService::new(&repos.item, &repos.item_view)),
             attribute: Arc::new(AttributeService::new(&repos.attribute)),
             auth: Arc::new(AuthService::new(
                 &repos.account,

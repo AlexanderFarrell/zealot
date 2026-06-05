@@ -5,6 +5,11 @@ import type { Item } from '@zealot/domain/src/item';
 import { LoadingSpinner } from '../common/loading_spinner';
 import { ItemTableView, type ItemTableColumn } from '../views/item_table_view';
 
+const mostViewedTableColumns: ItemTableColumn[] = [
+    { kind: 'title', label: 'Title' },
+    { kind: 'types', label: 'Type' },
+];
+
 const statusTableColumns: ItemTableColumn[] = [
     { kind: 'title', label: 'Title' },
     { kind: 'types', label: 'Type' },
@@ -151,17 +156,18 @@ class AnalysisUtils {
     }
 }
 
-function renderTabBar(active: 'analysis' | 'specify' | 'working' | 'recent' | 'backlog' | 'overdue'): HTMLElement {
+function renderTabBar(active: 'analysis' | 'specify' | 'working' | 'recent' | 'backlog' | 'overdue' | 'most_viewed'): HTMLElement {
     const bar = document.createElement('div');
     bar.className = 'analysis-tabs';
 
-    const tabs: { label: string; key: 'analysis' | 'specify' | 'working' | 'recent' | 'backlog' | 'overdue' }[] = [
+    const tabs: { label: string; key: 'analysis' | 'specify' | 'working' | 'recent' | 'backlog' | 'overdue' | 'most_viewed' }[] = [
         { label: 'Analysis', key: 'analysis' },
         { label: 'Specify', key: 'specify' },
         { label: 'Working', key: 'working' },
         { label: 'Recent', key: 'recent' },
         { label: 'Backlog', key: 'backlog' },
         { label: 'Overdue', key: 'overdue' },
+        { label: 'Most Viewed', key: 'most_viewed' },
     ];
 
     tabs.forEach(tab => {
@@ -175,6 +181,7 @@ function renderTabBar(active: 'analysis' | 'specify' | 'working' | 'recent' | 'b
             else if (tab.key === 'working') nav.openAnalysisWorking();
             else if (tab.key === 'recent') nav.openAnalysisRecent();
             else if (tab.key === 'backlog') nav.openAnalysisBacklog();
+            else if (tab.key === 'most_viewed') nav.openAnalysisMostViewed();
             else nav.openAnalysisOverdue();
         });
         bar.appendChild(btn);
@@ -480,3 +487,71 @@ export class OverdueScreen extends BaseElementEmpty {
 }
 
 customElements.define('overdue-screen', OverdueScreen);
+
+export class MostViewedScreen extends BaseElementEmpty {
+    async render() {
+        this.innerHTML = '';
+        const wrapper = document.createElement('div');
+        wrapper.className = 'analysis-screen';
+
+        wrapper.appendChild(renderTabBar('most_viewed'));
+
+        const heading = document.createElement('h1');
+        heading.textContent = 'Most Viewed';
+        wrapper.appendChild(heading);
+
+        const spinner = new LoadingSpinner();
+        wrapper.appendChild(spinner);
+        this.appendChild(wrapper);
+
+        const entries = await itemApi.GetMostViewed(50);
+        wrapper.removeChild(spinner);
+
+        heading.textContent = `Most Viewed (${entries.length})`;
+
+        if (entries.length === 0) {
+            const empty = document.createElement('p');
+            empty.textContent = 'No views recorded yet. Open some items to start tracking.';
+            wrapper.appendChild(empty);
+            return;
+        }
+
+        const listEl = document.createElement('table');
+        listEl.className = 'item-table';
+
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        ['Title', 'Type', 'Views'].forEach(label => {
+            const th = document.createElement('th');
+            th.textContent = label;
+            headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+        listEl.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        entries.forEach(({ item, viewCount }) => {
+            const row = document.createElement('tr');
+            row.style.cursor = 'pointer';
+            row.addEventListener('click', () => getNavigator().openItemById(item.ItemID));
+
+            const titleCell = document.createElement('td');
+            titleCell.textContent = item.DisplayTitle;
+            row.appendChild(titleCell);
+
+            const typeCell = document.createElement('td');
+            typeCell.textContent = item.Types[0]?.Name ?? '';
+            row.appendChild(typeCell);
+
+            const viewCell = document.createElement('td');
+            viewCell.textContent = String(viewCount);
+            row.appendChild(viewCell);
+
+            tbody.appendChild(row);
+        });
+        listEl.appendChild(tbody);
+        wrapper.appendChild(listEl);
+    }
+}
+
+customElements.define('most-viewed-screen', MostViewedScreen);
