@@ -4,6 +4,7 @@
 
 ## Getting Started
 
+- [Overview](./overview.md) — What Zealot is, core use cases, and how it compares to adjacent tools
 - [Quickstart](./quickstart.md) — Install Zealot, create your first workspace, and use it for real planning
 - [Building & Running](./building.md) — Build the backend, web app, mobile apps, and Docker stack
 - [Migrations](./migrations.md) — Database schema migration system
