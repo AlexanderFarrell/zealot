@@ -1,10 +1,11 @@
 use axum::{
     Extension, Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     middleware,
     routing::{get, post},
 };
+use serde::Deserialize;
 use zealot_app::app::AppState;
 use zealot_app::services::item_type::ItemTypeServiceError;
 use zealot_domain::{
@@ -14,6 +15,12 @@ use zealot_domain::{
 };
 
 use crate::http::{common::HttpError, middleware::{auth_middleware, csrf_middleware}};
+
+#[derive(Deserialize)]
+struct DeleteParams {
+    #[serde(default)]
+    force: bool,
+}
 
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
@@ -49,6 +56,7 @@ fn item_type_service_err(err: ItemTypeServiceError) -> HttpError {
     match err {
         ItemTypeServiceError::NotFound => HttpError::NotFound,
         ItemTypeServiceError::ReadOnly(err) => HttpError::UserError { err },
+        ItemTypeServiceError::InUse(message) => HttpError::Conflict { message },
         ItemTypeServiceError::Repo(e) => { tracing::error!("ItemType repo error: {e}"); HttpError::Internal },
     }
 }
@@ -154,13 +162,14 @@ async fn delete_item_type(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(type_id): Path<i64>,
+    Query(params): Query<DeleteParams>,
 ) -> Result<StatusCode, HttpError> {
     let account = require_account(&actor)?;
     let id = Id::try_from(type_id).map_err(|e| HttpError::UserError { err: e.to_string() })?;
     state
         .services
         .item_type
-        .delete_item_type(&id, &account.account_id)
+        .delete_item_type(&id, &account.account_id, params.force)
         .map(|_| StatusCode::OK)
         .map_err(item_type_service_err)
 }

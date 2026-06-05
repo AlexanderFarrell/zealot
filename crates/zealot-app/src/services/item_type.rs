@@ -18,6 +18,8 @@ pub enum ItemTypeServiceError {
     NotFound,
     #[error("{0}")]
     ReadOnly(String),
+    #[error("{0}")]
+    InUse(String),
     #[error("repo error: {0}")]
     Repo(#[from] RepoError),
 }
@@ -157,10 +159,20 @@ impl ItemTypeService {
         &self,
         type_id: &Id,
         account_id: &Id,
+        force: bool,
     ) -> Result<(), ItemTypeServiceError> {
         let current = self.get_mutable_item_type(type_id, account_id)?;
-        if current.is_none() {
-            return Err(ItemTypeServiceError::NotFound);
+        let current = current.ok_or(ItemTypeServiceError::NotFound)?;
+
+        if !force {
+            let count = self.repo.count_items_for_type(type_id)
+                .map_err(ItemTypeServiceError::Repo)?;
+            if count > 0 {
+                return Err(ItemTypeServiceError::InUse(format!(
+                    "Item type '{}' is assigned to {} item(s). Unassign first or pass force=true.",
+                    current.name, count
+                )));
+            }
         }
 
         let deleted = self
@@ -194,5 +206,114 @@ impl ItemTypeService {
         }
 
         Ok(current)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use zealot_domain::item_type::{
+        AddItemTypeDto, ItemType, ItemTypeRef, ItemTypeSummary, UpdateItemTypeDto,
+    };
+
+    #[derive(Debug)]
+    struct MockItemTypeRepo {
+        item_type: Option<ItemType>,
+        item_count: i64,
+        deleted: AtomicBool,
+    }
+
+    impl MockItemTypeRepo {
+        fn with_type(item_type: ItemType, item_count: i64) -> Self {
+            Self { item_type: Some(item_type), item_count, deleted: AtomicBool::new(false) }
+        }
+        fn empty() -> Self {
+            Self { item_type: None, item_count: 0, deleted: AtomicBool::new(false) }
+        }
+    }
+
+    fn make_type(name: &str, is_system: bool) -> ItemType {
+        ItemType {
+            type_id: Id::try_from(1i64).unwrap(),
+            is_system,
+            name: name.to_string(),
+            description: String::new(),
+            required_attributes: vec![],
+        }
+    }
+
+    fn account_id() -> Id { Id::try_from(1i64).unwrap() }
+    fn type_id() -> Id { Id::try_from(1i64).unwrap() }
+
+    impl ItemTypeRepo for MockItemTypeRepo {
+        fn get_item_types(&self, _: &Id) -> Result<Vec<ItemType>, RepoError> { Ok(vec![]) }
+        fn get_item_type_summaries(&self, _: &Id) -> Result<Vec<ItemTypeSummary>, RepoError> { Ok(vec![]) }
+        fn get_item_type(&self, _: &Id, _: &Id) -> Result<Option<ItemType>, RepoError> {
+            Ok(self.item_type.clone())
+        }
+        fn get_item_type_by_name(&self, _: &str, _: &Id) -> Result<Option<ItemType>, RepoError> { Ok(None) }
+        fn get_item_type_refs_for_items(&self, _: &Vec<Id>, _: &Id) -> Result<HashMap<Id, Vec<ItemTypeRef>>, RepoError> { Ok(HashMap::new()) }
+        fn get_item_ids_for_type_name(&self, _: &str, _: &Id) -> Result<Vec<Id>, RepoError> { Ok(vec![]) }
+        fn add_item_type(&self, _: &AddItemTypeDto, _: &Id) -> Result<Option<ItemType>, RepoError> { Ok(None) }
+        fn update_item_type(&self, _: &UpdateItemTypeDto, _: &Id) -> Result<Option<ItemType>, RepoError> { Ok(None) }
+        fn count_items_for_type(&self, _: &Id) -> Result<i64, RepoError> { Ok(self.item_count) }
+        fn delete_item_type(&self, _: &Id, _: &Id) -> Result<bool, RepoError> {
+            self.deleted.store(true, Ordering::Relaxed);
+            Ok(true)
+        }
+        fn add_attr_kinds_to_item_type(&self, _: &Vec<String>, _: &Id, _: &Id) -> Result<(), RepoError> { Ok(()) }
+        fn remove_attr_kinds_from_item_type(&self, _: &Vec<String>, _: &Id, _: &Id) -> Result<(), RepoError> { Ok(()) }
+        fn assign_item_types(&self, _: &Vec<String>, _: &Id, _: &Id) -> Result<(), RepoError> { Ok(()) }
+        fn unassign_item_types(&self, _: &Vec<String>, _: &Id, _: &Id) -> Result<(), RepoError> { Ok(()) }
+    }
+
+    #[test]
+    fn delete_unused_type_succeeds() {
+        let repo = Arc::new(MockItemTypeRepo::with_type(make_type("Task", false), 0));
+        let svc = ItemTypeService::new(&(repo.clone() as Arc<dyn ItemTypeRepo>));
+        let result = svc.delete_item_type(&type_id(), &account_id(), false);
+        assert!(result.is_ok());
+        assert!(repo.deleted.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn delete_in_use_type_without_force_returns_in_use_error() {
+        let repo = Arc::new(MockItemTypeRepo::with_type(make_type("Task", false), 37));
+        let svc = ItemTypeService::new(&(repo.clone() as Arc<dyn ItemTypeRepo>));
+        let result = svc.delete_item_type(&type_id(), &account_id(), false);
+        assert!(matches!(result, Err(ItemTypeServiceError::InUse(_))));
+        if let Err(ItemTypeServiceError::InUse(msg)) = result {
+            assert!(msg.contains("37"));
+            assert!(msg.contains("Task"));
+        }
+        assert!(!repo.deleted.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn delete_in_use_type_with_force_proceeds() {
+        let repo = Arc::new(MockItemTypeRepo::with_type(make_type("Task", false), 37));
+        let svc = ItemTypeService::new(&(repo.clone() as Arc<dyn ItemTypeRepo>));
+        let result = svc.delete_item_type(&type_id(), &account_id(), true);
+        assert!(result.is_ok());
+        assert!(repo.deleted.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn delete_system_type_returns_readonly_regardless_of_force() {
+        let repo = Arc::new(MockItemTypeRepo::with_type(make_type("System", true), 0));
+        let svc = ItemTypeService::new(&(repo.clone() as Arc<dyn ItemTypeRepo>));
+        let result = svc.delete_item_type(&type_id(), &account_id(), true);
+        assert!(matches!(result, Err(ItemTypeServiceError::ReadOnly(_))));
+        assert!(!repo.deleted.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn delete_nonexistent_type_returns_not_found() {
+        let repo = Arc::new(MockItemTypeRepo::empty());
+        let svc = ItemTypeService::new(&(repo.clone() as Arc<dyn ItemTypeRepo>));
+        let result = svc.delete_item_type(&type_id(), &account_id(), false);
+        assert!(matches!(result, Err(ItemTypeServiceError::NotFound)));
     }
 }

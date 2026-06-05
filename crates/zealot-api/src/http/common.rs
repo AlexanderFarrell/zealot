@@ -7,6 +7,7 @@ pub enum HttpError {
     Unauthorized,
     Internal,
     UserError{err: String},
+    Conflict{message: String},
 }
 
 impl IntoResponse for HttpError {
@@ -24,7 +25,10 @@ impl IntoResponse for HttpError {
             },
             HttpError::UserError { err } => {
                 (StatusCode::BAD_REQUEST, err).into_response()
-            }
+            },
+            HttpError::Conflict { message } => {
+                (StatusCode::CONFLICT, message).into_response()
+            },
         }
     }
 }

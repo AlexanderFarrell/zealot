@@ -368,6 +368,41 @@ impl AttributeRepo for AttributePostgresRepo {
         })
     }
 
+    fn count_attribute_values_for_kind(&self, key: &str, account_id: &Id) -> Result<i64, RepoError> {
+        let account_id_val = i64::from(*account_id);
+        let key = key.to_string();
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT COUNT(*) FROM attribute WHERE key = $1 AND account_id = $2",
+                )
+                .bind(&key)
+                .bind(account_id_val)
+                .fetch_one(&pool)
+                .await
+                .map_err(RepoError::from)
+            })
+        })
+    }
+
+    fn delete_attribute_values_for_kind(&self, key: &str, account_id: &Id) -> Result<(), RepoError> {
+        let account_id_val = i64::from(*account_id);
+        let key = key.to_string();
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                sqlx::query("DELETE FROM attribute WHERE key = $1 AND account_id = $2")
+                    .bind(&key)
+                    .bind(account_id_val)
+                    .execute(&pool)
+                    .await
+                    .map(|_| ())
+                    .map_err(RepoError::from)
+            })
+        })
+    }
+
     fn delete_attribute_kind(&self, key: &str, account_id: &Id) -> Result<(), RepoError> {
         let account_id_val = i64::from(*account_id);
         let key = key.to_string();
