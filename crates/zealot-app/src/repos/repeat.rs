@@ -16,6 +16,14 @@ pub trait RepeatRepo: Debug + Send + Sync {
         account: &Account,
     ) -> Result<Vec<RepeatEntryCore>, RepoError>;
 
+    // Get the status for each repeat across an inclusive date range.
+    fn get_for_range(
+        &self,
+        start: &NaiveDate,
+        end: &NaiveDate,
+        account: &Account,
+    ) -> Result<Vec<RepeatEntryCore>, RepoError>;
+
     // For the item with a repeat type, set what occurred
     // on that day (complete, skip, etc.).
     fn set_status(&self, dto: &UpdateRepeatEntryDto, account: &Account) -> Result<(), RepoError>;

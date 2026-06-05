@@ -241,8 +241,10 @@ All planner endpoints return `ItemDto[]` — the same full item objects as the i
 ### API
 
 ```
-GET  /repeat/?item_id={id}&date={YYYY-MM-DD}   — get entries
-PATCH /repeat/                                  — update status/comment
+GET  /repeat/items                                     — list all enrolled repeat items (ItemDto[])
+GET  /repeat/day/{YYYY-MM-DD}                          — get repeat entries for one day
+GET  /repeat/range?start={YYYY-MM-DD}&end={YYYY-MM-DD} — get repeat entries across an inclusive date range
+PUT  /repeat/status                                    — update status/comment for one (item, date)
 ```
 
 Update body:

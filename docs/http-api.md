@@ -615,7 +615,9 @@ Repeats track completion status for recurring items. All endpoints require authe
 
 | Method | Path | Description |
 |---|---|---|
+| GET | `/repeat/items` | List all items enrolled in the repeat tracker |
 | GET | `/repeat/day/{date}` | Get repeat entries for a day (`YYYY-MM-DD`) |
+| GET | `/repeat/range` | Get repeat entries across a date range (`?start=YYYY-MM-DD&end=YYYY-MM-DD`) |
 | PUT | `/repeat/status` | Update the status of a repeat entry |
 
 #### RepeatEntryDto
@@ -630,6 +632,21 @@ Repeats track completion status for recurring items. All endpoints require authe
 ```
 
 Status values: `Complete`, `Skip`, `Alternate`, `Not Complete`.
+
+#### GET /repeat/items
+
+Returns `ItemDto[]` — all items that have the `Repeat` type assigned. Useful for building a habits overview or settings screen without needing to guess a date.
+
+#### GET /repeat/range
+
+Query parameters:
+
+| Parameter | Required | Description |
+|---|---|---|
+| `start` | yes | Start date (`YYYY-MM-DD`, inclusive) |
+| `end` | yes | End date (`YYYY-MM-DD`, inclusive) |
+
+Returns `RepeatEntryDto[]` — one entry per item per day in the range on which that item is scheduled. Items that have no `repeat_entry` record for a day default to `Not Complete`. Returns `400` if either date is malformed or if `end` is before `start`.
 
 #### PUT /repeat/status
 
