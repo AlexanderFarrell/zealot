@@ -53,6 +53,11 @@ export class ItemAPI extends BaseAPI {
         return dtos.map(d => new Item(d));
     }
 
+    async GetBacklinks(item_id: number): Promise<Item[]> {
+        const dtos: ItemDto[] = await get_json(`${this.baseUrl}/item/backlinks/${item_id}`);
+        return dtos.map(d => new Item(d));
+    }
+
     async Filter(filters: AttributeFilterDto[]): Promise<Item[]> {
         const dtos = await post_json(`${this.baseUrl}/item/filter`, { filters }) as ItemDto[];
         return dtos.map(d => new Item(d));

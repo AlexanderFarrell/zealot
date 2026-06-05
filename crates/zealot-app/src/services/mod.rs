@@ -48,6 +48,8 @@ impl ZealotServices {
         let item = Arc::new(ItemService::new(
             &repos.item,
             &repos.item_attribute_value,
+            &repos.item_external_link,
+            &repos.item_heading,
             &repos.item_link,
             &repos.item_type,
             &repos.attribute,

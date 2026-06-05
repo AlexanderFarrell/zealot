@@ -51,6 +51,22 @@ pub struct ItemLink {
     pub relationship: ItemRelationship,
 }
 
+#[derive(Debug, Clone)]
+pub struct ItemHeading {
+    pub heading_id: Id,
+    pub item_id: Id,
+    pub level: u8,
+    pub ordinal: u32,
+    pub text: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ItemExternalLink {
+    pub link_id: Id,
+    pub item_id: Id,
+    pub url: String,
+}
+
 // Send DTOs
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -239,7 +239,7 @@ export class UserSettingsScreen extends BaseElementEmpty {
 
         const desc = document.createElement('p');
         desc.className = 'tool-muted';
-        desc.textContent = 'Rebuild the item relationship index from attribute values. Use this if children or linked items are missing from navigation.';
+        desc.textContent = 'Rebuild the item relationship index from attribute values and wiki links. Use this if children, linked items, or backlinks are missing.';
         section.appendChild(desc);
 
         if (this.rebuildResult) {

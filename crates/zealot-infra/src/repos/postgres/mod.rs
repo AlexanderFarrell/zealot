@@ -7,16 +7,20 @@ use crate::repos::postgres::{
     account_postgres::AccountPostgresRepo, attribute_postgres::AttributePostgresRepo,
     comment_postgres::CommentPostgresRepo,
     item_attribute_value_postgres::ItemAttributeValuePostgresRepo,
-    item_link_postgres::ItemLinkPostgresRepo, item_postgres::ItemPostgresRepo,
-    item_type_postgres::ItemTypePostgresRepo, meta_postgres::MetaPostgresRepo,
-    repeat_postgres::RepeatPostgresRepo, rule_postgres::RulePostgresRepo,
-    scope_postgres::ScopePostgresRepo, session_postgres::SessionPostgresRepo,
+    item_external_link_postgres::ItemExternalLinkPostgresRepo,
+    item_heading_postgres::ItemHeadingPostgresRepo, item_link_postgres::ItemLinkPostgresRepo,
+    item_postgres::ItemPostgresRepo, item_type_postgres::ItemTypePostgresRepo,
+    meta_postgres::MetaPostgresRepo, repeat_postgres::RepeatPostgresRepo,
+    rule_postgres::RulePostgresRepo, scope_postgres::ScopePostgresRepo,
+    session_postgres::SessionPostgresRepo,
 };
 
 pub mod account_postgres;
 pub mod attribute_postgres;
 pub mod comment_postgres;
 pub mod item_attribute_value_postgres;
+pub mod item_external_link_postgres;
+pub mod item_heading_postgres;
 pub mod item_link_postgres;
 pub mod item_postgres;
 pub mod item_type_postgres;
@@ -33,6 +37,8 @@ pub fn get_postgres_repos(db: PgPool) -> ZealotRepos {
         comment: Arc::new(CommentPostgresRepo::new(db.clone())),
         item: Arc::new(ItemPostgresRepo::new(db.clone())),
         item_attribute_value: Arc::new(ItemAttributeValuePostgresRepo::new(db.clone())),
+        item_external_link: Arc::new(ItemExternalLinkPostgresRepo::new(db.clone())),
+        item_heading: Arc::new(ItemHeadingPostgresRepo::new(db.clone())),
         item_link: Arc::new(ItemLinkPostgresRepo::new(db.clone())),
         item_type: Arc::new(ItemTypePostgresRepo::new(db.clone())),
         meta: Arc::new(MetaPostgresRepo::new(db.clone())),

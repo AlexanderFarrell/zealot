@@ -252,6 +252,22 @@ item-view {
   gap: 8px;
 }
 
+.item-collection-content--hidden {
+  display: none;
+}
+
+.item-collection-toggle {
+  all: unset;
+  font-size: inherit;
+  font-weight: bold;
+  cursor: pointer;
+  margin: 0;
+
+  &:hover {
+    opacity: 0.75;
+  }
+}
+
 .item-card-list {
   display: flex;
   flex-direction: column;

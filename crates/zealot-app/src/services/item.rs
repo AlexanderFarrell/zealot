@@ -25,6 +25,8 @@ use crate::{
         common::RepoError,
         item::ItemRepo,
         item_attribute_value::ItemAttributeValueRepo,
+        item_external_link::ItemExternalLinkRepo,
+        item_heading::ItemHeadingRepo,
         item_link::ItemLinkRepo,
         item_type::ItemTypeRepo,
     },
@@ -34,6 +36,8 @@ use crate::{
 pub struct ItemService {
     item_repo: Arc<dyn ItemRepo>,
     item_attribute_value_repo: Arc<dyn ItemAttributeValueRepo>,
+    item_external_link_repo: Arc<dyn ItemExternalLinkRepo>,
+    item_heading_repo: Arc<dyn ItemHeadingRepo>,
     item_link_repo: Arc<dyn ItemLinkRepo>,
     item_type_repo: Arc<dyn ItemTypeRepo>,
     attribute_repo: Arc<dyn AttributeRepo>,
@@ -60,6 +64,8 @@ impl ItemService {
     pub fn new(
         item_repo: &Arc<dyn ItemRepo>,
         item_attribute_value_repo: &Arc<dyn ItemAttributeValueRepo>,
+        item_external_link_repo: &Arc<dyn ItemExternalLinkRepo>,
+        item_heading_repo: &Arc<dyn ItemHeadingRepo>,
         item_link_repo: &Arc<dyn ItemLinkRepo>,
         item_type_repo: &Arc<dyn ItemTypeRepo>,
         attribute_repo: &Arc<dyn AttributeRepo>,
@@ -68,6 +74,8 @@ impl ItemService {
         Self {
             item_repo: item_repo.clone(),
             item_attribute_value_repo: item_attribute_value_repo.clone(),
+            item_external_link_repo: item_external_link_repo.clone(),
+            item_heading_repo: item_heading_repo.clone(),
             item_link_repo: item_link_repo.clone(),
             item_type_repo: item_type_repo.clone(),
             attribute_repo: attribute_repo.clone(),
@@ -185,6 +193,18 @@ impl ItemService {
         self.hydrate_item_ids(&ids, account)
     }
 
+    pub fn get_backlinks(
+        &self,
+        item_id: &Id,
+        account: &Account,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        let ids = self
+            .item_link_repo
+            .get_source_item_ids(item_id, "wikilink", &account.account_id)
+            .map_err(ItemServiceError::Repo)?;
+        self.hydrate_item_ids(&ids, account)
+    }
+
     pub fn filter_items(
         &self,
         filter_dtos: &Vec<AttributeFilterDto>,
@@ -259,6 +279,10 @@ impl ItemService {
                         .map_err(ItemServiceError::Repo)?;
                 }
 
+                self.sync_wiki_links_from_content(&item.item_id, &dto.content, account)?;
+                self.sync_headings(&item.item_id, &dto.content)?;
+                self.sync_external_links(&item.item_id, &dto.content)?;
+
                 let result = self.get_item_by_id(&item.item_id, account)?;
                 if let Some(ref created) = result {
                     self.event_port.emit(ZealotEvent::ItemCreated {
@@ -312,6 +336,10 @@ impl ItemService {
             content: dto.content.clone(),
         };
 
+        let title_changed = dto.title.as_ref()
+            .map(|new_title| new_title != &current_item.title)
+            .unwrap_or(false);
+
         match self
             .item_repo
             .update_item(&parsed, account)
@@ -328,6 +356,16 @@ impl ItemService {
                     self.item_link_repo
                         .replace_links_for_item(&item.item_id, links, account)
                         .map_err(ItemServiceError::Repo)?;
+                }
+
+                if let Some(content) = &dto.content {
+                    self.sync_wiki_links_from_content(&item.item_id, content, account)?;
+                    self.sync_headings(&item.item_id, content)?;
+                    self.sync_external_links(&item.item_id, content)?;
+                }
+
+                if title_changed {
+                    self.rebuild_wiki_links_for_account(account)?;
                 }
 
                 let result = self.get_item_by_id(&item.item_id, account)?;
@@ -717,6 +755,176 @@ impl ItemService {
         Ok(())
     }
 
+    /// Extracts all `[[Title]]` and `[[type:Title]]` wiki link titles from content.
+    fn extract_wiki_link_titles(content: &str) -> Vec<String> {
+        let mut titles = Vec::new();
+        let mut chars = content.chars().peekable();
+        while let Some(c) = chars.next() {
+            if c == '[' && chars.peek() == Some(&'[') {
+                chars.next();
+                let mut inner = String::new();
+                loop {
+                    match chars.next() {
+                        Some(']') if chars.peek() == Some(&']') => { chars.next(); break; }
+                        Some(ch) => inner.push(ch),
+                        None => break,
+                    }
+                }
+                let title = if let Some(pos) = inner.find(':') {
+                    inner[pos + 1..].trim().to_string()
+                } else {
+                    inner.trim().to_string()
+                };
+                if !title.is_empty() {
+                    titles.push(title);
+                }
+            }
+        }
+        titles
+    }
+
+    fn sync_wiki_links_from_content(
+        &self,
+        item_id: &Id,
+        content: &str,
+        account: &Account,
+    ) -> Result<(), ItemServiceError> {
+        let titles = Self::extract_wiki_link_titles(content);
+        let mut resolved_ids: Vec<Id> = Vec::new();
+        for title in &titles {
+            let items = self.item_repo
+                .get_items_by_title(title, account)
+                .map_err(ItemServiceError::Repo)?;
+            for item in items {
+                if item.item_id != *item_id {
+                    resolved_ids.push(item.item_id);
+                }
+            }
+        }
+        self.item_link_repo
+            .replace_links_by_relationship(item_id, "wikilink", &resolved_ids, account)
+            .map_err(ItemServiceError::Repo)
+    }
+
+    pub fn rebuild_wiki_links_for_account(&self, account: &Account) -> Result<usize, ItemServiceError> {
+        let item_ids = self.item_repo
+            .get_all_item_ids_for_user(&account.account_id)
+            .map_err(ItemServiceError::Repo)?;
+        let items = self.item_repo
+            .get_items_by_ids(&item_ids, account)
+            .map_err(ItemServiceError::Repo)?;
+        let count = items.len();
+        for item in &items {
+            self.sync_wiki_links_from_content(&item.item_id, &item.content, account)?;
+        }
+        Ok(count)
+    }
+
+    fn extract_headings(content: &str) -> Vec<(u8, u32, String)> {
+        let mut headings = Vec::new();
+        let mut ordinal: u32 = 0;
+        for line in content.lines() {
+            if let Some(rest) = line.strip_prefix('#') {
+                let mut level: u8 = 1;
+                let mut remaining = rest;
+                while let Some(r) = remaining.strip_prefix('#') {
+                    level += 1;
+                    remaining = r;
+                    if level >= 6 {
+                        break;
+                    }
+                }
+                if let Some(text) = remaining.strip_prefix(' ') {
+                    let text = text.trim().to_string();
+                    if !text.is_empty() {
+                        headings.push((level, ordinal, text));
+                        ordinal += 1;
+                    }
+                }
+            }
+        }
+        headings
+    }
+
+    fn extract_external_links(content: &str) -> Vec<String> {
+        let mut urls: Vec<String> = Vec::new();
+        let mut chars = content.chars().peekable();
+        while let Some(c) = chars.next() {
+            // Markdown link [text](url)
+            if c == '[' {
+                let mut _text = String::new();
+                loop {
+                    match chars.next() {
+                        Some(']') | None => break,
+                        Some(ch) => _text.push(ch),
+                    }
+                }
+                if chars.peek() == Some(&'(') {
+                    chars.next();
+                    let mut url = String::new();
+                    loop {
+                        match chars.next() {
+                            Some(')') | None => break,
+                            Some(ch) => url.push(ch),
+                        }
+                    }
+                    let url = url.trim().to_string();
+                    if (url.starts_with("http://") || url.starts_with("https://")) && !urls.contains(&url) {
+                        urls.push(url);
+                    }
+                }
+                continue;
+            }
+            // Bare https:// or http:// URL
+            if c == 'h' {
+                let mut candidate = String::from('h');
+                for _ in 0..6 {
+                    match chars.peek() {
+                        Some(&ch) => { candidate.push(ch); chars.next(); }
+                        None => break,
+                    }
+                }
+                if candidate == "http://" || candidate == "https:/" {
+                    // collect one more char for https://
+                    if candidate == "https:/" {
+                        match chars.peek() {
+                            Some(&'/') => { candidate.push('/'); chars.next(); }
+                            _ => { continue; }
+                        }
+                    }
+                    let mut url = candidate;
+                    loop {
+                        match chars.peek() {
+                            Some(&ch) if !ch.is_whitespace() && ch != ')' && ch != '"' && ch != '\'' => {
+                                url.push(ch);
+                                chars.next();
+                            }
+                            _ => break,
+                        }
+                    }
+                    if !urls.contains(&url) {
+                        urls.push(url);
+                    }
+                }
+            }
+        }
+        urls
+    }
+
+    fn sync_headings(&self, item_id: &Id, content: &str) -> Result<(), ItemServiceError> {
+        let headings = Self::extract_headings(content);
+        self.item_heading_repo
+            .replace_for_item(item_id, &headings)
+            .map_err(ItemServiceError::Repo)
+    }
+
+    fn sync_external_links(&self, item_id: &Id, content: &str) -> Result<(), ItemServiceError> {
+        let urls = Self::extract_external_links(content);
+        self.item_external_link_repo
+            .replace_for_item(item_id, &urls)
+            .map_err(ItemServiceError::Repo)
+    }
+
     fn ensure_links_exist(
         &self,
         item_id: Option<Id>,
@@ -752,5 +960,86 @@ impl ItemService {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ItemService;
+
+    #[test]
+    fn extract_wiki_link_titles_basic() {
+        let titles = ItemService::extract_wiki_link_titles("See [[Foo]] and [[Bar]].");
+        assert_eq!(titles, vec!["Foo", "Bar"]);
+    }
+
+    #[test]
+    fn extract_wiki_link_titles_type_prefix() {
+        let titles = ItemService::extract_wiki_link_titles("[[Project:My Project]] and [[My Note]]");
+        assert_eq!(titles, vec!["My Project", "My Note"]);
+    }
+
+    #[test]
+    fn extract_wiki_link_titles_empty_content() {
+        assert!(ItemService::extract_wiki_link_titles("no links here").is_empty());
+    }
+
+    #[test]
+    fn extract_headings_levels_and_ordinals() {
+        let content = "# Title\n## Section\n### Subsection\nsome text\n## Another";
+        let headings = ItemService::extract_headings(content);
+        assert_eq!(headings.len(), 4);
+        assert_eq!(headings[0], (1, 0, "Title".to_string()));
+        assert_eq!(headings[1], (2, 1, "Section".to_string()));
+        assert_eq!(headings[2], (3, 2, "Subsection".to_string()));
+        assert_eq!(headings[3], (2, 3, "Another".to_string()));
+    }
+
+    #[test]
+    fn extract_headings_ignores_non_heading_hash() {
+        // A line starting with # but no space after is not a heading
+        let content = "#tag\n# Real Heading";
+        let headings = ItemService::extract_headings(content);
+        assert_eq!(headings.len(), 1);
+        assert_eq!(headings[0], (1, 0, "Real Heading".to_string()));
+    }
+
+    #[test]
+    fn extract_headings_empty_content() {
+        assert!(ItemService::extract_headings("no headings").is_empty());
+    }
+
+    #[test]
+    fn extract_external_links_markdown() {
+        let content = "See [example](https://example.com) for details.";
+        let urls = ItemService::extract_external_links(content);
+        assert_eq!(urls, vec!["https://example.com"]);
+    }
+
+    #[test]
+    fn extract_external_links_bare_url() {
+        let content = "Visit https://bare.example.org for more.";
+        let urls = ItemService::extract_external_links(content);
+        assert_eq!(urls, vec!["https://bare.example.org"]);
+    }
+
+    #[test]
+    fn extract_external_links_mixed_deduplicates() {
+        let content = "See [link](https://example.com) and also https://example.com again.";
+        let urls = ItemService::extract_external_links(content);
+        assert_eq!(urls, vec!["https://example.com"]);
+    }
+
+    #[test]
+    fn extract_external_links_no_links() {
+        assert!(ItemService::extract_external_links("plain text with no URLs").is_empty());
+    }
+
+    #[test]
+    fn extract_external_links_http_and_https() {
+        let content = "http://old.example.com and https://new.example.com";
+        let urls = ItemService::extract_external_links(content);
+        assert!(urls.contains(&"http://old.example.com".to_string()));
+        assert!(urls.contains(&"https://new.example.com".to_string()));
     }
 }

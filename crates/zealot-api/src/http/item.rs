@@ -39,6 +39,7 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .route("/search", get(search_items))
         .route("/children/{item_id}", get(get_children))
         .route("/related/{item_id}", get(get_related))
+        .route("/backlinks/{item_id}", get(get_backlinks))
         .route("/filter", post(filter_items))
         .route("/rebuild-links", post(rebuild_links))
         .route("/{item_id}", patch(update_item).delete(delete_item))
@@ -212,6 +213,21 @@ async fn get_related(
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
 
+async fn get_backlinks(
+    State(state): State<AppState>,
+    Extension(actor): Extension<Actor>,
+    Path(item_id): Path<i64>,
+) -> Result<Json<Vec<ItemDto>>, HttpError> {
+    let account = require_account(&actor)?;
+    let id = parse_item_id(item_id)?;
+    let items = state
+        .services
+        .item
+        .get_backlinks(&id, &account)
+        .map_err(item_service_err)?;
+    Ok(Json(items.iter().map(ItemDto::from).collect()))
+}
+
 async fn filter_items(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
@@ -231,10 +247,13 @@ async fn rebuild_links(
     Extension(actor): Extension<Actor>,
 ) -> Result<Json<serde_json::Value>, HttpError> {
     let account = require_account(&actor)?;
-    let count = state.services.item
+    let attribute_count = state.services.item
         .rebuild_links_for_account(&account)
         .map_err(item_service_err)?;
-    Ok(Json(serde_json::json!({ "rebuilt": count })))
+    let wiki_count = state.services.item
+        .rebuild_wiki_links_for_account(&account)
+        .map_err(item_service_err)?;
+    Ok(Json(serde_json::json!({ "rebuilt": attribute_count, "wiki_rebuilt": wiki_count })))
 }
 
 async fn add_item(

@@ -449,8 +449,39 @@ export class ItemScreen extends BaseElementEmpty {
         const children = this.buildCollectionSection('Children');
         const related = this.buildCollectionSection('Related');
 
+        // Backlinks section — lazy-loaded on first expand
+        const backlinksSection = document.createElement('section');
+        backlinksSection.className = 'item-collection-section';
+
+        const backlinksToggle = document.createElement('button');
+        backlinksToggle.className = 'item-collection-toggle';
+        backlinksToggle.textContent = 'Backlinks ▶';
+        backlinksSection.appendChild(backlinksToggle);
+
+        const backlinksContent = document.createElement('div');
+        backlinksContent.className = 'item-collection-content item-collection-content--hidden';
+        backlinksSection.appendChild(backlinksContent);
+
+        let backlinksLoaded = false;
+        backlinksToggle.addEventListener('click', () => {
+            const nowHidden = backlinksContent.classList.toggle('item-collection-content--hidden');
+            backlinksToggle.textContent = `Backlinks ${nowHidden ? '▶' : '▼'}`;
+            if (!nowHidden && !backlinksLoaded) {
+                backlinksLoaded = true;
+                void this.renderCollectionCards({
+                    container: backlinksContent,
+                    emptyMessage: 'No backlinks.',
+                    errorMessage: 'Failed to load backlinks.',
+                    grouped: true,
+                    showParent: true,
+                    loader: () => itemApi.GetBacklinks(item.ItemID),
+                });
+            }
+        });
+
         container.appendChild(children.section);
         container.appendChild(related.section);
+        container.appendChild(backlinksSection);
 
         await Promise.all([
             this.renderCollectionCards({
