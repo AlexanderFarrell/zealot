@@ -1,4 +1,4 @@
-import { ItemAPI } from '@zealot/api/src/item';
+import { ItemAPI, SearchResult } from '@zealot/api/src/item';
 import type { Item } from '@zealot/domain/src/item';
 import { createItemTitleElement } from './item_title';
 
@@ -21,7 +21,7 @@ export class ItemSearchInline extends HTMLElement {
     private requestId = 0;
     private activeIndex = -1;
     private rendered = false;
-    private results: Item[] = [];
+    private results: SearchResult[] = [];
     private selectedItem: Item | null = null;
 
     public OnSelect: ((item: Item) => void) | null = null;
@@ -231,9 +231,9 @@ export class ItemSearchInline extends HTMLElement {
                 return;
             }
             event.preventDefault();
-            const item = this.results[this.activeIndex];
-            if (item) {
-                this.selectItem(item);
+            const result = this.results[this.activeIndex];
+            if (result) {
+                this.selectItem(result.item);
             }
             return;
         }
@@ -245,29 +245,35 @@ export class ItemSearchInline extends HTMLElement {
         }
     }
 
-    private async performSearch(term: string, requestId: number): Promise<void> {
+    private async performSearch(rawTerm: string, requestId: number): Promise<void> {
         try {
-            let items = await itemApi.Search(term);
+            const isHeading = rawTerm.startsWith('#');
+            const term = isHeading ? rawTerm.slice(1).trim() : rawTerm.trim();
+            const scope = isHeading ? 'heading' as const : 'title' as const;
+
+            let results = await itemApi.Search(term, { scope });
             if (requestId !== this.requestId) {
                 return;
             }
 
             if (this.ResultsFilter) {
-                items = this.ResultsFilter(items);
+                const items = this.ResultsFilter(results.map(r => r.item));
+                const filteredIds = new Set(items.map(i => i.ItemID));
+                results = results.filter(r => filteredIds.has(r.item.ItemID));
             }
 
-            const normalizedTerm = term.trim().toLocaleLowerCase();
-            items = [...items].sort((a, b) => {
-                const aExact = a.Title.trim().toLocaleLowerCase() === normalizedTerm;
-                const bExact = b.Title.trim().toLocaleLowerCase() === normalizedTerm;
+            const normalizedTerm = term.toLocaleLowerCase();
+            results = [...results].sort((a, b) => {
+                const aExact = a.item.Title.trim().toLocaleLowerCase() === normalizedTerm;
+                const bExact = b.item.Title.trim().toLocaleLowerCase() === normalizedTerm;
                 if (aExact === bExact) return 0;
                 return aExact ? -1 : 1;
             });
 
-            this.results = items;
-            this.activeIndex = items.length > 0 ? 0 : -1;
+            this.results = results;
+            this.activeIndex = results.length > 0 ? 0 : -1;
 
-            if (items.length === 0) {
+            if (results.length === 0) {
                 this.showStatus('No results.');
                 return;
             }
@@ -288,7 +294,8 @@ export class ItemSearchInline extends HTMLElement {
 
         this.resultsEl.innerHTML = '';
 
-        this.results.forEach((item, index) => {
+        this.results.forEach((result, index) => {
+            const { item } = result;
             const row = document.createElement('button');
             row.type = 'button';
             row.id = `${this.listboxId}-option-${index}`;
@@ -307,6 +314,13 @@ export class ItemSearchInline extends HTMLElement {
             });
 
             row.appendChild(createItemTitleElement(item, { className: 'item-search-inline-row-title' }));
+
+            if (result.snippet) {
+                const snippet = document.createElement('span');
+                snippet.className = 'item-search-inline-row-snippet';
+                snippet.textContent = result.snippet;
+                row.appendChild(snippet);
+            }
 
             if (item.Types.length > 0) {
                 const badges = document.createElement('span');

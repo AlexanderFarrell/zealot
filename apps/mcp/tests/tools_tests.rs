@@ -176,6 +176,8 @@ async fn search_items_url_encodes_spaces() {
             term: "hello world".to_string(),
             limit: None,
             offset: None,
+            scope: None,
+            regex: None,
         }))
         .await
         .unwrap();
@@ -199,6 +201,8 @@ async fn search_items_passes_limit_and_offset() {
             term: "test".to_string(),
             limit: Some(5),
             offset: Some(10),
+            scope: None,
+            regex: None,
         }))
         .await
         .unwrap();
@@ -222,6 +226,104 @@ async fn search_items_default_limit_and_offset() {
             term: "foo".to_string(),
             limit: None,
             offset: None,
+            scope: None,
+            regex: None,
+        }))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn search_items_with_scope_content() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("GET"))
+        .and(path("/item/search"))
+        .and(query_param("term", "test"))
+        .and(query_param("scope", "content"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    server
+        .search_items(Parameters(SearchItemsParams {
+            term: "test".to_string(),
+            limit: None,
+            offset: None,
+            scope: Some("content".to_string()),
+            regex: None,
+        }))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn search_items_with_scope_heading() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("GET"))
+        .and(path("/item/search"))
+        .and(query_param("term", "Intro"))
+        .and(query_param("scope", "heading"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    server
+        .search_items(Parameters(SearchItemsParams {
+            term: "Intro".to_string(),
+            limit: None,
+            offset: None,
+            scope: Some("heading".to_string()),
+            regex: None,
+        }))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn search_items_with_regex_true() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("GET"))
+        .and(path("/item/search"))
+        .and(query_param("term", "^Z[0-9]+"))
+        .and(query_param("regex", "true"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    server
+        .search_items(Parameters(SearchItemsParams {
+            term: "^Z[0-9]+".to_string(),
+            limit: None,
+            offset: None,
+            scope: None,
+            regex: Some(true),
+        }))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn search_items_scope_defaults_to_title() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("GET"))
+        .and(path("/item/search"))
+        .and(query_param("term", "bar"))
+        .and(query_param("scope", "title"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    server
+        .search_items(Parameters(SearchItemsParams {
+            term: "bar".to_string(),
+            limit: None,
+            offset: None,
+            scope: None,
+            regex: None,
         }))
         .await
         .unwrap();

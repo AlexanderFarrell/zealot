@@ -87,6 +87,25 @@ pub struct ItemLinkDto {
     pub relationship: String,
 }
 
+// Search types
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum SearchScope {
+    #[default]
+    Title,
+    Content,
+    Heading,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchResultDto {
+    #[serde(flatten)]
+    pub item: ItemDto,
+    pub match_scope: SearchScope,
+    pub snippet: Option<String>,
+}
+
 // Receive DTOs
 
 #[derive(Serialize, Deserialize)]

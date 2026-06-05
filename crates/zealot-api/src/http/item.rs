@@ -11,12 +11,12 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::Value;
-use zealot_app::{app::AppState, services::item::ItemServiceError};
+use zealot_app::{app::AppState, services::item::{ItemServiceError, SearchResult}};
 use zealot_domain::{
     attribute::AttributeFilterDto,
     auth::Actor,
     common::id::Id,
-    item::{AddItemDto, Item, ItemDto, UpdateItemDto},
+    item::{AddItemDto, Item, ItemDto, SearchResultDto, SearchScope, UpdateItemDto},
 };
 
 use crate::http::{common::HttpError, middleware::{auth_middleware, csrf_middleware}};
@@ -68,6 +68,7 @@ fn item_service_err(err: ItemServiceError) -> HttpError {
         ItemServiceError::Attribute(e) => HttpError::UserError { err: e.to_string() },
         ItemServiceError::InvalidFilter(msg) => HttpError::UserError { err: msg },
         ItemServiceError::InvalidId(msg) => HttpError::UserError { err: msg },
+        ItemServiceError::InvalidRegex(msg) => HttpError::UserError { err: msg },
         ItemServiceError::Repo(e) => { tracing::error!("Item repo error: {e}"); HttpError::Internal },
     }
 }
@@ -94,6 +95,9 @@ struct SearchParams {
     limit: i64,
     #[serde(default)]
     offset: i64,
+    scope: Option<String>,
+    #[serde(default)]
+    regex: bool,
 }
 
 fn default_search_limit() -> i64 { 20 }
@@ -186,15 +190,29 @@ async fn search_items(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Query(params): Query<SearchParams>,
-) -> Result<Json<Vec<ItemDto>>, HttpError> {
+) -> Result<Json<Vec<SearchResultDto>>, HttpError> {
     let account = require_account(&actor)?;
     let limit = params.limit.clamp(1, MAX_SEARCH_LIMIT);
-    let items = state
+    let scope = match params.scope.as_deref() {
+        None | Some("title") => SearchScope::Title,
+        Some("content") => SearchScope::Content,
+        Some("heading") => SearchScope::Heading,
+        Some(other) => return Err(HttpError::UserError { err: format!("unknown scope: {other}") }),
+    };
+    let results = state
         .services
         .item
-        .search_items_by_title(&params.term, limit, params.offset, &account)
+        .search_items(&params.term, scope, params.regex, limit, params.offset, &account)
         .map_err(item_service_err)?;
-    Ok(Json(items.iter().map(ItemDto::from).collect()))
+    Ok(Json(results.into_iter().map(search_result_to_dto).collect()))
+}
+
+fn search_result_to_dto(r: SearchResult) -> SearchResultDto {
+    SearchResultDto {
+        item: ItemDto::from(&r.item),
+        match_scope: r.match_scope,
+        snippet: r.snippet,
+    }
 }
 
 async fn get_children(

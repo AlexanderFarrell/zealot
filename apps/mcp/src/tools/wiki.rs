@@ -33,12 +33,16 @@ pub struct RecentItemsParams {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct SearchItemsParams {
-    /// Search term to match against item titles
+    /// Search term to match against item titles, body content, or headings
     pub term: String,
     /// Maximum number of results to return (default 20, max 100)
     pub limit: Option<i64>,
     /// Offset for pagination (default 0)
     pub offset: Option<i64>,
+    /// Search scope: "title" (default), "content" (body text), or "heading"
+    pub scope: Option<String>,
+    /// If true, treat `term` as a case-insensitive regular expression
+    pub regex: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -125,19 +129,24 @@ impl ZealotServer {
         Ok(CallToolResult::success(vec![Content::text(pretty(items))]))
     }
 
-    #[rmcp::tool(description = "Search items by title keyword. Returns matching items sorted by relevance. Supports pagination via `limit` (default 20, max 100) and `offset`.")]
+    #[rmcp::tool(description = "Search items by title, body content, or headings. `scope` controls what is searched: \"title\" (default), \"content\" (body text), or \"heading\". Set `regex: true` to treat `term` as a case-insensitive regular expression. Results include `match_scope` and a `snippet` context field. Supports pagination via `limit` (default 20, max 100) and `offset`. Example: `{\"term\": \"architecture\", \"scope\": \"content\"}` or `{\"term\": \"^Z[0-9]+\", \"scope\": \"title\", \"regex\": true}`.")]
     pub async fn search_items(
         &self,
         Parameters(p): Parameters<SearchItemsParams>,
     ) -> Result<CallToolResult, McpError> {
         let limit = p.limit.unwrap_or(20);
         let offset = p.offset.unwrap_or(0);
+        let scope = p.scope.as_deref().unwrap_or("title");
+        let mut url = format!(
+            "/item/search?term={}&limit={limit}&offset={offset}&scope={scope}",
+            urlencoding::encode(&p.term)
+        );
+        if p.regex.unwrap_or(false) {
+            url.push_str("&regex=true");
+        }
         let items: serde_json::Value = self
             .client
-            .get(&format!(
-                "/item/search?term={}&limit={limit}&offset={offset}",
-                urlencoding::encode(&p.term)
-            ))
+            .get(&url)
             .await
             .map_err(api_err)?;
         Ok(CallToolResult::success(vec![Content::text(pretty(items))]))

@@ -13,6 +13,8 @@ pub trait ItemRepo: Debug + Send + Sync {
     fn get_items_by_ids(&self, item_ids: &Vec<Id>, account: &Account) -> Result<Vec<ItemCore>, RepoError>;
     fn get_items_by_title(&self, title: &str, account: &Account) -> Result<Vec<ItemCore>, RepoError>;
     fn search_items_by_title(&self, term: &str, limit: i64, offset: i64, account: &Account) -> Result<Vec<ItemCore>, RepoError>;
+    fn search_items_by_content(&self, term: &str, limit: i64, offset: i64, account: &Account) -> Result<Vec<ItemCore>, RepoError>;
+    fn search_items_by_heading(&self, term: &str, limit: i64, offset: i64, account: &Account) -> Result<Vec<(ItemCore, String)>, RepoError>;
     fn regex_items_by_title(&self, term: &str, account: &Account) -> Result<Vec<ItemCore>, RepoError>;
     fn get_recent_items(&self, limit: i64, offset: i64, account: &Account) -> Result<Vec<ItemCore>, RepoError>;
     fn get_all_item_ids_for_user(&self, account_id: &Id) -> Result<Vec<Id>, RepoError>;

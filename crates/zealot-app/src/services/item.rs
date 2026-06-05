@@ -4,6 +4,7 @@ use std::{
 };
 
 use serde_json::Value;
+use regex::Regex;
 use zealot_domain::{
     account::Account,
     attribute::{
@@ -13,7 +14,7 @@ use zealot_domain::{
     common::id::Id,
     item::{
         relationship, AddItemCoreDto, AddItemDto, Item, ItemCore, ItemLink, ItemLinkDto,
-        UpdateItemCoreDto, UpdateItemDto,
+        SearchScope, UpdateItemCoreDto, UpdateItemDto,
     },
     item_type::{ItemType, ItemTypeRef},
 };
@@ -58,6 +59,15 @@ pub enum ItemServiceError {
     InvalidFilter(String),
     #[error("invalid id: {0}")]
     InvalidId(String),
+    #[error("invalid regex: {0}")]
+    InvalidRegex(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct SearchResult {
+    pub item: Item,
+    pub match_scope: SearchScope,
+    pub snippet: Option<String>,
 }
 
 impl ItemService {
@@ -132,6 +142,104 @@ impl ItemService {
             .search_items_by_title(term, limit, offset, account)
             .map_err(ItemServiceError::Repo)?;
         self.hydrate_items(items, &account.account_id)
+    }
+
+    pub fn search_items(
+        &self,
+        term: &str,
+        scope: SearchScope,
+        use_regex: bool,
+        limit: i64,
+        offset: i64,
+        account: &Account,
+    ) -> Result<Vec<SearchResult>, ItemServiceError> {
+        let compiled_regex = if use_regex {
+            let re = Regex::new(&format!("(?i){}", term))
+                .map_err(|e| ItemServiceError::InvalidRegex(e.to_string()))?;
+            Some(re)
+        } else {
+            None
+        };
+
+        match scope {
+            SearchScope::Title => {
+                let fetch_limit = if use_regex { 500 } else { limit };
+                let fetch_offset = if use_regex { 0 } else { offset };
+                let items = self
+                    .item_repo
+                    .search_items_by_title(term, fetch_limit, fetch_offset, account)
+                    .map_err(ItemServiceError::Repo)?;
+                let filtered = if let Some(re) = &compiled_regex {
+                    items.into_iter().filter(|i| re.is_match(&i.title)).collect()
+                } else {
+                    items
+                };
+                let paged = if use_regex {
+                    filtered.into_iter().skip(offset as usize).take(limit as usize).collect()
+                } else {
+                    filtered
+                };
+                let hydrated = self.hydrate_items(paged, &account.account_id)?;
+                Ok(hydrated.into_iter().map(|item| SearchResult {
+                    item,
+                    match_scope: SearchScope::Title,
+                    snippet: None,
+                }).collect())
+            }
+            SearchScope::Content => {
+                let fetch_limit = if use_regex { 500 } else { limit };
+                let fetch_offset = if use_regex { 0 } else { offset };
+                let items = self
+                    .item_repo
+                    .search_items_by_content(term, fetch_limit, fetch_offset, account)
+                    .map_err(ItemServiceError::Repo)?;
+                let filtered: Vec<ItemCore> = if let Some(re) = &compiled_regex {
+                    items.into_iter().filter(|i| re.is_match(&i.content)).collect()
+                } else {
+                    items
+                };
+                let paged: Vec<ItemCore> = if use_regex {
+                    filtered.into_iter().skip(offset as usize).take(limit as usize).collect()
+                } else {
+                    filtered
+                };
+                let snippets: Vec<Option<String>> = paged.iter()
+                    .map(|i| extract_snippet(&i.content, term, compiled_regex.as_ref()))
+                    .collect();
+                let hydrated = self.hydrate_items(paged, &account.account_id)?;
+                Ok(hydrated.into_iter().zip(snippets).map(|(item, snippet)| SearchResult {
+                    item,
+                    match_scope: SearchScope::Content,
+                    snippet,
+                }).collect())
+            }
+            SearchScope::Heading => {
+                let fetch_limit = if use_regex { 500 } else { limit };
+                let fetch_offset = if use_regex { 0 } else { offset };
+                let pairs = self
+                    .item_repo
+                    .search_items_by_heading(term, fetch_limit, fetch_offset, account)
+                    .map_err(ItemServiceError::Repo)?;
+                let filtered: Vec<(ItemCore, String)> = if let Some(re) = &compiled_regex {
+                    pairs.into_iter().filter(|(_, h)| re.is_match(h)).collect()
+                } else {
+                    pairs
+                };
+                let paged: Vec<(ItemCore, String)> = if use_regex {
+                    filtered.into_iter().skip(offset as usize).take(limit as usize).collect()
+                } else {
+                    filtered
+                };
+                let heading_texts: Vec<String> = paged.iter().map(|(_, h)| h.clone()).collect();
+                let cores: Vec<ItemCore> = paged.into_iter().map(|(c, _)| c).collect();
+                let hydrated = self.hydrate_items(cores, &account.account_id)?;
+                Ok(hydrated.into_iter().zip(heading_texts).map(|(item, heading)| SearchResult {
+                    item,
+                    match_scope: SearchScope::Heading,
+                    snippet: Some(heading),
+                }).collect())
+            }
+        }
     }
 
     pub fn get_recent_items(&self, limit: i64, offset: i64, account: &Account) -> Result<Vec<Item>, ItemServiceError> {
@@ -965,6 +1073,31 @@ impl ItemService {
     }
 }
 
+pub fn extract_snippet(text: &str, term: &str, compiled: Option<&Regex>) -> Option<String> {
+    let byte_offset = if let Some(re) = compiled {
+        re.find(text).map(|m| m.start())
+    } else {
+        let lower = text.to_lowercase();
+        let lower_term = term.to_lowercase();
+        lower.find(&lower_term)
+    }?;
+
+    let start = text[..byte_offset]
+        .char_indices()
+        .rev()
+        .nth(49)
+        .map(|(i, _)| i)
+        .unwrap_or(0);
+    let end_from = byte_offset + term.len().min(text.len() - byte_offset);
+    let end = text[end_from..]
+        .char_indices()
+        .nth(50)
+        .map(|(i, _)| end_from + i)
+        .unwrap_or(text.len());
+
+    Some(text[start..end].to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::ItemService;
@@ -1043,5 +1176,55 @@ mod tests {
         let urls = ItemService::extract_external_links(content);
         assert!(urls.contains(&"http://old.example.com".to_string()));
         assert!(urls.contains(&"https://new.example.com".to_string()));
+    }
+
+    // ── extract_snippet ───────────────────────────────────────────────────────
+
+    #[test]
+    fn extract_snippet_finds_match_in_middle() {
+        use super::extract_snippet;
+        let content = "Some introductory text. Here is the target keyword right in the middle of a longer passage that continues after.";
+        let snippet = extract_snippet(content, "target keyword", None);
+        assert!(snippet.is_some());
+        let s = snippet.unwrap();
+        assert!(s.contains("target keyword"), "snippet should include the match term");
+    }
+
+    #[test]
+    fn extract_snippet_returns_none_when_no_match() {
+        use super::extract_snippet;
+        let snippet = extract_snippet("Nothing interesting here.", "zzzmissing", None);
+        assert!(snippet.is_none());
+    }
+
+    #[test]
+    fn extract_snippet_with_regex_match() {
+        use super::extract_snippet;
+        use regex::Regex;
+        let re = Regex::new("(?i)hello").unwrap();
+        let snippet = extract_snippet("Some text HELLO world here.", "hello", Some(&re));
+        assert!(snippet.is_some());
+    }
+
+    #[test]
+    fn extract_snippet_with_regex_no_match() {
+        use super::extract_snippet;
+        use regex::Regex;
+        let re = Regex::new("(?i)zzz").unwrap();
+        let snippet = extract_snippet("No match at all.", "zzz", Some(&re));
+        assert!(snippet.is_none());
+    }
+
+    #[test]
+    fn invalid_regex_returns_error() {
+        use super::ItemServiceError;
+        let result = regex::Regex::new("[unclosed");
+        match result {
+            Err(e) => {
+                let err = ItemServiceError::InvalidRegex(e.to_string());
+                assert!(err.to_string().contains("invalid regex"));
+            }
+            Ok(_) => panic!("expected regex error"),
+        }
     }
 }

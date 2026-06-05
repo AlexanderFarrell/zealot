@@ -190,6 +190,108 @@ impl ItemRepo for ItemPostgresRepo {
         })
     }
 
+    fn search_items_by_content(
+        &self,
+        term: &str,
+        limit: i64,
+        offset: i64,
+        account: &Account,
+    ) -> Result<Vec<ItemCore>, RepoError> {
+        let trimmed = term.trim();
+        let account_id_val = i64::from(account.account_id);
+        let pool = self.pool.clone();
+
+        if trimmed.is_empty() {
+            return tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async move {
+                    let rows = sqlx::query_as::<_, ItemRow>(
+                        "SELECT item_id, title, content FROM item
+                         WHERE account_id = $1
+                         ORDER BY item_id DESC LIMIT $2 OFFSET $3",
+                    )
+                    .bind(account_id_val)
+                    .bind(limit)
+                    .bind(offset)
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
+                    rows.into_iter().map(row_to_item_core).collect()
+                })
+            });
+        }
+
+        let pattern = format!("%{}%", trimmed);
+
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let rows = sqlx::query_as::<_, ItemRow>(
+                    "SELECT item_id, title, content FROM item
+                     WHERE content ILIKE $1 AND account_id = $2
+                     ORDER BY item_id DESC LIMIT $3 OFFSET $4",
+                )
+                .bind(&pattern)
+                .bind(account_id_val)
+                .bind(limit)
+                .bind(offset)
+                .fetch_all(&pool)
+                .await
+                .map_err(RepoError::from)?;
+                rows.into_iter().map(row_to_item_core).collect()
+            })
+        })
+    }
+
+    fn search_items_by_heading(
+        &self,
+        term: &str,
+        limit: i64,
+        offset: i64,
+        account: &Account,
+    ) -> Result<Vec<(ItemCore, String)>, RepoError> {
+        let trimmed = term.trim();
+        let account_id_val = i64::from(account.account_id);
+        let pool = self.pool.clone();
+        let pattern = format!("%{}%", trimmed);
+
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                #[derive(sqlx::FromRow)]
+                struct ItemWithHeadingRow {
+                    item_id: i32,
+                    title: String,
+                    content: String,
+                    heading_text: String,
+                }
+
+                let rows = sqlx::query_as::<_, ItemWithHeadingRow>(
+                    "SELECT i.item_id, i.title, i.content, h.text AS heading_text
+                     FROM item i
+                     JOIN item_heading h ON h.item_id = i.item_id
+                     WHERE i.account_id = $1 AND h.text ILIKE $2
+                     ORDER BY i.item_id DESC LIMIT $3 OFFSET $4",
+                )
+                .bind(account_id_val)
+                .bind(&pattern)
+                .bind(limit)
+                .bind(offset)
+                .fetch_all(&pool)
+                .await
+                .map_err(RepoError::from)?;
+
+                rows.into_iter()
+                    .map(|r| {
+                        let core = row_to_item_core(ItemRow {
+                            item_id: r.item_id,
+                            title: r.title,
+                            content: r.content,
+                        })?;
+                        Ok((core, r.heading_text))
+                    })
+                    .collect()
+            })
+        })
+    }
+
     fn regex_items_by_title(
         &self,
         term: &str,

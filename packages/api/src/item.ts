@@ -3,6 +3,25 @@ import { Item } from "@zealot/domain/src/item";
 import type { AddItemDto, ItemDto, UpdateItemDto } from "@zealot/domain/src/item";
 import { BaseAPI } from "./common";
 
+export type SearchScope = 'title' | 'content' | 'heading';
+
+export interface SearchResultDto extends ItemDto {
+    match_scope: SearchScope;
+    snippet?: string;
+}
+
+export class SearchResult {
+    public readonly item: Item;
+    public readonly matchScope: SearchScope;
+    public readonly snippet: string | null;
+
+    constructor(dto: SearchResultDto) {
+        this.item = new Item(dto);
+        this.matchScope = dto.match_scope;
+        this.snippet = dto.snippet ?? null;
+    }
+}
+
 export interface MostViewedItemDto {
     item_id: number;
     title: string;
@@ -49,9 +68,14 @@ export class ItemAPI extends BaseAPI {
         return dtos.map(d => new Item(d));
     }
 
-    async Search(term: string): Promise<Item[]> {
-        const dtos: ItemDto[] = await get_json(`${this.baseUrl}/item/search?term=${encodeURIComponent(term)}`);
-        return dtos.map(d => new Item(d));
+    async Search(term: string, options?: { scope?: SearchScope; regex?: boolean; limit?: number; offset?: number }): Promise<SearchResult[]> {
+        const scope = options?.scope ?? 'title';
+        let url = `${this.baseUrl}/item/search?term=${encodeURIComponent(term)}&scope=${scope}`;
+        if (options?.regex) url += `&regex=true`;
+        if (options?.limit != null) url += `&limit=${options.limit}`;
+        if (options?.offset != null) url += `&offset=${options.offset}`;
+        const dtos: SearchResultDto[] = await get_json(url);
+        return dtos.map(d => new SearchResult(d));
     }
 
     async GetChildren(item_id: number): Promise<Item[]> {
