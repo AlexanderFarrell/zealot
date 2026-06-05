@@ -1,6 +1,6 @@
 # Zealot Data Model & Content Syntax
 
-This document is the canonical reference for every persistent entity in Zealot and the ZealotScript markup language. It is authoritative for users, developers, API clients (see [HTTP API](./http-api.md)), and MCP agents (see [MCP Guide](./mcp.md)). All other documentation should stay consistent with what is written here.
+This document is the canonical reference for every persistent entity in Zealot and the ZealotScript markup language. It is authoritative for users, developers, API clients (see [HTTP API](./http-api.md)), and MCP agents (see [MCP Guide](./mcp.md)). All other documentation should stay consistent with what is written here. For definitions of terms used throughout this document and the rest of the docs, see the [Glossary](./glossary.md).
 
 ---
 

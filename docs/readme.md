@@ -14,6 +14,7 @@
 ## Reference
 
 - [Data Model](./data-model.md) — canonical reference for items, types, attributes, links, repeats, comments, rules, and ZealotScript
+- [Glossary](./glossary.md) — definitions of all core Zealot terms
 
 ## Features
 
@@ -35,4 +36,4 @@
 
 ## Contributing
 
-See [CONTRIBUTING.md](../CONTRIBUTING.md) for build, test, and PR instructions.
+- [CONTRIBUTING.md](../CONTRIBUTING.md) — documentation style guide, change policy, PR checklist, command validation, and screenshot expectations; code build and test notes
