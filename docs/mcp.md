@@ -26,6 +26,24 @@ The server supports two transport modes:
 
 ---
 
+## Why use the MCP?
+
+The MCP integration lets you talk to your Zealot data in plain English instead of constructing API calls. An AI agent — Claude Desktop, Codex CLI, LibreChat — reads and writes your wiki and planner on your behalf, turning natural-language requests into the right sequence of tool calls.
+
+- **Query your second brain.** Ask "what did I work on this week?", "what are my open goals?", or "am I falling behind on my exercise habit?" and the agent reads your Zealot data and answers — no UI, no searching.
+- **Capture and organise on the fly.** "Add a task called 'follow up with legal' under the Q3 Roadmap, due Friday, priority High" — the agent finds the project, creates the item, sets the attributes, and confirms what it did.
+- **Automation co-pilot.** Describe a rule in English ("stamp a Finished Date whenever Status is set to Complete") and the agent writes the Lua script, shows it to you for review, and installs it.
+- **Daily briefing.** Start your morning by asking for a summary of today's scheduled items, pending habits, and overdue tasks — without opening a browser.
+
+Example prompt to try with Claude Desktop once connected:
+
+```
+Show me today's plan, mark my morning standup habit as complete,
+and create a task called "Review Q3 metrics" due this Friday.
+```
+
+---
+
 ## Installation and configuration
 
 ### Prerequisites

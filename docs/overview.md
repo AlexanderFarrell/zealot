@@ -206,6 +206,48 @@ A traditional wiki is simple, well-understood, and widely deployable. If you jus
 
 ---
 
+## Creative Use Cases
+
+These are concrete ways people use Zealot beyond the generic "notes and tasks" framing. Each builds on the same item + attribute + rules model described above.
+
+---
+
+### Book and reading tracker
+
+Create one item per book and assign it a `Reading` type. A `Status` dropdown attribute (Want to Read → Reading → Finished) tracks progress. Add a `Source` text attribute for the author or URL. Write reading notes directly in the item body using `[[wiki links]]` to connect ideas across books. A simple event rule auto-stamps a `Finished Date` attribute when the status flips to Finished. Filter the item list to `Reading` to see your whole library at a glance.
+
+---
+
+### Weekly review system
+
+A cron rule fires every Sunday evening. It creates a "Week in Review — YYYY-Www" item, queries last week's completed tasks, and pre-populates the body with a summary. Connect Claude via MCP and ask it to write the narrative review from those bullet points — identifying themes, noting what slipped, and suggesting next-week focus areas. The result lives in Zealot as a permanent record.
+
+---
+
+### Goal cascade
+
+An annual `Goal` item holds your high-level intention in its body: the why, the context, the success criteria. Under it, `Milestone` child items mark the major steps. Under each milestone, `Task` child items are the concrete next actions — each with a `Date` and `Status`. The planner surfaces the tasks when scheduled; the wiki hierarchy lets you navigate from a specific task back up to the goal it serves.
+
+---
+
+### Personal research base
+
+One item per paper, article, or source. Each item has a `Source URL` text attribute, a `Status` (Unread → Reading → Processed), and a body with your notes and highlights. Type `[[Concept Name]]` in any body to cross-reference another item — building a graph of connected ideas over time. Full-text search lets you find notes by keyword across your entire library.
+
+---
+
+### Habit dashboard with auto-summaries
+
+Add your recurring habits — exercise, reading, meditation — to the planner's repeat tracker. Each day you mark them Complete, Skip, or Alternate. A cron rule runs every Sunday and uses the Lua API to read that week's repeat entries, tally the completion rate for each habit, and write a comment on the habit item with the weekly score. Over time, each habit item accumulates a longitudinal log you can scroll through.
+
+---
+
+### AI-assisted journaling
+
+Use `add_comment` (via the MCP or API) to log quick notes throughout the day against a "Journal" item or against the items you're actively working on. At the end of the week, ask Claude via MCP to read your comments from the past seven days and summarise recurring themes, mood patterns, or things that went well and poorly. The raw log stays in Zealot; the synthesis lives in a new "Weekly Reflection" item created by the agent.
+
+---
+
 ## Limitations
 
 **Maturity.** Zealot is under active development. The backend API is stable; the web UI is being incrementally rewritten. Some screens described in this documentation may look different or may not yet be fully implemented. Specific features including the planner repeat tracking UI and the analysis dashboard are works-in-progress. The tool is viable for daily use, but expect to encounter rough edges.

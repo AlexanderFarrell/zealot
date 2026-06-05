@@ -4,7 +4,7 @@
 
 ## Getting Started
 
-- [Overview](./overview.md) — What Zealot is, core use cases, and how it compares to adjacent tools
+- [Overview](./overview.md) — What Zealot is, core use cases, creative use cases, and how it compares to adjacent tools
 - [Quickstart](./quickstart.md) — Install Zealot, create your first workspace, and use it for real planning
 - [Deployment and Operations](./deployment.md) — Run Zealot on a server: configuration, TLS, backups, security, and upgrades
 - [Troubleshooting and Recovery](./troubleshooting.md) — Diagnose startup, login, migration, and database problems; restore from backup; data-loss decision tree

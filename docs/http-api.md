@@ -16,6 +16,24 @@ All endpoints under `/item`, `/item_type`, `/attribute`, `/comment`, `/planner`,
 
 ---
 
+## Why use the API?
+
+The HTTP API exposes the full Zealot data model over a standard REST interface. Every operation available in the web UI is also available programmatically — which opens up a range of workflows the UI alone cannot support.
+
+- **Script your workflow.** Any shell script, Python script, or HTTP client can create items, set attributes, and read the planner. A cron job that fetches today's scheduled items and prints them to your terminal takes about ten lines of shell.
+- **Integrate with other tools.** Pull data in from external sources (GitHub issues become Zealot tasks; calendar events appear on the planner) or push Zealot data out (export completed tasks to a spreadsheet, trigger a notification when a goal's status changes).
+- **Build your own clients.** The official web and mobile apps communicate with Zealot exclusively through this API. You can build a thin CLI, a status-bar widget, a mobile shortcut, or a custom dashboard using the same interface.
+- **Automate beyond the rules engine.** The built-in rules engine runs Lua on the server. The HTTP API lets you drive the same logic from any language, any machine, and any trigger — a push notification, a webhook, a scheduled GitHub Action.
+
+A minimal example — fetch today's plan from a shell script:
+
+```bash
+curl -s -H "x-api-key: zlt_abc123" \
+  "http://localhost:8456/planner/day?date=$(date +%Y-%m-%d)" | jq '.items[].title'
+```
+
+---
+
 ## Authentication
 
 Zealot supports two authentication methods. **API keys are preferred for scripts** because they bypass session cookie and CSRF requirements.
