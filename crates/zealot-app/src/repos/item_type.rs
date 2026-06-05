@@ -39,6 +39,7 @@ pub trait ItemTypeRepo: Debug + Send + Sync {
         dto: &UpdateItemTypeDto,
         account_id: &Id,
     ) -> Result<Option<ItemType>, RepoError>;
+    fn count_items_for_type(&self, type_id: &Id) -> Result<i64, RepoError>;
     fn delete_item_type(&self, item_type_id: &Id, account_id: &Id) -> Result<bool, RepoError>;
     fn add_attr_kinds_to_item_type(
         &self,

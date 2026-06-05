@@ -354,6 +354,21 @@ impl ItemTypeRepo for ItemTypeSqliteRepo {
         })
     }
 
+    fn count_items_for_type(&self, type_id: &Id) -> Result<i64, RepoError> {
+        let type_id_val = i64::from(*type_id);
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT COUNT(*) FROM item_item_type_link WHERE type_id = ?",
+                )
+                .bind(type_id_val)
+                .fetch_one(&self.pool)
+                .await
+                .map_err(RepoError::from)
+            })
+        })
+    }
+
     fn delete_item_type(&self, item_type_id: &Id, account_id: &Id) -> Result<bool, RepoError> {
         let type_id_val = i64::from(*item_type_id);
         let account_id_val = i64::from(*account_id);

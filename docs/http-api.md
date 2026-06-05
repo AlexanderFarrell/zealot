@@ -115,6 +115,7 @@ All errors return a plain-text body (not JSON).
 | 401 | `Unauthorized` | Not authenticated, or resource belongs to another account |
 | 403 | `Forbidden` | CSRF token missing or mismatched |
 | 404 | `Not found` | Resource does not exist |
+| 409 | error message string | Resource is in use and cannot be deleted (pass `?force=true` to override) |
 | 500 | `Internal error` | Unexpected server error |
 
 ---
@@ -460,6 +461,19 @@ All fields optional. `type_id` in the body must match the path parameter.
 }
 ```
 
+#### DELETE /item_type/{type_id} — delete type
+
+Returns `200 OK` with no body on success.
+
+If any items are currently assigned this type, returns `409 Conflict` with a message such as:
+```
+Item type 'Task' is assigned to 37 item(s). Unassign first or pass force=true.
+```
+
+Pass `?force=true` to proceed anyway; the cascade constraint removes all type assignments from items (items themselves are not deleted).
+
+System types (`is_system: true`) cannot be deleted and return `400`.
+
 #### POST /item_type/{type_id}/attr_kind — associate attribute kinds
 
 Body is a JSON array of attribute kind keys:
@@ -526,6 +540,17 @@ The `base_type` string and `config` shape depend on the type:
   "config": { "values": ["Not Started", "In Progress", "Complete", "Blocked"] }
 }
 ```
+
+#### DELETE /attribute/key/{key} — delete attribute kind
+
+Returns `200 OK` with no body on success.
+
+If any items have a value stored for this attribute key, returns `409 Conflict` with a message such as:
+```
+Attribute kind 'Status' is used by 14 item(s). Delete those values first or pass force=true.
+```
+
+Pass `?force=true` to proceed anyway; all per-item attribute values for this key are deleted before the kind is removed.
 
 #### PATCH /attribute/id/{kind_id} — update attribute kind
 

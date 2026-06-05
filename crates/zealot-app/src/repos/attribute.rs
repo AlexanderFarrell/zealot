@@ -32,5 +32,7 @@ pub trait AttributeRepo: Debug + Send + Sync {
         dto: &UpdateAttributeKindDto,
         account_id: &Id,
     ) -> Result<Option<AttributeKind>, RepoError>;
+    fn count_attribute_values_for_kind(&self, key: &str, account_id: &Id) -> Result<i64, RepoError>;
+    fn delete_attribute_values_for_kind(&self, key: &str, account_id: &Id) -> Result<(), RepoError>;
     fn delete_attribute_kind(&self, key: &str, account_id: &Id) -> Result<(), RepoError>;
 }

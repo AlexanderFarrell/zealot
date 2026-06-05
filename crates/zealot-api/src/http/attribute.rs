@@ -1,11 +1,13 @@
 use axum::{
     Extension, Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     middleware,
     routing::{delete, get, patch, post},
 };
+use serde::Deserialize;
 use zealot_app::app::AppState;
+use zealot_app::services::attribute::AttributeServiceError;
 use zealot_domain::{
     attribute::{AddAttributeKindDto, AttributeKind, UpdateAttributeKindDto},
     auth::Actor,
@@ -13,6 +15,12 @@ use zealot_domain::{
 };
 
 use crate::http::{common::HttpError, middleware::{auth_middleware, csrf_middleware}};
+
+#[derive(Deserialize)]
+struct DeleteParams {
+    #[serde(default)]
+    force: bool,
+}
 
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
@@ -103,14 +111,18 @@ async fn delete_attribute_kind(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(key): Path<String>,
+    Query(params): Query<DeleteParams>,
 ) -> Result<StatusCode, HttpError> {
     let account = require_account(&actor)?;
     state
         .services
         .attribute
-        .delete_attribute_kind(&key, &account.account_id)
+        .delete_attribute_kind(&key, &account.account_id, params.force)
         .map(|_| StatusCode::OK)
-        .map_err(|_| HttpError::Internal)
+        .map_err(|e| match e {
+            AttributeServiceError::InUse(msg) => HttpError::Conflict { message: msg },
+            _ => HttpError::Internal,
+        })
 }
 
 fn kind_to_json(kind: &AttributeKind) -> serde_json::Value {
