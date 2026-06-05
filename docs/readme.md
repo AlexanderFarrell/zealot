@@ -24,7 +24,8 @@
 
 ## Integrations
 
-- [MCP System Prompt](./mcp-system-prompt.md) — Zealot's MCP tools for LLM agents
+- [MCP Guide](./mcp.md) — Connect Claude, Codex, or any MCP client to Zealot: installation, tool reference, workflows, and safe operating rules
+- [MCP System Prompt](./mcp-system-prompt.md) — Agent-facing system prompt describing Zealot's data model and tool behavior
 - [HTTP API](./api.md) — REST API overview
 
 ## Contributing
