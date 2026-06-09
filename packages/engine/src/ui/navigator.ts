@@ -26,10 +26,10 @@ export type LocationListener = (location: AppLocation) => void;
 
 export const NavigationCommands = {
     goHome: 'Go to Home',
-    openDailyPlanner: 'Open Daily Planner',
-    openWeeklyPlanner: 'Open Weekly Planner',
-    openMonthlyPlanner: 'Open Monthly Planner',
-    openAnnualPlanner: 'Open Annual Planner',
+    openDailyPlanner: 'Planner: Today',
+    openWeeklyPlanner: 'Planner: This Week',
+    openMonthlyPlanner: 'Planner: This Month',
+    openAnnualPlanner: 'Planner: This Year',
     openTypes: 'Open Types',
     openAnalysis: 'Open Analysis',
     openRules: 'Open Rules',
@@ -81,9 +81,20 @@ export function registerNavigationCommands(): void {
     runner.register(NavigationCommands.openAnnualPlanner, [new Hotkey('4', [CTRL_OR_META_KEY])], () => getNavigator().openPlanner('annual'));
     runner.register(NavigationCommands.openTypes, [new Hotkey('t', [CTRL_OR_META_KEY, SHIFT_KEY, ALT_KEY])], () => getNavigator().openTypes());
     runner.register(NavigationCommands.openAnalysis, [new Hotkey('1', [CTRL_OR_META_KEY, SHIFT_KEY])], () => getNavigator().openAnalysis());
-    runner.register('Open Recent Items', [new Hotkey('r', [CTRL_OR_META_KEY, SHIFT_KEY])], () => getNavigator().openAnalysisRecent());
+    runner.register('Analysis: Specify', [], () => getNavigator().openAnalysisSpecify());
+    runner.register('Analysis: Working', [], () => getNavigator().openAnalysisWorking());
+    runner.register('Analysis: Recent', [new Hotkey('r', [CTRL_OR_META_KEY, SHIFT_KEY])], () => getNavigator().openAnalysisRecent());
+    runner.register('Analysis: Backlog', [], () => getNavigator().openAnalysisBacklog());
+    runner.register('Analysis: Overdue', [], () => getNavigator().openAnalysisOverdue());
+    runner.register('Analysis: Most Viewed', [], () => getNavigator().openAnalysisMostViewed());
     runner.register(NavigationCommands.openRules, [new Hotkey('2', [CTRL_OR_META_KEY, SHIFT_KEY])], () => getNavigator().openRules());
     runner.register(NavigationCommands.openSettings, [new Hotkey('3', [CTRL_OR_META_KEY, SHIFT_KEY])], () => getNavigator().openSettings());
+    runner.register('Settings: Attributes', [], () => getNavigator().openSettings('attributes'));
+    runner.register('Settings: Types', [], () => getNavigator().openSettings('types'));
+    runner.register('Settings: Planner', [], () => getNavigator().openSettings('planner'));
+    runner.register('Settings: Wiki', [], () => getNavigator().openSettings('wiki'));
+    runner.register('Settings: Data', [], () => getNavigator().openSettings('data'));
+    runner.register('Settings: User', [], () => getNavigator().openSettings('user'));
     runner.register(NavigationCommands.openTodayNote, [new Hotkey('d', [CTRL_OR_META_KEY, SHIFT_KEY])], () => getNavigator().openItem(DateTime.local().toISODate() ?? DateTime.local().toFormat('yyyy-MM-dd')));
     runner.register(NavigationCommands.openMedia, [new Hotkey('m', [CTRL_OR_META_KEY])], () => getNavigator().openMedia(''));
 }

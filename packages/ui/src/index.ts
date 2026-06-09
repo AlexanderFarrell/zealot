@@ -18,6 +18,7 @@ import {
     type ItemTableViewConfig,
 } from './views/item_table_view';
 import { AddItemModal } from './common/add_item_modal';
+import { CommandPaletteModal } from './common/command_palette_modal';
 import { ConfirmDialog } from './common/confirm_dialog';
 import { ItemSearchModal } from './common/item_search_modal';
 import { LoadingSpinner } from './common/loading_spinner';
@@ -55,6 +56,7 @@ export {
     comments_view,
     AttributeEditor,
     AddItemModal,
+    CommandPaletteModal,
     CommentsView,
     ItemPickerInput,
     ItemChipsInput,

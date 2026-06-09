@@ -1,4 +1,4 @@
-import { BaseElementEmpty, Popups, getNavigator, getRightSidebarHost, registerContextMenu, unregisterContextMenu, unregisterContextMenuIn } from '@websoil/engine';
+import { BaseElementEmpty, Popups, commands, getNavigator, getRightSidebarHost, registerContextMenu, unregisterContextMenu, unregisterContextMenuIn } from '@websoil/engine';
 import { ItemAPI } from '@zealot/api/src/item';
 import type { Item } from '@zealot/domain/src/item';
 import { ConfirmDialog } from '../common/confirm_dialog';
@@ -19,6 +19,19 @@ import { createItemTitleIconElement } from '../views/item_title';
 const itemApi = new ItemAPI('/api');
 
 let content_visible = true;
+
+const ITEM_CONTEXT_COMMANDS = [
+    'Item: Go to Parent',
+    'Item: Copy Link',
+    'Item: Open in New Tab',
+    'Item: Toggle Content',
+    'Item: Delete',
+    'Item: Copy as Markdown',
+    'Item: Download PDF',
+    'Item: Download DOCX',
+    'Item: Manage Types',
+    'Item: Paste Template',
+] as const;
 
 export class ItemScreen extends BaseElementEmpty {
     private item: Item | null = null;
@@ -43,6 +56,9 @@ export class ItemScreen extends BaseElementEmpty {
     disconnectedCallback(): void {
         getRightSidebarHost()?.setContent(null);
         unregisterContextMenu(this);
+        for (const name of ITEM_CONTEXT_COMMANDS) {
+            commands.runner.Commands.delete(name);
+        }
     }
 
     private async fetchAndRender(fetch: () => Promise<Item>): Promise<void> {
@@ -215,6 +231,55 @@ export class ItemScreen extends BaseElementEmpty {
         });
         commentsSection.content.appendChild(commentsView);
         this.appendChild(commentsSection.section);
+
+        this.registerItemContextCommands(item, onTypesDone);
+    }
+
+    private registerItemContextCommands(item: Item, onTypesDone: () => void): void {
+        const goToParent = () => {
+            const parentId = this.getParentItemId(item);
+            if (parentId != null) getNavigator().openItemById(parentId);
+            else getNavigator().openHome();
+        };
+        commands.runner.register('Item: Go to Parent', [], goToParent);
+        commands.runner.register('Item: Copy Link', [], () => {
+            void navigator.clipboard.writeText(window.location.href);
+            Popups.add('Link copied');
+        });
+        commands.runner.register('Item: Open in New Tab', [], () => window.open(window.location.href, '_blank'));
+        commands.runner.register('Item: Toggle Content', [], () => {
+            content_visible = !content_visible;
+            const section = this.querySelector('.item-content') as HTMLElement | null;
+            if (section) section.style.display = content_visible ? 'block' : 'none';
+        });
+        commands.runner.register('Item: Delete', [], () => {
+            void (async () => {
+                const confirmed = await ConfirmDialog.show('Are you sure you want to delete this item?');
+                if (!confirmed) return;
+                await itemApi.Delete(item.ItemID);
+                Popups.add(`Removed ${item.Title}`);
+                const parentId = this.getParentItemId(item);
+                if (parentId != null) getNavigator().openItemById(parentId);
+                else getNavigator().openHome();
+            })();
+        });
+        commands.runner.register('Item: Copy as Markdown', [], () => {
+            void navigator.clipboard.writeText(this.buildMarkdown(item));
+            Popups.add('Copied as Markdown');
+        });
+        commands.runner.register('Item: Download PDF', [], () => { window.location.href = itemApi.ExportPdfUrl(item.ItemID); });
+        commands.runner.register('Item: Download DOCX', [], () => { window.location.href = itemApi.ExportDocxUrl(item.ItemID); });
+        commands.runner.register('Item: Manage Types', [], () => AssignTypeModal.show(item, onTypesDone));
+        commands.runner.register('Item: Paste Template', [], () => {
+            PasteTemplateModal.show((templateContent) => {
+                const separator = item.Content.trim().length > 0 ? '\n\n' : '';
+                item.Content = item.Content + separator + templateContent;
+                const editorEl = this.querySelector('zealotscript-editor') as ZealotScriptEditor | null;
+                if (editorEl) editorEl.content = item.Content;
+                void itemApi.Update(item.ItemID, { item_id: item.ItemID, content: item.Content })
+                    .then(() => Popups.add('Template pasted'));
+            });
+        });
     }
 
     private buildActions(item: Item, onManageTypes: () => void): HTMLElement {

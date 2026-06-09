@@ -13,7 +13,7 @@ import {
     setToolHost,
 } from "@websoil/engine";
 import { API } from "./core";
-import { AddItemModal, ItemSearchModal, RightSidebar, default_side_button_entries, SideButtons } from "@zealot/ui";
+import { AddItemModal, CommandPaletteModal, ItemSearchModal, RightSidebar, default_side_button_entries, SideButtons } from "@zealot/ui";
 import "@zealot/ui/src/shell/mobile_title_bar";
 import { WebNavigator } from "./web_navigator";
 import "./web_tool_host";
@@ -31,6 +31,9 @@ class ZealotWebClient extends BaseElementEmpty {
         });
         commands.runner.register(ModalCommands.openGlobalSearch, [new Hotkey('o', [CTRL_OR_META_KEY])], () => {
             ItemSearchModal.show();
+        });
+        commands.runner.register(ModalCommands.openCommandRunner, [new Hotkey('p', [CTRL_OR_META_KEY])], () => {
+            CommandPaletteModal.show();
         });
         commands.runner.register(NavigationCommands.openRandomItem, [], async () => {
             const items = await API.Item.GetRandom(1);

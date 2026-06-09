@@ -690,6 +690,7 @@ export class ZealotScriptEditor extends HTMLElement {
 				if (mod && !event.shiftKey && !event.altKey) {
 					if (event.key === "o") { event.preventDefault(); commands.runner.run(ModalCommands.openGlobalSearch); return true; }
 					if (event.key === "n") { event.preventDefault(); commands.runner.run(ModalCommands.newItem); return true; }
+					if (event.key === "p") { event.preventDefault(); commands.runner.run(ModalCommands.openCommandRunner); return true; }
 				}
 				if (event.key !== "Tab") return false;
 				event.preventDefault();

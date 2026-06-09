@@ -32,17 +32,16 @@ class CommandRunner {
     }
 
     search_commands(term: string): Array<UICommand> {
-        let retVal: UICommand[] = [];
+        const lower = term.toLowerCase();
+        const exact: UICommand[] = [];
+        const partial: UICommand[] = [];
         for (const [key, value] of this.Commands.entries()) {
-            if (key.toLowerCase().includes(term.toLowerCase())) {
-                retVal.push(value)
-            }
+            const kl = key.toLowerCase();
+            if (kl === lower) exact.push(value);
+            else if (kl.includes(lower)) partial.push(value);
         }
-        retVal.sort((a, b) => {
-            return a.name.localeCompare(b.name);
-        })
-
-        return retVal;
+        partial.sort((a, b) => a.name.localeCompare(b.name));
+        return [...exact, ...partial];
     }
 
     clear() {
