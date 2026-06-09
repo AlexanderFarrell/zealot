@@ -101,7 +101,6 @@ export class TabsView {
 	contentDOM: HTMLElement;
 	private _tabBar: HTMLElement;
 	private _activeIndex = 0;
-	private _observer: MutationObserver;
 	private _node: PMNode;
 
 	constructor(node: PMNode) {
@@ -123,9 +122,8 @@ export class TabsView {
 		this._tabBar = tabBar;
 
 		this._buildTabBar();
-
-		this._observer = new MutationObserver(() => this._applyActiveTab());
-		this._observer.observe(panels, { childList: true });
+		// Defer until ProseMirror has populated contentDOM with panel children.
+		requestAnimationFrame(() => this._applyActiveTab());
 	}
 
 	private _buildTabBar(): void {
@@ -164,7 +162,6 @@ export class TabsView {
 	}
 
 	destroy(): void {
-		this._observer.disconnect();
 	}
 }
 

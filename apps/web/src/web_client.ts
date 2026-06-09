@@ -3,13 +3,16 @@ import {
     CTRL_OR_META_KEY,
     Hotkey,
     ModalCommands,
+    NavigationCommands,
     commands,
+    getNavigator,
     registerNavigationCommands,
     registerToolCommands,
     setNavigator,
     setRightSidebarHost,
     setToolHost,
 } from "@websoil/engine";
+import { API } from "./core";
 import { AddItemModal, ItemSearchModal, RightSidebar, default_side_button_entries, SideButtons } from "@zealot/ui";
 import "@zealot/ui/src/shell/mobile_title_bar";
 import { WebNavigator } from "./web_navigator";
@@ -28,6 +31,10 @@ class ZealotWebClient extends BaseElementEmpty {
         });
         commands.runner.register(ModalCommands.openGlobalSearch, [new Hotkey('o', [CTRL_OR_META_KEY])], () => {
             ItemSearchModal.show();
+        });
+        commands.runner.register(NavigationCommands.openRandomItem, [], async () => {
+            const items = await API.Item.GetRandom(1);
+            if (items[0]) getNavigator().openItemById(items[0].ItemID);
         });
 
         this.innerHTML = `

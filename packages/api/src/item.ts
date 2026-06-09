@@ -125,6 +125,15 @@ export class ItemAPI extends BaseAPI {
         return await post_json(`${this.baseUrl}/item/rebuild-links`, {}) as { rebuilt: number };
     }
 
+    async GetRandom(count = 15): Promise<Item[]> {
+        try {
+            const dtos = await get_json(`${this.baseUrl}/item/random?count=${count}`) as ItemDto[];
+            return dtos.map(d => new Item(d));
+        } catch {
+            return [];
+        }
+    }
+
     async GetMostViewed(limit = 30): Promise<MostViewedEntry[]> {
         const dtos = await get_json(`${this.baseUrl}/analysis/most-viewed?limit=${limit}`) as MostViewedItemDto[];
         return dtos.map(d => ({

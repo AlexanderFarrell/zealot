@@ -582,6 +582,14 @@ li.zealot-task-item[data-checked="true"] > .zealot-task-content {
 	text-decoration: line-through;
 }
 
+.zealot-image {
+	max-width: 100%;
+	height: auto;
+	display: inline-block;
+	border-radius: 4px;
+	vertical-align: middle;
+}
+
 .zealot-mermaid {
 	margin: 12px 0;
 	text-align: center;

@@ -51,6 +51,11 @@ export function default_side_button_entries(): SideButtonEntry[] {
             IconURL: icons.add,
             Command: ModalCommands.newItem,
         },
+        {
+            Title: "Random Items",
+            IconURL: icons.chess,
+            Command: ToolCommands.openRandom,
+        },
         null,
         {
             Title: "Search",

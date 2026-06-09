@@ -231,6 +231,34 @@ const iconRefSpec: NodeSpec = {
 	}
 };
 
+const imageSpec: NodeSpec = {
+	group: "inline",
+	inline: true,
+	atom: true,
+	attrs: {
+		src: { default: "" },
+		alt: { default: "" },
+		title: { default: "" },
+	},
+	parseDOM: [{
+		tag: "img[src]",
+		getAttrs: (e) => {
+			const el = e as HTMLImageElement;
+			return {
+				src: el.getAttribute("src") ?? "",
+				alt: el.getAttribute("alt") ?? "",
+				title: el.getAttribute("title") ?? "",
+			};
+		}
+	}],
+	toDOM(node) {
+		const attrs: Record<string, string> = { src: node.attrs.src as string, class: "zealot-image" };
+		if (node.attrs.alt) attrs.alt = node.attrs.alt as string;
+		if (node.attrs.title) attrs.title = node.attrs.title as string;
+		return ["img", attrs];
+	}
+};
+
 const dateRefSpec: NodeSpec = {
 	group: "inline",
 	inline: true,
@@ -386,6 +414,7 @@ const nodes = addListNodes(
 	math_inline: mathInlineSpec,
 	math_block: mathBlockSpec,
 	icon_ref: iconRefSpec,
+	image: imageSpec,
 	date_ref: dateRefSpec,
 	details: detailsSpec,
 	spoiler: spoilerSpec,

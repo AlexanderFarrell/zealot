@@ -36,6 +36,7 @@ export const NavigationCommands = {
     openSettings: 'Open Settings',
     openTodayNote: 'Open Today\'s Note',
     openMedia: 'Open Media',
+    openRandomItem: 'Open Random Item',
 } as const;
 
 export interface Navigator {

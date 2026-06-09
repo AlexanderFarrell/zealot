@@ -37,6 +37,7 @@ import { DataSettingsScreen } from './screens/data_settings_screen';
 import { UserSettingsScreen } from './screens/user_settings_screen';
 import { CalendarToolView } from './tools/calendar_tool_view';
 import { NavTreeToolView } from './tools/nav_tree_tool_view';
+import { RandomToolView } from './tools/random_tool_view';
 import { SearchToolView } from './tools/search_tool_view';
 import { ZealotScriptEditor } from './zealotscript/zealotscript_editor';
 
@@ -74,6 +75,7 @@ export {
     LoadingSpinner,
     MobileTitleBar,
     NavTreeToolView,
+    RandomToolView,
     RightSidebar,
     SearchToolView,
     SideBar,

@@ -3,7 +3,7 @@ import { lookupEmoji } from "../emoji_map";
 import { hasIcon } from "../icon_registry";
 
 type InlineAtomMatch = {
-	type: "mdlink" | "hard_break" | "wikilink";
+	type: "mdlink" | "hard_break" | "wikilink" | "image";
 	full: string;
 	label: string;
 	href: string;
@@ -30,6 +30,7 @@ type SymmetricMark = {
 	requireWordBoundary: boolean;
 };
 
+const IMAGE_RE = /^!\[([^\]]*)\]\(([^)]+)\)/;
 const MDLINK_RE = /^\[([^\]]+)\]\(([^)]+)\)/;
 const HARD_BREAK_RE = /^<br\s*\/?>/i;
 const WIKILINK_RE = /^\[\[([^\]#|]+)(?:#([^\]|]+))?(?:\|([^\]]+))?\]\]/;
@@ -92,6 +93,16 @@ const matchInlineAtomAt = (text: string, index: number): InlineAtomMatch | null 
 		return { type: "wikilink", full: wikilinkMatch[0], label, href, anchor };
 	}
 
+	const imageMatch = IMAGE_RE.exec(rest);
+	if (imageMatch) {
+		return {
+			type: "image",
+			full: imageMatch[0],
+			label: imageMatch[1] ?? "",
+			href: imageMatch[2] ?? "",
+		};
+	}
+
 	const markdownLinkMatch = MDLINK_RE.exec(rest);
 	if (markdownLinkMatch) {
 		return {
@@ -129,6 +140,12 @@ const buildInlineAtomNodes = (schema: Schema, atom: InlineAtomMatch): PMNode[] =
 	if (atom.type === "hard_break") {
 		const hardBreak = schema.nodes["hard_break"];
 		if (hardBreak) return [hardBreak.create()];
+		return [schema.text(atom.full)];
+	}
+
+	if (atom.type === "image") {
+		const imageNode = schema.nodes["image"];
+		if (imageNode) return [imageNode.create({ src: atom.href, alt: atom.label })];
 		return [schema.text(atom.full)];
 	}
 

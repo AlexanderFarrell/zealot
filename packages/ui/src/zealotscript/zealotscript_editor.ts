@@ -1,4 +1,4 @@
-import { EditorState, type Transaction } from "prosemirror-state";
+import { EditorState, TextSelection, type Transaction } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
 import { buildKeymap } from "prosemirror-example-setup";
 import { keymap } from "prosemirror-keymap";
@@ -12,16 +12,90 @@ import type { MarkType, Schema } from "prosemirror-model";
 import ZealotSchema from "./schema";
 import { parseZealotScript } from "./parser";
 import { serializeZealotScript } from "./serializer";
-import { insertTable, insertAdmonition, insertYoutubeEmbed, insertMermaidBlock, extractYouTubeVideoId, insertDetails, insertSpoiler, insertColumns, insertTabs } from "./commands";
+import { insertTable, insertAdmonition, insertYoutubeEmbed, insertMermaidBlock, extractYouTubeVideoId, insertDetails, insertSpoiler, insertColumns, insertTabs, addTableRowAfter, removeTableRow, addTableColumnAfter, removeTableColumn, isInTable } from "./commands";
 import { TabsView } from "./zealotscript_view";
 import { lookupEmoji } from "./emoji_map";
 import { hasIcon, setIconRefElement } from "./icon_registry";
 import { ShortcodePicker, detectShortcodeTriggerInText, type ShortcodeSuggestion } from "./shortcode_picker";
-import { getNavigator } from "@websoil/engine";
+import { getNavigator, commands, ModalCommands } from "@websoil/engine";
+import { MediaAPI } from "@zealot/api/src/media";
 import { ItemSearchInline } from "../views/item_search_inline";
 import type { Item } from "@zealot/domain/src/item";
+import type MermaidType from "mermaid";
+
+const mediaApi = new MediaAPI('/api');
 
 type PMCommand = (state: EditorState, dispatch?: (tr: Transaction) => void) => boolean;
+
+let _mermaidLib: typeof MermaidType | null = null;
+const loadMermaidLib = async (): Promise<typeof MermaidType> => {
+	if (_mermaidLib) return _mermaidLib;
+	const mod = await import("mermaid");
+	_mermaidLib = mod.default;
+	_mermaidLib.initialize({ startOnLoad: false, theme: "neutral" });
+	return _mermaidLib;
+};
+
+let _mermaidCounter = 0;
+
+export class MermaidBlockView {
+	dom: HTMLElement;
+	contentDOM: HTMLElement;
+	private _preview: HTMLDivElement;
+	private _renderTimer: ReturnType<typeof setTimeout> | null = null;
+
+	constructor(node: import("prosemirror-model").Node) {
+		const wrapper = document.createElement("div");
+		wrapper.className = "zealot-mermaid-editor-block";
+
+		const pre = document.createElement("pre");
+		pre.className = "zealot-mermaid-source";
+		wrapper.appendChild(pre);
+
+		const preview = document.createElement("div");
+		preview.className = "zealot-mermaid-preview";
+		preview.contentEditable = "false";
+		wrapper.appendChild(preview);
+
+		this.dom = wrapper;
+		this.contentDOM = pre;
+		this._preview = preview;
+
+		this._scheduleRender(node.textContent);
+	}
+
+	update(node: import("prosemirror-model").Node): boolean {
+		if (node.type.name !== "code_block" || node.attrs.language !== "mermaid") return false;
+		this._scheduleRender(node.textContent);
+		return true;
+	}
+
+	private _scheduleRender(source: string): void {
+		if (this._renderTimer !== null) clearTimeout(this._renderTimer);
+		this._renderTimer = setTimeout(() => void this._render(source), 300);
+	}
+
+	private async _render(source: string): Promise<void> {
+		if (!source.trim()) {
+			this._preview.innerHTML = "";
+			return;
+		}
+		try {
+			const mermaid = await loadMermaidLib();
+			const id = `zealot-mermaid-editor-${++_mermaidCounter}`;
+			const { svg } = await mermaid.render(id, source);
+			this._preview.className = "zealot-mermaid-preview zealot-mermaid";
+			this._preview.innerHTML = svg;
+		} catch (err) {
+			this._preview.className = "zealot-mermaid-preview zealot-mermaid-error";
+			this._preview.textContent = err instanceof Error ? err.message : String(err);
+		}
+	}
+
+	destroy(): void {
+		if (this._renderTimer !== null) clearTimeout(this._renderTimer);
+	}
+}
 
 export class TaskListItemView {
 	dom: HTMLElement;
@@ -180,8 +254,11 @@ const buildInputRules = (schema: Schema) => {
 		rules.push(new InputRule(regex, (state, match, start, end) => {
 			const inner = match[1];
 			if (!inner || typeof inner !== "string") return null;
-			const node = schema.text(inner, [markType.create()]);
-			return state.tr.replaceWith(start, end, node);
+			const marked = schema.text(inner, [markType.create()]);
+			const space = schema.text(" ");
+			const tr = state.tr.replaceWith(start, end, marked);
+			const spacePos = tr.mapping.map(start) + marked.nodeSize;
+			return tr.replaceWith(spacePos, spacePos, space);
 		}));
 	};
 
@@ -294,6 +371,7 @@ export class ZealotScriptEditor extends HTMLElement {
 	private _outsideClickListener: ((e: MouseEvent) => void) | null = null;
 	private _shortcodePicker: ShortcodePicker | null = null;
 	private _shortcodePickerFrom: number | null = null;
+	private _toolbar: (HTMLElement & { _syncTableButtons?: () => void }) | null = null;
 
 	private _showWikilinkPicker(from: number, query: string): void {
 		if (!this._view) return;
@@ -363,10 +441,14 @@ export class ZealotScriptEditor extends HTMLElement {
 		const linkMarkType = state.schema.marks["link"];
 		if (!linkMarkType) return;
 		const mark = linkMarkType.create({ href: `zealot://item/${item.Title}` });
-		const linkText = state.schema.text(item.DisplayTitle, [mark]);
-		const tr = state.tr
+		const linkText = state.schema.text(item.Title, [mark]);
+		const plainSpace = state.schema.text(" ");
+		const spaceStart = from + linkText.nodeSize;
+		let tr = state.tr
 			.replaceWith(from, to, linkText)
-			.insertText(" ", from + linkText.nodeSize);
+			.replaceWith(spaceStart, spaceStart, plainSpace);
+		const cursorPos = tr.mapping.map(spaceStart);
+		tr = tr.setSelection(TextSelection.create(tr.doc, cursorPos));
 		this._view.dispatch(tr);
 		this._hideWikilinkPicker();
 		this._view.focus();
@@ -486,6 +568,7 @@ export class ZealotScriptEditor extends HTMLElement {
 		bar.appendChild(btn("S", "Strikethrough", () => toggleMark("strike")));
 		bar.appendChild(btn("U", "Underline", () => toggleMark("underline")));
 		bar.appendChild(btn("</>", "Inline Code", () => toggleMark("code")));
+		bar.appendChild(btn("Table", "Insert Table", () => runCommand(insertTable)));
 
 		const sep2 = document.createElement("span");
 		sep2.className = "zealotscript-toolbar-sep";
@@ -505,7 +588,37 @@ export class ZealotScriptEditor extends HTMLElement {
 			dispatch(state.tr.replaceWith(insertPos, $from.after($from.depth === 0 ? 1 : $from.depth), list));
 			this._view.focus();
 		}));
-		bar.appendChild(btn("Table", "Insert Table", () => runCommand(insertTable)));
+		const tableEditSep = document.createElement("span");
+		tableEditSep.className = "zealotscript-toolbar-sep zealotscript-toolbar-table-edit";
+		bar.appendChild(tableEditSep);
+
+		const addRowBtn = btn("+Row", "Add Row Below", () => runCommand(addTableRowAfter));
+		addRowBtn.className += " zealotscript-toolbar-table-edit";
+		bar.appendChild(addRowBtn);
+
+		const removeRowBtn = btn("-Row", "Remove Current Row", () => runCommand(removeTableRow));
+		removeRowBtn.className += " zealotscript-toolbar-table-edit";
+		bar.appendChild(removeRowBtn);
+
+		const addColBtn = btn("+Col", "Add Column After", () => runCommand(addTableColumnAfter));
+		addColBtn.className += " zealotscript-toolbar-table-edit";
+		bar.appendChild(addColBtn);
+
+		const removeColBtn = btn("-Col", "Remove Current Column", () => runCommand(removeTableColumn));
+		removeColBtn.className += " zealotscript-toolbar-table-edit";
+		bar.appendChild(removeColBtn);
+
+		// Show/hide table editing controls based on cursor position.
+		const tableEditEls = bar.querySelectorAll<HTMLElement>(".zealotscript-toolbar-table-edit");
+		const syncTableButtons = () => {
+			if (!this._view) return;
+			const inTable = isInTable(this._view.state);
+			tableEditEls.forEach((el) => { el.style.display = inTable ? "" : "none"; });
+		};
+		syncTableButtons();
+		// Will be refreshed on every transaction via dispatchTransaction.
+		(bar as HTMLElement & { _syncTableButtons?: () => void })._syncTableButtons = syncTableButtons;
+
 		bar.appendChild(btn("Note", "Insert Note", () => runCommand(insertAdmonition("note"))));
 		bar.appendChild(btn("Warning", "Insert Warning", () => runCommand(insertAdmonition("warning"))));
 		bar.appendChild(btn("Tip", "Insert Tip", () => runCommand(insertAdmonition("tip"))));
@@ -530,7 +643,9 @@ export class ZealotScriptEditor extends HTMLElement {
 	connectedCallback() {
 		if (this._view) return;
 
-		this.appendChild(this._buildToolbar());
+		const toolbar = this._buildToolbar();
+		this._toolbar = toolbar;
+		this.appendChild(toolbar);
 
 		const editorContainer = document.createElement("div");
 		editorContainer.className = "zealotscript-editor-container";
@@ -549,6 +664,14 @@ export class ZealotScriptEditor extends HTMLElement {
 				icon_ref: (node) => new IconRefView(node),
 				list_item: (node, view, getPos) => new TaskListItemView(node, view, getPos),
 				tabs: (node) => new TabsView(node),
+				code_block: (node) => {
+					if (node.attrs.language === "mermaid") return new MermaidBlockView(node);
+					const pre = document.createElement("pre");
+					pre.setAttribute("data-language", (node.attrs.language as string) ?? "");
+					const code = document.createElement("code");
+					pre.appendChild(code);
+					return { dom: pre, contentDOM: code };
+				},
 			},
 			handleKeyDown: (_view, event) => {
 				if (event.key === "Escape" && (this._wikilinkPickerEl || this._shortcodePicker?.isOpen)) {
@@ -556,6 +679,17 @@ export class ZealotScriptEditor extends HTMLElement {
 					this._hideWikilinkPicker();
 					this._hideShortcodePicker();
 					return true;
+				}
+				if (this._wikilinkPickerEl && (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Enter")) {
+					event.preventDefault();
+					this._wikilinkPickerSearch?.forwardKeyEvent(event);
+					return true;
+				}
+				const isMac = navigator.platform.toUpperCase().includes("MAC");
+				const mod = isMac ? event.metaKey : event.ctrlKey;
+				if (mod && !event.shiftKey && !event.altKey) {
+					if (event.key === "o") { event.preventDefault(); commands.runner.run(ModalCommands.openGlobalSearch); return true; }
+					if (event.key === "n") { event.preventDefault(); commands.runner.run(ModalCommands.newItem); return true; }
 				}
 				if (event.key !== "Tab") return false;
 				event.preventDefault();
@@ -600,6 +734,28 @@ export class ZealotScriptEditor extends HTMLElement {
 				}
 				return true;
 			},
+			handlePaste: (_view, event) => {
+				const items = Array.from(event.clipboardData?.items ?? []);
+				const imageItem = items.find((i) => i.type.startsWith("image/"));
+				if (!imageItem) return false;
+				event.preventDefault();
+				const file = imageItem.getAsFile();
+				if (!file) return false;
+				const ext = file.type.split("/")[1] ?? "png";
+				const filename = `paste-${Date.now()}.${ext}`;
+				const namedFile = new File([file], filename, { type: file.type });
+				void mediaApi.UploadFolder(namedFile, "paste").then(() => {
+					if (!this._view) return;
+					const url = `/api/media/paste/${filename}`;
+					const { state } = this._view;
+					const imageNodeType = state.schema.nodes["image"];
+					if (!imageNodeType) return;
+					const imageNode = imageNodeType.create({ src: url, alt: filename });
+					const tr = state.tr.replaceSelectionWith(imageNode, false);
+					this._view.dispatch(tr);
+				});
+				return true;
+			},
 			dispatchTransaction: (tr: Transaction) => {
 				if (!this._view) return;
 				const nextState = this._view.state.apply(tr);
@@ -622,6 +778,8 @@ export class ZealotScriptEditor extends HTMLElement {
 				} else if (this._shortcodePicker?.isOpen) {
 					this._hideShortcodePicker();
 				}
+
+				this._toolbar?._syncTableButtons?.();
 
 				if (!tr.docChanged) return;
 				if (this._saveTimer !== null) window.clearTimeout(this._saveTimer);

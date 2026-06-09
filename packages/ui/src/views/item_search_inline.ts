@@ -172,6 +172,16 @@ export class ItemSearchInline extends HTMLElement {
         this.handleInput();
     }
 
+    forwardKeyEvent(event: KeyboardEvent): void {
+        if (!this.inputEl) return;
+        this.inputEl.dispatchEvent(new KeyboardEvent('keydown', {
+            key: event.key,
+            code: event.code,
+            bubbles: false,
+            cancelable: true,
+        }));
+    }
+
     private handleInput(): void {
         if (!this.inputEl) {
             return;

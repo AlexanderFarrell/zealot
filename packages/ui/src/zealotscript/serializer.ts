@@ -131,6 +131,12 @@ const serializeInline = (node: PMNode): string => {
 			out += serializeDateRef(child);
 			return;
 		}
+		if (child.type.name === "image") {
+			const src = (child.attrs.src as string) || "";
+			const alt = (child.attrs.alt as string) || "";
+			out += `![${alt}](${src})`;
+			return;
+		}
 		out += wrapInlineLiteralWithMarks(escapeText(child.textContent || ""), child.marks);
 	});
 	return out;

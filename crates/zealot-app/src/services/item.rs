@@ -283,6 +283,18 @@ impl ItemService {
         self.hydrate_items(items, &account.account_id)
     }
 
+    pub fn get_random_items(&self, count: usize, account: &Account) -> Result<Vec<Item>, ItemServiceError> {
+        use rand::seq::SliceRandom;
+        let mut ids = self
+            .item_repo
+            .get_all_item_ids_for_user(&account.account_id)
+            .map_err(ItemServiceError::Repo)?;
+        let mut rng = rand::thread_rng();
+        ids.shuffle(&mut rng);
+        ids.truncate(count);
+        self.hydrate_item_ids(&ids, account)
+    }
+
     /// Returns items where the "Root" attribute is boolean `true`.
     pub fn get_root_items(&self, account: &Account) -> Result<Vec<Item>, ItemServiceError> {
         let ids = self

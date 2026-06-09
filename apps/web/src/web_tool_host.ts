@@ -1,5 +1,5 @@
 import type { ToolHost, ToolShowOptions, ToolView } from '@websoil/engine';
-import { CalendarToolView, NavTreeToolView, SearchToolView } from '@zealot/ui';
+import { CalendarToolView, NavTreeToolView, RandomToolView, SearchToolView } from '@zealot/ui';
 import { API } from './core';
 
 export class WebToolHost extends HTMLElement implements ToolHost {
@@ -34,11 +34,13 @@ export class WebToolHost extends HTMLElement implements ToolHost {
         const navTree = new NavTreeToolView().init({ itemApi: API.Item });
         const calendar = new CalendarToolView();
         const search = new SearchToolView().init({ itemApi: API.Item });
+        const random = new RandomToolView().init({ itemApi: API.Item });
         const attributesPlaceholder = this.buildPlaceholder();
 
         this.views.set('nav_tree', navTree);
         this.views.set('calendar', calendar);
         this.views.set('search', search);
+        this.views.set('random', random);
         this.views.set('item_attributes', attributesPlaceholder);
 
         this.views.forEach((view) => {

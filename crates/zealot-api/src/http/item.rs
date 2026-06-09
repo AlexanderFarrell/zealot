@@ -38,6 +38,7 @@ pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/", get(get_root_items).post(add_item))
         .route("/recent", get(get_recent_items))
+        .route("/random", get(get_random_item))
         .route("/title/{title}", get(get_by_title))
         .route("/id/{item_id}", get(get_by_id))
         .route("/id/{item_id}/export/pdf", get(export_pdf))
@@ -182,6 +183,33 @@ async fn get_recent_items(
         .services
         .item
         .get_recent_items(params.limit, params.offset, &account)
+        .map_err(item_service_err)?;
+    Ok(Json(items.iter().map(ItemDto::from).collect()))
+}
+
+const MAX_RANDOM_COUNT: usize = 50;
+
+#[derive(Deserialize)]
+struct RandomParams {
+    #[serde(default = "default_random_count")]
+    count: usize,
+}
+
+fn default_random_count() -> usize {
+    15
+}
+
+async fn get_random_item(
+    State(state): State<AppState>,
+    Extension(actor): Extension<Actor>,
+    Query(params): Query<RandomParams>,
+) -> Result<Json<Vec<ItemDto>>, HttpError> {
+    let account = require_account(&actor)?;
+    let count = params.count.min(MAX_RANDOM_COUNT);
+    let items = state
+        .services
+        .item
+        .get_random_items(count, &account)
         .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }

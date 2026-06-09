@@ -1,6 +1,6 @@
 import runner from './commands';
 
-export type ToolView = 'search' | 'nav_tree' | 'calendar' | 'item_attributes';
+export type ToolView = 'search' | 'nav_tree' | 'calendar' | 'item_attributes' | 'random';
 
 export interface ToolShowOptions {
     focus?: boolean;
@@ -14,6 +14,7 @@ export const ToolCommands = {
     searchItems: 'Search Items',
     openNavTree: 'Open Nav Sidebar',
     openCalendar: 'Open Calendar',
+    openRandom: 'Open Random Items',
 } as const;
 
 let _toolHost: ToolHost | null = null;
@@ -35,4 +36,5 @@ export function registerToolCommands(): void {
     });
     runner.register(ToolCommands.openNavTree, [], () => getToolHost().show('nav_tree'));
     runner.register(ToolCommands.openCalendar, [], () => getToolHost().show('calendar'));
+    runner.register(ToolCommands.openRandom, [], () => getToolHost().show('random'));
 }
