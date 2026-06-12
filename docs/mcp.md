@@ -139,7 +139,7 @@ These tools cover the core Zealot data model. Every piece of information in Zeal
 | `list_items` | `type_filter?` | List root-level items, optionally filtered by type name (e.g. `"Goal"`, `"Project"`) |
 | `list_recent_items` | `limit?` (default 30), `offset?` | List recently modified items with pagination |
 | `search_items` | `term` | Search items by title keyword; results sorted by relevance |
-| `filter_items` | `filters`, `limit?` (default 50, max 100), `offset?` | Filter items by attribute values; filters are ANDed and support `eq`, `ne`, `gt`, `lt`, `gte`, `lte`, and `ilike` |
+| `filter_items` | `filters`, `limit?` (default 50, max 100), `offset?` | Filter items by attribute values; filters are ANDed, values may be scalars or arrays, and ops support `eq`, `ne`, `gt`, `lt`, `gte`, `lte`, and `ilike` |
 | `get_item` | `id` | Fetch a single item by numeric ID — returns full attributes, types, and links |
 | `get_item_by_title` | `title` | Fetch a single item by exact title |
 | `get_children` | `id` | List all child items of a parent |

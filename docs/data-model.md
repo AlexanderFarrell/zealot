@@ -153,8 +153,9 @@ Omitted config fields mean no constraint. For `date`, `week`, `boolean`, and `it
 | Field | Values |
 |---|---|
 | `filters` | array of `{key, op, value, list_mode?}` filters; all filters are ANDed |
+| `value` | scalar or array of candidate values |
 | `op` | `eq`, `=` · `ne`, `!=`, `<>` · `gt`, `>` · `lt`, `<` · `gte`, `>=` · `lte`, `<=` · `ilike` |
-| `list_mode` | `any` (default) · `all` · `none` — controls how list attributes are matched |
+| `list_mode` | `any` (default) · `all` · `none` — controls how candidate values are matched against list attributes |
 | `limit` | optional result limit; default 50, maximum 100 |
 | `offset` | optional result offset; default 0 |
 

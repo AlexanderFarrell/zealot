@@ -148,3 +148,83 @@ def test_item_filter_paginates_broad_filters_and_supports_ilike(
         limit=5,
     )
     assert [item["title"] for item in ilike_matches] == [f"{title_prefix} 010"]
+
+
+def test_item_filter_supports_all_list_mode_and_array_values(
+    stack_urls: dict[str, str],
+) -> None:
+    session = register_session(stack_urls)
+    title_prefix = unique_name("Z118 Parent Filter")
+
+    parent_a = create_item(
+        session,
+        stack_urls,
+        title=f"{title_prefix} parent A",
+        attributes={},
+    )
+    parent_b = create_item(
+        session,
+        stack_urls,
+        title=f"{title_prefix} parent B",
+        attributes={},
+    )
+    child_both = create_item(
+        session,
+        stack_urls,
+        title=f"{title_prefix} child both",
+        attributes={"Parent": [parent_a["item_id"], parent_b["item_id"]]},
+    )
+    child_one = create_item(
+        session,
+        stack_urls,
+        title=f"{title_prefix} child one",
+        attributes={"Parent": [parent_a["item_id"]]},
+    )
+
+    scalar_all = filter_items(
+        session,
+        stack_urls,
+        filters=[
+            {
+                "key": "Parent",
+                "op": "eq",
+                "value": parent_a["item_id"],
+                "list_mode": "all",
+            }
+        ],
+    )
+    assert {item["item_id"] for item in scalar_all} == {
+        child_both["item_id"],
+        child_one["item_id"],
+    }
+
+    array_any = filter_items(
+        session,
+        stack_urls,
+        filters=[
+            {
+                "key": "Parent",
+                "op": "eq",
+                "value": [parent_a["item_id"], parent_b["item_id"]],
+                "list_mode": "any",
+            }
+        ],
+    )
+    assert {item["item_id"] for item in array_any} == {
+        child_both["item_id"],
+        child_one["item_id"],
+    }
+
+    array_all = filter_items(
+        session,
+        stack_urls,
+        filters=[
+            {
+                "key": "Parent",
+                "op": "eq",
+                "value": [parent_a["item_id"], parent_b["item_id"]],
+                "list_mode": "all",
+            }
+        ],
+    )
+    assert [item["item_id"] for item in array_all] == [child_both["item_id"]]

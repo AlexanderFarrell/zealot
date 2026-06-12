@@ -382,7 +382,7 @@ Returns `200 OK`.
 
 Filter operators: `eq` / `=`, `ne` / `!=` / `<>`, `gt` / `>`, `lt` / `<`, `gte` / `>=`, `lte` / `<=`, `ilike`.
 
-`list_mode` applies when the attribute is a list type: `any` (default; any element matches), `all` (all elements match), `none` (no element matches). For scalar attributes use `any`.
+`value` may be a scalar or an array of candidate values. `list_mode` applies when the attribute is a list type: `any` (default; any candidate may match), `all` (every candidate must match), `none` (no candidate may match). For scalar attributes use `any`.
 
 `ilike` performs a case-insensitive substring match for text values. `limit` defaults to 50 and is capped at 100. `offset` defaults to 0.
 

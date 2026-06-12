@@ -283,53 +283,54 @@ enum SqlValue {
     Float(f64),
 }
 
-fn attr_filter_col_and_val(
-    filter: &AttributeFilter,
+fn attr_filter_value_col_and_val(
+    key: &str,
+    value: &Value,
     kind_map: &HashMap<String, AttributeBaseScalarType>,
 ) -> Result<(&'static str, SqlValue), RepoError> {
-    if let Some(base_type) = kind_map.get(&filter.key) {
+    if let Some(base_type) = kind_map.get(key) {
         return match base_type {
             AttributeBaseScalarType::Text
             | AttributeBaseScalarType::Dropdown
-            | AttributeBaseScalarType::Week => match &filter.value {
+            | AttributeBaseScalarType::Week => match value {
                 Value::String(value) => Ok(("value_text", SqlValue::Str(value.clone()))),
                 _ => Err(RepoError::DatabaseError {
-                    err: format!("filter '{}' expects a string value", filter.key),
+                    err: format!("filter '{}' expects a string value", key),
                 }),
             },
-            AttributeBaseScalarType::Integer => match &filter.value {
+            AttributeBaseScalarType::Integer => match value {
                 Value::Number(value) => value
                     .as_i64()
                     .map(|value| ("value_int", SqlValue::Int(value)))
                     .ok_or(RepoError::DatabaseError {
-                        err: format!("filter '{}' expects an integer value", filter.key),
+                        err: format!("filter '{}' expects an integer value", key),
                     }),
                 _ => Err(RepoError::DatabaseError {
-                    err: format!("filter '{}' expects an integer value", filter.key),
+                    err: format!("filter '{}' expects an integer value", key),
                 }),
             },
-            AttributeBaseScalarType::Boolean => match &filter.value {
+            AttributeBaseScalarType::Boolean => match value {
                 Value::Bool(value) => Ok(("value_int", SqlValue::Int(*value as i64))),
                 _ => Err(RepoError::DatabaseError {
-                    err: format!("filter '{}' expects a boolean value", filter.key),
+                    err: format!("filter '{}' expects a boolean value", key),
                 }),
             },
-            AttributeBaseScalarType::Decimal => match &filter.value {
+            AttributeBaseScalarType::Decimal => match value {
                 Value::Number(value) => value
                     .as_f64()
                     .map(|value| ("value_num", SqlValue::Float(value)))
                     .ok_or(RepoError::DatabaseError {
-                        err: format!("filter '{}' expects a numeric value", filter.key),
+                        err: format!("filter '{}' expects a numeric value", key),
                     }),
                 _ => Err(RepoError::DatabaseError {
-                    err: format!("filter '{}' expects a numeric value", filter.key),
+                    err: format!("filter '{}' expects a numeric value", key),
                 }),
             },
-            AttributeBaseScalarType::Date => match &filter.value {
+            AttributeBaseScalarType::Date => match value {
                 Value::String(value) => {
                     let date = NaiveDate::parse_from_str(value, "%Y-%m-%d").map_err(|err| {
                         RepoError::DatabaseError {
-                            err: format!("filter '{}' expects YYYY-MM-DD: {}", filter.key, err),
+                            err: format!("filter '{}' expects YYYY-MM-DD: {}", key, err),
                         }
                     })?;
                     let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
@@ -337,24 +338,23 @@ fn attr_filter_col_and_val(
                     Ok(("value_date", SqlValue::Int(days * 86400)))
                 }
                 _ => Err(RepoError::DatabaseError {
-                    err: format!("filter '{}' expects a date string", filter.key),
+                    err: format!("filter '{}' expects a date string", key),
                 }),
             },
-            AttributeBaseScalarType::Item => match &filter.value {
+            AttributeBaseScalarType::Item => match value {
                 Value::Number(value) => value
                     .as_i64()
                     .map(|value| ("value_item_id", SqlValue::Int(value)))
                     .ok_or(RepoError::DatabaseError {
-                        err: format!("filter '{}' expects an item id", filter.key),
+                        err: format!("filter '{}' expects an item id", key),
                     }),
                 _ => Err(RepoError::DatabaseError {
-                    err: format!("filter '{}' expects an item id", filter.key),
+                    err: format!("filter '{}' expects an item id", key),
                 }),
             },
         };
     }
 
-    let value = &filter.value;
     match value {
         Value::String(s) => Ok(("value_text", SqlValue::Str(s.clone()))),
         Value::Number(n) => {
@@ -375,18 +375,53 @@ fn attr_filter_col_and_val(
     }
 }
 
+fn attr_filter_col_and_values(
+    filter: &AttributeFilter,
+    kind_map: &HashMap<String, AttributeBaseScalarType>,
+) -> Result<(&'static str, Vec<SqlValue>), RepoError> {
+    let raw_values: Vec<&Value> = match &filter.value {
+        Value::Array(values) => {
+            if values.is_empty() {
+                return Err(RepoError::DatabaseError {
+                    err: format!("filter '{}' value array must not be empty", filter.key),
+                });
+            }
+            values.iter().collect()
+        }
+        value => vec![value],
+    };
+
+    let mut parsed = Vec::new();
+    let mut column = None;
+    for value in raw_values {
+        let (value_col, sql_value) = attr_filter_value_col_and_val(&filter.key, value, kind_map)?;
+        if let Some(column) = column {
+            if column != value_col {
+                return Err(RepoError::DatabaseError {
+                    err: format!("filter '{}' array values must have one type", filter.key),
+                });
+            }
+        } else {
+            column = Some(value_col);
+        }
+        parsed.push(sql_value);
+    }
+
+    Ok((column.unwrap(), parsed))
+}
+
 fn build_attr_filter_clause(
     filter: &AttributeFilter,
     kind_map: &HashMap<String, AttributeBaseScalarType>,
 ) -> Result<(String, Vec<SqlValue>), RepoError> {
-    let (col, value) = attr_filter_col_and_val(filter, kind_map)?;
-    let (op_str, value, case_insensitive) = match &filter.op {
-        AttributeFilterOp::Equal => ("=", value, false),
-        AttributeFilterOp::NotEqual => ("!=", value, false),
-        AttributeFilterOp::GreaterThan => (">", value, false),
-        AttributeFilterOp::LessThan => ("<", value, false),
-        AttributeFilterOp::GreaterThanOrEqualTo => (">=", value, false),
-        AttributeFilterOp::LessThanOrEqualTo => ("<=", value, false),
+    let (col, values) = attr_filter_col_and_values(filter, kind_map)?;
+    let (op_str, values, case_insensitive) = match &filter.op {
+        AttributeFilterOp::Equal => ("=", values, false),
+        AttributeFilterOp::NotEqual => ("!=", values, false),
+        AttributeFilterOp::GreaterThan => (">", values, false),
+        AttributeFilterOp::LessThan => ("<", values, false),
+        AttributeFilterOp::GreaterThanOrEqualTo => (">=", values, false),
+        AttributeFilterOp::LessThanOrEqualTo => ("<=", values, false),
         AttributeFilterOp::LikeCaseInsensitive => {
             if col != "value_text" {
                 return Err(RepoError::DatabaseError {
@@ -396,14 +431,16 @@ fn build_attr_filter_clause(
                     ),
                 });
             }
-            match value {
-                SqlValue::Str(value) => ("LIKE", SqlValue::Str(format!("%{}%", value)), true),
-                _ => {
-                    return Err(RepoError::DatabaseError {
+            let values = values
+                .into_iter()
+                .map(|value| match value {
+                    SqlValue::Str(value) => Ok(SqlValue::Str(format!("%{}%", value))),
+                    _ => Err(RepoError::DatabaseError {
                         err: format!("filter '{}' expects a string value for ilike", filter.key),
-                    });
-                }
-            }
+                    }),
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            ("LIKE", values, true)
         }
     };
     let list_comparison = if case_insensitive {
@@ -417,35 +454,27 @@ fn build_attr_filter_clause(
         format!("a.{col} {op} ?", col = col, op = op_str)
     };
 
+    let mut clauses = Vec::new();
+    let mut clause_values = Vec::new();
+    for value in values {
+        clauses.push(format!(
+            "(EXISTS (SELECT 1 FROM attribute_list_value alv WHERE alv.item_id = i.item_id AND alv.key = ? AND {list_comparison})
+             OR EXISTS (SELECT 1 FROM attribute a WHERE a.item_id = i.item_id AND a.key = ? AND {scalar_comparison}))",
+        ));
+        clause_values.push(SqlValue::Str(filter.key.clone()));
+        clause_values.push(value.clone());
+        clause_values.push(SqlValue::Str(filter.key.clone()));
+        clause_values.push(value);
+    }
+
+    let joined = clauses.join(" OR ");
     let clause = match &filter.list_mode {
-        AttributeListMode::Any => {
-            format!(
-                "(EXISTS (SELECT 1 FROM attribute_list_value alv WHERE alv.item_id = i.item_id AND alv.key = ? AND {list_comparison})
-                 OR EXISTS (SELECT 1 FROM attribute a WHERE a.item_id = i.item_id AND a.key = ? AND {scalar_comparison}))",
-            )
-        }
-        AttributeListMode::None => {
-            format!(
-                "(NOT EXISTS (SELECT 1 FROM attribute_list_value alv WHERE alv.item_id = i.item_id AND alv.key = ? AND {list_comparison})
-                 AND NOT EXISTS (SELECT 1 FROM attribute a WHERE a.item_id = i.item_id AND a.key = ? AND {scalar_comparison}))",
-            )
-        }
-        AttributeListMode::All => {
-            return Err(RepoError::DatabaseError {
-                err: String::from("list_mode 'all' is not yet supported in SQLite"),
-            });
-        }
+        AttributeListMode::Any => format!("({joined})"),
+        AttributeListMode::None => format!("NOT ({joined})"),
+        AttributeListMode::All => format!("({})", clauses.join(" AND ")),
     };
 
-    Ok((
-        clause,
-        vec![
-            SqlValue::Str(filter.key.clone()),
-            value.clone(),
-            SqlValue::Str(filter.key.clone()),
-            value,
-        ],
-    ))
+    Ok((clause, clause_values))
 }
 
 impl ItemAttributeValueRepo for ItemAttributeValueSqliteRepo {
@@ -729,5 +758,61 @@ impl ItemAttributeValueRepo for ItemAttributeValueSqliteRepo {
                 .map_err(RepoError::from)
             })
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    fn item_kind_map() -> HashMap<String, AttributeBaseScalarType> {
+        HashMap::from([(String::from("Parent"), AttributeBaseScalarType::Item)])
+    }
+
+    #[test]
+    fn all_list_mode_accepts_scalar_values() {
+        let filter = AttributeFilter {
+            key: String::from("Parent"),
+            op: AttributeFilterOp::Equal,
+            value: json!(68),
+            list_mode: AttributeListMode::All,
+        };
+
+        let (clause, values) = build_attr_filter_clause(&filter, &item_kind_map()).unwrap();
+
+        assert!(clause.contains("EXISTS"));
+        assert_eq!(values.len(), 4);
+    }
+
+    #[test]
+    fn array_values_expand_for_any_list_mode() {
+        let filter = AttributeFilter {
+            key: String::from("Parent"),
+            op: AttributeFilterOp::Equal,
+            value: json!([68, 1808]),
+            list_mode: AttributeListMode::Any,
+        };
+
+        let (clause, values) = build_attr_filter_clause(&filter, &item_kind_map()).unwrap();
+
+        assert!(clause.contains(" OR "));
+        assert_eq!(values.len(), 8);
+    }
+
+    #[test]
+    fn array_values_expand_for_all_list_mode() {
+        let filter = AttributeFilter {
+            key: String::from("Parent"),
+            op: AttributeFilterOp::Equal,
+            value: json!([68, 1808]),
+            list_mode: AttributeListMode::All,
+        };
+
+        let (clause, values) = build_attr_filter_clause(&filter, &item_kind_map()).unwrap();
+
+        assert!(clause.contains(" AND "));
+        assert_eq!(values.len(), 8);
     }
 }

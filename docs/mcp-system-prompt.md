@@ -62,6 +62,8 @@ To explore from a starting point: get the item, read its `links` to find parents
 | Today's schedule | `get_day_plan` |
 | This week's schedule | `get_week_plan` |
 
+Use `filter_items` for attribute-based queries. Pass `filters` as an array of `{key, op, value, list_mode?}` objects; all filters are ANDed, and `value` may be a scalar or array of candidates. Supported operators are `eq`, `ne`, `gt`, `lt`, `gte`, `lte`, and `ilike`. Results are paginated: `limit` defaults to 50, is capped at 100, and `offset` fetches subsequent pages.
+
 ---
 
 ## Writing content
