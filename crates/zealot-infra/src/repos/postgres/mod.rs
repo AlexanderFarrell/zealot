@@ -13,6 +13,7 @@ use crate::repos::postgres::{
     item_view_postgres::ItemViewPostgresRepo, meta_postgres::MetaPostgresRepo,
     repeat_postgres::RepeatPostgresRepo, rule_postgres::RulePostgresRepo,
     scope_postgres::ScopePostgresRepo, session_postgres::SessionPostgresRepo,
+    time_block_postgres::TimeBlockPostgresRepo,
 };
 
 pub mod account_postgres;
@@ -30,6 +31,7 @@ pub mod repeat_postgres;
 pub mod rule_postgres;
 pub mod scope_postgres;
 pub mod session_postgres;
+pub mod time_block_postgres;
 
 pub fn get_postgres_repos(db: PgPool) -> ZealotRepos {
     ZealotRepos {
@@ -48,5 +50,6 @@ pub fn get_postgres_repos(db: PgPool) -> ZealotRepos {
         rule: Arc::new(RulePostgresRepo::new(db.clone())),
         scope: Arc::new(ScopePostgresRepo::new(db.clone())),
         session: Arc::new(SessionPostgresRepo::new(db.clone())),
+        time_block: Arc::new(TimeBlockPostgresRepo::new(db.clone())),
     }
 }

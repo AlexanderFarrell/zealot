@@ -62,9 +62,14 @@ impl AttributeService {
         dto: &AddAttributeKindDto,
         account_id: &Id,
     ) -> Result<Option<AttributeKind>, AttributeServiceError> {
-        self.repo
+        let kind = self
+            .repo
             .add_attribute_kind(dto, account_id)
-            .map_err(AttributeServiceError::Repo)
+            .map_err(AttributeServiceError::Repo)?;
+        if let Some(ref k) = kind {
+            tracing::info!(account_id = ?account_id, key = %k.key, "attribute kind created");
+        }
+        Ok(kind)
     }
 
     pub fn update_attribute_kind(
@@ -72,9 +77,14 @@ impl AttributeService {
         dto: &UpdateAttributeKindDto,
         account_id: &Id,
     ) -> Result<Option<AttributeKind>, AttributeServiceError> {
-        self.repo
+        let kind = self
+            .repo
             .update_attribute_kind(dto, account_id)
-            .map_err(AttributeServiceError::Repo)
+            .map_err(AttributeServiceError::Repo)?;
+        if let Some(ref k) = kind {
+            tracing::info!(account_id = ?account_id, key = %k.key, "attribute kind updated");
+        }
+        Ok(kind)
     }
 
     pub fn delete_attribute_kind(
@@ -97,7 +107,9 @@ impl AttributeService {
         }
         self.repo
             .delete_attribute_kind(key, account_id)
-            .map_err(AttributeServiceError::Repo)
+            .map_err(AttributeServiceError::Repo)?;
+        tracing::info!(account_id = ?account_id, %key, force, "attribute kind deleted");
+        Ok(())
     }
 }
 

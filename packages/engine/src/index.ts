@@ -68,7 +68,7 @@ export {
 export type { DropZone } from './ui/drag_drop'
 export type { ContextAction } from './ui/context_menu'
 
-export type { Navigator, SettingsSection, PlannerView, AppLocation, LocationListener } from './ui/navigator'
+export type { Navigator, SettingsSection, PlannerView, TimeBlockView, AppLocation, LocationListener } from './ui/navigator'
 export type { ToolHost, ToolShowOptions, ToolView } from './ui/tool_host'
 export type { RightSidebarHost } from './ui/right_sidebar_host'
 export type { Settings } from './settings'

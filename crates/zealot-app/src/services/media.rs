@@ -93,7 +93,10 @@ impl MediaService {
         };
 
         match self.port.upload(&dest_path, &bytes, account)? {
-            Some(stat) => Ok(stat),
+            Some(stat) => {
+                tracing::info!(account_id = ?account.account_id, path = %dest_path.display(), bytes = bytes.len(), "media uploaded");
+                Ok(stat)
+            }
             None => Err(MediaServiceError::NotFound),
         }
     }
@@ -116,6 +119,7 @@ impl MediaService {
         }
         let path = validated_path(folder_path)?;
         self.port.make_folder(&path, account)?;
+        tracing::info!(account_id = ?account.account_id, path = %path.display(), "media folder created");
         Ok(())
     }
 
@@ -153,6 +157,7 @@ impl MediaService {
         };
 
         self.port.rename(&old_path, &new_path, account)?;
+        tracing::info!(account_id = ?account.account_id, old = %old_path.display(), new = %new_path.display(), "media renamed");
         Ok(())
     }
 
@@ -166,6 +171,7 @@ impl MediaService {
         }
         let path = validated_path(rel_path)?;
         self.port.delete(&path, account)?;
+        tracing::info!(account_id = ?account.account_id, path = %path.display(), "media deleted");
         Ok(())
     }
 }

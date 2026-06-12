@@ -69,9 +69,14 @@ impl ItemTypeService {
         dto: &AddItemTypeDto,
         account_id: &Id,
     ) -> Result<Option<ItemType>, ItemTypeServiceError> {
-        self.repo
+        let item_type = self
+            .repo
             .add_item_type(dto, account_id)
-            .map_err(ItemTypeServiceError::Repo)
+            .map_err(ItemTypeServiceError::Repo)?;
+        if let Some(ref t) = item_type {
+            tracing::info!(account_id = ?account_id, type_id = ?t.type_id, name = %t.name, "item type created");
+        }
+        Ok(item_type)
     }
 
     pub fn update_item_type(
@@ -92,6 +97,8 @@ impl ItemTypeService {
             .repo
             .update_item_type(dto, account_id)
             .map_err(ItemTypeServiceError::Repo)?;
+
+        tracing::info!(account_id = ?account_id, ?type_id, "item type updated");
 
         if let Some(required_attributes) = &dto.required_attributes {
             let current_required: HashSet<String> =
@@ -183,6 +190,7 @@ impl ItemTypeService {
             .map_err(ItemTypeServiceError::Repo)?;
 
         if deleted {
+            tracing::info!(account_id = ?account_id, ?type_id, "item type deleted");
             Ok(())
         } else {
             Err(ItemTypeServiceError::NotFound)

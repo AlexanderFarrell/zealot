@@ -3,7 +3,7 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     middleware,
-    routing::{delete, get, patch, post},
+    routing::get,
 };
 use serde::Deserialize;
 use zealot_app::app::AppState;
@@ -64,7 +64,10 @@ async fn get_attribute_kinds(
         .attribute
         .get_kinds_for_user(&account.account_id)
         .map(|kinds| Json(kinds.iter().map(kind_to_json).collect()))
-        .map_err(|_| HttpError::Internal)
+        .map_err(|e| {
+            tracing::error!(account_id = ?account.account_id, %e, "failed to get attribute kinds");
+            HttpError::Internal
+        })
 }
 
 async fn get_attribute_kind_by_id(
@@ -81,7 +84,10 @@ async fn get_attribute_kind_by_id(
     {
         Ok(Some(kind)) => Ok(Json(kind_to_json(&kind))),
         Ok(None) => Err(HttpError::NotFound),
-        Err(_) => Err(HttpError::Internal),
+        Err(e) => {
+            tracing::error!(account_id = ?account.account_id, %e, "failed to get attribute kind by id");
+            Err(HttpError::Internal)
+        }
     }
 }
 
@@ -98,7 +104,10 @@ async fn get_attribute_kind_by_key(
     {
         Ok(Some(kind)) => Ok(Json(kind_to_json(&kind))),
         Ok(None) => Err(HttpError::NotFound),
-        Err(_) => Err(HttpError::Internal),
+        Err(e) => {
+            tracing::error!(account_id = ?account.account_id, key = %key, %e, "failed to get attribute kind by key");
+            Err(HttpError::Internal)
+        }
     }
 }
 
@@ -114,8 +123,14 @@ async fn add_attribute_kind(
         .add_attribute_kind(&dto, &account.account_id)
     {
         Ok(Some(kind)) => Ok(Json(kind_to_json(&kind))),
-        Ok(None) => Err(HttpError::Internal),
-        Err(_) => Err(HttpError::Internal),
+        Ok(None) => {
+            tracing::error!(account_id = ?account.account_id, "add_attribute_kind returned None");
+            Err(HttpError::Internal)
+        }
+        Err(e) => {
+            tracing::error!(account_id = ?account.account_id, %e, "failed to add attribute kind");
+            Err(HttpError::Internal)
+        }
     }
 }
 
@@ -134,7 +149,10 @@ async fn update_attribute_kind(
     {
         Ok(Some(kind)) => Ok(Json(kind_to_json(&kind))),
         Ok(None) => Err(HttpError::NotFound),
-        Err(_) => Err(HttpError::Internal),
+        Err(e) => {
+            tracing::error!(account_id = ?account.account_id, %e, "failed to update attribute kind");
+            Err(HttpError::Internal)
+        }
     }
 }
 
@@ -152,7 +170,10 @@ async fn delete_attribute_kind(
         .map(|_| StatusCode::OK)
         .map_err(|e| match e {
             AttributeServiceError::InUse(msg) => HttpError::Conflict { message: msg },
-            _ => HttpError::Internal,
+            e => {
+                tracing::error!(account_id = ?account.account_id, key = %key, %e, "failed to delete attribute kind");
+                HttpError::Internal
+            }
         })
 }
 

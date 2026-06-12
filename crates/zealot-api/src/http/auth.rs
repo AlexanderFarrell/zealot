@@ -66,6 +66,7 @@ async fn register_basic(
 
     match state.services.auth.register_account(&dto).await {
         Ok((account, raw_token)) => {
+            tracing::info!(account_id = ?account.account_id, username = %dto.username, "account registered");
             let cookie = Cookie::build(("session_id", raw_token))
                 .http_only(true)
                 .same_site(SameSite::Lax)
@@ -82,8 +83,14 @@ async fn register_basic(
         }
         Err(error) => match error {
             AuthError::RegisterError { err } => Err(HttpError::UserError { err }),
-            AuthError::ServerError => Err(HttpError::Internal),
-            AuthError::LoginError { .. } => Err(HttpError::Internal),
+            AuthError::ServerError => {
+                tracing::error!(username = %dto.username, "server error during register");
+                Err(HttpError::Internal)
+            }
+            AuthError::LoginError { .. } => {
+                tracing::error!(username = %dto.username, "unexpected login error during register");
+                Err(HttpError::Internal)
+            }
         },
     }
 }
@@ -102,6 +109,7 @@ async fn login_basic(
 
     match state.services.auth.login_account(&dto).await {
         Ok((account, raw_token)) => {
+            tracing::info!(account_id = ?account.account_id, username = %dto.username, "account logged in");
             let cookie = Cookie::build(("session_id", raw_token))
                 .http_only(true)
                 .same_site(SameSite::Lax)
@@ -118,8 +126,14 @@ async fn login_basic(
         }
         Err(error) => match error {
             AuthError::LoginError { err } => Err(HttpError::UserError { err }),
-            AuthError::ServerError => Err(HttpError::Internal),
-            AuthError::RegisterError { .. } => Err(HttpError::Internal),
+            AuthError::ServerError => {
+                tracing::error!(username = %dto.username, "server error during login");
+                Err(HttpError::Internal)
+            }
+            AuthError::RegisterError { .. } => {
+                tracing::error!(username = %dto.username, "unexpected register error during login");
+                Err(HttpError::Internal)
+            }
         },
     }
 }
@@ -146,7 +160,11 @@ async fn create_api_key_with_credentials(
                 .services
                 .account
                 .generate_api_key(&account.account_id, &label)
-                .map_err(|_| HttpError::Internal)?;
+                .map_err(|e| {
+                    tracing::error!(account_id = ?account.account_id, %e, "failed to generate api key via credentials");
+                    HttpError::Internal
+                })?;
+            tracing::info!(account_id = ?account.account_id, "api key created via credentials");
             Ok(Json(CreateApiKeyResponseDto {
                 key: raw_key,
                 api_key_id: record.api_key_id.into(),
@@ -156,8 +174,14 @@ async fn create_api_key_with_credentials(
         }
         Err(error) => match error {
             AuthError::LoginError { err } => Err(HttpError::UserError { err }),
-            AuthError::ServerError => Err(HttpError::Internal),
-            AuthError::RegisterError { .. } => Err(HttpError::Internal),
+            AuthError::ServerError => {
+                tracing::error!(username = %login_dto.username, "server error during api key credential login");
+                Err(HttpError::Internal)
+            }
+            AuthError::RegisterError { .. } => {
+                tracing::error!(username = %login_dto.username, "unexpected register error during api key credential login");
+                Err(HttpError::Internal)
+            }
         },
     }
 }
@@ -192,6 +216,9 @@ async fn logout_basic(
                 .build();
             Ok(jar.remove(cleared).remove(csrf_cleared))
         }
-        Err(_) => Err(HttpError::Internal),
+        Err(e) => {
+            tracing::error!(%e, "failed to logout account");
+            Err(HttpError::Internal)
+        }
     }
 }

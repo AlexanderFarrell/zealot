@@ -6,6 +6,7 @@ import * as item_type from './item_type';
 import * as media from './media';
 import * as repeat from './repeat';
 import * as rule from './rule';
+import * as time_block from './time_block';
 
 export {
     account,
@@ -15,5 +16,6 @@ export {
     item_type,
     media,
     repeat,
-    rule
+    rule,
+    time_block,
 }

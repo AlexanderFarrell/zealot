@@ -86,6 +86,11 @@ export class WeeklyPlannerScreen extends BaseElementEmpty {
                     label: 'Journal',
                     onClick: () => { getNavigator().openItem(journalTitleForWeek(date)); },
                 },
+                {
+                    iconURL: icons.schedule,
+                    label: 'Time Blocks',
+                    onClick: () => getNavigator().openTimeBlocks('week', formatIsoWeek(date)),
+                },
             ],
         );
 

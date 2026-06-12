@@ -40,9 +40,13 @@ impl AccountService {
         let record = self
             .repo
             .insert_api_key(account_id, &hash, label)
-            .map_err(|_| ServiceError::DomainError {
-                err: AccountError::ServerError,
+            .map_err(|e| {
+                tracing::error!(account_id = ?account_id, %e, "failed to insert api key");
+                ServiceError::DomainError {
+                    err: AccountError::ServerError,
+                }
             })?;
+        tracing::info!(account_id = ?account_id, api_key_id = ?record.api_key_id, %label, "api key created");
         Ok((record, raw))
     }
 
@@ -64,9 +68,14 @@ impl AccountService {
     ) -> Result<(), ServiceError<AccountError>> {
         self.repo
             .delete_api_key_by_id(api_key_id, account_id)
-            .map_err(|_| ServiceError::DomainError {
-                err: AccountError::ServerError,
-            })
+            .map_err(|e| {
+                tracing::error!(account_id = ?account_id, ?api_key_id, %e, "failed to revoke api key");
+                ServiceError::DomainError {
+                    err: AccountError::ServerError,
+                }
+            })?;
+        tracing::info!(account_id = ?account_id, ?api_key_id, "api key revoked");
+        Ok(())
     }
 }
 

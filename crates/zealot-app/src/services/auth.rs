@@ -221,6 +221,7 @@ impl AuthService {
             })
             .map_err(|_| AuthError::ServerError)?;
 
+        tracing::info!(account_id = ?account.account_id, username = %dto.username, "account registered");
         Ok((account, raw_token))
     }
 
@@ -246,6 +247,7 @@ impl AuthService {
             })
             .map_err(|_| AuthError::ServerError)?;
 
+        tracing::info!(account_id = ?account.account_id, username = %dto.username, "account logged in");
         Ok((account, raw_token))
     }
 

@@ -107,6 +107,7 @@ impl CommentService {
         match self.repo.add_comment(dto, &account.account_id)? {
             Some(core) => {
                 let comment = self.hydrate(core, account)?;
+                tracing::info!(account_id = ?account.account_id, comment_id = ?comment.comment_id, item_id = ?comment.item.item_id, "comment added");
                 self.event_port.emit(ZealotEvent::CommentAdded {
                     account_id: account.account_id,
                     item_id: comment.item.item_id,
@@ -124,7 +125,11 @@ impl CommentService {
         account: &Account,
     ) -> Result<Option<Comment>, CommentServiceError> {
         match self.repo.update_comment(dto, &account.account_id)? {
-            Some(core) => Ok(Some(self.hydrate(core, account)?)),
+            Some(core) => {
+                let comment = self.hydrate(core, account)?;
+                tracing::info!(account_id = ?account.account_id, comment_id = ?comment.comment_id, "comment updated");
+                Ok(Some(comment))
+            }
             None => Ok(None),
         }
     }
@@ -135,6 +140,7 @@ impl CommentService {
         account: &Account,
     ) -> Result<(), CommentServiceError> {
         self.repo.delete_comment(comment_id, &account.account_id)?;
+        tracing::info!(account_id = ?account.account_id, ?comment_id, "comment deleted");
         Ok(())
     }
 }

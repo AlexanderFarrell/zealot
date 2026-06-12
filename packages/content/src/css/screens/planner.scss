@@ -1,7 +1,8 @@
 daily-planner-screen,
 weekly-planner-screen,
 monthly-planner-screen,
-annual-planner-screen {
+annual-planner-screen,
+time-blocks-screen {
   display: block;
   width: 100%;
   max-width: 1100px;
@@ -154,6 +155,316 @@ annual-planner-screen {
   .planner-repeat-controls {
     grid-template-columns: 1fr;
   }
+}
+
+/* --- Time blocks header active link --- */
+
+.planner-header-link--active {
+  opacity: 1;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* --- Time blocks screen --- */
+
+.time-blocks-grid-wrapper {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: calc(100vh - 120px);
+  border: 1px solid var(--border-0);
+  border-radius: 10px;
+}
+
+.time-blocks-grid {
+  display: grid;
+  min-width: 480px;
+}
+
+.time-blocks-grid-corner {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--panel-1);
+  border-bottom: 1px solid var(--border-0);
+}
+
+.time-blocks-day-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--panel-1);
+  border-bottom: 1px solid var(--border-0);
+  border-left: 1px solid var(--border-0);
+}
+
+.time-blocks-day-header .is-today {
+  color: var(--accent-0, #4f8eff);
+}
+
+.time-blocks-time-col {
+  position: relative;
+  background: var(--panel-1);
+  border-right: 1px solid var(--border-0);
+}
+
+.time-blocks-hour-label {
+  position: absolute;
+  right: 4px;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  transform: translateY(-50%);
+  user-select: none;
+  pointer-events: none;
+}
+
+.time-blocks-day-col {
+  position: relative;
+  border-left: 1px solid var(--border-0);
+  cursor: crosshair;
+}
+
+.time-blocks-hour-sep {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 60px;
+  border-top: 1px solid var(--border-0);
+  pointer-events: none;
+}
+
+/* --- Block card --- */
+
+.time-block-card {
+  position: absolute;
+  border-radius: 4px;
+  background: var(--accent-0, #4f8eff);
+  color: #fff;
+  font-size: 0.72rem;
+  padding: 2px 4px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  user-select: none;
+  overflow: hidden;
+}
+
+.time-block-card:hover {
+  filter: brightness(1.1);
+}
+
+.time-block-time {
+  opacity: 0.85;
+  font-size: 0.68rem;
+  line-height: 1.3;
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.time-block-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 18px;
+  position: relative;
+  z-index: 2;
+  cursor: pointer;
+}
+
+.time-block-title:hover {
+  text-decoration: underline;
+}
+
+.time-block-note {
+  margin: 0;
+  opacity: 0.8;
+  font-size: 0.68rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time-block-delete-btn {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  width: 16px;
+  height: 16px;
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.7);
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.1s;
+  z-index: 2;
+}
+
+.time-block-card:hover .time-block-delete-btn {
+  opacity: 1;
+}
+
+.time-block-delete-btn:hover {
+  background: rgba(0,0,0,0.25);
+  color: #fff;
+}
+
+.time-block-resize-handle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: ns-resize;
+  z-index: 3;
+}
+
+.time-block-resize-handle--top {
+  top: 0;
+}
+
+.time-block-resize-handle--bottom {
+  bottom: 0;
+}
+
+.time-block-move-handle {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 0;
+  right: 0;
+  cursor: grab;
+  z-index: 1;
+}
+
+.time-block-move-handle:active {
+  cursor: grabbing;
+}
+
+/* Ghost block while dragging to create */
+.time-block-ghost {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  background: var(--accent-0, #4f8eff);
+  opacity: 0.35;
+  border-radius: 4px;
+  pointer-events: none;
+  min-height: 4px;
+}
+
+/* --- Create modal --- */
+
+.time-block-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.time-block-modal {
+  background: var(--panel-1);
+  border: 1px solid var(--border-0);
+  border-radius: 12px;
+  padding: 20px 24px;
+  min-width: 320px;
+  max-width: 420px;
+  width: 100%;
+  display: grid;
+  gap: 10px;
+}
+
+.time-block-modal-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.time-block-modal-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: -6px;
+}
+
+.time-block-modal-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.time-block-modal-time {
+  flex: 1;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-0);
+  background: var(--input-bg, var(--panel-0));
+  color: inherit;
+  font-size: 0.9rem;
+}
+
+.time-block-modal-note {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-0);
+  background: var(--input-bg, var(--panel-0));
+  color: inherit;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+}
+
+.time-block-modal-error {
+  margin: 0;
+  color: var(--error, #e05);
+  font-size: 0.8rem;
+}
+
+.time-block-modal-btns {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.time-block-modal-save {
+  padding: 6px 16px;
+  border-radius: 6px;
+  background: var(--accent-0, #4f8eff);
+  color: #fff;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.time-block-modal-save:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.time-block-modal-cancel {
+  padding: 6px 14px;
+  border-radius: 6px;
+  background: var(--panel-0);
+  border: 1px solid var(--border-0);
+  color: inherit;
+  cursor: pointer;
 }
 
 /* --- Sidebar repeats panel --- */

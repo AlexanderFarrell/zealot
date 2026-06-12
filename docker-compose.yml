@@ -10,6 +10,7 @@ services:
       MEDIA_SOURCE: FILESYSTEM
       MEDIA_PATH: /data/public
       PORT: "8456"
+      RUST_LOG: "zealot_app=info,zealot_api=info,warn"
     ports:
       - "8456:8456"
     volumes:

@@ -48,7 +48,10 @@ async fn update_settings(
         .services
         .account
         .update_settings(&account.account_id, settings)
-        .map_err(|_| HttpError::Internal)?;
+        .map_err(|e| {
+            tracing::error!(account_id = ?account.account_id, %e, "failed to update settings");
+            HttpError::Internal
+        })?;
     Ok(StatusCode::OK)
 }
 
@@ -64,7 +67,10 @@ async fn list_api_keys(
         .services
         .account
         .list_api_keys(&account.account_id)
-        .map_err(|_| HttpError::Internal)?;
+        .map_err(|e| {
+            tracing::error!(account_id = ?account.account_id, %e, "failed to list api keys");
+            HttpError::Internal
+        })?;
     Ok(Json(keys.into_iter().map(ApiKeyRecordDto::from).collect()))
 }
 
@@ -87,7 +93,10 @@ async fn create_api_key(
         .services
         .account
         .generate_api_key(&account.account_id, &label)
-        .map_err(|_| HttpError::Internal)?;
+        .map_err(|e| {
+            tracing::error!(account_id = ?account.account_id, %e, "failed to generate api key");
+            HttpError::Internal
+        })?;
     Ok(Json(CreateApiKeyResponseDto {
         key: raw_key,
         api_key_id: record.api_key_id.into(),
@@ -112,6 +121,9 @@ async fn revoke_api_key(
         .services
         .account
         .revoke_api_key(&api_key_id, &account.account_id)
-        .map_err(|_| HttpError::Internal)?;
+        .map_err(|e| {
+            tracing::error!(account_id = ?account.account_id, ?api_key_id, %e, "failed to revoke api key");
+            HttpError::Internal
+        })?;
     Ok(StatusCode::NO_CONTENT)
 }

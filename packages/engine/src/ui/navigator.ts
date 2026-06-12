@@ -4,6 +4,7 @@ import { Hotkey, CTRL_OR_META_KEY, SHIFT_KEY, ALT_KEY } from './hotkeys';
 
 export type SettingsSection = 'attributes' | 'types' | 'planner' | 'wiki' | 'data' | 'user';
 export type PlannerView = 'daily' | 'weekly' | 'monthly' | 'annual';
+export type TimeBlockView = 'day' | '3day' | 'week' | 'item';
 export type AppLocation =
     | { kind: 'home' }
     | { kind: 'item'; itemId?: number; title?: string }
@@ -20,6 +21,7 @@ export type AppLocation =
     | { kind: 'analysis_most_viewed' }
     | { kind: 'rules' }
     | { kind: 'settings'; section: SettingsSection }
+    | { kind: 'time_blocks'; view: TimeBlockView; date: string }
     | { kind: 'not_found'; path: string };
 
 export type LocationListener = (location: AppLocation) => void;
@@ -56,6 +58,8 @@ export interface Navigator {
     openAnalysisMostViewed(): void;
     openRules(): void;
     openSettings(section?: SettingsSection): void;
+    openTimeBlocks(view?: TimeBlockView, date?: string): void;
+    openTimeBlocksForItem(itemId: number): void;
     getLocation(): AppLocation;
     subscribe(listener: LocationListener): () => void;
 }
@@ -97,4 +101,6 @@ export function registerNavigationCommands(): void {
     runner.register('Settings: User', [], () => getNavigator().openSettings('user'));
     runner.register(NavigationCommands.openTodayNote, [new Hotkey('d', [CTRL_OR_META_KEY, SHIFT_KEY])], () => getNavigator().openItem(DateTime.local().toISODate() ?? DateTime.local().toFormat('yyyy-MM-dd')));
     runner.register(NavigationCommands.openMedia, [new Hotkey('m', [CTRL_OR_META_KEY])], () => getNavigator().openMedia(''));
+    runner.register('Time Blocks: Today', [], () => getNavigator().openTimeBlocks('day'));
+    runner.register('Time Blocks: This Week', [], () => getNavigator().openTimeBlocks('week'));
 }

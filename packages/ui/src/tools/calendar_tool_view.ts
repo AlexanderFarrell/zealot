@@ -111,6 +111,7 @@ export class CalendarToolView extends HTMLElement {
             });
             registerContextMenu(button, () => [
                 { label: `Open ${formatIsoDate(current)} in Planner`, onClick: () => getNavigator().openPlanner('daily', formatIsoDate(current)) },
+                { label: `Open ${formatIsoDate(current)} in Time Blocks`, onClick: () => getNavigator().openTimeBlocks('day', formatIsoDate(current)) },
             ]);
             grid.appendChild(button);
         }
@@ -164,6 +165,7 @@ export class CalendarToolView extends HTMLElement {
             });
             registerContextMenu(button, () => [
                 { label: `Open Week ${w.weekNumber} in Planner`, onClick: () => getNavigator().openPlanner('weekly', formatIsoWeek(w)) },
+                { label: `Open Week ${w.weekNumber} in Time Blocks`, onClick: () => getNavigator().openTimeBlocks('week', formatIsoWeek(w)) },
             ]);
             weekGrid.appendChild(button);
             weekStart = weekStart.plus({ weeks: 1 });

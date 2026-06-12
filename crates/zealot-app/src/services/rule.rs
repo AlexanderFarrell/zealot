@@ -46,7 +46,9 @@ impl RuleService {
     }
 
     pub fn add_rule(&self, dto: AddRuleDto, account: &Account) -> Result<Rule, RuleServiceError> {
-        Ok(self.rule_repo.add_rule(&dto, &account.account_id)?)
+        let rule = self.rule_repo.add_rule(&dto, &account.account_id)?;
+        tracing::info!(account_id = ?account.account_id, rule_id = ?rule.rule_id, rule_name = %rule.name, "rule created");
+        Ok(rule)
     }
 
     pub fn update_rule(
@@ -55,13 +57,17 @@ impl RuleService {
         dto: UpdateRuleDto,
         account: &Account,
     ) -> Result<Rule, RuleServiceError> {
-        self.rule_repo
+        let rule = self
+            .rule_repo
             .update_rule(rule_id, &dto, &account.account_id)?
-            .ok_or(RuleServiceError::NotFound)
+            .ok_or(RuleServiceError::NotFound)?;
+        tracing::info!(account_id = ?account.account_id, rule_id = ?rule.rule_id, rule_name = %rule.name, "rule updated");
+        Ok(rule)
     }
 
     pub fn delete_rule(&self, rule_id: &Id, account: &Account) -> Result<(), RuleServiceError> {
         self.rule_repo.delete_rule(rule_id, &account.account_id)?;
+        tracing::info!(account_id = ?account.account_id, ?rule_id, "rule deleted");
         Ok(())
     }
 
@@ -76,7 +82,13 @@ impl RuleService {
         account: &Account,
     ) -> Result<RuleRunResult, RuleServiceError> {
         let rule = self.get_rule(rule_id, account)?;
+        tracing::info!(account_id = ?account.account_id, ?rule_id, rule_name = %rule.name, "running rule manually");
         let result = self.rule_runner.run_rule(&rule, RuleContext::Manual).await;
+        if result.success {
+            tracing::info!(account_id = ?account.account_id, ?rule_id, duration_ms = result.duration_ms, "manual rule completed");
+        } else {
+            tracing::error!(account_id = ?account.account_id, ?rule_id, error = ?result.error, duration_ms = result.duration_ms, "manual rule failed");
+        }
         Ok(result)
     }
 }

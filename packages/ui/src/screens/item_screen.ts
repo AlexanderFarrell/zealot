@@ -356,6 +356,10 @@ export class ItemScreen extends BaseElementEmpty {
             });
         }));
 
+        row.appendChild(makeBtn(icons.schedule, 'Time Blocks', () => {
+            getNavigator().openTimeBlocksForItem(item.ItemID);
+        }));
+
         return row;
     }
 

@@ -108,6 +108,9 @@ impl PlannerService {
     ) -> Result<Vec<Item>, PlannerServiceError> {
         self.item_service
             .filter_items(&filters, account)
-            .map_err(PlannerServiceError::from)
+            .map_err(|e| {
+                tracing::error!(account_id = ?account.account_id, %e, "planner filter failed");
+                PlannerServiceError::from(e)
+            })
     }
 }

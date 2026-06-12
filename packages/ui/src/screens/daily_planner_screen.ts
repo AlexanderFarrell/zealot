@@ -96,6 +96,11 @@ export class DailyPlannerScreen extends BaseElementEmpty {
                     label: 'Journal',
                     onClick: () => { getNavigator().openItem(formatIsoDate(date)); },
                 },
+                {
+                    iconURL: icons.schedule,
+                    label: 'Time Blocks',
+                    onClick: () => getNavigator().openTimeBlocks('day', formatIsoDate(date)),
+                },
             ],
         );
 

@@ -51,7 +51,10 @@ fn media_service_err(err: MediaServiceError) -> HttpError {
     match err {
         MediaServiceError::NotFound => HttpError::NotFound,
         MediaServiceError::InvalidPath { reason } => HttpError::UserError { err: reason },
-        MediaServiceError::Port(_) => HttpError::Internal,
+        MediaServiceError::Port(e) => {
+            tracing::error!(%e, "media port error");
+            HttpError::Internal
+        }
     }
 }
 

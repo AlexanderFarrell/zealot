@@ -11,7 +11,7 @@ use crate::repos::sqlite::{
     item_sqlite::ItemSqliteRepo, item_type_sqlite::ItemTypeSqliteRepo,
     item_view_sqlite::ItemViewSqliteRepo, meta_sqlite::MetaSqliteRepo,
     repeat_sqlite::RepeatSqliteRepo, rule_sqlite::RuleSqliteRepo, scope_sqlite::ScopeSqliteRepo,
-    session_sqlite::SessionSqliteRepo,
+    session_sqlite::SessionSqliteRepo, time_block_sqlite::TimeBlockSqliteRepo,
 };
 
 pub mod account_sqlite;
@@ -29,6 +29,7 @@ pub mod repeat_sqlite;
 pub mod rule_sqlite;
 pub mod scope_sqlite;
 pub mod session_sqlite;
+pub mod time_block_sqlite;
 
 pub fn get_sqlite_repos(pool: SqlitePool) -> ZealotRepos {
     ZealotRepos {
@@ -47,5 +48,6 @@ pub fn get_sqlite_repos(pool: SqlitePool) -> ZealotRepos {
         rule: Arc::new(RuleSqliteRepo::new(pool.clone())),
         scope: Arc::new(ScopeSqliteRepo::new(pool.clone())),
         session: Arc::new(SessionSqliteRepo::new(pool.clone())),
+        time_block: Arc::new(TimeBlockSqliteRepo::new(pool.clone())),
     }
 }

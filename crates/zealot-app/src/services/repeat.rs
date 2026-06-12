@@ -120,6 +120,7 @@ impl RepeatService {
         account: &Account,
     ) -> Result<(), RepeatServiceError> {
         self.repo.set_status(dto, account)?;
+        tracing::info!(account_id = ?account.account_id, item_id = ?dto.item_id, date = %dto.date, status = ?dto.status, "repeat status set");
         Ok(())
     }
 }

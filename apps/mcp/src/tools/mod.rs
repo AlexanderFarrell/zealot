@@ -1,6 +1,7 @@
 pub mod automation;
 pub mod media;
 pub mod planner;
+pub mod time_block;
 pub mod wiki;
 
 use rmcp::{
@@ -35,6 +36,7 @@ impl ZealotServer {
         router.merge(Self::planner_tool_router());
         router.merge(Self::automation_tool_router());
         router.merge(Self::media_tool_router());
+        router.merge(Self::time_block_tool_router());
         router
     }
 }

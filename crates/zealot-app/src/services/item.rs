@@ -463,6 +463,7 @@ impl ItemService {
 
                 let result = self.get_item_by_id(&item.item_id, account)?;
                 if let Some(ref created) = result {
+                    tracing::info!(account_id = ?account.account_id, item_id = ?created.item_id, title = %created.title, "item created");
                     self.event_port.emit(ZealotEvent::ItemCreated {
                         account_id: account.account_id,
                         item: created.clone(),
@@ -555,6 +556,7 @@ impl ItemService {
 
                 let result = self.get_item_by_id(&item.item_id, account)?;
                 if let Some(ref updated) = result {
+                    tracing::info!(account_id = ?account.account_id, item_id = ?updated.item_id, "item updated");
                     self.event_port.emit(ZealotEvent::ItemUpdated {
                         account_id: account.account_id,
                         item: updated.clone(),
@@ -570,6 +572,7 @@ impl ItemService {
         self.item_repo
             .delete_item(item_id, account)
             .map_err(ItemServiceError::Repo)?;
+        tracing::info!(account_id = ?account.account_id, ?item_id, "item deleted");
         self.event_port.emit(ZealotEvent::ItemDeleted {
             account_id: account.account_id,
             item_id: *item_id,
@@ -606,6 +609,8 @@ impl ItemService {
         // Sync item-typed attributes into item_item_link so navigation
         // (Children panel, "To Parent") reflects the new relationship values.
         self.sync_item_links_from_attributes(item_id, &parsed, account)?;
+
+        tracing::info!(account_id = ?account.account_id, ?item_id, keys = ?raw.keys().collect::<Vec<_>>(), "item attributes set");
 
         if let Ok(Some(item)) = self.get_item_by_id(item_id, account) {
             for key in raw.keys() {
@@ -654,7 +659,9 @@ impl ItemService {
         self.ensure_valid_for_types(&item_types, &merged_attributes)?;
         self.item_attribute_value_repo
             .rename_item_attribute(item_id, old_key, new_key, account)
-            .map_err(ItemServiceError::Repo)
+            .map_err(ItemServiceError::Repo)?;
+        tracing::info!(account_id = ?account.account_id, ?item_id, %old_key, %new_key, "item attribute renamed");
+        Ok(())
     }
 
     pub fn delete_attribute(
@@ -716,6 +723,7 @@ impl ItemService {
         self.item_type_repo
             .assign_item_types(&vec![type_name.to_string()], item_id, &account.account_id)
             .map_err(ItemServiceError::Repo)?;
+        tracing::info!(account_id = ?account.account_id, ?item_id, %type_name, "item type assigned");
         if let Ok(Some(item)) = self.get_item_by_id(item_id, account) {
             self.event_port.emit(ZealotEvent::TypeAssigned {
                 account_id: account.account_id,
@@ -735,6 +743,7 @@ impl ItemService {
         self.item_type_repo
             .unassign_item_types(&vec![type_name.to_string()], item_id, &account.account_id)
             .map_err(ItemServiceError::Repo)?;
+        tracing::info!(account_id = ?account.account_id, ?item_id, %type_name, "item type unassigned");
         if let Ok(Some(item)) = self.get_item_by_id(item_id, account) {
             self.event_port.emit(ZealotEvent::TypeUnassigned {
                 account_id: account.account_id,

@@ -34,9 +34,10 @@ impl AnalysisService {
 
     /// Records a single view for the given item. Errors are non-fatal to callers.
     pub fn record_view(&self, item_id: &Id) -> Result<(), AnalysisServiceError> {
-        self.item_view_repo
-            .record_view(item_id)
-            .map_err(AnalysisServiceError::Repo)
+        self.item_view_repo.record_view(item_id).map_err(|e| {
+            tracing::warn!(?item_id, %e, "failed to record item view");
+            AnalysisServiceError::Repo(e)
+        })
     }
 
     /// Returns the top `limit` items ordered by descending view count, scoped to the account.

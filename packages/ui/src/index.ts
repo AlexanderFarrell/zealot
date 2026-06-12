@@ -41,6 +41,7 @@ import { NavTreeToolView } from './tools/nav_tree_tool_view';
 import { RandomToolView } from './tools/random_tool_view';
 import { SearchToolView } from './tools/search_tool_view';
 import { ZealotScriptEditor } from './zealotscript/zealotscript_editor';
+import { TimeBlocksScreen } from './screens/time_blocks_screen';
 
 export {
     AnalysisScreen,
@@ -83,7 +84,8 @@ export {
     SideBar,
     SideButtons,
     default_side_button_entries,
-    ZealotScriptEditor
+    ZealotScriptEditor,
+    TimeBlocksScreen,
 }
 
 export type {

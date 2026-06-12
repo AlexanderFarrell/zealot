@@ -25,10 +25,16 @@ async fn run_scheduled_rules(state: &AppState) {
 
     for (rule, _account_id) in scheduled {
         if is_due(&rule.trigger, rule.last_run_at, now) {
+            tracing::info!(rule_id = ?rule.rule_id, rule_name = %rule.name, "running scheduled rule");
             let runner = state.ports.rule_runner.clone();
             let r = rule.clone();
             tokio::spawn(async move {
-                runner.run_rule(&r, RuleContext::Scheduled { now }).await;
+                let result = runner.run_rule(&r, RuleContext::Scheduled { now }).await;
+                if result.success {
+                    tracing::info!(rule_id = ?r.rule_id, rule_name = %r.name, duration_ms = result.duration_ms, "scheduled rule completed");
+                } else {
+                    tracing::error!(rule_id = ?r.rule_id, rule_name = %r.name, error = ?result.error, duration_ms = result.duration_ms, "scheduled rule failed");
+                }
             });
         }
     }

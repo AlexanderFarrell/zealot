@@ -1,6 +1,7 @@
 import { DateTime } from 'luxon';
-import type { AppLocation, LocationListener, Navigator, PlannerView, SettingsSection } from '@websoil/engine';
+import type { AppLocation, LocationListener, Navigator, PlannerView, SettingsSection, TimeBlockView } from '@websoil/engine';
 import { ItemScreen } from '@zealot/ui/src/screens/item_screen';
+import { TimeBlocksScreen } from '@zealot/ui/src/screens/time_blocks_screen';
 import { MediaScreen } from '@zealot/ui/src/screens/media_screen';
 import { DailyPlannerScreen } from '@zealot/ui/src/screens/daily_planner_screen';
 import { WeeklyPlannerScreen } from '@zealot/ui/src/screens/weekly_planner_screen';
@@ -137,6 +138,15 @@ export class WebNavigator implements Navigator {
 
     openSettings(section?: SettingsSection): void {
         this.navigate(`/settings/${section ?? 'attributes'}`);
+    }
+
+    openTimeBlocks(view: TimeBlockView = 'day', date?: string): void {
+        const d = date ?? todayIso();
+        this.navigate(`/time_blocks/${view}/${d}`);
+    }
+
+    openTimeBlocksForItem(itemId: number): void {
+        this.navigate(`/time_blocks/item/${itemId}`);
     }
 
     getLocation(): AppLocation {
@@ -302,6 +312,27 @@ export class WebNavigator implements Navigator {
                     location: { kind: 'planner', view, date },
                 };
             }
+        }
+
+        if (segments[0] === 'time_blocks') {
+            const view = (segments[1] ?? 'day') as TimeBlockView;
+            const param = segments[2];
+
+            if (view === 'item' && param) {
+                const id = parseInt(param, 10);
+                if (Number.isNaN(id)) return this.notFound(path);
+                return {
+                    screen: new TimeBlocksScreen().initForItem(id),
+                    location: { kind: 'time_blocks', view, date: param },
+                };
+            }
+            if (!param) {
+                return this.redirect(`/time_blocks/${view}/${todayIso()}`);
+            }
+            return {
+                screen: new TimeBlocksScreen().init(view, param),
+                location: { kind: 'time_blocks', view, date: param },
+            };
         }
 
         if (segments[0] === 'types' && segments[1]) {
