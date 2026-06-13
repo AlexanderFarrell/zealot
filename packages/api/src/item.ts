@@ -149,4 +149,17 @@ export class ItemAPI extends BaseAPI {
     ExportDocxUrl(item_id: number): string {
         return `${this.baseUrl}/item/id/${item_id}/export/docx`;
     }
+
+    async ImportItems(dtos: AddItemDto[]): Promise<Array<{ item: Item | null; error: string | null }>> {
+        const results: Array<{ item: Item | null; error: string | null }> = [];
+        for (const dto of dtos) {
+            try {
+                const item = await this.Add(dto);
+                results.push({ item, error: null });
+            } catch (e) {
+                results.push({ item: null, error: (e as Error).message ?? 'Unknown error' });
+            }
+        }
+        return results;
+    }
 }

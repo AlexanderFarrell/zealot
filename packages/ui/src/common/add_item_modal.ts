@@ -3,7 +3,8 @@ import { ItemAPI } from '@zealot/api/src/item';
 import { ItemTypeAPI } from '@zealot/api/src/item_type';
 import type { AttributeKind } from '@zealot/domain/src/attribute';
 import type { ItemType } from '@zealot/domain/src/item_type';
-import { ItemSearchInline } from '../views/item_search_inline';
+import type { AddItemDto } from '@zealot/domain/src/item';
+import { ItemChipsInput } from '../views/item_chips_input';
 import {
     createAttributeValueInput,
     isBlankAttributeValue,
@@ -16,7 +17,7 @@ const itemTypeApi = new ItemTypeAPI('/api');
 
 export class AddItemModal extends HTMLElement {
     private titleInput: HTMLInputElement | null = null;
-    private parentSearch: ItemSearchInline | null = null;
+    private parentChips: ItemChipsInput | null = null;
     private typeSelect: HTMLSelectElement | null = null;
     private errorEl: HTMLDivElement | null = null;
     private submitButton: HTMLButtonElement | null = null;
@@ -88,10 +89,9 @@ export class AddItemModal extends HTMLElement {
         this.attrContainer = this.querySelector<HTMLElement>('[data-role="attr-fields"]');
 
         const parentHost = this.querySelector<HTMLElement>('[data-role="parent-search"]');
-        const parentSearch = new ItemSearchInline();
-        parentSearch.placeholder = 'Search parent item…';
-        parentHost?.appendChild(parentSearch);
-        this.parentSearch = parentSearch;
+        const parentChips = new ItemChipsInput();
+        parentHost?.appendChild(parentChips);
+        this.parentChips = parentChips;
 
         this.addEventListener('click', (event) => {
             if (event.target === this) {
@@ -215,31 +215,24 @@ export class AddItemModal extends HTMLElement {
 
         try {
             const typeName = this.typeSelect?.value.trim() ?? '';
-            const parentId = this.parentSearch?.value?.ItemID;
-            const dto: {
-                content: '',
-                title: string;
-                links?: Array<{ other_item_id: number; relationship: 'parent' }>;
-                types?: string[];
-                attributes?: Record<string, unknown>;
-            } = {
+            const parentIds = this.parentChips?.value ?? [];
+            const dto: AddItemDto = {
                 content: '',
                 title,
             };
-
-            if (parentId != null) {
-                dto.links = [{ other_item_id: parentId, relationship: 'parent' }];
-            }
 
             if (typeName) {
                 dto.types = [typeName];
             }
 
-            if (this.attributeBindings.length > 0) {
-                const attrs: Record<string, unknown> = {};
-                for (const { key, binding } of this.attributeBindings) {
-                    attrs[key] = binding.getValue();
-                }
+            const attrs: Record<string, unknown> = {};
+            if (parentIds.length > 0) {
+                attrs['Parent'] = parentIds;
+            }
+            for (const { key, binding } of this.attributeBindings) {
+                attrs[key] = binding.getValue();
+            }
+            if (Object.keys(attrs).length > 0) {
                 dto.attributes = attrs;
             }
 
