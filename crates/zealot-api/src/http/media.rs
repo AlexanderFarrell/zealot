@@ -1,7 +1,7 @@
 use axum::{
     Extension, Json, Router,
     body::Body,
-    extract::{Multipart, Path, State},
+    extract::{DefaultBodyLimit, Multipart, Path, State},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     middleware,
     response::Response,
@@ -27,6 +27,7 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .route("/{*path}", get(get_entry).post(upload).delete(delete_entry))
         // Catch root path (no trailing segment).
         .route("/", get(get_root))
+        .layer(DefaultBodyLimit::max(300 * 1024 * 1024))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             csrf_middleware,
