@@ -15,6 +15,8 @@ import { setRightSidebarHost, getRightSidebarHost } from './ui/right_sidebar_hos
 import { registerDropZone, unregisterDropZone, unregisterDropZonesIn } from './ui/drag_drop';
 import { registerContextMenu, unregisterContextMenu, unregisterContextMenuIn } from './ui/context_menu';
 import { AppSettings } from './settings';
+import { setDesktopMode, getDesktopMode, getRemoteHost } from './desktop_mode';
+import { logInfo, logError } from './log';
 
 export {
     api,
@@ -46,6 +48,11 @@ export {
     Events,
     ItemEvents,
     AppSettings,
+    setDesktopMode,
+    getDesktopMode,
+    getRemoteHost,
+    logInfo,
+    logError,
     ModalCommands,
     NavigationCommands,
     setNavigator,
@@ -72,3 +79,4 @@ export type { Navigator, SettingsSection, PlannerView, TimeBlockView, AppLocatio
 export type { ToolHost, ToolShowOptions, ToolView } from './ui/tool_host'
 export type { RightSidebarHost } from './ui/right_sidebar_host'
 export type { Settings } from './settings'
+export type { DesktopMode } from './desktop_mode'

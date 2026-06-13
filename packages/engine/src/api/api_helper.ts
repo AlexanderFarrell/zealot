@@ -1,4 +1,5 @@
 import { Events } from '../logic/events';
+import { logError } from '../log';
 
 const CSRF_COOKIE_NAME = "csfr_";
 let CSRF_READY_ENDPOINT = "/";
@@ -83,7 +84,8 @@ async function requestWithHandling<T>(
         }
         return await parse(response);
     } catch (e) {
-        console.error(e);
+        const status = (e as Error & { response?: Response })?.response?.status;
+        logError(on_error, status !== undefined ? { status } : undefined);
         // Popups.add_error(on_error);
         throw e;
     }

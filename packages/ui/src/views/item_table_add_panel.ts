@@ -153,6 +153,11 @@ export function buildAddPanel(
             if (!type?.RequiredAttributes.length) return;
 
             for (const key of type.RequiredAttributes) {
+                const alreadyProvided =
+                    (key === 'Parent' && createRowConfig.contextItemId != null) ||
+                    (createRowConfig.defaultAttributes != null && key in createRowConfig.defaultAttributes);
+                if (alreadyProvided) continue;
+
                 const kind = attributeKinds[key];
                 const field = document.createElement('div');
                 field.className = 'item-table-add-panel__field';

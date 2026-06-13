@@ -438,16 +438,10 @@ export class ZealotScriptEditor extends HTMLElement {
 		const { state } = this._view;
 		const from = this._wikilinkPickerFrom;
 		const to = state.selection.from;
-		const linkMarkType = state.schema.marks["link"];
-		if (!linkMarkType) return;
-		const mark = linkMarkType.create({ href: `zealot://item/${item.Title}` });
-		const linkText = state.schema.text(item.Title, [mark]);
-		const plainSpace = state.schema.text(" ");
-		const spaceStart = from + linkText.nodeSize;
-		let tr = state.tr
-			.replaceWith(from, to, linkText)
-			.replaceWith(spaceStart, spaceStart, plainSpace);
-		const cursorPos = tr.mapping.map(spaceStart);
+		const insertText = `[[${item.Title}]] `;
+		const textNode = state.schema.text(insertText);
+		let tr = state.tr.replaceWith(from, to, textNode);
+		const cursorPos = from + insertText.length;
 		tr = tr.setSelection(TextSelection.create(tr.doc, cursorPos));
 		this._view.dispatch(tr);
 		this._hideWikilinkPicker();
