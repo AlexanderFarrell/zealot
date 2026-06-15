@@ -54,22 +54,40 @@ export class AttributeEditor extends HTMLElement {
 
         const kinds = await loadAttributeKinds();
 
-        const container = document.createElement('div');
-        container.className = 'attribute-editor';
-
-        for (const [key, value] of Object.entries(item.Attributes)) {
-            container.appendChild(this._buildRow(item, key, value, kinds));
+        const datalistId = `attr-key-list-${Math.random().toString(36).slice(2)}`;
+        const datalist = document.createElement('datalist');
+        datalist.id = datalistId;
+        for (const k of Object.keys(kinds)) {
+            const opt = document.createElement('option');
+            opt.value = k;
+            datalist.appendChild(opt);
         }
 
-        container.appendChild(this._buildAddRow(item, kinds));
+        const container = document.createElement('div');
+        container.className = 'attribute-editor';
+        container.appendChild(datalist);
+
+        for (const [key, value] of Object.entries(item.Attributes)) {
+            container.appendChild(this._buildRow(item, key, value, kinds, datalistId));
+        }
+
+        container.appendChild(this._buildAddRow(item, kinds, datalistId));
         this.appendChild(container);
+    }
+
+    private async _renderAndFocusNewKey(): Promise<void> {
+        await this._render();
+        const rows = this.querySelectorAll('.attribute-editor .attribute');
+        const lastRow = rows[rows.length - 1];
+        lastRow?.querySelector<HTMLInputElement>('input[placeholder="New key"]')?.focus();
     }
 
     private _buildRow(
         item: Item,
         key: string,
         value: any,
-        kinds: Record<string, AttributeKind>
+        kinds: Record<string, AttributeKind>,
+        datalistId: string,
     ): HTMLElement {
         const row = document.createElement('div');
         row.className = 'attribute';
@@ -79,6 +97,7 @@ export class AttributeEditor extends HTMLElement {
         keyInput.type = 'text';
         keyInput.value = key;
         keyInput.title = 'Rename attribute (blur to save)';
+        keyInput.setAttribute('list', datalistId);
         keyInput.addEventListener('blur', async () => {
             const newKey = keyInput.value.trim();
             if (!newKey || newKey === key) return;
@@ -155,13 +174,14 @@ export class AttributeEditor extends HTMLElement {
         return row;
     }
 
-    private _buildAddRow(item: Item, kinds: Record<string, AttributeKind>): HTMLElement {
+    private _buildAddRow(item: Item, kinds: Record<string, AttributeKind>, datalistId: string): HTMLElement {
         const row = document.createElement('div');
         row.className = 'attribute';
 
         const keyInput = document.createElement('input');
         keyInput.type = 'text';
         keyInput.placeholder = 'New key';
+        keyInput.setAttribute('list', datalistId);
 
         const valueSpan = document.createElement('span');
         valueSpan.setAttribute('name', 'value_view');
@@ -204,7 +224,7 @@ export class AttributeEditor extends HTMLElement {
                 }
                 keyInput.value = '';
                 resetBinding();
-                void this._render();
+                void this._renderAndFocusNewKey();
             } catch (e) {
                 Popups.add_error((e as Error).message ?? 'Failed to add attribute.');
             }
