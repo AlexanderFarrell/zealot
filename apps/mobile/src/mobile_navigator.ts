@@ -1,5 +1,5 @@
 import { DateTime } from 'luxon';
-import type { AppLocation, LocationListener, Navigator, PlannerView, SettingsSection } from '@websoil/engine';
+import type { AppLocation, LocationListener, Navigator, PlannerView, SettingsSection, TimeBlockView } from '@websoil/engine';
 import { ItemScreen } from '@zealot/ui/src/screens/item_screen';
 import { MediaScreen } from '@zealot/ui/src/screens/media_screen';
 import { DailyPlannerScreen } from '@zealot/ui/src/screens/daily_planner_screen';
@@ -8,7 +8,8 @@ import { MonthlyPlannerScreen } from '@zealot/ui/src/screens/monthly_planner_scr
 import { AnnualPlannerScreen } from '@zealot/ui/src/screens/annual_planner_screen';
 import { TypesScreen } from '@zealot/ui/src/screens/types_screen';
 import { TypeScreen } from '@zealot/ui/src/screens/type_screen';
-import { AnalysisScreen, SpecifyScreen, WorkingScreen, RecentScreen, BacklogScreen, OverdueScreen } from '@zealot/ui/src/screens/analysis_screen';
+import { AnalysisScreen, SpecifyScreen, WorkingScreen, RecentScreen, BacklogScreen, OverdueScreen, MostViewedScreen } from '@zealot/ui/src/screens/analysis_screen';
+import { TimeBlocksScreen } from '@zealot/ui/src/screens/time_blocks_screen';
 import { RulesScreen } from '@zealot/ui/src/screens/rules_screen';
 import { SettingsScreen } from '@zealot/ui/src/screens/settings_screen';
 
@@ -37,6 +38,10 @@ interface RouteMatch {
 export class MobileNavigator implements Navigator {
     private location: AppLocation = { kind: 'not_found', path: window.location.pathname };
     private readonly listeners = new Set<LocationListener>();
+
+    constructor() {
+        window.addEventListener('popstate', () => this.renderCurrent());
+    }
 
     private getContent(): HTMLElement {
         const el = document.querySelector('center-content');
@@ -123,6 +128,18 @@ export class MobileNavigator implements Navigator {
         this.navigate('/analysis/overdue');
     }
 
+    openAnalysisMostViewed(): void {
+        this.navigate('/analysis/most_viewed');
+    }
+
+    openTimeBlocks(view: TimeBlockView = 'day', date?: string): void {
+        this.navigate(`/time_blocks/${view}/${date ?? todayIso()}`);
+    }
+
+    openTimeBlocksForItem(itemId: number): void {
+        this.navigate(`/time_blocks/item/${itemId}`);
+    }
+
     openRules(): void {
         this.navigate('/rules');
     }
@@ -181,6 +198,9 @@ export class MobileNavigator implements Navigator {
         if (path === '/analysis/overdue') {
             return { screen: new OverdueScreen(), location: { kind: 'analysis_overdue' } };
         }
+        if (path === '/analysis/most_viewed') {
+            return { screen: new MostViewedScreen(), location: { kind: 'analysis_most_viewed' } };
+        }
         if (path === '/rules') {
             return { screen: new RulesScreen(), location: { kind: 'rules' } };
         }
@@ -234,6 +254,19 @@ export class MobileNavigator implements Navigator {
         if (segments[0] === 'types' && segments[1]) {
             const title = decodeURIComponent(segments[1]);
             return { screen: new TypeScreen().init(title), location: { kind: 'type', title } };
+        }
+
+        if (segments[0] === 'time_blocks') {
+            const view = segments[1] as TimeBlockView;
+            if (view === 'item' && segments[2]) {
+                const itemId = parseInt(segments[2], 10);
+                if (Number.isNaN(itemId)) return this.notFound(path);
+                return { screen: new TimeBlocksScreen().initForItem(itemId), location: { kind: 'time_blocks', view: 'item', date: '' } };
+            }
+            const date = segments[2] ?? todayIso();
+            if (view === 'day' || view === '3day' || view === 'week') {
+                return { screen: new TimeBlocksScreen().init(view, date), location: { kind: 'time_blocks', view, date } };
+            }
         }
 
         if (segments[0] === 'settings') {

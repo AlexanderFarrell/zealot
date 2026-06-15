@@ -369,12 +369,14 @@ item-view {
 .item-table-shell {
   display: grid;
   gap: 8px;
+  overflow-x: auto;
 }
 
 .item-table {
   border-collapse: collapse;
   table-layout: auto;
   width: 100%;
+  min-width: 480px;
 }
 
 .item-table th,
@@ -396,12 +398,32 @@ item-view {
   user-select: none;
 }
 
+// Give the title column breathing room so it doesn't collapse to nothing.
+.item-table th[data-col-kind="title"],
+.item-table td[data-col-kind="title"] {
+  min-width: 160px;
+  width: 25%;
+}
+
+// Attribute columns (text, dropdown, integer) — a comfortable minimum.
+.item-table th[data-col-kind="attribute"],
+.item-table td[data-col-kind="attribute"] {
+  min-width: 110px;
+}
+
 .item-table td > input,
 .item-table td > select,
 .item-table td > chips-input,
 .item-table td > item-picker-input,
 .item-table td > item-chips-input {
   width: 100%;
+}
+
+// Chips columns can get very wide; cap them so the title column keeps space.
+.item-table td > chips-input,
+.item-table td > item-chips-input {
+  min-width: 160px;
+  max-width: 280px;
 }
 
 .item-table td > input,
@@ -420,7 +442,7 @@ item-view {
 .item-table-actions,
 .item-table-actions-header {
   white-space: nowrap;
-  padding-left: 8px;
+  padding: 0 8px;
 }
 
 .item-table-actions > button {

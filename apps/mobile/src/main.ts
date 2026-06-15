@@ -5,6 +5,11 @@ import { MobileLoginScreen } from './screens/mobile_login_screen';
 import { ServerSetupScreen } from './screens/server_setup_screen';
 import { tryLoadCredentials, completeLoginWithKey, logout, getAPI, getServerUrl } from './mobile_core';
 
+// Mark the document so CSS can distinguish Tauri native app from browser/web mobile view.
+if (typeof (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ !== 'undefined') {
+    document.body.classList.add('tauri-app');
+}
+
 // Route all API calls through Tauri's native HTTP client (reqwest), bypassing WKWebView CORS.
 //
 // UI components use relative URLs like /api/item/title/Home (hardcoded for the web app).

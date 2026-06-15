@@ -84,8 +84,15 @@ export class ItemTableView extends HTMLElement {
 
         const thead = document.createElement('thead');
         const headerRow = document.createElement('tr');
+
+        // Nav column first so the arrow is reachable at the left on mobile.
+        const actionHeader = document.createElement('th');
+        actionHeader.className = 'item-table-actions-header';
+        headerRow.appendChild(actionHeader);
+
         for (const column of this._config.columns) {
             const header = document.createElement('th');
+            header.dataset.colKind = column.kind;
             header.textContent = this._labelForColumn(column);
 
             if (column.sortable !== false) {
@@ -103,10 +110,6 @@ export class ItemTableView extends HTMLElement {
 
             headerRow.appendChild(header);
         }
-
-        const actionHeader = document.createElement('th');
-        actionHeader.className = 'item-table-actions-header';
-        headerRow.appendChild(actionHeader);
 
         thead.appendChild(headerRow);
         table.appendChild(thead);
@@ -189,12 +192,7 @@ export class ItemTableView extends HTMLElement {
             }},
         ]);
 
-        for (const column of this._config!.columns) {
-            const cell = document.createElement('td');
-            cell.appendChild(this._buildItemCell(item, column));
-            row.appendChild(cell);
-        }
-
+        // Nav button on the left for easier reach on mobile.
         const actionCell = document.createElement('td');
         actionCell.className = 'item-table-actions';
 
@@ -215,6 +213,13 @@ export class ItemTableView extends HTMLElement {
 
         actionCell.appendChild(navBtn);
         row.appendChild(actionCell);
+
+        for (const column of this._config!.columns) {
+            const cell = document.createElement('td');
+            cell.dataset.colKind = column.kind;
+            cell.appendChild(this._buildItemCell(item, column));
+            row.appendChild(cell);
+        }
 
         return row;
     }

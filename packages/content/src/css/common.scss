@@ -62,13 +62,32 @@ mobile-title-bar {
       width: auto;
       background: none;
       box-shadow: none;
-      padding: 6px;
+      padding: 10px;
 
       img {
-        width: 28px;
-        height: 28px;
+        width: 32px;
+        height: 32px;
       }
     }
+  }
+}
+
+// In Tauri native app mode, move the title bar to the bottom (iOS tab-bar style).
+body.tauri-app {
+  mobile-title-bar {
+    top: auto;
+    bottom: 0;
+    box-shadow: 0 -2px 8px var(--shadow-color-2);
+
+    #mobile_title_bar_top {
+      padding-top: 4px;
+      padding-bottom: calc(env(safe-area-inset-bottom) + 4px);
+    }
+  }
+
+  #main_mobile_ui {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: calc(env(safe-area-inset-bottom) + 48px);
   }
 }
 
@@ -76,6 +95,7 @@ mobile-title-bar {
   padding-top: calc(env(safe-area-inset-top) + 48px);
   min-height: 100vh;
   box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .mobile-dropdown {
@@ -210,6 +230,38 @@ item-screen {
   max-width: 800px;
   width: 100%;
   margin: 0 auto;
+
+  .button_row {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding: 4px 0 8px;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+}
+
+.item-action-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--panel-1);
+  box-shadow: none;
+  width: auto;
+
+  img {
+    width: 22px;
+    height: 22px;
+  }
+
+  &:hover {
+    background: var(--panel-2, var(--panel-1));
+  }
 }
 
 .icon {
@@ -255,7 +307,7 @@ item-screen {
 }
 
 .modal_background {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
@@ -606,6 +658,24 @@ command-palette-modal {
 
 .assign-type-modal-window {
   width: min(480px, calc(100vw - 32px));
+  max-height: min(600px, calc(100vh - 64px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  .tool-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .assign-type-list {
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+  }
 }
 
 .assign-type-row {

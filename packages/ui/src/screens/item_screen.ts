@@ -290,11 +290,10 @@ export class ItemScreen extends BaseElementEmpty {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.title = label;
+            btn.className = 'item-action-btn';
             const img = document.createElement('img');
             img.src = iconUrl;
             img.alt = label;
-            img.style.width = '1.2em';
-            img.style.height = '1.2em';
             btn.appendChild(img);
             btn.addEventListener('click', onClick);
             return btn;
@@ -370,11 +369,10 @@ export class ItemScreen extends BaseElementEmpty {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.title = 'Download / Export';
+        btn.className = 'item-action-btn';
         const img = document.createElement('img');
         img.src = icons.download;
         img.alt = 'Download';
-        img.style.width = '1.2em';
-        img.style.height = '1.2em';
         btn.appendChild(img);
 
         const menu = document.createElement('div');
