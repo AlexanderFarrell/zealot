@@ -15,8 +15,6 @@
 }
 
 .settings-section-nav,
-.types-screen-header,
-.type-screen-header,
 .type-screen-section-header,
 .type-settings-actions,
 .type-screen-title-row,
@@ -32,12 +30,6 @@
 
 .settings-section-nav > button.is-active {
   border-color: var(--fg-0);
-}
-
-.types-screen-header,
-.type-screen-header {
-  justify-content: space-between;
-  align-items: flex-start;
 }
 
 .types-screen-body,
@@ -108,8 +100,6 @@
 
 .type-settings-actions > button,
 .type-screen-add-attribute > button,
-.type-screen-header > button,
-.types-screen-header > button,
 .type-screen-settings-toggle {
   width: auto;
 }
@@ -126,8 +116,6 @@
 }
 
 @media (max-width: 720px) {
-  .types-screen-header,
-  .type-screen-header,
   .type-screen-section-header,
   .type-screen-add-attribute,
   .type-settings-create {

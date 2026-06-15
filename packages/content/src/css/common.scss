@@ -232,14 +232,8 @@ item-screen {
   margin: 0 auto;
 
   .button_row {
-    overflow-x: auto;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     padding: 4px 0 8px;
-    scrollbar-width: none;
-
-    &::-webkit-scrollbar {
-      display: none;
-    }
   }
 }
 
@@ -1206,10 +1200,12 @@ item-search-inline *[name="generic_results"] {
   display: grid;
   gap: 16px;
   align-content: start;
+  overflow-x: hidden;
 }
 
 .analysis-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 
   button {
@@ -1234,9 +1230,65 @@ item-search-inline *[name="generic_results"] {
   gap: 16px;
 }
 
+/* ── Shared screen header ──────────────────────────────────────────────────── */
+
+.screen-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.screen-header-title {
+  flex: 1;
+  margin: 0;
+  min-width: 0;
+}
+
+.screen-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.screen-header-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  padding: 6px 14px;
+
+  > img {
+    width: 1em;
+    height: 1em;
+  }
+}
+
 .analysis-chart {
   flex: 1;
-  min-width: 200px;
+  min-width: min(200px, 100%);
+}
+
+.analysis-stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+
+  > span {
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: var(--panel-1);
+    border: 1px solid var(--border-0);
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+}
+
+@media (max-width: 600px) {
+  .analysis-tabs button {
+    padding: 5px 10px;
+    font-size: 0.85rem;
+  }
 }
 
 /* ── Context Menu ──────────────────────────────────────────────────────────── */

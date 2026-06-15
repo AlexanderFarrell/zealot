@@ -2,6 +2,7 @@ import { BaseElementEmpty, Popups, getNavigator } from '@websoil/engine';
 import { MediaAPI } from '@zealot/api/src/media';
 import type { FileStat } from '@zealot/domain/src/media';
 import { LoadingSpinner } from '../common/loading_spinner';
+import { createScreenHeader } from './screen_header';
 
 const mediaApi = new MediaAPI('/api');
 
@@ -32,33 +33,16 @@ export class MediaScreen extends BaseElementEmpty {
 
         this.innerHTML = '';
 
-        this.appendChild(this.buildToolbar());
+        this.appendChild(createScreenHeader('Media', [
+            { label: 'New Folder', onClick: () => void this.onNewFolder() },
+            { label: 'Upload', onClick: () => {
+                const panel = this.querySelector<HTMLElement>('.media-upload-panel');
+                if (panel) panel.hidden = !panel.hidden;
+            }},
+        ]));
         this.appendChild(this.buildBreadcrumb());
         this.appendChild(this.buildUploadPanel());
         this.appendChild(this.buildFilesTable(files));
-    }
-
-    private buildToolbar(): HTMLElement {
-        const toolbar = document.createElement('div');
-        toolbar.className = 'media-toolbar';
-
-        const newFolderBtn = document.createElement('button');
-        newFolderBtn.type = 'button';
-        newFolderBtn.textContent = 'New Folder';
-        newFolderBtn.addEventListener('click', () => void this.onNewFolder());
-
-        const uploadBtn = document.createElement('button');
-        uploadBtn.type = 'button';
-        uploadBtn.textContent = 'Upload';
-        uploadBtn.addEventListener('click', () => {
-            const panel = this.querySelector<HTMLElement>('.media-upload-panel');
-            if (panel) {
-                panel.hidden = !panel.hidden;
-            }
-        });
-
-        toolbar.append(newFolderBtn, uploadBtn);
-        return toolbar;
     }
 
     private buildBreadcrumb(): HTMLElement {

@@ -3,6 +3,7 @@ import { RuleAPI } from '@zealot/api/src/rule';
 import { TRIGGER_KIND_LABELS } from '@zealot/domain/src/rule';
 import type { AddRuleDto, Rule, RuleRunResult, TriggerKind, UpdateRuleDto } from '@zealot/domain/src/rule';
 import { LoadingSpinner } from '../common/loading_spinner';
+import { createScreenHeader } from './screen_header';
 
 const ruleApi = new RuleAPI('/api');
 
@@ -35,20 +36,14 @@ export class RulesScreen extends BaseElementEmpty {
         const shell = document.createElement('div');
         shell.className = 'rules-screen-shell';
 
-        const header = document.createElement('div');
-        header.className = 'rules-screen-header';
-        const h1 = document.createElement('h1');
-        h1.textContent = 'Rules';
-        const newBtn = document.createElement('button');
-        newBtn.type = 'button';
-        newBtn.textContent = 'New Rule';
-        newBtn.addEventListener('click', () => {
-            this.editingRule = null;
-            this.view = 'edit';
-            void this.render();
-        });
-        header.append(h1, newBtn);
-        shell.appendChild(header);
+        shell.appendChild(createScreenHeader('Rules', [{
+            label: 'New Rule',
+            onClick: () => {
+                this.editingRule = null;
+                this.view = 'edit';
+                void this.render();
+            },
+        }]));
 
         const loading = new LoadingSpinner();
         shell.appendChild(loading);
@@ -219,12 +214,7 @@ export class RulesScreen extends BaseElementEmpty {
         const shell = document.createElement('div');
         shell.className = 'rules-screen-shell';
 
-        const header = document.createElement('div');
-        header.className = 'rules-screen-header';
-        const h1 = document.createElement('h1');
-        h1.textContent = this.editingRule ? `Edit Rule: ${this.editingRule.name}` : 'New Rule';
-        header.appendChild(h1);
-        shell.appendChild(header);
+        shell.appendChild(createScreenHeader(this.editingRule ? `Edit Rule: ${this.editingRule.name}` : 'New Rule'));
 
         const form = document.createElement('form');
         form.className = 'rule-edit-form';

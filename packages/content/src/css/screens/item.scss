@@ -355,6 +355,20 @@ item-view {
   flex-shrink: 0;
 }
 
+.item-card__status-select {
+  font: inherit;
+  font-size: 11px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--bg-2);
+  color: var(--text-1);
+  border: 1px solid var(--border-0);
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+  max-width: 90px;
+}
+
 .item-card__type {
   font-size: 11px;
   color: var(--text-1);

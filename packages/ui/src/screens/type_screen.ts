@@ -7,6 +7,7 @@ import type { Item } from '@zealot/domain/src/item';
 import type { ItemType } from '@zealot/domain/src/item_type';
 import { LoadingSpinner } from '../common/loading_spinner';
 import { ItemTableView, type ItemTableColumn } from '../views/item_table_view';
+import { icons } from '@zealot/content';
 
 const itemTypeApi = new ItemTypeAPI('/api');
 const attrKindApi = new AttributeKindAPI('/api');
@@ -95,23 +96,20 @@ export class TypeScreen extends BaseElementEmpty {
     }
 
     private buildHeader(itemType: ItemType): HTMLElement {
-        const header = document.createElement('div');
-        header.className = 'type-screen-header';
-
-        const backButton = document.createElement('button');
-        backButton.type = 'button';
-        backButton.textContent = 'Back to Types';
-        backButton.addEventListener('click', () => {
-            getNavigator().openTypes();
-        });
+        const header = document.createElement('header');
+        header.className = 'screen-header';
 
         const titleRow = document.createElement('div');
-        titleRow.className = 'type-screen-title-row';
+        titleRow.className = 'screen-header-title type-screen-title-row';
 
         if (itemType.IsSystem) {
             const title = document.createElement('h1');
             title.textContent = itemType.Name;
             titleRow.appendChild(title);
+            const badge = document.createElement('span');
+            badge.className = 'tool-badge';
+            badge.textContent = 'System';
+            titleRow.appendChild(badge);
         } else {
             const input = document.createElement('input');
             input.type = 'text';
@@ -132,14 +130,23 @@ export class TypeScreen extends BaseElementEmpty {
             titleRow.appendChild(input);
         }
 
-        if (itemType.IsSystem) {
-            const badge = document.createElement('span');
-            badge.className = 'tool-badge';
-            badge.textContent = 'System';
-            titleRow.appendChild(badge);
-        }
+        const actions = document.createElement('div');
+        actions.className = 'screen-header-actions';
 
-        header.append(backButton, titleRow);
+        const backButton = document.createElement('button');
+        backButton.type = 'button';
+        backButton.className = 'screen-header-btn';
+        backButton.addEventListener('click', () => getNavigator().openTypes());
+        const backImg = document.createElement('img');
+        backImg.src = icons.up;
+        backImg.alt = '';
+        backButton.appendChild(backImg);
+        const backLabel = document.createElement('span');
+        backLabel.textContent = 'Back to Types';
+        backButton.appendChild(backLabel);
+        actions.appendChild(backButton);
+
+        header.append(titleRow, actions);
         return header;
     }
 

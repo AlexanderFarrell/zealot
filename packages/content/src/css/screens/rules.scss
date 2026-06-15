@@ -10,16 +10,6 @@
   gap: 16px;
 }
 
-.rules-screen-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
-.rules-screen-header > button {
-  width: auto;
-}
 
 .rules-list {
   width: 100%;
@@ -106,8 +96,3 @@
 .run-result-ok    { background: #d1fae5; color: #065f46; }
 .run-result-error { background: #fee2e2; color: #991b1b; }
 
-@media (max-width: 720px) {
-  .rules-screen-header {
-    display: grid;
-  }
-}

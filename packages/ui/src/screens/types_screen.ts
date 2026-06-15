@@ -4,6 +4,7 @@ import type { ItemTypeSummary } from '@zealot/domain/src/item_type';
 import type { ContextAction } from '@websoil/engine';
 import { LoadingSpinner } from '../common/loading_spinner';
 import { ConfirmDialog } from '../common/confirm_dialog';
+import { createScreenHeader } from './screen_header';
 
 const itemTypeApi = new ItemTypeAPI('/api');
 
@@ -16,26 +17,15 @@ export class TypesScreen extends BaseElementEmpty {
         this.className = 'types-screen';
         this.innerHTML = '';
 
-        const header = document.createElement('div');
-        header.className = 'types-screen-header';
+        this.appendChild(createScreenHeader('Types', [{
+            label: 'Create Type',
+            onClick: () => getNavigator().openSettings('types'),
+        }]));
 
-        const titleGroup = document.createElement('div');
-        const title = document.createElement('h1');
-        title.textContent = 'Types';
         const subtitle = document.createElement('p');
         subtitle.className = 'tool-muted';
         subtitle.textContent = 'Browse item types and open a type to inspect its attributes and items.';
-        titleGroup.append(title, subtitle);
-
-        const createButton = document.createElement('button');
-        createButton.type = 'button';
-        createButton.textContent = 'Create Type';
-        createButton.addEventListener('click', () => {
-            getNavigator().openSettings('types');
-        });
-
-        header.append(titleGroup, createButton);
-        this.appendChild(header);
+        this.appendChild(subtitle);
 
         const body = document.createElement('div');
         body.className = 'types-screen-body';

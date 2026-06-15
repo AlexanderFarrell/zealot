@@ -70,14 +70,24 @@ function buildCard(item: Item, showStatus: boolean, showParent: boolean, onDrop?
     renderItemTitle(title, item);
     header.appendChild(title);
 
-    if (showStatus) {
-        const status = item.Attributes['Status'];
-        if (status != null && status !== '') {
-            const badge = document.createElement('div');
-            badge.className = 'item-card__status';
-            badge.textContent = String(status);
-            header.appendChild(badge);
+    const status = item.Attributes['Status'];
+    if (status != null && status !== '') {
+        const select = document.createElement('select');
+        select.className = 'item-card__status-select';
+        for (const s of [...STATUS_ORDER, ...BOTTOM_STATUS_ORDER]) {
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            select.appendChild(opt);
         }
+        select.value = String(status);
+        select.addEventListener('click', (e) => e.stopPropagation());
+        select.addEventListener('change', () => {
+            const newStatus = select.value;
+            item.Attributes['Status'] = newStatus;
+            void attrApi.set_value(item.ItemID, 'Status', newStatus).then(() => onDrop?.());
+        });
+        header.appendChild(select);
     }
 
     card.appendChild(header);
