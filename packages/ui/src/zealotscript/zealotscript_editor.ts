@@ -12,7 +12,8 @@ import type { MarkType, Schema } from "prosemirror-model";
 import ZealotSchema from "./schema";
 import { parseZealotScript } from "./parser";
 import { serializeZealotScript } from "./serializer";
-import { insertTable, insertAdmonition, insertYoutubeEmbed, insertMermaidBlock, extractYouTubeVideoId, insertDetails, insertSpoiler, insertColumns, insertTabs, addTableRowAfter, removeTableRow, addTableColumnAfter, removeTableColumn, isInTable } from "./commands";
+import { tableEditing, columnResizing, goToNextCell, addRowBefore, addRowAfter, deleteRow, addColumnBefore, addColumnAfter, deleteColumn, deleteTable, toggleHeaderRow } from "prosemirror-tables";
+import { insertTable, insertAdmonition, insertYoutubeEmbed, insertMermaidBlock, extractYouTubeVideoId, insertDetails, insertSpoiler, insertColumns, insertTabs, isInTable } from "./commands";
 import { TabsView } from "./zealotscript_view";
 import { lookupEmoji } from "./emoji_map";
 import { hasIcon, setIconRefElement } from "./icon_registry";
@@ -299,6 +300,34 @@ const buildInputRules = (schema: Schema) => {
 	return inputRules({ rules });
 };
 
+const tableTab = (state: EditorState, dispatch?: (tr: Transaction) => void, view?: EditorView): boolean => {
+	if (!isInTable(state)) return false;
+	if (goToNextCell(1)(state, dispatch, view)) return true;
+	// Last cell — append a new row and move into its first cell.
+	const { schema } = state;
+	const rowType = schema.nodes["table_row"];
+	const cellType = schema.nodes["table_cell"];
+	const paragraph = schema.nodes["paragraph"];
+	if (!rowType || !cellType || !paragraph) return false;
+	const { $from } = state.selection;
+	let rowDepth = -1;
+	for (let d = $from.depth; d >= 0; d--) {
+		if ($from.node(d).type === rowType) { rowDepth = d; break; }
+	}
+	if (rowDepth < 0) return false;
+	const colCount = $from.node(rowDepth).childCount;
+	const newCells = Array.from({ length: colCount }, () => cellType.createAndFill({}, [paragraph.create()])!);
+	const newRow = rowType.create({}, newCells);
+	const rowEnd = $from.after(rowDepth);
+	if (dispatch) {
+		const tr = state.tr.insert(rowEnd, newRow);
+		const firstCellPos = rowEnd + 2;
+		tr.setSelection(TextSelection.near(tr.doc.resolve(firstCellPos)));
+		dispatch(tr.scrollIntoView());
+	}
+	return true;
+};
+
 const buildPlugins = (schema: Schema) => {
 	const linkMark = schema.marks["link"];
 
@@ -321,6 +350,9 @@ const buildPlugins = (schema: Schema) => {
 	};
 
 	return [
+		columnResizing(),
+		tableEditing(),
+		keymap({ Tab: tableTab, "Shift-Tab": goToNextCell(-1) }),
 		keymap(buildKeymap(schema)),
 		keymap(baseKeymap),
 		dropCursor(),
@@ -372,6 +404,7 @@ export class ZealotScriptEditor extends HTMLElement {
 	private _shortcodePicker: ShortcodePicker | null = null;
 	private _shortcodePickerFrom: number | null = null;
 	private _toolbar: (HTMLElement & { _syncTableButtons?: () => void }) | null = null;
+	private _toolbarMenuCleanups: Array<() => void> = [];
 
 	private _showWikilinkPicker(from: number, query: string): void {
 		if (!this._view) return;
@@ -520,6 +553,81 @@ export class ZealotScriptEditor extends HTMLElement {
 			return b;
 		};
 
+		interface DropdownEntry {
+			label: string;
+			title: string;
+			onClick: () => void;
+		}
+
+		const dropdown = (label: string, title: string, entries: DropdownEntry[]): HTMLButtonElement => {
+			const trigger = document.createElement("button");
+			trigger.type = "button";
+			trigger.textContent = `${label} ▾`;
+			trigger.title = title;
+			trigger.className = "zealotscript-toolbar-dropdown-trigger";
+
+			let panel: HTMLDivElement | null = null;
+
+			const close = () => {
+				panel?.remove();
+				panel = null;
+				document.removeEventListener("mousedown", onOutsideMousedown, true);
+				document.removeEventListener("keydown", onKeydown, true);
+			};
+
+			const onOutsideMousedown = (e: MouseEvent) => {
+				if (panel && e.target instanceof Node && !panel.contains(e.target) && e.target !== trigger) {
+					close();
+				}
+			};
+
+			const onKeydown = (e: KeyboardEvent) => {
+				if (e.key === "Escape") close();
+			};
+
+			const open = () => {
+				panel = document.createElement("div");
+				panel.className = "zealotscript-toolbar-dropdown-panel";
+				panel.style.display = "block";
+
+				for (const entry of entries) {
+					const item = document.createElement("button");
+					item.type = "button";
+					item.className = "ctx-menu-item";
+					item.textContent = entry.label;
+					item.title = entry.title;
+					item.addEventListener("mousedown", (e) => {
+						e.preventDefault();
+						close();
+						entry.onClick();
+					});
+					panel.appendChild(item);
+				}
+
+				document.body.appendChild(panel);
+				const rect = trigger.getBoundingClientRect();
+				const panelRect = panel.getBoundingClientRect();
+				const vw = window.innerWidth;
+				panel.style.left = `${Math.min(rect.left, vw - panelRect.width - 8)}px`;
+				panel.style.top = `${rect.bottom + 4}px`;
+
+				document.addEventListener("mousedown", onOutsideMousedown, true);
+				document.addEventListener("keydown", onKeydown, true);
+			};
+
+			trigger.addEventListener("mousedown", (e) => {
+				e.preventDefault();
+				if (panel) {
+					close();
+				} else {
+					open();
+				}
+			});
+
+			this._toolbarMenuCleanups.push(close);
+			return trigger;
+		};
+
 		const runCommand = (cmd: (state: import("prosemirror-state").EditorState, dispatch?: (tr: import("prosemirror-state").Transaction) => void) => boolean) => {
 			if (!this._view) return;
 			cmd(this._view.state, this._view.dispatch.bind(this._view));
@@ -549,26 +657,7 @@ export class ZealotScriptEditor extends HTMLElement {
 			this._view.focus();
 		};
 
-		bar.appendChild(btn("H1", "Heading 1", () => setHeading(1)));
-		bar.appendChild(btn("H2", "Heading 2", () => setHeading(2)));
-		bar.appendChild(btn("H3", "Heading 3", () => setHeading(3)));
-
-		const sep1 = document.createElement("span");
-		sep1.className = "zealotscript-toolbar-sep";
-		bar.appendChild(sep1);
-
-		bar.appendChild(btn("B", "Bold (Ctrl+B)", () => toggleMark("strong")));
-		bar.appendChild(btn("I", "Italic (Ctrl+I)", () => toggleMark("em")));
-		bar.appendChild(btn("S", "Strikethrough", () => toggleMark("strike")));
-		bar.appendChild(btn("U", "Underline", () => toggleMark("underline")));
-		bar.appendChild(btn("</>", "Inline Code", () => toggleMark("code")));
-		bar.appendChild(btn("Table", "Insert Table", () => runCommand(insertTable)));
-
-		const sep2 = document.createElement("span");
-		sep2.className = "zealotscript-toolbar-sep";
-		bar.appendChild(sep2);
-
-		bar.appendChild(btn("☑ Task", "Insert Task List", () => {
+		const insertTaskList = () => {
 			if (!this._view) return;
 			const { state, dispatch } = this._view;
 			const listItem = state.schema.nodes["list_item"];
@@ -581,26 +670,67 @@ export class ZealotScriptEditor extends HTMLElement {
 			const insertPos = $from.before($from.depth === 0 ? 1 : $from.depth);
 			dispatch(state.tr.replaceWith(insertPos, $from.after($from.depth === 0 ? 1 : $from.depth), list));
 			this._view.focus();
-		}));
+		};
+
+		bar.appendChild(btn("H1", "Heading 1", () => setHeading(1)));
+		bar.appendChild(btn("H2", "Heading 2", () => setHeading(2)));
+		bar.appendChild(btn("H3", "Heading 3", () => setHeading(3)));
+
+		const sep1 = document.createElement("span");
+		sep1.className = "zealotscript-toolbar-sep";
+		bar.appendChild(sep1);
+
+		bar.appendChild(btn("B", "Bold (Ctrl+B)", () => toggleMark("strong")));
+		bar.appendChild(btn("I", "Italic (Ctrl+I)", () => toggleMark("em")));
+
+		bar.appendChild(dropdown("Format", "More formatting", [
+			{ label: "Strikethrough", title: "Strikethrough", onClick: () => toggleMark("strike") },
+			{ label: "Underline", title: "Underline", onClick: () => toggleMark("underline") },
+			{ label: "Inline Code", title: "Inline Code", onClick: () => toggleMark("code") },
+			{ label: "Task List", title: "Insert Task List", onClick: insertTaskList },
+		]));
+
+		bar.appendChild(dropdown("Insert", "Insert block", [
+			{ label: "Table", title: "Insert Table", onClick: () => runCommand(insertTable) },
+			{ label: "Note", title: "Insert Note", onClick: () => runCommand(insertAdmonition("note")) },
+			{ label: "Warning", title: "Insert Warning", onClick: () => runCommand(insertAdmonition("warning")) },
+			{ label: "Tip", title: "Insert Tip", onClick: () => runCommand(insertAdmonition("tip")) },
+			{
+				label: "YouTube Video", title: "Insert YouTube Video", onClick: () => {
+					const input = window.prompt("YouTube URL or video ID:");
+					if (!input) return;
+					const videoId = extractYouTubeVideoId(input.trim());
+					if (videoId) runCommand(insertYoutubeEmbed(videoId));
+				},
+			},
+			{ label: "Mermaid Diagram", title: "Insert Mermaid Diagram", onClick: () => runCommand(insertMermaidBlock) },
+			{
+				label: "Details Block", title: "Insert Details block", onClick: () => {
+					const summary = window.prompt("Summary text:", "Details") || "Details";
+					runCommand(insertDetails(summary));
+				},
+			},
+			{ label: "Spoiler Block", title: "Insert Spoiler block", onClick: () => runCommand(insertSpoiler) },
+			{ label: "2-Column Layout", title: "Insert 2-column layout", onClick: () => runCommand(insertColumns(2)) },
+			{ label: "Tabs", title: "Insert Tabs", onClick: () => runCommand(insertTabs(["Tab 1", "Tab 2"])) },
+		]));
+
 		const tableEditSep = document.createElement("span");
 		tableEditSep.className = "zealotscript-toolbar-sep zealotscript-toolbar-table-edit";
 		bar.appendChild(tableEditSep);
 
-		const addRowBtn = btn("+Row", "Add Row Below", () => runCommand(addTableRowAfter));
-		addRowBtn.className += " zealotscript-toolbar-table-edit";
-		bar.appendChild(addRowBtn);
-
-		const removeRowBtn = btn("-Row", "Remove Current Row", () => runCommand(removeTableRow));
-		removeRowBtn.className += " zealotscript-toolbar-table-edit";
-		bar.appendChild(removeRowBtn);
-
-		const addColBtn = btn("+Col", "Add Column After", () => runCommand(addTableColumnAfter));
-		addColBtn.className += " zealotscript-toolbar-table-edit";
-		bar.appendChild(addColBtn);
-
-		const removeColBtn = btn("-Col", "Remove Current Column", () => runCommand(removeTableColumn));
-		removeColBtn.className += " zealotscript-toolbar-table-edit";
-		bar.appendChild(removeColBtn);
+		const tableDropdown = dropdown("Table", "Table editing", [
+			{ label: "Add Row Above", title: "Add Row Above", onClick: () => runCommand(addRowBefore) },
+			{ label: "Add Row Below", title: "Add Row Below", onClick: () => runCommand(addRowAfter) },
+			{ label: "Delete Row", title: "Delete Row", onClick: () => runCommand(deleteRow) },
+			{ label: "Add Column Before", title: "Add Column Before", onClick: () => runCommand(addColumnBefore) },
+			{ label: "Add Column After", title: "Add Column After", onClick: () => runCommand(addColumnAfter) },
+			{ label: "Delete Column", title: "Delete Column", onClick: () => runCommand(deleteColumn) },
+			{ label: "Toggle Header Row", title: "Toggle Header Row", onClick: () => runCommand(toggleHeaderRow) },
+			{ label: "Delete Table", title: "Delete Table", onClick: () => runCommand(deleteTable) },
+		]);
+		tableDropdown.className += " zealotscript-toolbar-table-edit";
+		bar.appendChild(tableDropdown);
 
 		// Show/hide table editing controls based on cursor position.
 		const tableEditEls = bar.querySelectorAll<HTMLElement>(".zealotscript-toolbar-table-edit");
@@ -612,24 +742,6 @@ export class ZealotScriptEditor extends HTMLElement {
 		syncTableButtons();
 		// Will be refreshed on every transaction via dispatchTransaction.
 		(bar as HTMLElement & { _syncTableButtons?: () => void })._syncTableButtons = syncTableButtons;
-
-		bar.appendChild(btn("Note", "Insert Note", () => runCommand(insertAdmonition("note"))));
-		bar.appendChild(btn("Warning", "Insert Warning", () => runCommand(insertAdmonition("warning"))));
-		bar.appendChild(btn("Tip", "Insert Tip", () => runCommand(insertAdmonition("tip"))));
-		bar.appendChild(btn("▶ YouTube", "Insert YouTube Video", () => {
-			const input = window.prompt("YouTube URL or video ID:");
-			if (!input) return;
-			const videoId = extractYouTubeVideoId(input.trim());
-			if (videoId) runCommand(insertYoutubeEmbed(videoId));
-		}));
-		bar.appendChild(btn("◇ Mermaid", "Insert Mermaid Diagram", () => runCommand(insertMermaidBlock)));
-		bar.appendChild(btn("◇ Details", "Insert Details block", () => {
-			const summary = window.prompt("Summary text:", "Details") || "Details";
-			runCommand(insertDetails(summary));
-		}));
-		bar.appendChild(btn("◇ Spoiler", "Insert Spoiler block", () => runCommand(insertSpoiler)));
-		bar.appendChild(btn("⊟ Columns", "Insert 2-column layout", () => runCommand(insertColumns(2))));
-		bar.appendChild(btn("⊞ Tabs", "Insert Tabs", () => runCommand(insertTabs(["Tab 1", "Tab 2"]))));
 
 		return bar;
 	}
@@ -688,6 +800,11 @@ export class ZealotScriptEditor extends HTMLElement {
 				}
 				if (event.key !== "Tab") return false;
 				event.preventDefault();
+				// Table Tab/Shift-Tab: handled first.
+				if (isInTable(_view.state)) {
+					const cmd = event.shiftKey ? goToNextCell(-1) : tableTab;
+					if (cmd(_view.state, _view.dispatch, _view)) return true;
+				}
 				const listItemType = _view.state.schema.nodes["list_item"];
 				if (listItemType && isInList(_view.state)) {
 					const command = event.shiftKey
@@ -793,6 +910,8 @@ export class ZealotScriptEditor extends HTMLElement {
 		if (this._saveTimer !== null) window.clearTimeout(this._saveTimer);
 		this._hideWikilinkPicker();
 		this._hideShortcodePicker();
+		for (const close of this._toolbarMenuCleanups) close();
+		this._toolbarMenuCleanups = [];
 		this._view?.destroy();
 		this._view = null;
 	}

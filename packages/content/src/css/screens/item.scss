@@ -6,6 +6,9 @@
 zealotscript-editor {
   display: block;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .zealotscript-toolbar {
@@ -45,6 +48,10 @@ zealotscript-editor {
   }
 }
 
+.zealotscript-toolbar-dropdown-trigger {
+  font-weight: 500;
+}
+
 .zealotscript-toolbar-sep {
   display: inline-block;
   width: 1px;
@@ -60,6 +67,8 @@ zealotscript-editor {
 
 .zealotscript-editor-container {
   width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .zealotscript-editor-container .ProseMirror {
@@ -71,6 +80,7 @@ zealotscript-editor {
   line-height: 1.6;
   color: var(--text-0);
   background: var(--bg-1);
+  overflow-x: hidden;
 
   &:focus {
     border-color: var(--accent-0);
@@ -138,6 +148,16 @@ zealotscript-editor {
     margin: 0;
   }
 
+  .tableWrapper {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+
+    table {
+      width: 100%;
+    }
+  }
+
   th, td {
     border: 1px solid var(--border-1);
     padding: 6px 10px;
@@ -158,6 +178,45 @@ zealotscript-editor {
 
   .ProseMirror-gapcursor:after {
     border-top-color: var(--text-0);
+  }
+
+  /* prosemirror-tables: cell selection highlight */
+  .selectedCell:after {
+    z-index: 2;
+    position: absolute;
+    content: "";
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    background: color-mix(in srgb, var(--accent-0) 20%, transparent 80%);
+    pointer-events: none;
+  }
+
+  /* prosemirror-tables: column resize handle */
+  .column-resize-handle {
+    position: absolute;
+    right: -2px;
+    top: 0;
+    bottom: -2px;
+    width: 4px;
+    background-color: var(--accent-0);
+    pointer-events: none;
+    z-index: 20;
+  }
+
+  table {
+    position: relative;
+
+    td, th {
+      position: relative;
+      vertical-align: top;
+      box-sizing: border-box;
+    }
+  }
+
+  &.resize-cursor {
+    cursor: col-resize;
   }
 }
 
@@ -180,6 +239,44 @@ item-screen {
   display: grid;
   grid-template-rows: auto auto auto auto 1fr auto;
   gap: 12px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+
+  &.item-screen--narrow {
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  &.item-screen--reader {
+    max-width: 900px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  &.item-screen--wide {
+    max-width: 1400px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  &.item-screen--full {
+    max-width: 100%;
+  }
+}
+
+
+@media (max-width: 640px) {
+  .item-action-btn--view-toggle {
+    display: none;
+  }
+}
+
+.item-content {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .item-title-row {

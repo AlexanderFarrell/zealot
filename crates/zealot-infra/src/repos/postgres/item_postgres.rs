@@ -150,9 +150,10 @@ impl ItemRepo for ItemPostgresRepo {
             return tokio::task::block_in_place(|| {
                 tokio::runtime::Handle::current().block_on(async move {
                     let rows = sqlx::query_as::<_, ItemRow>(
-                        "SELECT item_id, title, content FROM item
-                         WHERE title ILIKE '%' AND account_id = $1
-                         ORDER BY item_id DESC LIMIT $2 OFFSET $3",
+                        "SELECT i.item_id, i.title, i.content FROM item i
+                         LEFT JOIN (SELECT item_id, COUNT(*) as view_count FROM item_view GROUP BY item_id) iv ON iv.item_id = i.item_id
+                         WHERE i.title ILIKE '%' AND i.account_id = $1
+                         ORDER BY COALESCE(iv.view_count, 0) DESC, i.item_id DESC LIMIT $2 OFFSET $3",
                     )
                     .bind(account_id_val)
                     .bind(limit)
@@ -172,10 +173,11 @@ impl ItemRepo for ItemPostgresRepo {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
                 let rows = sqlx::query_as::<_, ItemRow>(
-                    "SELECT item_id, title, content FROM item
-                     WHERE title ILIKE $1 AND account_id = $2
-                     ORDER BY CASE WHEN LOWER(title) = LOWER($3) THEN 0 ELSE 1 END ASC,
-                              item_id DESC LIMIT $4 OFFSET $5",
+                    "SELECT i.item_id, i.title, i.content FROM item i
+                     LEFT JOIN (SELECT item_id, COUNT(*) as view_count FROM item_view GROUP BY item_id) iv ON iv.item_id = i.item_id
+                     WHERE i.title ILIKE $1 AND i.account_id = $2
+                     ORDER BY CASE WHEN LOWER(i.title) = LOWER($3) THEN 0 ELSE 1 END ASC,
+                              COALESCE(iv.view_count, 0) DESC, i.item_id DESC LIMIT $4 OFFSET $5",
                 )
                 .bind(&pattern)
                 .bind(account_id_val)

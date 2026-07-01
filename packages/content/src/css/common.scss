@@ -134,6 +134,11 @@ side-buttons > side-button {
   cursor: pointer;
 }
 
+side-button.side-button--drop-target {
+  background: color-mix(in srgb, var(--accent-0) 25%, transparent 75%);
+  border-radius: 4px;
+}
+
 icon-button {
 	cursor: pointer
 }
@@ -1293,7 +1298,8 @@ item-search-inline *[name="generic_results"] {
 
 /* ── Context Menu ──────────────────────────────────────────────────────────── */
 
-#context-menu-overlay {
+#context-menu-overlay,
+.zealotscript-toolbar-dropdown-panel {
   display: none;
   position: fixed;
   z-index: 2100;

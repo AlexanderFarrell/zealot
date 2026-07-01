@@ -3,14 +3,14 @@ import { parseParagraphs } from "./parse/parse_paragraph";
 import { parseList } from "./parse/parse_list";
 import { parseCodeBlock } from "./parse/parse_code_block";
 import { parseInlineNodes } from "./parse/parse_inline";
-import { parseMarkdownTable } from "./parse/parse_table";
+import { parseMarkdownTable, parseFencedTable } from "./parse/parse_table";
 import { parseYoutubeEmbed } from "./parse/parse_youtube";
 import { parseMathBlock } from "./parse/parse_math_block";
 import { parseDetails, parseSpoiler, parseDefinitionList, parseColumns, parseTabs } from "./parse/parse_structural_blocks";
 
 const ADMONITION_KINDS = new Set([
 	"note", "warning", "danger", "tip", "info",
-	"success", "important", "caution", "example", "faq", "todo", "table",
+	"success", "important", "caution", "example", "faq", "todo",
 ]);
 
 const parseHeading = (schema: Schema, line: string): PMNode | null => {
@@ -124,6 +124,7 @@ const multiblockTypes: Array<
 	parseDefinitionList,
 	parseColumns,
 	parseTabs,
+	parseFencedTable,
 	parseAdmonitionBlock,
 	parseBlockquote,
 	parseMarkdownTable,

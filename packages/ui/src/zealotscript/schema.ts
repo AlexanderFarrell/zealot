@@ -1,6 +1,7 @@
 import { Schema, type MarkSpec, type NodeSpec } from "prosemirror-model";
 import { schema as baseSchema } from "prosemirror-schema-basic";
 import { addListNodes } from "prosemirror-schema-list";
+import { tableNodes } from "prosemirror-tables";
 
 const admonitionSpec: NodeSpec = {
 	group: "block",
@@ -24,65 +25,7 @@ const admonitionSpec: NodeSpec = {
 	}
 };
 
-const tableSpec: NodeSpec = {
-	group: "block",
-	content: "table_row+",
-	isolating: true,
-	parseDOM: [{ tag: "table" }],
-	toDOM() {
-		return ["table", ["tbody", 0]];
-	}
-};
-
-const tableRowSpec: NodeSpec = {
-	content: "(table_cell | table_header)+",
-	parseDOM: [{ tag: "tr" }],
-	toDOM() {
-		return ["tr", 0];
-	}
-};
-
-const tableCellSpec: NodeSpec = {
-	content: "block+",
-	attrs: { colspan: { default: 1 }, rowspan: { default: 1 } },
-	isolating: true,
-	parseDOM: [
-		{
-			tag: "td",
-			getAttrs: (e) => {
-				const element = e as HTMLElement;
-				return {
-					colspan: Number(element.getAttribute("colspan") || 1),
-					rowspan: Number(element.getAttribute("rowspan") || 1),
-				};
-			}
-		}
-	],
-	toDOM(node) {
-		return ["td", { colspan: node.attrs.colspan, rowspan: node.attrs.rowspan }, 0];
-	}
-};
-
-const tableHeaderSpec: NodeSpec = {
-	content: "block+",
-	attrs: { colspan: { default: 1 }, rowspan: { default: 1 } },
-	isolating: true,
-	parseDOM: [
-		{
-			tag: "th",
-			getAttrs: (e) => {
-				const element = e as HTMLElement;
-				return {
-					colspan: Number(element.getAttribute("colspan") || 1),
-					rowspan: Number(element.getAttribute("rowspan") || 1),
-				};
-			}
-		}
-	],
-	toDOM(node) {
-		return ["th", { colspan: node.attrs.colspan, rowspan: node.attrs.rowspan }, 0];
-	}
-};
+const pmTableNodes = tableNodes({ tableGroup: "block", cellContent: "block+", cellAttributes: {} });
 
 const getCodeBlockLanguage = (element: HTMLElement): string => {
 	const direct = element.getAttribute("data-language") || "";
@@ -406,10 +349,7 @@ const nodes = addListNodes(
 	"block"
 ).append({
 	admonition: admonitionSpec,
-	table: tableSpec,
-	table_row: tableRowSpec,
-	table_cell: tableCellSpec,
-	table_header: tableHeaderSpec,
+	...pmTableNodes,
 	youtube_embed: youtubeEmbedSpec,
 	math_inline: mathInlineSpec,
 	math_block: mathBlockSpec,

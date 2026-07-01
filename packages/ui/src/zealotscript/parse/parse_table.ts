@@ -18,6 +18,52 @@ const createTableRow = (schema: Schema, cells: string[], header: boolean): PMNod
 	return tableRow.create(null, mapped);
 };
 
+export const parseFencedTable = (
+	schema: Schema,
+	lines: string[],
+	startIndex: number,
+): { node: PMNode; linesConsumed: number } | null => {
+	const openLine = lines[startIndex];
+	if (!openLine || !/^:::table\s*$/.test(openLine)) return null;
+
+	const contentLines: string[] = [];
+	let index = startIndex + 1;
+	while (index < lines.length) {
+		const line = lines[index];
+		if (line === undefined) break;
+		if (line.trim() === ":::") { index++; break; }
+		contentLines.push(line);
+		index++;
+	}
+	const linesConsumed = index - startIndex;
+
+	const dataLines = contentLines.filter((l) => l.trim().length > 0);
+	if (dataLines.length === 0) return null;
+
+	const table = schema.nodes["table"];
+	if (!table) return null;
+
+	// If the second non-empty line is a markdown separator, treat the first as a header row.
+	const hasHeader =
+		dataLines.length >= 2 &&
+		isMarkdownTableSeparator(dataLines[1]!, splitTableRow(dataLines[0]!).length);
+
+	const rows: PMNode[] = [];
+	const linesToParse = hasHeader
+		? [dataLines[0]!, ...dataLines.slice(2)]
+		: dataLines;
+
+	linesToParse.forEach((line, i) => {
+		const isHeader = hasHeader && i === 0;
+		const cells = splitTableRow(line);
+		if (cells.length === 0) return;
+		rows.push(createTableRow(schema, cells, isHeader));
+	});
+
+	if (rows.length === 0) return null;
+	return { node: table.create(null, rows), linesConsumed };
+};
+
 const nextNonEmptyLineIndex = (lines: string[], startIndex: number): number => {
 	let index = startIndex;
 	while (index < lines.length && (lines[index]?.trim().length ?? 0) === 0) index++;

@@ -20,6 +20,45 @@ const itemApi = new ItemAPI('/api');
 
 let content_visible = true;
 
+const VIEW_MODE_KEY = 'zealot:view-mode';
+
+type ViewMode = 'narrow' | 'reader' | 'wide' | 'full';
+const VIEW_MODE_CYCLE: ViewMode[] = ['narrow', 'reader', 'wide', 'full'];
+
+interface ViewModeConfig {
+    icon: string;
+    title: string;
+    cssClass: string;
+}
+
+function getViewModeConfig(icons: Record<string, string>): Record<ViewMode, ViewModeConfig> {
+    return {
+        narrow:  { icon: icons['center']!,   title: 'Narrow View',  cssClass: 'item-screen--narrow'  },
+        reader:  { icon: icons['pageview']!,  title: 'Reader View',  cssClass: 'item-screen--reader'  },
+        wide:    { icon: icons['monitor']!,   title: 'Wide View',    cssClass: 'item-screen--wide'    },
+        full:    { icon: icons['expand']!,    title: 'Full Width',   cssClass: 'item-screen--full'    },
+    };
+}
+
+function getViewMode(): ViewMode {
+    const stored = localStorage.getItem(VIEW_MODE_KEY);
+    if (stored === 'narrow' || stored === 'reader' || stored === 'wide' || stored === 'full') return stored;
+    return 'full';
+}
+
+function applyViewMode(el: HTMLElement, mode: ViewMode, configs: Record<ViewMode, ViewModeConfig>): void {
+    localStorage.setItem(VIEW_MODE_KEY, mode);
+    for (const cfg of Object.values(configs)) {
+        el.classList.remove(cfg.cssClass);
+    }
+    el.classList.add(configs[mode].cssClass);
+}
+
+function nextViewMode(current: ViewMode): ViewMode {
+    const idx = VIEW_MODE_CYCLE.indexOf(current);
+    return VIEW_MODE_CYCLE[(idx + 1) % VIEW_MODE_CYCLE.length]!;
+}
+
 const ITEM_CONTEXT_COMMANDS = [
     'Item: Go to Parent',
     'Item: Copy Link',
@@ -106,6 +145,9 @@ export class ItemScreen extends BaseElementEmpty {
 
     private renderItem(): void {
         const item = this.item!;
+        // Apply persisted view mode
+        const viewConfigs = getViewModeConfig(icons);
+        applyViewMode(this, getViewMode(), viewConfigs);
 
         // Types
         const typesDiv = document.createElement('div');
@@ -358,6 +400,26 @@ export class ItemScreen extends BaseElementEmpty {
         row.appendChild(makeBtn(icons.schedule, 'Time Blocks', () => {
             getNavigator().openTimeBlocksForItem(item.ItemID);
         }));
+
+        const viewConfigs = getViewModeConfig(icons);
+        const viewBtnImg = document.createElement('img');
+        const updateViewBtn = (mode: ViewMode) => {
+            const cfg = viewConfigs[mode];
+            viewBtnImg.src = cfg.icon;
+            viewBtnImg.alt = cfg.title;
+            viewBtn.title = cfg.title;
+        };
+        const viewBtn = document.createElement('button');
+        viewBtn.type = 'button';
+        viewBtn.className = 'item-action-btn item-action-btn--view-toggle';
+        viewBtn.appendChild(viewBtnImg);
+        updateViewBtn(getViewMode());
+        viewBtn.addEventListener('click', () => {
+            const next = nextViewMode(getViewMode());
+            applyViewMode(this, next, viewConfigs);
+            updateViewBtn(next);
+        });
+        row.appendChild(viewBtn);
 
         return row;
     }
