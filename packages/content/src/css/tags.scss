@@ -168,6 +168,7 @@ input, textarea, select, chips-input {
 	width: 100%;
 	font-size: 14px;
 	font-family: sans-serif;
+	padding: 6px 8px;
 }
 
 *::placeholder {
@@ -198,6 +199,13 @@ input[type="checkbox"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  background: none;
+  box-shadow: none;
+
+  &:hover {
+    background: var(--bg-3);
+    box-shadow: none;
+  }
 }
 
 .chip_item > button > img {

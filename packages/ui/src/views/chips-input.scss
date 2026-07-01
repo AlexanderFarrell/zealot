@@ -1,7 +1,8 @@
 chips-input {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  row-gap: 8px;
+  column-gap: 5px;
   align-items: flex-start;
 }
 chips-input [type="items"] {

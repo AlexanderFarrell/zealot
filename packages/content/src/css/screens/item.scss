@@ -224,6 +224,23 @@ zealotscript-editor {
 	display: grid;
 	grid-template-columns: 1fr 2fr auto;
 	  border-bottom: 1px solid var(--border-1);
+	  padding: 4px 0;
+}
+
+.attribute > button {
+  background: none;
+  box-shadow: none;
+
+  &:hover {
+    background: var(--bg-3);
+    box-shadow: none;
+  }
+}
+
+.item-chips-input {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .attribute > input, .attribute > chips-input, span[name="value_view"] > input, span[name="value_view"] > chips-input,

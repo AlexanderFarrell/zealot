@@ -92,7 +92,7 @@ export class PieChartView extends BaseElement<PieChartInfo> {
 				responsive: true,
 				maintainAspectRatio: true,
 				plugins: {
-					legend: {position: "right"},
+					legend: {position: "bottom"},
 					title: {display: true, text: this.data!.caption}
 				}
 			}

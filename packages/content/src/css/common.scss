@@ -13,7 +13,7 @@ header-bar {
   display: flex;
   align-items: center;
   padding: 0 8px;
-  height: 36px;
+  height: var(--header-bar-h);
   background-color: var(--panel-1);
   border-bottom: 1px solid var(--border-0);
   user-select: none;
@@ -223,7 +223,8 @@ icon-button {
     minmax(0, 1fr)
     4px
     var(--right-panel-w);
-  min-height: 100vh;
+  height: calc(100vh - var(--header-bar-h));
+  overflow: hidden;
   transition: grid-template-columns 120ms ease;
 }
 
@@ -292,7 +293,7 @@ right-sidebar {
   overflow-y: auto;
   overflow-x: hidden;
   padding: 10px;
-  height: 100vh;
+  height: calc(100vh - var(--header-bar-h));
 }
 
 popup- {
@@ -316,16 +317,19 @@ side-bar {
 	// min-width: 200px;
 }
 
-web-tool-host {
+web-tool-host,
+desktop-tool-host {
   @extend .box;
   display: block;
   width: 100%;
+  height: calc(100vh - var(--header-bar-h));
   overflow-y: auto;
   overflow-x: hidden;
   padding: 10px;
 }
 
-web-tool-host > *[hidden] {
+web-tool-host > *[hidden],
+desktop-tool-host > *[hidden] {
   display: none !important;
 }
 
@@ -334,7 +338,7 @@ content- {
   padding: 5px;
   display: grid;
   overflow-y: auto;
-  height: 100vh;
+  height: calc(100vh - var(--header-bar-h));
 }
 
 content- {
@@ -353,7 +357,7 @@ center-content {
   padding: 10px;
   display: block;
   overflow-y: auto;
-  height: 100vh;
+  height: calc(100vh - var(--header-bar-h));
 }
 
 auth-modal form {
@@ -601,6 +605,13 @@ calendar-view {
   justify-items: start;
   text-align: left;
   padding: 10px;
+  background: transparent;
+  box-shadow: none;
+
+  &:hover {
+    background: var(--bg-3);
+    box-shadow: none;
+  }
 }
 
 .search-tool-result-title {
@@ -1355,8 +1366,12 @@ item-search-inline *[name="generic_results"] {
     padding: 6px 16px;
     background: none;
     box-shadow: none;
-    border: 1px solid var(--border-0);
+    border: 1px solid transparent;
     border-radius: 6px;
+
+    &:hover {
+      border-color: var(--border-0);
+    }
 
     &.is-active {
       background: color-mix(in srgb, var(--accent-0) 20%, var(--panel-0) 80%);
@@ -1408,7 +1423,7 @@ item-search-inline *[name="generic_results"] {
 
 .analysis-chart {
   flex: 1;
-  min-width: min(200px, 100%);
+  min-width: min(230px, 100%);
 }
 
 .analysis-stats-row {
@@ -1490,6 +1505,9 @@ item-search-inline *[name="generic_results"] {
 /* ── Dockview Theme Overrides ─────────────────────────────────────────────── */
 
 desktop-dock-host {
+  display: block;
+  height: calc(100vh - var(--header-bar-h));
+  overflow: hidden;
   --dv-group-view-background-color: var(--bg-1);
   --dv-tabs-and-actions-container-background-color: var(--bg-0);
   --dv-activegroup-visiblepanel-tab-background-color: var(--bg-1);

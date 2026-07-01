@@ -83,7 +83,7 @@ export class DesktopDockHost extends HTMLElement {
             }, { once: true });
         });
 
-        this._dockview.api.onDidActivePanelChange(() => {
+        const refreshActivePanel = (): void => {
             const active = this._dockview?.api.activePanel;
             if (active) {
                 const path = (active.params as Partial<PanelParams>).path ?? '/';
@@ -97,7 +97,13 @@ export class DesktopDockHost extends HTMLElement {
                     getRightSidebarHost()?.setContent(null);
                 }
             }
-        });
+        };
+
+        this._dockview.api.onDidActivePanelChange(refreshActivePanel);
+        // Dragging a tab to split creates a new group that becomes active without
+        // necessarily changing which panel is "active" (same panel, new group), so
+        // onDidActivePanelChange alone can miss it — also refresh on group change.
+        this._dockview.api.onDidActiveGroupChange(refreshActivePanel);
 
         // When the last panel is closed, open a new Home tab automatically.
         this._dockview.api.onDidRemovePanel(() => {
