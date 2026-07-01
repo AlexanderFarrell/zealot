@@ -9,7 +9,7 @@ import { Popups } from './ui/popups';
 import * as graphs from './ui/graphs';
 import { Hotkey, CTRL_OR_META_KEY, ALT_KEY, SHIFT_KEY } from './ui/hotkeys';
 import { ModalCommands } from './ui/modal_commands';
-import { NavigationCommands, setNavigator, getNavigator, registerNavigationCommands } from './ui/navigator';
+import { NavigationCommands, setNavigator, getNavigator, registerNavigationCommands, setOpenInNewTabHandler, openInNewTab } from './ui/navigator';
 import { ToolCommands, getToolHost, registerToolCommands, setToolHost } from './ui/tool_host';
 import { setRightSidebarHost, getRightSidebarHost } from './ui/right_sidebar_host';
 import { registerDropZone, unregisterDropZone, unregisterDropZonesIn } from './ui/drag_drop';
@@ -58,6 +58,8 @@ export {
     setNavigator,
     getNavigator,
     registerNavigationCommands,
+    setOpenInNewTabHandler,
+    openInNewTab,
     ToolCommands,
     setToolHost,
     getToolHost,

@@ -1,4 +1,4 @@
-import { getNavigator, registerContextMenu, unregisterContextMenuIn, Popups } from '@websoil/engine';
+import { getNavigator, openInNewTab, registerContextMenu, unregisterContextMenuIn, Popups } from '@websoil/engine';
 import { ItemAPI } from '@zealot/api/src/item';
 import { ConfirmDialog } from '../common/confirm_dialog';
 import { icons } from '@zealot/content';
@@ -173,7 +173,7 @@ export class ItemTableView extends HTMLElement {
                 });
                 openItem(item);
             }},
-            { label: 'Open in New Tab', onClick: () => window.open(`/item/${encodeURIComponent(item.Title)}`, '_blank') },
+            { label: 'Open in New Tab', onClick: () => openInNewTab(`/item/${encodeURIComponent(item.Title)}`) },
             { label: 'Open in New Window', onClick: () => window.open(`/item/${encodeURIComponent(item.Title)}`, '_blank', 'noopener,noreferrer') },
             { label: 'Copy Link', onClick: () => {
                 void navigator.clipboard.writeText(`${window.location.origin}/item/${encodeURIComponent(item.Title)}`);

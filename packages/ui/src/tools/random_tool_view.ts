@@ -1,6 +1,6 @@
 import type { ItemAPI } from '@zealot/api/src/item';
 import { Item } from '@zealot/domain/src/item';
-import { getNavigator, NavigationCommands, commands, registerDropZone, unregisterDropZonesIn, registerContextMenu, unregisterContextMenuIn, Popups } from '@websoil/engine';
+import { getNavigator, openInNewTab, NavigationCommands, commands, registerDropZone, unregisterDropZonesIn, registerContextMenu, unregisterContextMenuIn, Popups } from '@websoil/engine';
 import { AttributeAPI } from '@zealot/api/src/attribute';
 import { createItemTitleElement } from '../views/item_title';
 
@@ -153,7 +153,7 @@ export class RandomToolView extends HTMLElement {
         });
         registerContextMenu(row, () => [
             { label: 'Open', onClick: () => getNavigator().openItemById(item.ItemID) },
-            { label: 'Open in New Tab', onClick: () => window.open(`/item/${encodeURIComponent(item.Title)}`, '_blank') },
+            { label: 'Open in New Tab', onClick: () => openInNewTab(`/item/${encodeURIComponent(item.Title)}`) },
             { label: 'Open in New Window', onClick: () => window.open(`/item/${encodeURIComponent(item.Title)}`, '_blank', 'noopener,noreferrer') },
             { label: 'Copy Link', onClick: () => {
                 void navigator.clipboard.writeText(`${window.location.origin}/item/${encodeURIComponent(item.Title)}`);

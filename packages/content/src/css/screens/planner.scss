@@ -528,4 +528,14 @@ time-blocks-screen {
   font-size: 0.8rem;
   width: auto;
   min-width: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  color-scheme: dark;
+  background: var(--bg-2);
+  color: var(--text-1);
+  border: 1px solid var(--border-0);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font: inherit;
+  cursor: pointer;
 }

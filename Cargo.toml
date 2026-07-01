@@ -5,6 +5,7 @@ members = [
     "apps/tui",
     "apps/mcp",
     "apps/mobile/src-tauri",
+    "apps/desktop/src-tauri",
     "crates/zealot-domain",
     "crates/zealot-app",
     "crates/zealot-infra",

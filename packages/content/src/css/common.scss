@@ -13,9 +13,11 @@ header-bar {
   display: flex;
   align-items: center;
   padding: 0 8px;
-  height: 48px;
+  height: 36px;
   background-color: var(--panel-1);
   border-bottom: 1px solid var(--border-0);
+  user-select: none;
+  -webkit-user-select: none;
 
   button {
     display: flex;
@@ -24,22 +26,82 @@ header-bar {
     width: auto;
     background: none;
     box-shadow: none;
-    padding: 6px 10px;
+    padding: 4px 8px;
 
     img {
-      width: 24px;
-      height: 24px;
+      width: 20px;
+      height: 20px;
     }
 
     span {
       font-weight: 700;
       letter-spacing: 0.04em;
+      font-size: 0.9rem;
     }
   }
 }
 
 .header-bar-spacer {
   flex: 1;
+  height: 100%;
+}
+
+.header-bar-icon-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 14px;
+  background: none;
+  box-shadow: none;
+  color: var(--text-1);
+  gap: 0;
+  flex-shrink: 0;
+
+  &:hover {
+    background: var(--panel-2);
+    color: var(--text-0);
+    box-shadow: none;
+  }
+}
+
+.header-bar-window-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+
+  button {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 13px;
+    background: none;
+    box-shadow: none;
+    color: var(--text-1);
+    gap: 0;
+
+    &:hover {
+      background: var(--panel-2);
+      color: var(--text-0);
+      box-shadow: none;
+    }
+
+    &[name="close"]:hover {
+      background: var(--danger-0);
+      color: white;
+    }
+  }
+}
+
+body:not(.tauri-app) .tauri_only {
+  display: none;
 }
 
 mobile-title-bar {
@@ -151,9 +213,76 @@ icon-button {
 }
 
 #main_web_ui {
+  --left-panel-w: 280px;
+  --right-panel-w: 260px;
   display: grid;
-  grid-template-columns: auto minmax(260px, 320px) minmax(0, 1fr) minmax(240px, 300px);
+  grid-template-columns:
+    auto
+    var(--left-panel-w)
+    4px
+    minmax(0, 1fr)
+    4px
+    var(--right-panel-w);
   min-height: 100vh;
+  transition: grid-template-columns 120ms ease;
+}
+
+#main_web_ui.left-panel-collapsed {
+  grid-template-columns:
+    auto
+    0px
+    4px
+    minmax(0, 1fr)
+    4px
+    var(--right-panel-w);
+}
+
+#main_web_ui.left-panel-collapsed desktop-tool-host,
+#main_web_ui.left-panel-collapsed web-tool-host {
+  overflow: hidden;
+  pointer-events: none;
+}
+
+#main_web_ui.right-panel-collapsed {
+  grid-template-columns:
+    auto
+    var(--left-panel-w)
+    4px
+    minmax(0, 1fr)
+    4px
+    0px;
+}
+
+#main_web_ui.left-panel-collapsed.right-panel-collapsed {
+  grid-template-columns:
+    auto
+    0px
+    4px
+    minmax(0, 1fr)
+    4px
+    0px;
+}
+
+#main_web_ui.right-panel-collapsed right-sidebar {
+  overflow: hidden;
+  pointer-events: none;
+}
+
+#main_web_ui.right-panel-collapsed #right_resize_handle {
+  pointer-events: none;
+}
+
+.panel-resize-handle {
+  cursor: col-resize;
+  background: transparent;
+  transition: background 80ms ease;
+  z-index: 10;
+
+  &:hover,
+  &:active {
+    background: var(--accent-0);
+    opacity: 0.5;
+  }
 }
 
 right-sidebar {
@@ -1011,15 +1140,19 @@ mobile-title-bar {
 
 @media (max-width: 1100px) and (min-width: 769px) {
   #main_web_ui {
-    grid-template-columns: auto minmax(180px, 220px) 1fr;
+    --left-panel-w: 200px;
+    --right-panel-w: 0px;
+    grid-template-columns:
+      auto
+      var(--left-panel-w)
+      4px
+      minmax(0, 1fr);
     grid-template-rows: auto auto;
   }
 
+  #right_resize_handle,
   right-sidebar {
-    grid-column: 3;
-    grid-row: 2;
-    height: auto;
-    border-top: 1px solid var(--border-0);
+    display: none;
   }
 
   center-content {
@@ -1048,6 +1181,10 @@ mobile-title-bar {
     #main_web_ui {
       grid-template-columns: 1fr;
       padding-top: 56px; /* height of mobile-title-bar */
+    }
+
+    .panel-resize-handle {
+      display: none;
     }
 
     right-sidebar {
@@ -1348,4 +1485,27 @@ item-search-inline *[name="generic_results"] {
   margin: 4px 0;
   border: none;
   border-top: 1px solid var(--border-0, var(--border-1));
+}
+
+/* ── Dockview Theme Overrides ─────────────────────────────────────────────── */
+
+desktop-dock-host {
+  --dv-group-view-background-color: var(--bg-1);
+  --dv-tabs-and-actions-container-background-color: var(--bg-0);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--bg-1);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--panel-0);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--panel-1);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--panel-0);
+  --dv-tab-divider-color: var(--border-0);
+  --dv-activegroup-visiblepanel-tab-color: var(--text-0);
+  --dv-activegroup-hiddenpanel-tab-color: var(--text-1);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--text-1);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--text-1);
+  --dv-sash-color: var(--border-0);
+  --dv-active-sash-color: var(--accent-0);
+  --dv-tabs-and-actions-container-height: 32px;
+  --dv-tab-font-size: 0.8rem;
+  --dv-floating-box-shadow: 0 10px 30px var(--shadow-color-0);
+  --dv-drag-over-background-color: rgba(232, 107, 255, 0.12);
+  --dv-drag-over-border-color: var(--accent-0);
 }

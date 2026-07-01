@@ -1,0 +1,28 @@
+{
+    "name": "@zealot/desktop",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "scripts": {
+        "dev": "vite --port 5175",
+        "build": "tsc && vite build",
+        "tauri": "tauri",
+        "tauri:desktop": "tauri dev",
+        "tauri:desktop:build": "tauri build"
+    },
+    "dependencies": {
+        "@tauri-apps/api": "^2",
+        "@tauri-apps/plugin-http": "^2.5.9",
+        "@websoil/engine": "file:../../packages/engine",
+        "@zealot/api": "file:../../packages/api",
+        "@zealot/content": "file:../../packages/content",
+        "@zealot/domain": "file:../../packages/domain",
+        "@zealot/ui": "file:../../packages/ui",
+        "luxon": "^3.7.2"
+    },
+    "devDependencies": {
+        "@tauri-apps/cli": "^2",
+        "typescript": "*",
+        "vite": "^7.1.7"
+    }
+}

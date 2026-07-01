@@ -1,4 +1,4 @@
-import { BaseElementEmpty, Popups, commands, getNavigator, getRightSidebarHost, registerContextMenu, unregisterContextMenu, unregisterContextMenuIn } from '@websoil/engine';
+import { BaseElementEmpty, Popups, commands, getNavigator, openInNewTab, getRightSidebarHost, registerContextMenu, unregisterContextMenu, unregisterContextMenuIn } from '@websoil/engine';
 import { ItemAPI } from '@zealot/api/src/item';
 import type { Item } from '@zealot/domain/src/item';
 import { ConfirmDialog } from '../common/confirm_dialog';
@@ -76,6 +76,16 @@ export class ItemScreen extends BaseElementEmpty {
     private item: Item | null = null;
     private last_loaded_title: string | null = null;
     private content_debounce: ReturnType<typeof setTimeout> | null = null;
+    private _titleListener: ((title: string) => void) | null = null;
+    private _sidebarEl: HTMLElement | null = null;
+
+    setTitleListener(fn: (title: string) => void): void {
+        this._titleListener = fn;
+    }
+
+    onActivated(): void {
+        getRightSidebarHost()?.setContent(this._sidebarEl);
+    }
 
     async render() {
         // Called by BaseElementEmpty.connectedCallback — nothing to do until
@@ -102,6 +112,7 @@ export class ItemScreen extends BaseElementEmpty {
 
     private async fetchAndRender(fetch: () => Promise<Item>): Promise<void> {
         unregisterContextMenu(this);
+        this._sidebarEl = null;
         getRightSidebarHost()?.setContent(null);
         this.innerHTML = '';
         this.appendChild(new LoadingSpinner());
@@ -186,7 +197,7 @@ export class ItemScreen extends BaseElementEmpty {
                 void navigator.clipboard.writeText(window.location.href);
                 Popups.add('Link copied');
             }},
-            { label: 'Open in New Tab', onClick: () => window.open(window.location.href, '_blank') },
+            { label: 'Open in New Tab', onClick: () => openInNewTab(window.location.pathname) },
             { label: 'Open in New Window', onClick: () => window.open(window.location.href, '_blank', 'noopener,noreferrer') },
             { label: 'Copy as Markdown', onClick: () => {
                 void navigator.clipboard.writeText(this.buildMarkdown(item));
@@ -264,6 +275,8 @@ export class ItemScreen extends BaseElementEmpty {
         // Children + Related collections — rendered into the right sidebar
         const collectionsEl = document.createElement('section');
         collectionsEl.className = 'item-collections';
+        this._sidebarEl = collectionsEl;
+        this._titleListener?.(item.Title);
         getRightSidebarHost()?.setContent(collectionsEl);
         void this.renderCollections(item, collectionsEl);
 
@@ -288,7 +301,7 @@ export class ItemScreen extends BaseElementEmpty {
             void navigator.clipboard.writeText(window.location.href);
             Popups.add('Link copied');
         });
-        commands.runner.register('Item: Open in New Tab', [], () => window.open(window.location.href, '_blank'));
+        commands.runner.register('Item: Open in New Tab', [], () => openInNewTab(window.location.pathname));
         commands.runner.register('Item: Toggle Content', [], () => {
             content_visible = !content_visible;
             const section = this.querySelector('.item-content') as HTMLElement | null;
@@ -356,7 +369,7 @@ export class ItemScreen extends BaseElementEmpty {
         }));
 
         row.appendChild(makeBtn(icons.expand, 'Open in New Tab', () => {
-            window.open(window.location.href, '_blank');
+            openInNewTab(window.location.pathname);
         }));
 
         row.appendChild(makeBtn(icons.edit, 'Toggle Content', () => {

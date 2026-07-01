@@ -1,5 +1,5 @@
 import { ItemAPI } from '@zealot/api/src/item';
-import { Events, ItemEvents, getNavigator, registerDropZone, unregisterDropZone, registerContextMenu, unregisterContextMenu, Popups, type AppLocation } from '@websoil/engine';
+import { Events, ItemEvents, getNavigator, openInNewTab, registerDropZone, unregisterDropZone, registerContextMenu, unregisterContextMenu, Popups, type AppLocation } from '@websoil/engine';
 import { AttributeAPI } from '@zealot/api/src/attribute';
 import { icons } from '@zealot/content';
 import type { Item } from '@zealot/domain/src/item';
@@ -120,7 +120,7 @@ class NavTreeNodeView extends HTMLElement {
             });
             registerContextMenu(titleButton, () => [
                 { label: 'Open', onClick: () => getNavigator().openItemById(item.ItemID) },
-                { label: 'Open in New Tab', onClick: () => window.open(`/item/${encodeURIComponent(item.Title)}`, '_blank') },
+                { label: 'Open in New Tab', onClick: () => openInNewTab(`/item/${encodeURIComponent(item.Title)}`) },
                 { label: 'Open in New Window', onClick: () => window.open(`/item/${encodeURIComponent(item.Title)}`, '_blank', 'noopener,noreferrer') },
                 { label: 'Copy Link', onClick: () => {
                     void navigator.clipboard.writeText(`${window.location.origin}/item/${encodeURIComponent(item.Title)}`);

@@ -11,6 +11,7 @@
     { "path": "./packages/engine" },
     { "path": "./packages/theme" },
     { "path": "./packages/ui" },
-    { "path": "./apps/web" }
+    { "path": "./apps/web" },
+    { "path": "./apps/desktop" }
   ]
 }

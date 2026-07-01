@@ -3,7 +3,7 @@ import {
     BaseElement, ModalCommands, NavigationCommands, Popups, ToolCommands, commands,
     registerContextMenu, unregisterContextMenu,
     registerDropZone, unregisterDropZone,
-    getNavigator,
+    getNavigator, openInNewTab,
 } from '@websoil/engine';
 import type { ContextAction } from '@websoil/engine';
 import { AttributeAPI } from '@zealot/api/src/attribute';
@@ -49,7 +49,7 @@ class SideButton extends BaseElement<SideButtonInfo> {
         if (info.Url) {
             const url = info.Url();
             baseActions.push(
-                { label: 'Open in New Tab',    onClick: () => window.open(url, '_blank') },
+                { label: 'Open in New Tab',    onClick: () => openInNewTab(url) },
                 { label: 'Open in New Window', onClick: () => window.open(url, '_blank', 'noopener,noreferrer') },
             );
         }

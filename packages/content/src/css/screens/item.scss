@@ -464,6 +464,9 @@ item-view {
   flex-shrink: 0;
   cursor: pointer;
   max-width: 90px;
+  appearance: none;
+  -webkit-appearance: none;
+  color-scheme: dark;
 }
 
 .item-card__type {

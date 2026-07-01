@@ -62,6 +62,7 @@ export interface Navigator {
     openTimeBlocksForItem(itemId: number): void;
     getLocation(): AppLocation;
     subscribe(listener: LocationListener): () => void;
+    resolve(): void;
 }
 
 let _navigator: Navigator | null = null;
@@ -75,6 +76,20 @@ export function getNavigator(): Navigator {
         throw new Error('Navigator not registered');
     }
     return _navigator;
+}
+
+let _openInNewTabHandler: ((path: string) => void) | null = null;
+
+export function setOpenInNewTabHandler(fn: (path: string) => void): void {
+    _openInNewTabHandler = fn;
+}
+
+export function openInNewTab(path: string): void {
+    if (_openInNewTabHandler) {
+        _openInNewTabHandler(path);
+    } else {
+        window.open(path, '_blank');
+    }
 }
 
 export function registerNavigationCommands(): void {

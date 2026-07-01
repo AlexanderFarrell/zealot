@@ -914,6 +914,8 @@ export class ZealotScriptEditor extends HTMLElement {
 		this._toolbarMenuCleanups = [];
 		this._view?.destroy();
 		this._view = null;
+		this._toolbar = null;
+		this.innerHTML = '';
 	}
 
 	get content(): string {

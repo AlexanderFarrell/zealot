@@ -1,0 +1,32 @@
+{
+  "productName": "Zealot Desktop",
+  "identifier": "com.zealot.desktop",
+  "version": "0.1.0",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5175",
+    "beforeDevCommand": "npm run dev -w @zealot/desktop",
+    "beforeBuildCommand": "npm run build -w @zealot/desktop"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Zealot",
+        "width": 1280,
+        "height": 800,
+        "resizable": true,
+        "decorations": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "icon": [
+      "icons/icon.png"
+    ],
+    "targets": ["dmg", "deb", "appimage"]
+  }
+}

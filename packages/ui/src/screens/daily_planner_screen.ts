@@ -30,6 +30,11 @@ export class DailyPlannerScreen extends BaseElementEmpty {
     private date: string | null = null;
     private renderId = 0;
     private headerEl: HTMLElement | null = null;
+    private _sidebarEl: HTMLElement | null = null;
+
+    onActivated(): void {
+        getRightSidebarHost()?.setContent(this._sidebarEl);
+    }
 
     async render() {
         const renderId = ++this.renderId;
@@ -143,7 +148,10 @@ export class DailyPlannerScreen extends BaseElementEmpty {
 
         if (repeatsResult.status === 'fulfilled') {
             const panel = new RepeatsSidebarView().init(repeatsResult.value, date);
+            this._sidebarEl = panel;
             getRightSidebarHost()?.setContent(panel);
+        } else {
+            this._sidebarEl = null;
         }
     }
 

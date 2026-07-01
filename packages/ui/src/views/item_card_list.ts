@@ -1,4 +1,4 @@
-import { getNavigator, registerDropZone, registerContextMenu, Popups } from '@websoil/engine';
+import { getNavigator, openInNewTab, registerDropZone, registerContextMenu, Popups } from '@websoil/engine';
 import { AttributeAPI } from '@zealot/api/src/attribute';
 import { ItemAPI } from '@zealot/api/src/item';
 import type { Item } from '@zealot/domain/src/item';
@@ -44,7 +44,7 @@ function buildCard(item: Item, showStatus: boolean, showParent: boolean, onDrop?
 
     registerContextMenu(card, () => [
         { label: 'Open', onClick: () => getNavigator().openItemById(item.ItemID) },
-        { label: 'Open in New Tab', onClick: () => window.open(`/item/${encodeURIComponent(item.Title)}`, '_blank') },
+        { label: 'Open in New Tab', onClick: () => openInNewTab(`/item/${encodeURIComponent(item.Title)}`) },
         { label: 'Open in New Window', onClick: () => window.open(`/item/${encodeURIComponent(item.Title)}`, '_blank', 'noopener,noreferrer') },
         { label: 'Copy Link', onClick: () => {
             void navigator.clipboard.writeText(`${window.location.origin}/item/${encodeURIComponent(item.Title)}`);
