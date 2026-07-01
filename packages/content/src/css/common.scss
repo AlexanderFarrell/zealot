@@ -224,7 +224,7 @@ icon-button {
     4px
     var(--right-panel-w);
   height: calc(100vh - var(--header-bar-h));
-  overflow: hidden;
+  overflow-x: hidden;
   transition: grid-template-columns 120ms ease;
 }
 
@@ -358,6 +358,16 @@ center-content {
   display: block;
   overflow-y: auto;
   height: calc(100vh - var(--header-bar-h));
+
+  item-screen {
+    min-height: 100%;
+  }
+}
+
+.zealot-panel {
+  item-screen {
+    min-height: 100%;
+  }
 }
 
 auth-modal form {
@@ -1169,6 +1179,10 @@ mobile-title-bar {
   center-content {
     height: auto;
     min-height: 60vh;
+
+    item-screen {
+      min-height: 100vh;
+    }
   }
 }
 
@@ -1212,6 +1226,10 @@ mobile-title-bar {
     center-content {
       height: auto;
       min-height: calc(100vh - 56px);
+
+      item-screen {
+        min-height: 100vh;
+      }
     }
 }
 

@@ -18,6 +18,7 @@ export class ZealotPanelContent implements IContentRenderer {
 
     constructor() {
         this.element = document.createElement('div');
+        this.element.className = 'zealot-panel';
         this.element.style.cssText = 'width:100%;height:100%;overflow:auto;padding:10px;box-sizing:border-box;';
     }
 
