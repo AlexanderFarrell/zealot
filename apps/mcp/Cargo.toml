@@ -14,8 +14,9 @@ rmcp = { version = "1.7", features = [
 ] }
 schemars = "1"
 
-# HTTP client for Zealot API
-reqwest = { version = "0.12", features = ["json"] }
+# HTTP client for Zealot API (shared with CLI/TUI)
+zealot-client = { path = "../../crates/zealot-client" }
+reqwest.workspace = true
 
 # Web framework (HTTP mode)
 axum.workspace = true
@@ -29,7 +30,7 @@ serde.workspace = true
 serde_json.workspace = true
 
 # CLI argument parsing
-clap = { version = "4", features = ["derive", "env"] }
+clap.workspace = true
 
 # URL encoding for path segments
 urlencoding = "2"

@@ -3853,6 +3853,7 @@ dependencies = [
  "cookie_store",
  "encoding_rs",
  "futures-core",
+ "futures-util",
  "h2",
  "http",
  "http-body",
@@ -3864,6 +3865,7 @@ dependencies = [
  "js-sys",
  "log",
  "mime",
+ "mime_guess",
  "native-tls",
  "percent-encoding",
  "pin-project-lite",
@@ -7119,6 +7121,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "zealot-client"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "toml 0.8.2",
+ "urlencoding",
+ "wiremock",
+ "zealot-domain",
+]
+
+[[package]]
 name = "zealot-desktop"
 version = "0.1.0"
 dependencies = [
@@ -7192,6 +7211,7 @@ dependencies = [
  "tracing-subscriber",
  "urlencoding",
  "wiremock",
+ "zealot-client",
 ]
 
 [[package]]

@@ -7,7 +7,7 @@ use clap::{Parser, ValueEnum};
 )]
 pub struct Config {
     /// Base URL of the Zealot API server
-    #[arg(long, env = "ZEALOT_URL", default_value = "http://localhost:7377")]
+    #[arg(long, env = "ZEALOT_URL", default_value = "http://localhost:8456")]
     pub url: String,
 
     /// API key for Zealot authentication (X-API-Key header)
