@@ -15,7 +15,7 @@ impl ZealotClient {
 
     /// `timestamp` format: `YYYY-MM-DD HH:MM:SS`.
     pub async fn add_comment(&self, dto: &AddCommentDto) -> Result<CommentDto, ApiError> {
-        self.post("/comment/", dto).await
+        self.post("/comment", dto).await
     }
 
     pub async fn update_comment(&self, dto: &UpdateCommentDto) -> Result<CommentDto, ApiError> {

@@ -13,7 +13,7 @@ impl ZealotClient {
     pub async fn media_get(&self, path: &str) -> Result<MediaEntry, ApiError> {
         let encoded = media_path(path);
         let url = if encoded.is_empty() {
-            "/media/".to_string()
+            "/media".to_string()
         } else {
             format!("/media/{encoded}")
         };

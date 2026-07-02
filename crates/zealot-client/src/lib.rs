@@ -13,3 +13,5 @@ pub mod types;
 pub use config::{Config, Profile, ResolvedConnection};
 pub use error::{ApiError, ConfigError};
 pub use http::ZealotClient;
+pub use reqwest::Method;
+pub use reqwest::StatusCode;

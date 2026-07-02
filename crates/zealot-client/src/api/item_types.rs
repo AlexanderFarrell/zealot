@@ -6,7 +6,7 @@ use crate::{ApiError, ZealotClient, api::seg};
 
 impl ZealotClient {
     pub async fn list_item_types(&self) -> Result<Vec<ItemTypeDto>, ApiError> {
-        self.get("/item_type/").await
+        self.get("/item_type").await
     }
 
     pub async fn item_type_summaries(&self) -> Result<Vec<ItemTypeSummaryDto>, ApiError> {
@@ -18,7 +18,7 @@ impl ZealotClient {
     }
 
     pub async fn add_item_type(&self, dto: &AddItemTypeDto) -> Result<ItemTypeDto, ApiError> {
-        self.post("/item_type/", dto).await
+        self.post("/item_type", dto).await
     }
 
     pub async fn update_item_type(&self, dto: &UpdateItemTypeDto) -> Result<ItemTypeDto, ApiError> {

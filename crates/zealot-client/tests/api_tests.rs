@@ -96,7 +96,7 @@ async fn not_found_maps_to_api_error() {
 async fn unauthorized_is_detectable() {
     let (server, client) = setup().await;
     Mock::given(method("GET"))
-        .and(path("/auth/"))
+        .and(path("/auth/is_logged_in"))
         .respond_with(ResponseTemplate::new(401).set_body_string("unauthorized"))
         .mount(&server)
         .await;
@@ -160,7 +160,7 @@ async fn repeat_status_put_sends_dto() {
 async fn media_get_distinguishes_directories_from_files() {
     let (server, client) = setup().await;
     Mock::given(method("GET"))
-        .and(path("/media/"))
+        .and(path("/media"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "files": [{"path": "docs", "size": 0, "is_folder": true, "modified_at": 1723198514}]
         })))

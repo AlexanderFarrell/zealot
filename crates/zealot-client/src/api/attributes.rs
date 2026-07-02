@@ -4,7 +4,7 @@ use crate::{ApiError, ZealotClient, api::seg, types::AttributeKindDto};
 
 impl ZealotClient {
     pub async fn list_attribute_kinds(&self) -> Result<Vec<AttributeKindDto>, ApiError> {
-        self.get("/attribute/").await
+        self.get("/attribute").await
     }
 
     pub async fn get_attribute_kind_by_key(&self, key: &str) -> Result<AttributeKindDto, ApiError> {
@@ -15,7 +15,7 @@ impl ZealotClient {
         &self,
         dto: &AddAttributeKindDto,
     ) -> Result<AttributeKindDto, ApiError> {
-        self.post("/attribute/", dto).await
+        self.post("/attribute", dto).await
     }
 
     pub async fn update_attribute_kind(

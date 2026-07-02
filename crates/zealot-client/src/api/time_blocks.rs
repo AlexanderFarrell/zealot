@@ -33,7 +33,7 @@ impl ZealotClient {
         &self,
         dto: &CreateTimeBlockDto,
     ) -> Result<TimeBlockDto, ApiError> {
-        self.post("/time_block/", dto).await
+        self.post("/time_block", dto).await
     }
 
     pub async fn update_time_block(&self, dto: &UpdateTimeBlockDto) -> Result<(), ApiError> {

@@ -4,7 +4,7 @@ use crate::{ApiError, ZealotClient, types::RuleRunResultDto};
 
 impl ZealotClient {
     pub async fn list_rules(&self) -> Result<Vec<RuleDto>, ApiError> {
-        self.get("/rule/").await
+        self.get("/rule").await
     }
 
     pub async fn get_rule(&self, rule_id: i64) -> Result<RuleDto, ApiError> {
@@ -12,7 +12,7 @@ impl ZealotClient {
     }
 
     pub async fn add_rule(&self, dto: &AddRuleDto) -> Result<RuleDto, ApiError> {
-        self.post("/rule/", dto).await
+        self.post("/rule", dto).await
     }
 
     pub async fn update_rule(&self, rule_id: i64, dto: &UpdateRuleDto) -> Result<RuleDto, ApiError> {

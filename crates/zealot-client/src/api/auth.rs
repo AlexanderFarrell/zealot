@@ -22,8 +22,8 @@ pub async fn create_api_key_with_credentials(
 }
 
 impl ZealotClient {
-    /// `GET /auth/` — returns the authenticated account or 401.
+    /// `GET /auth/is_logged_in` — returns the authenticated account or 401.
     pub async fn whoami(&self) -> Result<AccountDto, ApiError> {
-        self.get("/auth/").await
+        self.get("/auth/is_logged_in").await
     }
 }

@@ -4,5 +4,24 @@ version.workspace = true
 edition.workspace = true
 # license.workspace = true
 
+[[bin]]
+name = "zealot"
+path = "src/main.rs"
+
 [dependencies]
 zealot-domain = {path = "../../crates/zealot-domain"}
+zealot-client = {path = "../../crates/zealot-client"}
+
+anyhow.workspace = true
+chrono.workspace = true
+clap.workspace = true
+clap_complete = "4"
+rpassword = "7"
+serde.workspace = true
+serde_json.workspace = true
+tempfile = "3"
+tokio.workspace = true
+toml.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
