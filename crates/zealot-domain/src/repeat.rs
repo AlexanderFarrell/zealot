@@ -37,10 +37,10 @@ pub enum RepeatStatus {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RepeatEntryDto {
-    status: String,
-    item: ItemDto,
-    date: String,
-    comment: String,
+    pub status: String,
+    pub item: ItemDto,
+    pub date: String,
+    pub comment: String,
 }
 
 // Update DTOs

@@ -101,7 +101,7 @@ impl From<&Rule> for RuleDto {
 }
 
 /// Received when creating a rule.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AddRuleDto {
     pub name: String,
     pub description: Option<String>,
@@ -111,7 +111,7 @@ pub struct AddRuleDto {
 }
 
 /// Received when updating a rule.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateRuleDto {
     pub name: Option<String>,
     pub description: Option<String>,

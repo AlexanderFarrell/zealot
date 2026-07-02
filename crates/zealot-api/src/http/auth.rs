@@ -5,11 +5,13 @@ use axum::{
     routing::{get, post},
 };
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
-use serde::Deserialize;
 use time::Duration;
 use zealot_app::{app::AppState, services::auth::AuthError};
 use zealot_domain::{
-    account::{AccountDto, CreateApiKeyResponseDto, LoginBasicDto, RegisterBasicDto},
+    account::{
+        AccountDto, CreateApiKeyResponseDto, CreateApiKeyWithCredentialsDto, LoginBasicDto,
+        RegisterBasicDto,
+    },
     auth::Actor,
 };
 
@@ -136,13 +138,6 @@ async fn login_basic(
             }
         },
     }
-}
-
-#[derive(Deserialize)]
-struct CreateApiKeyWithCredentialsDto {
-    username: String,
-    password: String,
-    label: Option<String>,
 }
 
 async fn create_api_key_with_credentials(

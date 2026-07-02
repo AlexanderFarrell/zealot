@@ -56,6 +56,13 @@ pub struct CreateApiKeyResponseDto {
 // Receive DTOs
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateApiKeyWithCredentialsDto {
+    pub username: String,
+    pub password: String,
+    pub label: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoginBasicDto {
     pub username: String,
     pub password: String,
