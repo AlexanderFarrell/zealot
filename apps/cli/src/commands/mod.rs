@@ -27,6 +27,7 @@ pub async fn run(cli: Cli) -> Result<()> {
         Command::Login { url, name } => {
             return auth::login(cli.profile.as_deref(), url.as_deref(), name).await;
         }
+        Command::Tui => return launch_tui(),
         _ => {}
     }
 
@@ -38,7 +39,7 @@ pub async fn run(cli: Cli) -> Result<()> {
     )?;
 
     match cli.command {
-        Command::Login { .. } | Command::Completions { .. } => unreachable!(),
+        Command::Login { .. } | Command::Completions { .. } | Command::Tui => unreachable!(),
         Command::Logout { keep_key } => auth::logout(ctx, keep_key).await,
         Command::Status => auth::status(ctx).await,
 
@@ -77,6 +78,22 @@ pub async fn run(cli: Cli) -> Result<()> {
 
         Command::Api { method, path, body } => api(&ctx, &method, &path, body.as_deref()).await,
     }
+}
+
+/// Exec `zealot-tui`, looking next to our own binary first, then on PATH.
+fn launch_tui() -> Result<()> {
+    let sibling = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.join("zealot-tui")))
+        .filter(|p| p.exists());
+    let program = sibling.unwrap_or_else(|| "zealot-tui".into());
+    let status = std::process::Command::new(&program)
+        .status()
+        .map_err(|e| anyhow::anyhow!("failed to launch {}: {e}", program.display()))?;
+    if !status.success() {
+        anyhow::bail!("zealot-tui exited with {status}");
+    }
+    Ok(())
 }
 
 /// Raw API escape hatch.

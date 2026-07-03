@@ -169,6 +169,9 @@ pub enum Command {
         body: Option<String>,
     },
 
+    /// Launch the full-screen TUI (zealot-tui)
+    Tui,
+
     /// Generate shell completions
     Completions {
         #[arg(value_enum)]
