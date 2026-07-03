@@ -42,6 +42,7 @@ For a step-by-step walkthrough — creating your first types, attributes, and pl
 - [Goals and habit tracking](./docs/overview.md#4-recurring-work) — repeat tracker, cron automation, and goal cascades
 - [Automation](./docs/overview.md#6-automation) — Lua rules engine for cron and event-driven workflows
 - [AI agent integration](./docs/mcp.md) — connect Claude Desktop or any MCP client to your wiki and planner
+- [Terminal power tools](./docs/cli.md) — the `zealot` CLI and [`zealot-tui`](./docs/tui.md) full-screen client for operating everything from a shell
 - [Creative use cases](./docs/overview.md#creative-use-cases) — reading tracker, weekly reviews, research base, AI journaling
 
 ## Documentation
@@ -57,6 +58,8 @@ Key starting points:
 | [Data Model](./docs/data-model.md) | Items, types, attributes, links, rules — the full reference |
 | [Rules Engine](./docs/rules-engine.md) | Lua automation: triggers, API, and a cookbook of examples |
 | [MCP Guide](./docs/mcp.md) | Connect an AI agent to Zealot |
+| [CLI](./docs/cli.md) | The `zealot` terminal client: commands, scripting cookbook, config |
+| [TUI](./docs/tui.md) | The `zealot-tui` full-screen terminal workstation |
 | [HTTP API](./docs/http-api.md) | REST API reference for scripts and integrations |
 
 ## License

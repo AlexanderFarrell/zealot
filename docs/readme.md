@@ -28,11 +28,17 @@
 - [Architecture](./architecture.md) — Current system architecture (Rust + TypeScript)
 - [Analysis Tooling](./analysis-tooling.md) — Local code analysis setup
 
+## Terminal Clients
+
+- [CLI](./cli.md) — the `zealot` command: full wiki/planner/habit control from a shell, JSON output for scripting, `$EDITOR` round-trips, shell completions
+- [TUI](./tui.md) — `zealot-tui`, a full-screen keyboard-driven workstation: Today dashboard, item browser, live search, habit grid, rules
+
 ## Integrations
 
 - [MCP Guide](./mcp.md) — Connect Claude, Codex, or any MCP client to Zealot: installation, tool reference, workflows, and safe operating rules
 - [MCP System Prompt](./mcp-system-prompt.md) — Agent-facing system prompt describing Zealot's data model and tool behavior
 - [HTTP API](./http-api.md) — REST API reference
+- [Client Crate](./client-crate.md) — `zealot-client`, the shared Rust HTTP client used by the CLI, TUI, and MCP server
 
 ## Contributing
 
