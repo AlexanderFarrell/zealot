@@ -7489,6 +7489,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "base64 0.22.1",
  "chrono",
  "clap",
  "reqwest 0.12.28",
@@ -7501,9 +7502,9 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
- "urlencoding",
  "wiremock",
  "zealot-client",
+ "zealot-domain",
 ]
 
 [[package]]

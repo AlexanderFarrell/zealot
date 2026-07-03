@@ -6,9 +6,12 @@ use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragra
 
 use crate::app::{App, Screen};
 
+pub mod ansi;
 pub mod screens;
 
 pub fn draw(frame: &mut Frame, app: &App) {
+    frame.render_widget(Clear, frame.area());
+
     let [main, status] =
         Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(frame.area());
 

@@ -21,6 +21,11 @@ pub struct Config {
     /// Port for HTTP mode
     #[arg(long, env = "MCP_PORT", default_value = "3100")]
     pub port: u16,
+
+    /// Item reference (id or exact title) used as the target for
+    /// `add_journal_entry`
+    #[arg(long, env = "ZEALOT_JOURNAL_ITEM")]
+    pub journal_item: Option<String>,
 }
 
 impl Config {

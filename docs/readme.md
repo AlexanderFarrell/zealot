@@ -30,6 +30,7 @@
 
 ## Terminal Clients
 
+- [Terminal Guide](./terminal-guide.md) — full user guide for the CLI and TUI: login, profiles, daily planning, item workflows, search, habits, comments, rules, media, scripting, keybindings, and troubleshooting
 - [CLI](./cli.md) — the `zealot` command: full wiki/planner/habit control from a shell, JSON output for scripting, `$EDITOR` round-trips, shell completions
 - [TUI](./tui.md) — `zealot-tui`, a full-screen keyboard-driven workstation: Today dashboard, item browser, live search, habit grid, rules
 

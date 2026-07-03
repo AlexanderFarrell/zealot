@@ -47,7 +47,9 @@ fn connect() -> Result<(ZealotClient, String, Option<String>)> {
 fn enter_terminal() -> Result<Terminal<CrosstermBackend<std::io::Stdout>>> {
     enable_raw_mode()?;
     execute!(stdout(), EnterAlternateScreen)?;
-    Ok(Terminal::new(CrosstermBackend::new(stdout()))?)
+    let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
+    terminal.clear()?;
+    Ok(terminal)
 }
 
 fn leave_terminal() {
@@ -91,7 +93,10 @@ async fn main() -> Result<()> {
                     Some(Ok(CtEvent::Key(key))) if key.kind != KeyEventKind::Release => {
                         app.on_key(key);
                     }
-                    Some(Ok(_)) => {} // resize redraws on next loop
+                    Some(Ok(CtEvent::Resize(_, _))) => {
+                        let _ = terminal.clear();
+                    }
+                    Some(Ok(_)) => {}
                     Some(Err(e)) => {
                         leave_terminal();
                         return Err(e.into());

@@ -1,23 +1,77 @@
-use chrono::{Duration, NaiveDate};
+use std::collections::{HashMap, HashSet};
+
 use rmcp::{
     ErrorData as McpError,
     handler::server::wrapper::Parameters,
     model::{GetPromptResult, PromptMessage, PromptMessageRole},
 };
 use schemars::JsonSchema;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use zealot_domain::{
+    item::{ItemDto, SearchResultDto, SearchScope},
+    repeat::RepeatEntryDto,
+};
 
-use crate::tools::ZealotServer;
+use crate::{
+    output::{self, Detail},
+    tools::{ZealotServer, err_ctx, parse_date},
+};
 
 fn user_msg(text: String) -> PromptMessage {
     PromptMessage::new_text(PromptMessageRole::User, text)
 }
 
-fn json_block(v: &serde_json::Value) -> String {
+fn json_block<T: Serialize>(v: &T) -> String {
     format!(
         "```json\n{}\n```",
-        serde_json::to_string_pretty(v).unwrap_or_default()
+        serde_json::to_string(v).unwrap_or_default()
     )
+}
+
+fn item_summaries(items: &[ItemDto]) -> Vec<output::ItemSummary> {
+    items
+        .iter()
+        .map(|item| output::ItemSummary::project(item, Detail::Summary))
+        .collect()
+}
+
+#[derive(Debug, Serialize)]
+struct RepeatEntrySummary {
+    item_id: i64,
+    title: String,
+    date: String,
+    status: String,
+    comment: String,
+}
+
+impl From<&RepeatEntryDto> for RepeatEntrySummary {
+    fn from(entry: &RepeatEntryDto) -> Self {
+        Self {
+            item_id: entry.item.item_id,
+            title: entry.item.title.clone(),
+            date: entry.date.clone(),
+            status: entry.status.clone(),
+            comment: entry.comment.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct SearchPromptHit {
+    #[serde(flatten)]
+    item: output::ItemSummary,
+    match_scope: SearchScope,
+    snippet: Option<String>,
+}
+
+impl From<&SearchResultDto> for SearchPromptHit {
+    fn from(hit: &SearchResultDto) -> Self {
+        Self {
+            item: output::ItemSummary::project(&hit.item, Detail::Summary),
+            match_scope: hit.match_scope.clone(),
+            snippet: hit.snippet.clone(),
+        }
+    }
 }
 
 const LUA_API_REFERENCE: &str = r#"
@@ -63,8 +117,6 @@ if ctx.item then
 end
 ```
 "#;
-
-// ── Prompt parameter structs ──────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct DailyBriefingArgs {
@@ -148,8 +200,6 @@ pub struct ExportSummaryArgs {
     pub format: Option<String>,
 }
 
-// ── Prompt implementations ────────────────────────────────────────────────────
-
 #[rmcp::prompt_router(vis = "pub")]
 impl ZealotServer {
     #[rmcp::prompt(
@@ -159,21 +209,18 @@ impl ZealotServer {
         &self,
         Parameters(a): Parameters<DailyBriefingArgs>,
     ) -> Result<GetPromptResult, McpError> {
-        let plan = self
-            .client
-            .get::<serde_json::Value>(&format!("/planner/day/{}", a.date))
-            .await
-            .unwrap_or(serde_json::Value::Array(vec![]));
-        let repeats = self
-            .client
-            .get::<serde_json::Value>(&format!("/repeat/day/{}", a.date))
-            .await
-            .unwrap_or(serde_json::Value::Array(vec![]));
-        let recent = self
-            .client
-            .get::<serde_json::Value>("/item/recent?limit=10&offset=0")
-            .await
-            .unwrap_or(serde_json::Value::Array(vec![]));
+        let date = parse_date(&a.date)?;
+        let (plan, repeats, recent) = tokio::join!(
+            self.client.planner_day(date),
+            self.client.repeats_for_day(date),
+            self.client.recent_items(10, 0),
+        );
+        let plan = plan.map_err(|e| err_ctx("day plan", e))?;
+        let repeats = repeats.map_err(|e| err_ctx("habit entries", e))?;
+        let recent = recent.map_err(|e| err_ctx("recent items", e))?;
+        let plan = item_summaries(&plan);
+        let repeats: Vec<_> = repeats.iter().map(RepeatEntrySummary::from).collect();
+        let recent = item_summaries(&recent);
 
         let msg = format!(
             "Please give me a daily briefing for **{date}**.\n\n\
@@ -199,9 +246,10 @@ impl ZealotServer {
     ) -> Result<GetPromptResult, McpError> {
         let week_plan = self
             .client
-            .get::<serde_json::Value>(&format!("/planner/week/{}", a.week))
+            .planner_week(&a.week)
             .await
-            .unwrap_or(serde_json::Value::Array(vec![]));
+            .map_err(|e| err_ctx("week plan", e))?;
+        let week_plan = item_summaries(&week_plan);
 
         let msg = format!(
             "Help me plan week **{week}**.\n\n\
@@ -228,9 +276,9 @@ impl ZealotServer {
     ) -> Result<GetPromptResult, McpError> {
         let types = self
             .client
-            .get::<serde_json::Value>("/item_type/summary")
+            .item_type_summaries()
             .await
-            .unwrap_or(serde_json::Value::Array(vec![]));
+            .map_err(|e| err_ctx("item types", e))?;
 
         let ctx = a
             .context
@@ -261,12 +309,10 @@ impl ZealotServer {
     ) -> Result<GetPromptResult, McpError> {
         let items = self
             .client
-            .get::<serde_json::Value>(&format!(
-                "/item/?type={}",
-                urlencoding::encode(&a.type_name)
-            ))
+            .list_items(Some(&a.type_name))
             .await
-            .unwrap_or(serde_json::Value::Array(vec![]));
+            .map_err(|e| err_ctx(&format!("items of type '{}'", a.type_name), e))?;
+        let items = item_summaries(&items);
 
         let period_ctx = a
             .period
@@ -295,16 +341,12 @@ impl ZealotServer {
         &self,
         Parameters(a): Parameters<CreateProjectArgs>,
     ) -> Result<GetPromptResult, McpError> {
-        let types = self
-            .client
-            .get::<serde_json::Value>("/item_type/summary")
-            .await
-            .unwrap_or(serde_json::Value::Array(vec![]));
-        let attributes = self
-            .client
-            .get::<serde_json::Value>("/attribute/")
-            .await
-            .unwrap_or(serde_json::Value::Array(vec![]));
+        let (types, attributes) = tokio::join!(
+            self.client.item_type_summaries(),
+            self.client.list_attribute_kinds(),
+        );
+        let types = types.map_err(|e| err_ctx("item types", e))?;
+        let attributes = attributes.map_err(|e| err_ctx("attribute kinds", e))?;
 
         let milestone_ctx = a
             .milestones
@@ -348,29 +390,28 @@ impl ZealotServer {
         &self,
         Parameters(a): Parameters<ReviewTasksArgs>,
     ) -> Result<GetPromptResult, McpError> {
-        let start = NaiveDate::parse_from_str(&a.start_date, "%Y-%m-%d").map_err(|_| {
-            McpError::invalid_params("invalid start_date (expected YYYY-MM-DD)", None)
-        })?;
-        let end = NaiveDate::parse_from_str(&a.end_date, "%Y-%m-%d").map_err(|_| {
-            McpError::invalid_params("invalid end_date (expected YYYY-MM-DD)", None)
-        })?;
-
-        let days = (end - start).num_days().min(14);
-        let mut all_entries: Vec<serde_json::Value> = vec![];
-        for i in 0..=days {
-            let date = (start + Duration::days(i)).format("%Y-%m-%d").to_string();
-            if let Ok(entries) = self
-                .client
-                .get::<serde_json::Value>(&format!("/repeat/day/{}", date))
-                .await
-            {
-                if let Some(arr) = entries.as_array() {
-                    all_entries.extend(arr.clone());
-                }
-            }
+        let start = parse_date(&a.start_date)?;
+        let end = parse_date(&a.end_date)?;
+        if end < start {
+            return Err(McpError::invalid_params(
+                "end_date must be on or after start_date",
+                None,
+            ));
+        }
+        if (end - start).num_days() > 365 {
+            return Err(McpError::invalid_params(
+                "review_tasks range is capped at 366 inclusive days",
+                None,
+            ));
         }
 
-        let summary = serde_json::Value::Array(all_entries);
+        let entries = self
+            .client
+            .repeats_for_range(start, end)
+            .await
+            .map_err(|e| err_ctx("habit entries", e))?;
+        let entries: Vec<_> = entries.iter().map(RepeatEntrySummary::from).collect();
+
         let msg = format!(
             "Please review my habit and task completion from **{start}** to **{end}**.\n\n\
             ## Repeat entries for this period\n{data}\n\n\
@@ -381,7 +422,7 @@ impl ZealotServer {
             4. Concrete suggestions for improving consistency or adjusting expectations",
             start = a.start_date,
             end = a.end_date,
-            data = json_block(&summary),
+            data = json_block(&entries),
         );
         Ok(GetPromptResult::new(vec![user_msg(msg)]))
     }
@@ -396,32 +437,24 @@ impl ZealotServer {
         let depth = a.depth.unwrap_or(1).min(2);
         let results = self
             .client
-            .get::<serde_json::Value>(&format!(
-                "/item/search?term={}",
-                urlencoding::encode(&a.query)
-            ))
+            .search_items(&a.query, SearchScope::Title, false, 10, 0)
             .await
-            .unwrap_or(serde_json::Value::Array(vec![]));
+            .map_err(|e| err_ctx("search", e))?;
+        let result_rows: Vec<_> = results.iter().map(SearchPromptHit::from).collect();
 
-        let mut related_map: std::collections::HashMap<i64, serde_json::Value> =
-            std::collections::HashMap::new();
+        let mut related_map: HashMap<i64, Vec<output::ItemSummary>> = HashMap::new();
         if depth >= 1 {
-            if let Some(arr) = results.as_array() {
-                for item in arr.iter().take(5) {
-                    if let Some(id) = item.get("item_id").and_then(|v| v.as_i64()) {
-                        if let Ok(rel) = self
-                            .client
-                            .get::<serde_json::Value>(&format!("/item/related/{id}"))
-                            .await
-                        {
-                            related_map.insert(id, rel);
-                        }
-                    }
-                }
+            for hit in results.iter().take(5) {
+                let id = hit.item.item_id;
+                let related = self
+                    .client
+                    .get_related(id)
+                    .await
+                    .map_err(|e| err_ctx(&format!("related items for item #{id}"), e))?;
+                related_map.insert(id, item_summaries(&related));
             }
         }
 
-        let related_json = serde_json::to_value(&related_map).unwrap_or_default();
         let msg = format!(
             "Help me explore and connect knowledge around the topic: **{query}**\n\n\
             ## Search results\n{results}\n\n\
@@ -432,8 +465,8 @@ impl ZealotServer {
             3. Suggest 3–5 specific new relationships or links I should add between existing items\n\
             4. Suggest any new items I should create to fill the gaps",
             query = a.query,
-            results = json_block(&results),
-            related = json_block(&related_json),
+            results = json_block(&result_rows),
+            related = json_block(&related_map),
         );
         Ok(GetPromptResult::new(vec![user_msg(msg)]))
     }
@@ -445,16 +478,12 @@ impl ZealotServer {
         &self,
         Parameters(a): Parameters<AutomateWorkflowArgs>,
     ) -> Result<GetPromptResult, McpError> {
-        let types = self
-            .client
-            .get::<serde_json::Value>("/item_type/summary")
-            .await
-            .unwrap_or(serde_json::Value::Array(vec![]));
-        let attributes = self
-            .client
-            .get::<serde_json::Value>("/attribute/")
-            .await
-            .unwrap_or(serde_json::Value::Array(vec![]));
+        let (types, attributes) = tokio::join!(
+            self.client.item_type_summaries(),
+            self.client.list_attribute_kinds(),
+        );
+        let types = types.map_err(|e| err_ctx("item types", e))?;
+        let attributes = attributes.map_err(|e| err_ctx("attribute kinds", e))?;
 
         let msg = format!(
             "Help me write a Zealot automation rule.\n\n\
@@ -492,70 +521,56 @@ impl ZealotServer {
             .min(3);
         let root_results = self
             .client
-            .get::<serde_json::Value>(&format!(
-                "/item/search?term={}",
-                urlencoding::encode(&a.topic)
-            ))
+            .search_items(&a.topic, SearchScope::Title, false, 10, 0)
             .await
-            .unwrap_or(serde_json::Value::Array(vec![]));
+            .map_err(|e| err_ctx("search", e))?;
 
-        let mut visited: std::collections::HashSet<i64> = std::collections::HashSet::new();
-        let mut graph: Vec<serde_json::Value> = vec![];
-        let mut frontier: Vec<i64> = vec![];
+        let mut visited: HashSet<i64> = HashSet::new();
+        let mut graph: Vec<output::ItemSummary> = Vec::new();
+        let mut frontier: Vec<i64> = Vec::new();
 
-        if let Some(arr) = root_results.as_array() {
-            for item in arr.iter().take(3) {
-                if let Some(id) = item.get("item_id").and_then(|v| v.as_i64()) {
-                    frontier.push(id);
-                    visited.insert(id);
-                    graph.push(item.clone());
-                }
+        for hit in root_results.iter().take(3) {
+            if visited.insert(hit.item.item_id) {
+                frontier.push(hit.item.item_id);
+                graph.push(output::ItemSummary::project(&hit.item, Detail::Summary));
             }
         }
 
         for _ in 0..depth {
-            let mut next: Vec<i64> = vec![];
+            let mut next = Vec::new();
             for id in &frontier {
                 if graph.len() >= 20 {
                     break;
                 }
-                if let Ok(children) = self
+                let children = self
                     .client
-                    .get::<serde_json::Value>(&format!("/item/children/{id}"))
+                    .get_children(*id)
                     .await
-                {
-                    if let Some(arr) = children.as_array() {
-                        for child in arr.iter().take(5) {
-                            if let Some(cid) = child.get("item_id").and_then(|v| v.as_i64()) {
-                                if visited.insert(cid) {
-                                    next.push(cid);
-                                    graph.push(child.clone());
-                                }
-                            }
-                        }
+                    .map_err(|e| err_ctx(&format!("children of item #{id}"), e))?;
+                for child in children.iter().take(5) {
+                    if visited.insert(child.item_id) {
+                        next.push(child.item_id);
+                        graph.push(output::ItemSummary::project(child, Detail::Summary));
                     }
                 }
-                if let Ok(related) = self
+                let related = self
                     .client
-                    .get::<serde_json::Value>(&format!("/item/related/{id}"))
+                    .get_related(*id)
                     .await
-                {
-                    if let Some(arr) = related.as_array() {
-                        for rel in arr.iter().take(5) {
-                            if let Some(rid) = rel.get("item_id").and_then(|v| v.as_i64()) {
-                                if visited.insert(rid) {
-                                    next.push(rid);
-                                    graph.push(rel.clone());
-                                }
-                            }
-                        }
+                    .map_err(|e| err_ctx(&format!("related items for item #{id}"), e))?;
+                for rel in related.iter().take(5) {
+                    if visited.insert(rel.item_id) {
+                        next.push(rel.item_id);
+                        graph.push(output::ItemSummary::project(rel, Detail::Summary));
                     }
                 }
             }
             frontier = next;
+            if frontier.is_empty() || graph.len() >= 20 {
+                break;
+            }
         }
 
-        let graph_val = serde_json::Value::Array(graph);
         let msg = format!(
             "Explore my knowledge graph around the topic: **{topic}**\n\n\
             ## Discovered items ({depth} hops from topic)\n{graph}\n\n\
@@ -566,7 +581,7 @@ impl ZealotServer {
             4. Suggest 3–5 new items or connections that would strengthen this knowledge cluster",
             topic = a.topic,
             depth = depth,
-            graph = json_block(&graph_val),
+            graph = json_block(&graph),
         );
         Ok(GetPromptResult::new(vec![user_msg(msg)]))
     }
@@ -579,25 +594,29 @@ impl ZealotServer {
         Parameters(a): Parameters<ExportSummaryArgs>,
     ) -> Result<GetPromptResult, McpError> {
         let items = if let Some(ref term) = a.search_term {
-            self.client
-                .get::<serde_json::Value>(&format!(
-                    "/item/search?term={}",
-                    urlencoding::encode(term)
-                ))
+            let hits = self
+                .client
+                .search_items(term, SearchScope::Title, false, 50, 0)
                 .await
+                .map_err(|e| err_ctx("search", e))?;
+            hits.iter()
+                .map(|hit| output::ItemSummary::project(&hit.item, Detail::Summary))
+                .collect()
         } else if let Some(ref type_name) = a.type_name {
-            self.client
-                .get::<serde_json::Value>(&format!(
-                    "/item/?type={}",
-                    urlencoding::encode(type_name)
-                ))
+            let items = self
+                .client
+                .list_items(Some(type_name))
                 .await
+                .map_err(|e| err_ctx(&format!("items of type '{type_name}'"), e))?;
+            item_summaries(&items)
         } else {
-            self.client
-                .get::<serde_json::Value>("/item/recent?limit=50&offset=0")
+            let items = self
+                .client
+                .recent_items(50, 0)
                 .await
-        }
-        .unwrap_or(serde_json::Value::Array(vec![]));
+                .map_err(|e| err_ctx("recent items", e))?;
+            item_summaries(&items)
+        };
 
         let format = a.format.as_deref().unwrap_or("markdown");
         let filter_desc = match (&a.type_name, &a.search_term) {

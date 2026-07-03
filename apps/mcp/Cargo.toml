@@ -16,6 +16,7 @@ schemars = "1"
 
 # HTTP client for Zealot API (shared with CLI/TUI)
 zealot-client = { path = "../../crates/zealot-client" }
+zealot-domain = { path = "../../crates/zealot-domain" }
 reqwest.workspace = true
 
 # Web framework (HTTP mode)
@@ -32,8 +33,8 @@ serde_json.workspace = true
 # CLI argument parsing
 clap.workspace = true
 
-# URL encoding for path segments
-urlencoding = "2"
+# Base64 encode/decode for binary media tool payloads
+base64 = "0.22"
 
 # Date math for prompts
 chrono.workspace = true

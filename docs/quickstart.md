@@ -241,6 +241,44 @@ The planner shows items by date. Recent items are also available from the sideba
 
 ---
 
+## Using the terminal clients
+
+After the server is running and you have an account, you can use Zealot from the
+terminal as well as the browser.
+
+If you have a Rust toolchain installed, build the terminal clients:
+
+```
+cargo build --release -p zealot-cli -p zealot-tui
+```
+
+Log in once:
+
+```
+zealot login http://localhost:8456
+zealot status
+```
+
+Then use the CLI for quick actions:
+
+```
+zealot day
+zealot add "Write homepage copy" -t Task -A Status=Open
+zealot search homepage
+```
+
+Or launch the full-screen TUI:
+
+```
+zealot tui
+```
+
+See [Terminal Guide: CLI and TUI](./terminal-guide.md) for the full terminal
+workflow, including profiles, scripting, habits, time blocks, comments, rules,
+media, and TUI keybindings.
+
+---
+
 ## API keys (optional)
 
 If you want to access Zealot from the mobile app or an external tool like the MCP integration, you need an API key instead of a session cookie.

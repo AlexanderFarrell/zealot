@@ -4,6 +4,10 @@ Operate your entire wiki, planner, and habit tracker from the terminal. The CLI 
 first-class client — it authenticates like the desktop and mobile apps (username +
 password mints an API key) and talks to the same REST API.
 
+For a start-to-finish user guide covering both terminal clients, see
+[Terminal Guide: CLI and TUI](./terminal-guide.md). This page is the compact CLI
+reference.
+
 ```
 $ zealot d
 FRIDAY 2026-07-03 (TODAY)
@@ -221,4 +225,4 @@ documented inline. Top-level commands:
 
 `login` `logout` `status` · `item` `view` `add` `search` `filter` ·
 `day` `week` `month` `year` · `habit` `block` `comment` `journal` ·
-`type` `attr` `rule` `media` · `api` `completions`
+`type` `attr` `rule` `media` · `api` `tui` `completions`

@@ -6,6 +6,7 @@ use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wra
 
 use super::display_title;
 use crate::app::App;
+use crate::ui::ansi::sgr_to_text;
 
 pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
     let [tree_area, preview_area] =
@@ -64,10 +65,8 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
     if let Some(&idx) = visible.get(app.browse.selected.min(visible.len().saturating_sub(1))) {
         let node = &app.browse.nodes[idx];
         let rendered = zealot_zscript::render(&node.item.content);
-        let text = ansi_to_tui::IntoText::into_text(&rendered)
-            .unwrap_or_else(|_| node.item.content.clone().into());
         frame.render_widget(
-            Paragraph::new(text)
+            Paragraph::new(sgr_to_text(&rendered))
                 .block(preview_block)
                 .wrap(Wrap { trim: false }),
             preview_area,

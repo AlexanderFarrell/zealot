@@ -1,175 +1,181 @@
-use rmcp::{
-    ErrorData as McpError,
-    handler::server::wrapper::Parameters,
-    model::{CallToolResult, Content},
-};
+use rmcp::{ErrorData as McpError, handler::server::wrapper::Parameters, model::CallToolResult};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::json;
+use zealot_domain::time_block::{CreateTimeBlockDto, UpdateTimeBlockDto};
 
-use crate::tools::{ZealotServer, api_err};
+use crate::{
+    output,
+    tools::{ZealotServer, err_ctx, parse_date},
+};
+
+/// Format minutes-from-midnight as `H:MM`.
+pub fn format_clock(min: i32) -> String {
+    format!("{}:{:02}", min / 60, min % 60)
+}
+
+/// Parse an `H:MM` or `HH:MM` clock string into minutes-from-midnight.
+pub fn parse_clock(s: &str) -> Result<i32, McpError> {
+    let bad = || McpError::invalid_params(format!("invalid time '{s}' (expected HH:MM)"), None);
+    let (h, m) = s.split_once(':').ok_or_else(bad)?;
+    let h: i32 = h.trim().parse().map_err(|_| bad())?;
+    let m: i32 = m.trim().parse().map_err(|_| bad())?;
+    if !(0..=23).contains(&h) || !(0..=59).contains(&m) {
+        return Err(bad());
+    }
+    Ok(h * 60 + m)
+}
+
+fn block_row(b: &zealot_domain::time_block::TimeBlockDto) -> serde_json::Value {
+    json!({
+        "block_id": b.block_id,
+        "item_id": b.item.item_id,
+        "title": b.item.title,
+        "date": b.date,
+        "start": format_clock(b.start_min),
+        "end": format_clock(b.end_min),
+        "note": b.note,
+    })
+}
 
 #[derive(Debug, Deserialize, JsonSchema)]
-pub struct TimeBlockDateParam {
+pub struct GetTimeBlocksParams {
+    /// Start date (inclusive), YYYY-MM-DD. Ignored if `item` is set.
+    pub start_date: Option<String>,
+    /// End date (inclusive), YYYY-MM-DD (default: same as start_date). Ignored if `item` is set.
+    pub end_date: Option<String>,
+    /// Item ID or exact title — if set, returns all blocks for this item across all dates
+    pub item: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct CreateTimeBlockParams {
+    /// Item ID or exact title to attach the block to
+    pub item: String,
     /// Date in YYYY-MM-DD format
     pub date: String,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct TimeBlockRangeParam {
-    /// Start date (inclusive) in YYYY-MM-DD format
-    pub start_date: String,
-    /// End date (inclusive) in YYYY-MM-DD format
-    pub end_date: String,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct TimeBlockItemParam {
-    /// Numeric item ID
-    pub item_id: i64,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct CreateTimeBlockParam {
-    /// Numeric item ID to attach the block to
-    pub item_id: i64,
-    /// Date in YYYY-MM-DD format
-    pub date: String,
-    /// Start time as minutes since midnight (0–1439)
-    pub start_min: i32,
-    /// End time as minutes since midnight (0–1439)
-    pub end_min: i32,
+    /// Start time as HH:MM (e.g. "9:00")
+    pub start: String,
+    /// End time as HH:MM (e.g. "10:30")
+    pub end: String,
     /// Optional note text for this block
     pub note: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-pub struct UpdateTimeBlockParam {
+pub struct UpdateTimeBlockParams {
     /// Numeric block ID to update
     pub block_id: i64,
     /// New date in YYYY-MM-DD format (optional)
     pub date: Option<String>,
-    /// New start time as minutes since midnight (optional)
-    pub start_min: Option<i32>,
-    /// New end time as minutes since midnight (optional)
-    pub end_min: Option<i32>,
+    /// New start time as HH:MM (optional)
+    pub start: Option<String>,
+    /// New end time as HH:MM (optional)
+    pub end: Option<String>,
     /// New note text (optional)
     pub note: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-pub struct DeleteTimeBlockParam {
-    /// Numeric block ID to delete
+pub struct DeleteTimeBlockParams {
     pub block_id: i64,
-}
-
-fn pretty(v: serde_json::Value) -> String {
-    serde_json::to_string_pretty(&v).unwrap_or_default()
 }
 
 #[rmcp::tool_router(router = time_block_tool_router, vis = "pub")]
 impl ZealotServer {
     #[rmcp::tool(
-        description = "Get all time blocks scheduled for a specific day. Returns blocks with item details and start/end times in minutes since midnight. Date format: YYYY-MM-DD."
+        description = "Get time blocks. Pass `item` to get all blocks for one item across all dates, or `start_date`/`end_date` (inclusive range, end defaults to start) to get blocks in a date range. Times are HH:MM."
     )]
-    pub async fn get_time_blocks_for_day(
+    pub async fn get_time_blocks(
         &self,
-        Parameters(p): Parameters<TimeBlockDateParam>,
+        Parameters(p): Parameters<GetTimeBlocksParams>,
     ) -> Result<CallToolResult, McpError> {
-        let blocks: serde_json::Value = self
-            .client
-            .get(&format!("/time_block/day/{}", p.date))
-            .await
-            .map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text(pretty(blocks))]))
+        let blocks = if let Some(item) = &p.item {
+            let existing = self.resolve_item(item).await?;
+            self.client
+                .time_blocks_for_item(existing.item_id)
+                .await
+                .map_err(|e| err_ctx(&format!("time blocks for item #{}", existing.item_id), e))?
+        } else {
+            let Some(start_str) = &p.start_date else {
+                return Err(McpError::invalid_params(
+                    "pass either `item` or `start_date`",
+                    None,
+                ));
+            };
+            let start = parse_date(start_str)?;
+            let end = match &p.end_date {
+                Some(e) => parse_date(e)?,
+                None => start,
+            };
+            self.client
+                .time_blocks_for_range(start, end)
+                .await
+                .map_err(|e| err_ctx("time blocks", e))?
+        };
+        let rows: Vec<_> = blocks.iter().map(block_row).collect();
+        Ok(output::json_result(&rows))
     }
 
     #[rmcp::tool(
-        description = "Get all time blocks across a date range (inclusive). Returns blocks sorted by date and start time. Date format: YYYY-MM-DD."
-    )]
-    pub async fn get_time_blocks_for_range(
-        &self,
-        Parameters(p): Parameters<TimeBlockRangeParam>,
-    ) -> Result<CallToolResult, McpError> {
-        let blocks: serde_json::Value = self
-            .client
-            .get(&format!(
-                "/time_block/range?start={}&end={}",
-                p.start_date, p.end_date
-            ))
-            .await
-            .map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text(pretty(blocks))]))
-    }
-
-    #[rmcp::tool(
-        description = "Get all time blocks for a specific item across all dates. Useful to see the full schedule for one item."
-    )]
-    pub async fn get_time_blocks_for_item(
-        &self,
-        Parameters(p): Parameters<TimeBlockItemParam>,
-    ) -> Result<CallToolResult, McpError> {
-        let blocks: serde_json::Value = self
-            .client
-            .get(&format!("/time_block/item/{}", p.item_id))
-            .await
-            .map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text(pretty(blocks))]))
-    }
-
-    #[rmcp::tool(
-        description = "Create a new time block for an item. Times are in minutes since midnight (e.g. 9:00 = 540, 17:30 = 1050). Returns the created block."
+        description = "Create a new time block for an item. Times are HH:MM (e.g. start:\"9:00\", end:\"10:30\")."
     )]
     pub async fn create_time_block(
         &self,
-        Parameters(p): Parameters<CreateTimeBlockParam>,
+        Parameters(p): Parameters<CreateTimeBlockParams>,
     ) -> Result<CallToolResult, McpError> {
-        let body = json!({
-            "item_id":   p.item_id,
-            "date":      p.date,
-            "start_min": p.start_min,
-            "end_min":   p.end_min,
-            "note":      p.note,
-        });
-        let block: serde_json::Value =
-            self.client.post("/time_block", &body).await.map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text(pretty(block))]))
+        let existing = self.resolve_item(&p.item).await?;
+        let start_min = parse_clock(&p.start)?;
+        let end_min = parse_clock(&p.end)?;
+        let dto = CreateTimeBlockDto {
+            item_id: existing.item_id,
+            date: p.date,
+            start_min,
+            end_min,
+            note: p.note,
+        };
+        let block = self
+            .client
+            .create_time_block(&dto)
+            .await
+            .map_err(|e| err_ctx(&format!("time block for item #{}", existing.item_id), e))?;
+        Ok(output::json_result(&block_row(&block)))
     }
 
     #[rmcp::tool(
-        description = "Update an existing time block. All fields are optional — only provided fields are changed."
+        description = "Update an existing time block. All fields are optional — only provided fields are changed. Times are HH:MM."
     )]
     pub async fn update_time_block(
         &self,
-        Parameters(p): Parameters<UpdateTimeBlockParam>,
+        Parameters(p): Parameters<UpdateTimeBlockParams>,
     ) -> Result<CallToolResult, McpError> {
-        let body = json!({
-            "block_id":  p.block_id,
-            "date":      p.date,
-            "start_min": p.start_min,
-            "end_min":   p.end_min,
-            "note":      p.note,
-        });
+        let start_min = p.start.as_deref().map(parse_clock).transpose()?;
+        let end_min = p.end.as_deref().map(parse_clock).transpose()?;
+        let dto = UpdateTimeBlockDto {
+            block_id: p.block_id,
+            date: p.date,
+            start_min,
+            end_min,
+            note: p.note,
+        };
         self.client
-            .patch_no_response(&format!("/time_block/{}", p.block_id), &body)
+            .update_time_block(&dto)
             .await
-            .map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text(
-            "time block updated".to_string(),
-        )]))
+            .map_err(|e| err_ctx(&format!("time block #{}", p.block_id), e))?;
+        Ok(output::json_result(
+            &json!({"block_id": p.block_id, "status": "updated"}),
+        ))
     }
 
     #[rmcp::tool(description = "Delete a time block permanently by its block ID.")]
     pub async fn delete_time_block(
         &self,
-        Parameters(p): Parameters<DeleteTimeBlockParam>,
+        Parameters(p): Parameters<DeleteTimeBlockParams>,
     ) -> Result<CallToolResult, McpError> {
         self.client
-            .delete(&format!("/time_block/{}", p.block_id))
+            .delete_time_block(p.block_id)
             .await
-            .map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text(
-            "time block deleted".to_string(),
-        )]))
+            .map_err(|e| err_ctx(&format!("time block #{}", p.block_id), e))?;
+        Ok(output::json_result(&json!({"deleted": p.block_id})))
     }
 }

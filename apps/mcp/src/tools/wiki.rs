@@ -1,44 +1,76 @@
 use std::collections::HashMap;
 
-use rmcp::{
-    ErrorData as McpError,
-    handler::server::wrapper::Parameters,
-    model::{CallToolResult, Content},
-};
+use rmcp::{ErrorData as McpError, handler::server::wrapper::Parameters, model::CallToolResult};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use zealot_domain::{
+    attribute::AttributeFilterDto,
+    item::{AddItemDto, ItemDto, ItemLinkDto, SearchScope, UpdateItemDto},
+};
 
-use crate::tools::{ZealotServer, api_err};
+use crate::{
+    output::{self, DEFAULT_LIMIT, Detail},
+    tools::{ZealotServer, err_ctx},
+};
 
-const DEFAULT_FILTER_LIMIT: i64 = 50;
-const MAX_FILTER_LIMIT: i64 = 100;
+const SEARCH_DEFAULT_LIMIT: i64 = 20;
+const MAX_LIMIT: i64 = 100;
 
 #[derive(Debug, Deserialize, JsonSchema)]
-pub struct ItemIdParam {
-    /// Numeric item ID
-    pub id: i64,
+pub struct ItemRefParam {
+    /// Item ID or exact title
+    pub item: String,
+    /// Output detail: "meta", "summary", or "full" (default "full")
+    #[serde(default = "Detail::full")]
+    pub detail: Detail,
+}
+
+impl Detail {
+    fn full() -> Detail {
+        Detail::Full
+    }
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-pub struct ListItemsParams {
-    /// Optional: filter by item type name (e.g. "Goal", "Project")
+pub struct ItemOutlineParams {
+    /// Item ID or exact title
+    pub item: String,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum BrowseMode {
+    /// Root-level items (optionally filtered by type_filter)
+    Root,
+    /// Most recently modified items
+    Recent,
+    /// A random sample of items
+    Random,
+    /// Items with the most views
+    MostViewed,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct BrowseItemsParams {
+    /// Which set of items to browse
+    pub mode: BrowseMode,
+    /// Filter by item type name — only used when mode is "root"
     pub type_filter: Option<String>,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct RecentItemsParams {
-    /// Maximum number of items to return (default 30)
+    /// Max results (default 50, max 100)
     pub limit: Option<i64>,
-    /// Offset for pagination (default 0)
+    /// Offset for pagination (ignored for "random")
     pub offset: Option<i64>,
+    /// Output detail: "meta", "summary" (default), or "full"
+    #[serde(default)]
+    pub detail: Detail,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct SearchItemsParams {
     /// Search term to match against item titles, body content, or headings
     pub term: String,
-    /// Maximum number of results to return (default 20, max 100)
+    /// Max results (default 20, max 100)
     pub limit: Option<i64>,
     /// Offset for pagination (default 0)
     pub offset: Option<i64>,
@@ -46,6 +78,9 @@ pub struct SearchItemsParams {
     pub scope: Option<String>,
     /// If true, treat `term` as a case-insensitive regular expression
     pub regex: Option<bool>,
+    /// Output detail: "meta", "summary" (default), or "full"
+    #[serde(default)]
+    pub detail: Detail,
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
@@ -61,20 +96,63 @@ pub struct AttributeFilterParam {
     pub list_mode: Option<String>,
 }
 
+impl From<AttributeFilterParam> for AttributeFilterDto {
+    fn from(p: AttributeFilterParam) -> Self {
+        AttributeFilterDto {
+            key: p.key,
+            op: p.op,
+            value: p.value,
+            list_mode: p.list_mode.unwrap_or_else(|| "any".to_string()),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct FilterItemsParams {
     /// Attribute filters. All filters are ANDed together.
     pub filters: Vec<AttributeFilterParam>,
-    /// Maximum number of items to return (default 50, max 100)
+    /// Max results (default 50, max 100)
+    pub limit: Option<i64>,
+    /// Offset for pagination (default 0)
+    pub offset: Option<i64>,
+    /// Output detail: "meta", "summary" (default), or "full"
+    #[serde(default)]
+    pub detail: Detail,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum LinkDirection {
+    /// Sub-items of this item
+    Children,
+    /// All items linked to this item (any relationship)
+    Related,
+    /// Items that link to this item
+    Backlinks,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct LinkedItemsParams {
+    /// Item ID or exact title
+    pub item: String,
+    /// Which set of linked items to return
+    pub direction: LinkDirection,
+    /// Output detail: "meta", "summary" (default), or "full"
+    #[serde(default)]
+    pub detail: Detail,
+    /// Max results (default 50, max 100)
     pub limit: Option<i64>,
     /// Offset for pagination (default 0)
     pub offset: Option<i64>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-pub struct GetItemByTitleParams {
-    /// Exact title of the item
-    pub title: String,
+pub struct LinkParam {
+    /// ID of the other item
+    pub other_item_id: i64,
+    /// Relationship label, e.g. "parent", "blocks", "tag", "topic", or any
+    /// user-defined attribute kind key
+    pub relationship: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -82,15 +160,22 @@ pub struct CreateItemParams {
     /// Title of the new item
     pub title: String,
     /// Content body (ZealotScript / markdown)
-    pub content: String,
-    /// Optional attributes as a JSON object (e.g. {"priority": "high", "due": "2025-06-01"})
+    pub content: Option<String>,
+    /// Attributes as a JSON object (e.g. {"priority": "high", "due": "2025-06-01"})
     pub attributes: Option<HashMap<String, serde_json::Value>>,
+    /// Type names to assign at creation
+    pub types: Option<Vec<String>>,
+    /// Relationship links to other items
+    pub links: Option<Vec<LinkParam>>,
+    /// Parent item (ID or title) — sets the "Parent" attribute, same as the
+    /// wiki's parent/child hierarchy
+    pub parent: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct UpdateItemParams {
-    /// Numeric item ID
-    pub id: i64,
+    /// Item ID or exact title
+    pub item: String,
     /// New title (optional)
     pub title: Option<String>,
     /// New content body (optional)
@@ -98,259 +183,342 @@ pub struct UpdateItemParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-pub struct SetAttributesParams {
-    /// Numeric item ID
-    pub id: i64,
-    /// JSON object of attribute key→value pairs to set
-    pub attributes: HashMap<String, serde_json::Value>,
+pub struct AppendToItemParams {
+    /// Item ID or exact title
+    pub item: String,
+    /// Text to append as a new paragraph at the end of the item's content
+    pub text: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-pub struct DeleteAttributeParams {
-    /// Numeric item ID
-    pub id: i64,
-    /// Attribute key to delete
-    pub key: String,
+pub struct ItemOnlyParams {
+    /// Item ID or exact title
+    pub item: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct RenameAttributeParam {
+    pub from: String,
+    pub to: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct UpdateAttributesParams {
+    /// Item ID or exact title
+    pub item: String,
+    /// Attribute key→value pairs to set (existing keys are overwritten)
+    pub set: Option<HashMap<String, serde_json::Value>>,
+    /// Attribute keys to delete
+    pub remove: Option<Vec<String>>,
+    /// Attribute keys to rename, applied after `set` and before `remove`
+    pub rename: Option<Vec<RenameAttributeParam>>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct AssignTypeParams {
-    /// Numeric item ID
-    pub item_id: i64,
+    /// Item ID or exact title
+    pub item: String,
     /// Name of the type to assign or unassign (e.g. "Goal", "Project")
     pub type_name: String,
 }
 
-fn pretty(v: serde_json::Value) -> String {
-    serde_json::to_string_pretty(&v).unwrap_or_default()
+fn clamp_limit(limit: Option<i64>, default: i64) -> i64 {
+    limit.unwrap_or(default).clamp(1, MAX_LIMIT)
 }
 
 #[rmcp::tool_router(router = wiki_tool_router, vis = "pub")]
 impl ZealotServer {
     #[rmcp::tool(
-        description = "List root-level wiki items. Optionally filter by type name (e.g. 'Goal', 'Project')."
+        description = "Get a specific item by ID or exact title. Defaults to full content — pass detail:\"summary\" or \"meta\" for a lighter response."
     )]
-    pub async fn list_items(
+    pub async fn get_item(
         &self,
-        Parameters(p): Parameters<ListItemsParams>,
+        Parameters(p): Parameters<ItemRefParam>,
     ) -> Result<CallToolResult, McpError> {
-        let path = match &p.type_filter {
-            Some(t) => format!("/item?type={}", urlencoding::encode(t)),
-            None => "/item".to_string(),
-        };
-        let items: serde_json::Value = self.client.get(&path).await.map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text(pretty(items))]))
+        let item = self.resolve_item(&p.item).await?;
+        Ok(match p.detail {
+            Detail::Full => output::json_result(&item),
+            d => output::json_result(&output::ItemSummary::project(&item, d)),
+        })
     }
 
     #[rmcp::tool(
-        description = "List recently modified items. Returns up to `limit` items starting from `offset`."
+        description = "Get the heading outline of an item's content (all Markdown headings with their levels), plus its attribute keys and content length. Use this to understand the structure of a long item before deciding whether to fetch full content."
     )]
-    pub async fn list_recent_items(
+    pub async fn get_item_outline(
         &self,
-        Parameters(p): Parameters<RecentItemsParams>,
+        Parameters(p): Parameters<ItemOutlineParams>,
     ) -> Result<CallToolResult, McpError> {
-        let limit = p.limit.unwrap_or(30);
-        let offset = p.offset.unwrap_or(0);
-        let items: serde_json::Value = self
-            .client
-            .get(&format!("/item/recent?limit={limit}&offset={offset}"))
-            .await
-            .map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text(pretty(items))]))
+        let item = self.resolve_item(&p.item).await?;
+        let headings: Vec<serde_json::Value> = item
+            .content
+            .lines()
+            .filter_map(|line| {
+                let trimmed = line.trim_start();
+                let level = trimmed.chars().take_while(|&c| c == '#').count();
+                if (1..=6).contains(&level) && trimmed.as_bytes().get(level) == Some(&b' ') {
+                    Some(json!({
+                        "level": level,
+                        "text": trimmed[level..].trim(),
+                    }))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let attribute_keys: Vec<String> = item
+            .attributes
+            .as_object()
+            .map(|m| m.keys().cloned().collect())
+            .unwrap_or_default();
+        Ok(output::json_result(&json!({
+            "item_id": item.item_id,
+            "title": item.title,
+            "content_chars": item.content.chars().count(),
+            "attribute_keys": attribute_keys,
+            "headings": headings,
+        })))
     }
 
     #[rmcp::tool(
-        description = "Search items by title, body content, or headings. `scope` controls what is searched: \"title\" (default), \"content\" (body text), or \"heading\". Set `regex: true` to treat `term` as a case-insensitive regular expression. Results include `match_scope` and a `snippet` context field. Supports pagination via `limit` (default 20, max 100) and `offset`. Example: `{\"term\": \"architecture\", \"scope\": \"content\"}` or `{\"term\": \"^Z[0-9]+\", \"scope\": \"title\", \"regex\": true}`."
+        description = "Browse items without a search term. mode: \"root\" (root-level items, optionally filtered by type_filter), \"recent\" (most recently modified), \"random\" (random sample), or \"most_viewed\" (most-viewed items — rows are {item_id, title, view_count} regardless of detail). Returns compact summaries by default; pass detail:\"full\" for complete content."
+    )]
+    pub async fn browse_items(
+        &self,
+        Parameters(p): Parameters<BrowseItemsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let limit = clamp_limit(p.limit, DEFAULT_LIMIT);
+        let offset = p.offset.unwrap_or(0).max(0);
+        match p.mode {
+            BrowseMode::Root => {
+                let items = self
+                    .client
+                    .list_items(p.type_filter.as_deref())
+                    .await
+                    .map_err(|e| err_ctx("items", e))?;
+                Ok(slice_item_page(items, p.detail, offset, limit))
+            }
+            BrowseMode::Recent => {
+                let items = self
+                    .client
+                    .recent_items(limit, offset)
+                    .await
+                    .map_err(|e| err_ctx("recent items", e))?;
+                Ok(output::item_page(items, p.detail, offset, limit))
+            }
+            BrowseMode::Random => {
+                let items = self
+                    .client
+                    .random_items(limit as usize)
+                    .await
+                    .map_err(|e| err_ctx("random items", e))?;
+                Ok(output::item_page(items, p.detail, 0, limit))
+            }
+            BrowseMode::MostViewed => {
+                let rows = self
+                    .client
+                    .most_viewed(limit)
+                    .await
+                    .map_err(|e| err_ctx("most-viewed items", e))?;
+                Ok(output::json_result(&rows))
+            }
+        }
+    }
+
+    #[rmcp::tool(
+        description = "Search items by title, body content, or headings. `scope` controls what is searched: \"title\" (default), \"content\" (body text), or \"heading\". Set `regex: true` to treat `term` as a case-insensitive regular expression. Results include `match_scope` and a `snippet`. Returns compact summaries by default; pass detail:\"full\" for complete content. Example: `{\"term\": \"architecture\", \"scope\": \"content\"}`."
     )]
     pub async fn search_items(
         &self,
         Parameters(p): Parameters<SearchItemsParams>,
     ) -> Result<CallToolResult, McpError> {
-        let limit = p.limit.unwrap_or(20);
-        let offset = p.offset.unwrap_or(0);
-        let scope = p.scope.as_deref().unwrap_or("title");
-        let mut url = format!(
-            "/item/search?term={}&limit={limit}&offset={offset}&scope={scope}",
-            urlencoding::encode(&p.term)
-        );
-        if p.regex.unwrap_or(false) {
-            url.push_str("&regex=true");
-        }
-        let items: serde_json::Value = self.client.get(&url).await.map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text(pretty(items))]))
+        let limit = clamp_limit(p.limit, SEARCH_DEFAULT_LIMIT);
+        let offset = p.offset.unwrap_or(0).max(0);
+        let scope = match p.scope.as_deref() {
+            Some("content") => SearchScope::Content,
+            Some("heading") => SearchScope::Heading,
+            _ => SearchScope::Title,
+        };
+        let hits = self
+            .client
+            .search_items(&p.term, scope, p.regex.unwrap_or(false), limit, offset)
+            .await
+            .map_err(|e| err_ctx("search", e))?;
+        Ok(output::search_page(hits, p.detail, offset, limit))
     }
 
     #[rmcp::tool(
-        description = "Filter items by attribute values. Pass `filters` as an array of {key, op, value, list_mode?}; supported ops are eq, ne, gt, lt, gte, lte, and ilike. All filters are ANDed. Supports pagination via `limit` (default 50, max 100) and `offset`."
+        description = "Filter items by attribute values. Pass `filters` as an array of {key, op, value, list_mode?}; supported ops are eq, ne, gt, lt, gte, lte, and ilike. All filters are ANDed. Returns compact summaries by default; pass detail:\"full\" for complete content."
     )]
     pub async fn filter_items(
         &self,
         Parameters(p): Parameters<FilterItemsParams>,
     ) -> Result<CallToolResult, McpError> {
-        let limit = p
-            .limit
-            .unwrap_or(DEFAULT_FILTER_LIMIT)
-            .clamp(1, MAX_FILTER_LIMIT);
+        let limit = clamp_limit(p.limit, DEFAULT_LIMIT);
         let offset = p.offset.unwrap_or(0).max(0);
-        let body = json!({
-            "filters": p.filters,
-            "limit": limit,
-            "offset": offset,
-        });
-        let items: serde_json::Value = self
+        let filters: Vec<AttributeFilterDto> = p.filters.into_iter().map(Into::into).collect();
+        let items = self
             .client
-            .post("/item/filter", &body)
+            .filter_items(&filters, limit, offset)
             .await
-            .map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text(pretty(items))]))
+            .map_err(|e| err_ctx("filtered items", e))?;
+        Ok(output::item_page(items, p.detail, offset, limit))
     }
 
     #[rmcp::tool(
-        description = "Get a specific item by its numeric ID. Returns full item including attributes, types, and links."
+        description = "List items linked to an item. direction: \"children\" (sub-items), \"related\" (all linked items), or \"backlinks\" (items that link here). Returns compact summaries by default; pass detail:\"full\" for complete content."
     )]
-    pub async fn get_item(
+    pub async fn get_linked_items(
         &self,
-        Parameters(p): Parameters<ItemIdParam>,
+        Parameters(p): Parameters<LinkedItemsParams>,
     ) -> Result<CallToolResult, McpError> {
-        let item: serde_json::Value = self
-            .client
-            .get(&format!("/item/id/{}", p.id))
-            .await
-            .map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text(pretty(item))]))
+        let limit = clamp_limit(p.limit, DEFAULT_LIMIT);
+        let offset = p.offset.unwrap_or(0).max(0);
+        let item = self.resolve_item(&p.item).await?;
+        let items = match p.direction {
+            LinkDirection::Children => self.client.get_children(item.item_id).await,
+            LinkDirection::Related => self.client.get_related(item.item_id).await,
+            LinkDirection::Backlinks => self.client.get_backlinks(item.item_id).await,
+        }
+        .map_err(|e| err_ctx(&format!("links of item #{}", item.item_id), e))?;
+        Ok(slice_item_page(items, p.detail, offset, limit))
     }
 
     #[rmcp::tool(
-        description = "Get a specific item by its exact title. Returns full item including attributes, types, and links."
-    )]
-    pub async fn get_item_by_title(
-        &self,
-        Parameters(p): Parameters<GetItemByTitleParams>,
-    ) -> Result<CallToolResult, McpError> {
-        let item: serde_json::Value = self
-            .client
-            .get(&format!("/item/title/{}", urlencoding::encode(&p.title)))
-            .await
-            .map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text(pretty(item))]))
-    }
-
-    #[rmcp::tool(
-        description = "Get all child items of a given item. Returns items that are children (sub-items) of the specified parent."
-    )]
-    pub async fn get_children(
-        &self,
-        Parameters(p): Parameters<ItemIdParam>,
-    ) -> Result<CallToolResult, McpError> {
-        let items: serde_json::Value = self
-            .client
-            .get(&format!("/item/children/{}", p.id))
-            .await
-            .map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text(pretty(items))]))
-    }
-
-    #[rmcp::tool(
-        description = "Get all items related to a given item (linked items, blocked by, tagged, etc.)."
-    )]
-    pub async fn get_related_items(
-        &self,
-        Parameters(p): Parameters<ItemIdParam>,
-    ) -> Result<CallToolResult, McpError> {
-        let items: serde_json::Value = self
-            .client
-            .get(&format!("/item/related/{}", p.id))
-            .await
-            .map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text(pretty(items))]))
-    }
-
-    #[rmcp::tool(
-        description = "Create a new wiki item with a title and content body. Optionally provide attributes as a JSON object."
+        description = "Create a new wiki item. `content` is ZealotScript/markdown. `attributes` is a JSON object of key→value pairs. `types` assigns item types at creation. `links` sets relationships to other items by ID. `parent` (ID or title) sets the item's Parent attribute, placing it in the wiki hierarchy."
     )]
     pub async fn create_item(
         &self,
         Parameters(p): Parameters<CreateItemParams>,
     ) -> Result<CallToolResult, McpError> {
-        let body = json!({
-            "title": p.title,
-            "content": p.content,
-            "attributes": p.attributes.unwrap_or_default(),
-        });
-        let item: serde_json::Value = self.client.post("/item", &body).await.map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text(pretty(item))]))
+        let mut attributes = p.attributes.unwrap_or_default();
+        if let Some(parent) = &p.parent {
+            let parent = self.resolve_item(parent).await?;
+            attributes.insert("Parent".to_string(), json!(parent.item_id));
+        }
+        let dto = AddItemDto {
+            title: p.title,
+            content: p.content.unwrap_or_default(),
+            attributes: (!attributes.is_empty()).then_some(attributes),
+            types: p.types,
+            links: p.links.map(|links| {
+                links
+                    .into_iter()
+                    .map(|l| ItemLinkDto {
+                        other_item_id: l.other_item_id,
+                        relationship: l.relationship,
+                    })
+                    .collect()
+            }),
+        };
+        let item = self
+            .client
+            .add_item(&dto)
+            .await
+            .map_err(|e| err_ctx("new item", e))?;
+        Ok(output::json_result(&item))
     }
 
     #[rmcp::tool(
-        description = "Update an existing item's title and/or content by ID. Only provided fields are changed."
+        description = "Update an existing item's title and/or content. Only provided fields are changed."
     )]
     pub async fn update_item(
         &self,
         Parameters(p): Parameters<UpdateItemParams>,
     ) -> Result<CallToolResult, McpError> {
-        let mut body = serde_json::Map::new();
-        body.insert("item_id".into(), json!(p.id));
-        if let Some(t) = p.title {
-            body.insert("title".into(), json!(t));
-        }
-        if let Some(c) = p.content {
-            body.insert("content".into(), json!(c));
-        }
-        let body = serde_json::Value::Object(body);
-        let item: serde_json::Value = self
+        let existing = self.resolve_item(&p.item).await?;
+        let dto = UpdateItemDto {
+            item_id: existing.item_id,
+            title: p.title,
+            content: p.content,
+            attributes: None,
+            links: None,
+        };
+        let item = self
             .client
-            .patch(&format!("/item/{}", p.id), &body)
+            .update_item(&dto)
             .await
-            .map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text(pretty(item))]))
-    }
-
-    #[rmcp::tool(description = "Delete an item by ID. This is permanent and cannot be undone.")]
-    pub async fn delete_item(
-        &self,
-        Parameters(p): Parameters<ItemIdParam>,
-    ) -> Result<CallToolResult, McpError> {
-        self.client
-            .delete(&format!("/item/{}", p.id))
-            .await
-            .map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text(
-            "deleted".to_string(),
-        )]))
+            .map_err(|e| err_ctx(&format!("item #{}", existing.item_id), e))?;
+        Ok(output::json_result(&item))
     }
 
     #[rmcp::tool(
-        description = "Set one or more attributes on an item. Pass a JSON object of key→value pairs. Existing keys are overwritten, others are preserved."
+        description = "Append text as a new paragraph at the end of an item's content. Useful for log-style notes without needing to fetch and resend the full body."
     )]
-    pub async fn set_item_attributes(
+    pub async fn append_to_item(
         &self,
-        Parameters(p): Parameters<SetAttributesParams>,
+        Parameters(p): Parameters<AppendToItemParams>,
     ) -> Result<CallToolResult, McpError> {
-        self.client
-            .patch_no_response(&format!("/item/{}/attr", p.id), &p.attributes)
+        let existing = self.resolve_item(&p.item).await?;
+        let mut content = existing.content.clone();
+        if !content.is_empty() && !content.ends_with('\n') {
+            content.push('\n');
+        }
+        content.push_str(&p.text);
+        content.push('\n');
+        let dto = UpdateItemDto {
+            item_id: existing.item_id,
+            title: None,
+            content: Some(content),
+            attributes: None,
+            links: None,
+        };
+        let item = self
+            .client
+            .update_item(&dto)
             .await
-            .map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text(
-            "attributes updated".to_string(),
-        )]))
+            .map_err(|e| err_ctx(&format!("item #{}", existing.item_id), e))?;
+        Ok(output::json_result(&json!({
+            "item_id": item.item_id,
+            "title": item.title,
+            "content_chars": item.content.chars().count(),
+        })))
     }
 
-    #[rmcp::tool(description = "Delete a single attribute from an item by its key.")]
-    pub async fn delete_item_attribute(
+    #[rmcp::tool(description = "Delete an item. This is permanent and cannot be undone.")]
+    pub async fn delete_item(
         &self,
-        Parameters(p): Parameters<DeleteAttributeParams>,
+        Parameters(p): Parameters<ItemOnlyParams>,
     ) -> Result<CallToolResult, McpError> {
+        let existing = self.resolve_item(&p.item).await?;
         self.client
-            .delete(&format!(
-                "/item/{}/attr/{}",
-                p.id,
-                urlencoding::encode(&p.key)
-            ))
+            .delete_item(existing.item_id)
             .await
-            .map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text(
-            "attribute deleted".to_string(),
-        )]))
+            .map_err(|e| err_ctx(&format!("item #{}", existing.item_id), e))?;
+        Ok(output::json_result(&json!({"deleted": existing.item_id})))
+    }
+
+    #[rmcp::tool(
+        description = "Set, rename, and/or remove attributes on an item in one call. `set` overwrites/creates keys, `rename` renames keys (applied after set), `remove` deletes keys (applied last)."
+    )]
+    pub async fn update_item_attributes(
+        &self,
+        Parameters(p): Parameters<UpdateAttributesParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let existing = self.resolve_item(&p.item).await?;
+        let resource = format!("item #{}", existing.item_id);
+
+        if let Some(set) = p.set {
+            self.client
+                .set_item_attributes(existing.item_id, &set)
+                .await
+                .map_err(|e| err_ctx(&resource, e))?;
+        }
+        for r in p.rename.into_iter().flatten() {
+            self.client
+                .rename_item_attribute(existing.item_id, &r.from, &r.to)
+                .await
+                .map_err(|e| err_ctx(&resource, e))?;
+        }
+        for key in p.remove.into_iter().flatten() {
+            self.client
+                .delete_item_attribute(existing.item_id, &key)
+                .await
+                .map_err(|e| err_ctx(&resource, e))?;
+        }
+        Ok(output::json_result(
+            &json!({"item_id": existing.item_id, "status": "attributes updated"}),
+        ))
     }
 
     #[rmcp::tool(
@@ -360,21 +528,14 @@ impl ZealotServer {
         &self,
         Parameters(p): Parameters<AssignTypeParams>,
     ) -> Result<CallToolResult, McpError> {
+        let existing = self.resolve_item(&p.item).await?;
         self.client
-            .post_no_response(
-                &format!(
-                    "/item/{}/assign_type/{}",
-                    p.item_id,
-                    urlencoding::encode(&p.type_name)
-                ),
-                &json!({}),
-            )
+            .assign_type(existing.item_id, &p.type_name)
             .await
-            .map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text(format!(
-            "type '{}' assigned",
-            p.type_name
-        ))]))
+            .map_err(|e| err_ctx(&format!("item #{}", existing.item_id), e))?;
+        Ok(output::json_result(
+            &json!({"item_id": existing.item_id, "type": p.type_name, "status": "assigned"}),
+        ))
     }
 
     #[rmcp::tool(description = "Remove a type from an item. The item itself is not deleted.")]
@@ -382,17 +543,33 @@ impl ZealotServer {
         &self,
         Parameters(p): Parameters<AssignTypeParams>,
     ) -> Result<CallToolResult, McpError> {
+        let existing = self.resolve_item(&p.item).await?;
         self.client
-            .delete(&format!(
-                "/item/{}/assign_type/{}",
-                p.item_id,
-                urlencoding::encode(&p.type_name)
-            ))
+            .unassign_type(existing.item_id, &p.type_name)
             .await
-            .map_err(api_err)?;
-        Ok(CallToolResult::success(vec![Content::text(format!(
-            "type '{}' removed",
-            p.type_name
-        ))]))
+            .map_err(|e| err_ctx(&format!("item #{}", existing.item_id), e))?;
+        Ok(output::json_result(
+            &json!({"item_id": existing.item_id, "type": p.type_name, "status": "removed"}),
+        ))
     }
+
+    #[rmcp::tool(
+        description = "Rebuild the derived link index from item attributes (Parent, and other item-typed attributes). Run this if links/backlinks look stale after bulk attribute edits."
+    )]
+    pub async fn rebuild_links(&self) -> Result<CallToolResult, McpError> {
+        let result = self
+            .client
+            .rebuild_links()
+            .await
+            .map_err(|e| err_ctx("rebuild-links", e))?;
+        Ok(output::json_result(&result))
+    }
+}
+
+/// `list_items` (root/type-filtered) is unbounded server-side; slice + project client-side.
+fn slice_item_page(items: Vec<ItemDto>, detail: Detail, offset: i64, limit: i64) -> CallToolResult {
+    let start = offset.max(0) as usize;
+    let end = start.saturating_add(limit.max(0) as usize);
+    let sliced: Vec<ItemDto> = items.into_iter().skip(start).take(end - start).collect();
+    output::item_page(sliced, detail, offset, limit)
 }

@@ -1,33 +1,42 @@
 use std::collections::HashMap;
 
-use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::ErrorCode;
-use serde_json::json;
+use reqwest::StatusCode;
+use rmcp::{handler::server::wrapper::Parameters, model::ErrorCode};
+use serde_json::{Value, json};
 use wiremock::matchers::{body_json, method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use zealot_mcp::client::ZealotClient;
-use zealot_mcp::tools::ZealotServer;
-use zealot_mcp::tools::automation::{
-    AttributeKeyParam, CreateAttributeKindParams, CreateItemTypeParams, CreateRuleParams,
-    ItemTypeIdParam, ItemTypeNameParam, JsonObject, RuleIdParam, UpdateAttributeKindParams,
-    UpdateItemTypeParams, UpdateRuleParams,
-};
-use zealot_mcp::tools::media::{CreateFolderParams, DeleteMediaParams, MediaPathParam};
-use zealot_mcp::tools::planner::{
-    AddCommentParams, CommentIdParam, DateParam, DateRangeParam, ItemIdParam as PlannerItemIdParam,
-    MonthYearParam, UpdateCommentParams, UpdateRepeatParams, WeekParam,
-};
-use zealot_mcp::tools::wiki::{
-    AssignTypeParams, AttributeFilterParam, CreateItemParams, DeleteAttributeParams,
-    FilterItemsParams, GetItemByTitleParams, ItemIdParam, ListItemsParams, RecentItemsParams,
-    SearchItemsParams, SetAttributesParams, UpdateItemParams,
+use zealot_mcp::{
+    client::{ApiError, ZealotClient},
+    output::Detail,
+    tools::{
+        ZealotServer,
+        analysis::{HabitStatsParams, LimitParams},
+        err_ctx,
+        media::GetMediaParams,
+        planner::{AddJournalEntryParams, DayDashboardParams, GetPlanParams},
+        time_block::CreateTimeBlockParams,
+        wiki::{
+            AppendToItemParams, BrowseItemsParams, BrowseMode, CreateItemParams, ItemRefParam,
+            LinkDirection, LinkParam, LinkedItemsParams, SearchItemsParams,
+        },
+    },
 };
 
 async fn make_server() -> (ZealotServer, MockServer) {
     let mock = MockServer::start().await;
     let server = ZealotServer {
         client: ZealotClient::new(mock.uri(), "key"),
+        journal_item: None,
+    };
+    (server, mock)
+}
+
+async fn make_server_with_journal() -> (ZealotServer, MockServer) {
+    let mock = MockServer::start().await;
+    let server = ZealotServer {
+        client: ZealotClient::new(mock.uri(), "key"),
+        journal_item: Some("Journal".to_string()),
     };
     (server, mock)
 }
@@ -36,1361 +45,523 @@ fn text_of(result: rmcp::model::CallToolResult) -> String {
     result.content[0].as_text().unwrap().text.clone()
 }
 
-// ── api_err() ─────────────────────────────────────────────────────────────────
+fn item(id: i64, title: &str, content: &str) -> Value {
+    json!({
+        "item_id": id,
+        "title": title,
+        "content": content,
+        "attributes": {},
+        "types": [],
+        "links": []
+    })
+}
 
-#[test]
-fn api_err_not_found_is_invalid_params() {
-    use zealot_mcp::client::ApiError;
-    use zealot_mcp::tools::api_err;
+fn item_with_links(id: i64, title: &str, links: Value) -> Value {
+    json!({
+        "item_id": id,
+        "title": title,
+        "content": "",
+        "attributes": {},
+        "types": [],
+        "links": links
+    })
+}
 
-    let err = api_err(ApiError::NotFound);
-    assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
-    assert!(err.message.contains("not found"));
+fn repeat_entry(id: i64, title: &str, date: &str, status: &str) -> Value {
+    json!({
+        "item": item(id, title, ""),
+        "date": date,
+        "status": status,
+        "comment": ""
+    })
+}
+
+fn time_block(id: i64, item_id: i64, title: &str) -> Value {
+    json!({
+        "block_id": id,
+        "item": item(item_id, title, ""),
+        "date": "2026-07-03",
+        "start_min": 540,
+        "end_min": 600,
+        "note": "Focus"
+    })
+}
+
+fn comment(id: i64, item_id: i64, title: &str) -> Value {
+    json!({
+        "comment_id": id,
+        "item": item(item_id, title, ""),
+        "timestamp": "2026-07-03 09:00:00",
+        "content": "Logged"
+    })
 }
 
 #[test]
-fn api_err_http_error_is_internal_error() {
-    use reqwest::StatusCode;
-    use zealot_mcp::client::ApiError;
-    use zealot_mcp::tools::api_err;
+fn err_ctx_maps_client_and_server_errors() {
+    let not_found = err_ctx("item #1", ApiError::NotFound);
+    assert_eq!(not_found.code, ErrorCode::INVALID_PARAMS);
+    assert!(not_found.message.contains("not found"));
 
-    let err = api_err(ApiError::Http {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: "boom".to_string(),
-    });
-    assert_eq!(err.code, ErrorCode::INTERNAL_ERROR);
-    assert!(err.message.contains("boom"));
+    let client = err_ctx(
+        "item",
+        ApiError::Http {
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            message: "bad attrs".to_string(),
+        },
+    );
+    assert_eq!(client.code, ErrorCode::INVALID_PARAMS);
+    assert!(client.message.contains("bad attrs"));
+
+    let server = err_ctx(
+        "item",
+        ApiError::Http {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "boom".to_string(),
+        },
+    );
+    assert_eq!(server.code, ErrorCode::INTERNAL_ERROR);
+    assert!(server.message.contains("boom"));
 }
 
 #[tokio::test]
-async fn api_err_network_error_is_internal_error() {
-    // Port 1 is always refused — triggers ApiError::Request
-    let server = ZealotServer {
-        client: ZealotClient::new("http://127.0.0.1:1", "key"),
-    };
-    let result = server.get_item(Parameters(ItemIdParam { id: 1 })).await;
-    match result {
-        Err(e) => assert_eq!(e.code, ErrorCode::INTERNAL_ERROR),
-        Ok(_) => panic!("expected error"),
-    }
-}
-
-// ── Wiki: list_items ──────────────────────────────────────────────────────────
-
-#[tokio::test]
-async fn list_items_no_filter() {
+async fn get_item_accepts_hash_id_and_projects_summary() {
     let (server, mock) = make_server().await;
     Mock::given(method("GET"))
-        .and(path("/item"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .and(path("/item/id/42"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(item(42, "Alpha", "hello world")))
         .expect(1)
         .mount(&mock)
         .await;
 
-    server
-        .list_items(Parameters(ListItemsParams { type_filter: None }))
+    let result = server
+        .get_item(Parameters(ItemRefParam {
+            item: "#42".to_string(),
+            detail: Detail::Summary,
+        }))
         .await
         .unwrap();
+    let value: Value = serde_json::from_str(&text_of(result)).unwrap();
+    assert_eq!(value["item_id"], 42);
+    assert_eq!(value["preview"], "hello world");
+    assert!(value.get("content").is_none());
 }
 
 #[tokio::test]
-async fn list_items_with_filter_url_encoded() {
+async fn get_item_accepts_exact_title_and_url_encodes_path_segment() {
     let (server, mock) = make_server().await;
     Mock::given(method("GET"))
-        .and(path("/item"))
-        .and(query_param("type", "My Type"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .and(path("/item/title/A%2FB%20Test"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(item(5, "A/B Test", "")))
         .expect(1)
         .mount(&mock)
         .await;
 
     server
-        .list_items(Parameters(ListItemsParams {
-            type_filter: Some("My Type".to_string()),
+        .get_item(Parameters(ItemRefParam {
+            item: "A/B Test".to_string(),
+            detail: Detail::Full,
         }))
         .await
         .unwrap();
 }
 
-// ── Wiki: list_recent_items ───────────────────────────────────────────────────
-
 #[tokio::test]
-async fn list_recent_items_defaults() {
+async fn browse_items_recent_returns_summary_page() {
     let (server, mock) = make_server().await;
     Mock::given(method("GET"))
         .and(path("/item/recent"))
-        .and(query_param("limit", "30"))
+        .and(query_param("limit", "2"))
         .and(query_param("offset", "0"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+            item(1, "One", "body one"),
+            item(2, "Two", "body two")
+        ])))
         .expect(1)
         .mount(&mock)
         .await;
 
-    server
-        .list_recent_items(Parameters(RecentItemsParams {
-            limit: None,
+    let result = server
+        .browse_items(Parameters(BrowseItemsParams {
+            mode: BrowseMode::Recent,
+            type_filter: None,
+            limit: Some(2),
             offset: None,
+            detail: Detail::Summary,
         }))
         .await
         .unwrap();
+    let value: Value = serde_json::from_str(&text_of(result)).unwrap();
+    assert_eq!(value["count"], 2);
+    assert_eq!(value["next_offset"], 2);
+    assert_eq!(value["items"][0]["preview"], "body one");
+    assert!(value["items"][0].get("content").is_none());
 }
 
 #[tokio::test]
-async fn list_recent_items_custom_pagination() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/item/recent"))
-        .and(query_param("limit", "10"))
-        .and(query_param("offset", "5"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .list_recent_items(Parameters(RecentItemsParams {
-            limit: Some(10),
-            offset: Some(5),
-        }))
-        .await
-        .unwrap();
-}
-
-// ── Wiki: search_items ────────────────────────────────────────────────────────
-
-#[tokio::test]
-async fn search_items_url_encodes_spaces() {
+async fn search_items_passes_scope_regex_and_pagination() {
     let (server, mock) = make_server().await;
     Mock::given(method("GET"))
         .and(path("/item/search"))
         .and(query_param("term", "hello world"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .search_items(Parameters(SearchItemsParams {
-            term: "hello world".to_string(),
-            limit: None,
-            offset: None,
-            scope: None,
-            regex: None,
-        }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn search_items_passes_limit_and_offset() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/item/search"))
-        .and(query_param("term", "test"))
+        .and(query_param("scope", "content"))
+        .and(query_param("regex", "true"))
         .and(query_param("limit", "5"))
         .and(query_param("offset", "10"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([{
+            "item_id": 1,
+            "title": "Hit",
+            "content": "matching content",
+            "attributes": {},
+            "types": [],
+            "links": [],
+            "match_scope": "content",
+            "snippet": "matching"
+        }])))
         .expect(1)
         .mount(&mock)
         .await;
 
-    server
+    let result = server
         .search_items(Parameters(SearchItemsParams {
-            term: "test".to_string(),
+            term: "hello world".to_string(),
             limit: Some(5),
             offset: Some(10),
-            scope: None,
-            regex: None,
-        }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn search_items_default_limit_and_offset() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/item/search"))
-        .and(query_param("term", "foo"))
-        .and(query_param("limit", "20"))
-        .and(query_param("offset", "0"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .search_items(Parameters(SearchItemsParams {
-            term: "foo".to_string(),
-            limit: None,
-            offset: None,
-            scope: None,
-            regex: None,
-        }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn search_items_with_scope_content() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/item/search"))
-        .and(query_param("term", "test"))
-        .and(query_param("scope", "content"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .search_items(Parameters(SearchItemsParams {
-            term: "test".to_string(),
-            limit: None,
-            offset: None,
             scope: Some("content".to_string()),
-            regex: None,
-        }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn search_items_with_scope_heading() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/item/search"))
-        .and(query_param("term", "Intro"))
-        .and(query_param("scope", "heading"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .search_items(Parameters(SearchItemsParams {
-            term: "Intro".to_string(),
-            limit: None,
-            offset: None,
-            scope: Some("heading".to_string()),
-            regex: None,
-        }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn search_items_with_regex_true() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/item/search"))
-        .and(query_param("term", "^Z[0-9]+"))
-        .and(query_param("regex", "true"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .search_items(Parameters(SearchItemsParams {
-            term: "^Z[0-9]+".to_string(),
-            limit: None,
-            offset: None,
-            scope: None,
             regex: Some(true),
+            detail: Detail::Summary,
         }))
         .await
         .unwrap();
+    let value: Value = serde_json::from_str(&text_of(result)).unwrap();
+    assert_eq!(value["items"][0]["match_scope"], "content");
+    assert_eq!(value["items"][0]["snippet"], "matching");
 }
 
 #[tokio::test]
-async fn search_items_scope_defaults_to_title() {
+async fn get_linked_items_supports_backlinks_after_title_resolution() {
     let (server, mock) = make_server().await;
     Mock::given(method("GET"))
-        .and(path("/item/search"))
-        .and(query_param("term", "bar"))
-        .and(query_param("scope", "title"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .and(path("/item/title/Target"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(item(7, "Target", "")))
         .expect(1)
         .mount(&mock)
         .await;
-
-    server
-        .search_items(Parameters(SearchItemsParams {
-            term: "bar".to_string(),
-            limit: None,
-            offset: None,
-            scope: None,
-            regex: None,
-        }))
-        .await
-        .unwrap();
-}
-
-// ── Wiki: filter_items ───────────────────────────────────────────────────────
-
-#[tokio::test]
-async fn filter_items_defaults_pagination() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("POST"))
-        .and(path("/item/filter"))
-        .and(body_json(json!({
-            "filters": [
-                {"key": "Status", "op": "eq", "value": "Open"}
-            ],
-            "limit": 50,
-            "offset": 0
-        })))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .filter_items(Parameters(FilterItemsParams {
-            filters: vec![AttributeFilterParam {
-                key: "Status".to_string(),
-                op: "eq".to_string(),
-                value: json!("Open"),
-                list_mode: None,
-            }],
-            limit: None,
-            offset: None,
-        }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn filter_items_passes_custom_pagination() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("POST"))
-        .and(path("/item/filter"))
-        .and(body_json(json!({
-            "filters": [
-                {"key": "Priority", "op": "gte", "value": 8}
-            ],
-            "limit": 10,
-            "offset": 5
-        })))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .filter_items(Parameters(FilterItemsParams {
-            filters: vec![AttributeFilterParam {
-                key: "Priority".to_string(),
-                op: "gte".to_string(),
-                value: json!(8),
-                list_mode: None,
-            }],
-            limit: Some(10),
-            offset: Some(5),
-        }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn filter_items_posts_list_mode_in_filter_body() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("POST"))
-        .and(path("/item/filter"))
-        .and(body_json(json!({
-            "filters": [
-                {"key": "Topics", "op": "ilike", "value": "rust", "list_mode": "any"}
-            ],
-            "limit": 5,
-            "offset": 0
-        })))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([{"item_id": 1}])))
+    Mock::given(method("GET"))
+        .and(path("/item/backlinks/7"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([item(8, "Source", "")])))
         .expect(1)
         .mount(&mock)
         .await;
 
     let result = server
-        .filter_items(Parameters(FilterItemsParams {
-            filters: vec![AttributeFilterParam {
-                key: "Topics".to_string(),
-                op: "ilike".to_string(),
-                value: json!("rust"),
-                list_mode: Some("any".to_string()),
-            }],
-            limit: Some(5),
+        .get_linked_items(Parameters(LinkedItemsParams {
+            item: "Target".to_string(),
+            direction: LinkDirection::Backlinks,
+            detail: Detail::Meta,
+            limit: None,
             offset: None,
         }))
         .await
         .unwrap();
-    assert!(text_of(result).contains("item_id"));
+    let value: Value = serde_json::from_str(&text_of(result)).unwrap();
+    assert_eq!(value["items"][0]["title"], "Source");
 }
 
-// ── Wiki: get_item ────────────────────────────────────────────────────────────
-
 #[tokio::test]
-async fn get_item_by_id() {
+async fn create_item_resolves_parent_and_posts_full_create_body() {
     let (server, mock) = make_server().await;
     Mock::given(method("GET"))
-        .and(path("/item/id/42"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id": 42})))
+        .and(path("/item/title/Parent%20Title"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(item(9, "Parent Title", "")))
         .expect(1)
         .mount(&mock)
         .await;
-
-    let result = server
-        .get_item(Parameters(ItemIdParam { id: 42 }))
-        .await
-        .unwrap();
-    assert!(text_of(result).contains("42"));
-}
-
-#[tokio::test]
-async fn get_item_not_found_returns_invalid_params() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/item/id/999"))
-        .respond_with(ResponseTemplate::new(404))
-        .mount(&mock)
-        .await;
-
-    let err = server
-        .get_item(Parameters(ItemIdParam { id: 999 }))
-        .await
-        .unwrap_err();
-    assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
-}
-
-#[tokio::test]
-async fn get_item_server_error_returns_internal_error() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/item/id/1"))
-        .respond_with(ResponseTemplate::new(500))
-        .mount(&mock)
-        .await;
-
-    let err = server
-        .get_item(Parameters(ItemIdParam { id: 1 }))
-        .await
-        .unwrap_err();
-    assert_eq!(err.code, ErrorCode::INTERNAL_ERROR);
-}
-
-// ── Wiki: get_item_by_title ───────────────────────────────────────────────────
-
-#[tokio::test]
-async fn get_item_by_title_url_encodes() {
-    let (server, mock) = make_server().await;
-    // "A/B Test" → "A%2FB%20Test"
-    Mock::given(method("GET"))
-        .and(path("/item/title/A%2FB%20Test"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id": 5})))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .get_item_by_title(Parameters(GetItemByTitleParams {
-            title: "A/B Test".to_string(),
-        }))
-        .await
-        .unwrap();
-}
-
-// ── Wiki: get_children / get_related_items ────────────────────────────────────
-
-#[tokio::test]
-async fn get_children_uses_id() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/item/children/7"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .get_children(Parameters(ItemIdParam { id: 7 }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn get_related_items_uses_id() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/item/related/7"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .get_related_items(Parameters(ItemIdParam { id: 7 }))
-        .await
-        .unwrap();
-}
-
-// ── Wiki: create_item ─────────────────────────────────────────────────────────
-
-#[tokio::test]
-async fn create_item_posts_body() {
-    let (server, mock) = make_server().await;
     Mock::given(method("POST"))
         .and(path("/item"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id": 10})))
+        .and(body_json(json!({
+            "title": "Child",
+            "content": "Body",
+            "attributes": {"Parent": 9, "priority": "high"},
+            "types": ["Task"],
+            "links": [{"other_item_id": 1, "relationship": "blocks"}]
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(item(10, "Child", "Body")))
         .expect(1)
         .mount(&mock)
         .await;
 
     server
         .create_item(Parameters(CreateItemParams {
-            title: "New Item".to_string(),
-            content: "Some content".to_string(),
-            attributes: None,
+            title: "Child".to_string(),
+            content: Some("Body".to_string()),
+            attributes: Some(HashMap::from([("priority".to_string(), json!("high"))])),
+            types: Some(vec!["Task".to_string()]),
+            links: Some(vec![LinkParam {
+                other_item_id: 1,
+                relationship: "blocks".to_string(),
+            }]),
+            parent: Some("Parent Title".to_string()),
         }))
         .await
         .unwrap();
 }
 
 #[tokio::test]
-async fn create_item_with_attributes() {
+async fn append_to_item_fetches_then_patches_newline_joined_content() {
     let (server, mock) = make_server().await;
-    Mock::given(method("POST"))
-        .and(path("/item"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id": 11})))
+    Mock::given(method("GET"))
+        .and(path("/item/id/5"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(item(5, "Note", "one")))
         .expect(1)
         .mount(&mock)
         .await;
-
-    server
-        .create_item(Parameters(CreateItemParams {
-            title: "Item with attrs".to_string(),
-            content: "body".to_string(),
-            attributes: Some(HashMap::from([("priority".into(), json!("high"))])),
-        }))
-        .await
-        .unwrap();
-}
-
-// ── Wiki: update_item ─────────────────────────────────────────────────────────
-
-#[tokio::test]
-async fn update_item_patches_path() {
-    let (server, mock) = make_server().await;
     Mock::given(method("PATCH"))
         .and(path("/item/5"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id": 5})))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .update_item(Parameters(UpdateItemParams {
-            id: 5,
-            title: Some("Updated".to_string()),
-            content: None,
-        }))
-        .await
-        .unwrap();
-}
-
-// ── Wiki: delete_item ─────────────────────────────────────────────────────────
-
-#[tokio::test]
-async fn delete_item_correct_path() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("DELETE"))
-        .and(path("/item/3"))
-        .respond_with(ResponseTemplate::new(200))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .delete_item(Parameters(ItemIdParam { id: 3 }))
-        .await
-        .unwrap();
-}
-
-// ── Wiki: set_item_attributes ─────────────────────────────────────────────────
-
-#[tokio::test]
-async fn set_item_attributes_patches_attr_path() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("PATCH"))
-        .and(path("/item/5/attr"))
-        .respond_with(ResponseTemplate::new(200))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .set_item_attributes(Parameters(SetAttributesParams {
-            id: 5,
-            attributes: HashMap::from([("priority".into(), json!("high"))]),
-        }))
-        .await
-        .unwrap();
-}
-
-// ── Wiki: delete_item_attribute ───────────────────────────────────────────────
-
-#[tokio::test]
-async fn delete_item_attribute_url_encodes_key() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("DELETE"))
-        .and(path("/item/5/attr/due%20date"))
-        .respond_with(ResponseTemplate::new(200))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .delete_item_attribute(Parameters(DeleteAttributeParams {
-            id: 5,
-            key: "due date".to_string(),
-        }))
-        .await
-        .unwrap();
-}
-
-// ── Wiki: assign / unassign item type ─────────────────────────────────────────
-
-#[tokio::test]
-async fn assign_item_type_url_encodes() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("POST"))
-        .and(path("/item/7/assign_type/My%20Goal"))
-        .respond_with(ResponseTemplate::new(200))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .assign_item_type(Parameters(AssignTypeParams {
-            item_id: 7,
-            type_name: "My Goal".to_string(),
-        }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn unassign_item_type_url_encodes() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("DELETE"))
-        .and(path("/item/7/assign_type/My%20Goal"))
-        .respond_with(ResponseTemplate::new(200))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .unassign_item_type(Parameters(AssignTypeParams {
-            item_id: 7,
-            type_name: "My Goal".to_string(),
-        }))
-        .await
-        .unwrap();
-}
-
-// ── Planner: get_day_plan ─────────────────────────────────────────────────────
-
-#[tokio::test]
-async fn get_day_plan_correct_path() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/planner/day/2026-05-20"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .get_day_plan(Parameters(DateParam {
-            date: "2026-05-20".to_string(),
-        }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn get_day_plan_not_found_returns_invalid_params() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/planner/day/2026-05-20"))
-        .respond_with(ResponseTemplate::new(404))
-        .mount(&mock)
-        .await;
-
-    let err = server
-        .get_day_plan(Parameters(DateParam {
-            date: "2026-05-20".to_string(),
-        }))
-        .await
-        .unwrap_err();
-    assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
-}
-
-// ── Planner: get_week_plan ────────────────────────────────────────────────────
-
-#[tokio::test]
-async fn get_week_plan_correct_path() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/planner/week/2026-W21"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .get_week_plan(Parameters(WeekParam {
-            week: "2026-W21".to_string(),
-        }))
-        .await
-        .unwrap();
-}
-
-// ── Planner: get_month_plan ───────────────────────────────────────────────────
-
-#[tokio::test]
-async fn get_month_plan_correct_path() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/planner/month/5/year/2026"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .get_month_plan(Parameters(MonthYearParam {
-            month: 5,
-            year: 2026,
-        }))
-        .await
-        .unwrap();
-}
-
-// ── Planner: get_repeat_entries ───────────────────────────────────────────────
-
-#[tokio::test]
-async fn get_repeat_entries_correct_path() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/repeat/day/2026-05-20"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .get_repeat_entries(Parameters(DateParam {
-            date: "2026-05-20".to_string(),
-        }))
-        .await
-        .unwrap();
-}
-
-// ── Planner: update_repeat_status ────────────────────────────────────────────
-
-#[tokio::test]
-async fn update_repeat_status_puts_correct_path() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("PUT"))
-        .and(path("/repeat/status"))
-        .respond_with(ResponseTemplate::new(200))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .update_repeat_status(Parameters(UpdateRepeatParams {
-            item_id: 42,
-            date: "2026-05-20".to_string(),
-            status: Some("Complete".to_string()),
-            comment: None,
-        }))
-        .await
-        .unwrap();
-}
-
-// ── Planner: get_repeat_items ─────────────────────────────────────────────────
-
-#[tokio::test]
-async fn list_repeat_items_correct_path() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/repeat/items"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server.get_repeat_items().await.unwrap();
-}
-
-// ── Planner: get_repeat_entries_for_range ─────────────────────────────────────
-
-#[tokio::test]
-async fn get_repeat_entries_for_range_week() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/repeat/range"))
-        .and(query_param("start", "2026-06-02"))
-        .and(query_param("end", "2026-06-08"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .get_repeat_entries_for_range(Parameters(DateRangeParam {
-            start_date: "2026-06-02".to_string(),
-            end_date: "2026-06-08".to_string(),
-        }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn get_repeat_entries_for_range_month() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/repeat/range"))
-        .and(query_param("start", "2026-06-01"))
-        .and(query_param("end", "2026-06-30"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .get_repeat_entries_for_range(Parameters(DateRangeParam {
-            start_date: "2026-06-01".to_string(),
-            end_date: "2026-06-30".to_string(),
-        }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn get_repeat_entries_for_range_mcp_passthrough() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/repeat/range"))
-        .and(query_param("start", "2026-06-01"))
-        .and(query_param("end", "2026-06-07"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([{"status": "Complete"}])))
+        .and(body_json(json!({
+            "item_id": 5,
+            "content": "one\ntwo\n"
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(item(5, "Note", "one\ntwo\n")))
         .expect(1)
         .mount(&mock)
         .await;
 
     let result = server
-        .get_repeat_entries_for_range(Parameters(DateRangeParam {
-            start_date: "2026-06-01".to_string(),
-            end_date: "2026-06-07".to_string(),
+        .append_to_item(Parameters(AppendToItemParams {
+            item: "5".to_string(),
+            text: "two".to_string(),
         }))
         .await
         .unwrap();
-    assert!(text_of(result).contains("Complete"));
+    let value: Value = serde_json::from_str(&text_of(result)).unwrap();
+    assert_eq!(value["content_chars"], 8);
 }
 
-// ── Planner: comments ─────────────────────────────────────────────────────────
-
 #[tokio::test]
-async fn get_comments_for_item_correct_path() {
+async fn day_dashboard_hits_plan_habits_blocks_and_comments_once() {
     let (server, mock) = make_server().await;
     Mock::given(method("GET"))
-        .and(path("/comment/item/42"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .and(path("/planner/day/2026-07-03"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([item(1, "Plan", "Do it")])))
+        .expect(1)
+        .mount(&mock)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/repeat/day/2026-07-03"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!([repeat_entry(
+                2,
+                "Habit",
+                "2026-07-03",
+                "Complete"
+            )])),
+        )
+        .expect(1)
+        .mount(&mock)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/time_block/day/2026-07-03"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([time_block(3, 1, "Plan")])))
+        .expect(1)
+        .mount(&mock)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/comment/day/2026-07-03"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([comment(4, 1, "Plan")])))
         .expect(1)
         .mount(&mock)
         .await;
 
-    server
-        .get_comments_for_item(Parameters(PlannerItemIdParam { item_id: 42 }))
+    let result = server
+        .day_dashboard(Parameters(DayDashboardParams {
+            date: Some("2026-07-03".to_string()),
+        }))
         .await
         .unwrap();
+    let value: Value = serde_json::from_str(&text_of(result)).unwrap();
+    assert_eq!(value["date"], "2026-07-03");
+    assert_eq!(value["habits"][0]["status"], "Complete");
+    assert_eq!(value["time_blocks"][0]["start"], "9:00");
+    assert_eq!(value["journal"][0]["content"], "Logged");
 }
 
 #[tokio::test]
-async fn get_comments_for_day_correct_path() {
+async fn get_plan_supports_year_period() {
     let (server, mock) = make_server().await;
     Mock::given(method("GET"))
-        .and(path("/comment/day/2026-05-20"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .and(path("/planner/year/2026"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([item(1, "Yearly", "")])))
         .expect(1)
         .mount(&mock)
         .await;
 
-    server
-        .get_comments_for_day(Parameters(DateParam {
-            date: "2026-05-20".to_string(),
+    let result = server
+        .get_plan(Parameters(GetPlanParams {
+            period: "2026".to_string(),
+            detail: Detail::Meta,
+            limit: None,
+            offset: None,
         }))
         .await
         .unwrap();
+    let value: Value = serde_json::from_str(&text_of(result)).unwrap();
+    assert_eq!(value["items"][0]["title"], "Yearly");
 }
 
 #[tokio::test]
-async fn add_comment_posts_body() {
+async fn create_time_block_accepts_clock_strings() {
     let (server, mock) = make_server().await;
+    Mock::given(method("GET"))
+        .and(path("/item/id/7"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(item(7, "Focus", "")))
+        .expect(1)
+        .mount(&mock)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/time_block"))
+        .and(body_json(json!({
+            "item_id": 7,
+            "date": "2026-07-03",
+            "start_min": 570,
+            "end_min": 645,
+            "note": "Deep work"
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "block_id": 99,
+            "item": item(7, "Focus", ""),
+            "date": "2026-07-03",
+            "start_min": 570,
+            "end_min": 645,
+            "note": "Deep work"
+        })))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    let result = server
+        .create_time_block(Parameters(CreateTimeBlockParams {
+            item: "#7".to_string(),
+            date: "2026-07-03".to_string(),
+            start: "9:30".to_string(),
+            end: "10:45".to_string(),
+            note: Some("Deep work".to_string()),
+        }))
+        .await
+        .unwrap();
+    let value: Value = serde_json::from_str(&text_of(result)).unwrap();
+    assert_eq!(value["start"], "9:30");
+    assert_eq!(value["end"], "10:45");
+}
+
+#[tokio::test]
+async fn add_journal_entry_uses_configured_item_ref() {
+    let (server, mock) = make_server_with_journal().await;
+    Mock::given(method("GET"))
+        .and(path("/item/title/Journal"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(item(12, "Journal", "")))
+        .expect(1)
+        .mount(&mock)
+        .await;
     Mock::given(method("POST"))
         .and(path("/comment"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id": 1})))
+        .respond_with(ResponseTemplate::new(200).set_body_json(comment(13, 12, "Journal")))
         .expect(1)
         .mount(&mock)
         .await;
 
-    server
-        .add_comment(Parameters(AddCommentParams {
-            item_id: 42,
-            timestamp: "2026-05-20 10:00:00".to_string(),
-            content: "A note".to_string(),
+    let result = server
+        .add_journal_entry(Parameters(AddJournalEntryParams {
+            content: "Logged".to_string(),
         }))
         .await
         .unwrap();
+    let value: Value = serde_json::from_str(&text_of(result)).unwrap();
+    assert_eq!(value["item"]["item_id"], 12);
 }
 
 #[tokio::test]
-async fn update_comment_patches_path() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("PATCH"))
-        .and(path("/comment/9"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id": 9})))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .update_comment(Parameters(UpdateCommentParams {
-            comment_id: 9,
-            content: "Updated note".to_string(),
-        }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn delete_comment_correct_path() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("DELETE"))
-        .and(path("/comment/9"))
-        .respond_with(ResponseTemplate::new(200))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .delete_comment(Parameters(CommentIdParam { comment_id: 9 }))
-        .await
-        .unwrap();
-}
-
-// ── Automation: Rules ─────────────────────────────────────────────────────────
-
-#[tokio::test]
-async fn list_rules_correct_path() {
+async fn get_media_returns_text_content_inline() {
     let (server, mock) = make_server().await;
     Mock::given(method("GET"))
-        .and(path("/rule"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .and(path("/media/notes/today.txt"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string("hello")
+                .insert_header("content-type", "text/plain"),
+        )
         .expect(1)
         .mount(&mock)
         .await;
 
-    server.list_rules().await.unwrap();
+    let result = server
+        .get_media(Parameters(GetMediaParams {
+            path: "notes/today.txt".to_string(),
+        }))
+        .await
+        .unwrap();
+    assert_eq!(text_of(result), "hello");
 }
 
 #[tokio::test]
-async fn get_rule_correct_path() {
+async fn orphaned_items_pages_recent_items_and_uses_link_graph() {
     let (server, mock) = make_server().await;
     Mock::given(method("GET"))
-        .and(path("/rule/3"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id": 3})))
+        .and(path("/item/recent"))
+        .and(query_param("limit", "100"))
+        .and(query_param("offset", "0"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+            item_with_links(
+                1,
+                "Has outgoing",
+                json!([{"other_item_id": 2, "relationship": "topic"}])
+            ),
+            item(2, "Has incoming", ""),
+            item(3, "Orphan", "")
+        ])))
         .expect(1)
         .mount(&mock)
         .await;
 
-    server
-        .get_rule(Parameters(RuleIdParam { rule_id: 3 }))
+    let result = server
+        .orphaned_items(Parameters(LimitParams { limit: Some(10) }))
         .await
         .unwrap();
+    let value: Value = serde_json::from_str(&text_of(result)).unwrap();
+    assert_eq!(value["matching_count"], 1);
+    assert_eq!(value["items"][0]["title"], "Orphan");
 }
 
 #[tokio::test]
-async fn create_rule_posts_body() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("POST"))
-        .and(path("/rule"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id": 1})))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .create_rule(Parameters(CreateRuleParams {
-            name: "My Rule".to_string(),
-            description: None,
-            trigger: JsonObject(json!({"kind": "manual"})),
-            script: "zealot.log('hi')".to_string(),
-            enabled: Some(true),
-        }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn create_rule_defaults_enabled_to_true() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("POST"))
-        .and(path("/rule"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id": 2})))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    // enabled: None should default to true in the request body
-    server
-        .create_rule(Parameters(CreateRuleParams {
-            name: "Auto Rule".to_string(),
-            description: None,
-            trigger: JsonObject(json!({"kind": "manual"})),
-            script: "".to_string(),
-            enabled: None,
-        }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn update_rule_patches_path() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("PATCH"))
-        .and(path("/rule/3"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id": 3})))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .update_rule(Parameters(UpdateRuleParams {
-            rule_id: 3,
-            name: Some("Renamed".to_string()),
-            description: None,
-            trigger: None,
-            script: None,
-            enabled: None,
-        }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn delete_rule_correct_path() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("DELETE"))
-        .and(path("/rule/3"))
-        .respond_with(ResponseTemplate::new(200))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .delete_rule(Parameters(RuleIdParam { rule_id: 3 }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn run_rule_posts_to_run_path() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("POST"))
-        .and(path("/rule/3/run"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"output": "ok"})))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .run_rule(Parameters(RuleIdParam { rule_id: 3 }))
-        .await
-        .unwrap();
-}
-
-// ── Automation: Item Types ────────────────────────────────────────────────────
-
-#[tokio::test]
-async fn list_item_types_correct_path() {
+async fn habit_stats_computes_neutral_status_streaks() {
     let (server, mock) = make_server().await;
     Mock::given(method("GET"))
-        .and(path("/item_type"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .and(path("/repeat/range"))
+        .and(query_param("start", "2026-07-01"))
+        .and(query_param("end", "2026-07-05"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+            repeat_entry(1, "Meditate", "2026-07-01", "Complete"),
+            repeat_entry(1, "Meditate", "2026-07-02", "Skip"),
+            repeat_entry(1, "Meditate", "2026-07-03", "Complete"),
+            repeat_entry(1, "Meditate", "2026-07-04", "Not Complete"),
+            repeat_entry(1, "Meditate", "2026-07-05", "Complete")
+        ])))
         .expect(1)
         .mount(&mock)
         .await;
 
-    server.list_item_types().await.unwrap();
-}
-
-#[tokio::test]
-async fn get_item_type_by_name_url_encodes() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/item_type/name/My%20Type"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"name": "My Type"})))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .get_item_type_by_name(Parameters(ItemTypeNameParam {
-            name: "My Type".to_string(),
+    let result = server
+        .habit_stats(Parameters(HabitStatsParams {
+            start_date: "2026-07-01".to_string(),
+            end_date: "2026-07-05".to_string(),
         }))
         .await
         .unwrap();
-}
-
-#[tokio::test]
-async fn create_item_type_posts_body() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("POST"))
-        .and(path("/item_type"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id": 1})))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .create_item_type(Parameters(CreateItemTypeParams {
-            name: "Goal".to_string(),
-            description: None,
-            icon: Some("star".to_string()),
-            color: Some("#4A90E2".to_string()),
-        }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn update_item_type_patches_path() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("PATCH"))
-        .and(path("/item_type/5"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id": 5})))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .update_item_type(Parameters(UpdateItemTypeParams {
-            type_id: 5,
-            name: Some("Renamed".to_string()),
-            description: None,
-            icon: None,
-            color: None,
-        }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn delete_item_type_correct_path() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("DELETE"))
-        .and(path("/item_type/5"))
-        .respond_with(ResponseTemplate::new(200))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .delete_item_type(Parameters(ItemTypeIdParam { type_id: 5 }))
-        .await
-        .unwrap();
-}
-
-// ── Automation: Attribute Kinds ───────────────────────────────────────────────
-
-#[tokio::test]
-async fn list_attribute_kinds_correct_path() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/attribute"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server.list_attribute_kinds().await.unwrap();
-}
-
-#[tokio::test]
-async fn get_attribute_by_key_url_encodes() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/attribute/key/due%20date"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"key": "due date"})))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .get_attribute_by_key(Parameters(AttributeKeyParam {
-            key: "due date".to_string(),
-        }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn create_attribute_kind_default_config() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("POST"))
-        .and(path("/attribute"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id": 1})))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .create_attribute_kind(Parameters(CreateAttributeKindParams {
-            key: "priority".to_string(),
-            description: None,
-            base_type: "text".to_string(),
-            config: None,
-        }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn update_attribute_kind_patches_path() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("PATCH"))
-        .and(path("/attribute/id/7"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id": 7})))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .update_attribute_kind(Parameters(UpdateAttributeKindParams {
-            kind_id: 7,
-            description: Some("Updated desc".to_string()),
-            config: None,
-        }))
-        .await
-        .unwrap();
-}
-
-// ── Media ─────────────────────────────────────────────────────────────────────
-
-#[tokio::test]
-async fn list_media_root() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/media/"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .list_media(Parameters(MediaPathParam { path: None }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn list_media_subdir() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/media/images/2025"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .list_media(Parameters(MediaPathParam {
-            path: Some("images/2025".to_string()),
-        }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn list_media_strips_leading_slash() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/media/images"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .list_media(Parameters(MediaPathParam {
-            path: Some("/images".to_string()),
-        }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn create_media_folder_posts_body() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("POST"))
-        .and(path("/media/mkdir"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"ok": true})))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .create_media_folder(Parameters(CreateFolderParams {
-            folder: "images/2025".to_string(),
-        }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn delete_media_correct_path() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("DELETE"))
-        .and(path("/media/images/photo.jpg"))
-        .respond_with(ResponseTemplate::new(200))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .delete_media(Parameters(DeleteMediaParams {
-            path: "images/photo.jpg".to_string(),
-        }))
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn delete_media_strips_leading_slash() {
-    let (server, mock) = make_server().await;
-    Mock::given(method("DELETE"))
-        .and(path("/media/images/photo.jpg"))
-        .respond_with(ResponseTemplate::new(200))
-        .expect(1)
-        .mount(&mock)
-        .await;
-
-    server
-        .delete_media(Parameters(DeleteMediaParams {
-            path: "/images/photo.jpg".to_string(),
-        }))
-        .await
-        .unwrap();
+    let value: Value = serde_json::from_str(&text_of(result)).unwrap();
+    let habit = &value["habits"][0];
+    assert_eq!(habit["counts"]["complete"], 3);
+    assert_eq!(habit["counts"]["skip"], 1);
+    assert_eq!(habit["counts"]["not_complete"], 1);
+    assert_eq!(habit["longest_streak"], 2);
+    assert_eq!(habit["current_streak"], 1);
+    assert_eq!(habit["completion_rate"], 0.75);
 }

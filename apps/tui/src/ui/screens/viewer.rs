@@ -7,7 +7,7 @@ use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragra
 use super::display_title;
 use crate::app::App;
 use crate::msg::{LinkKind, Load};
-use crate::ui::centered_rect;
+use crate::ui::{ansi::sgr_to_text, centered_rect};
 
 pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
     let Some(item) = &app.viewer.item else {
@@ -75,10 +75,8 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
         );
     }
 
-    let text = ansi_to_tui::IntoText::into_text(&app.viewer.rendered)
-        .unwrap_or_else(|_| item.content.clone().into());
     frame.render_widget(
-        Paragraph::new(text)
+        Paragraph::new(sgr_to_text(&app.viewer.rendered))
             .wrap(Wrap { trim: false })
             .scroll((app.viewer.scroll, 0)),
         content_area,

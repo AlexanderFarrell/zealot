@@ -4,6 +4,10 @@ A full-screen terminal workstation for Zealot: your day plan, habits, wiki, sear
 and automations in one keyboard-driven interface built with
 [ratatui](https://ratatui.rs).
 
+For a start-to-finish user guide covering both terminal clients, see
+[Terminal Guide: CLI and TUI](./terminal-guide.md). This page is the compact TUI
+reference.
+
 ```
 ┌ Friday 2026-07-03 (today) ─────────────────────────────────────────┐
 │┌ Plan ──────────────────────┐┌ Habits 2/15 (Space to cycle) ──────┐│
@@ -24,7 +28,7 @@ The TUI shares credentials with the CLI — no separate setup:
 ```bash
 cargo build --release -p zealot-tui
 zealot login https://zealot.example.com   # once, via the CLI
-zealot-tui
+zealot tui                                # or run `zealot-tui` directly
 ```
 
 `ZEALOT_URL`/`ZEALOT_API_KEY`, `ZEALOT_PROFILE`, and `ZEALOT_CONFIG` env vars are
