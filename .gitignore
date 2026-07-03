@@ -20,3 +20,4 @@ __pycache__/
 **/node_modules/
 /apps/mobile/dist/
 /apps/mobile/src-tauri/gen/
+/apps/desktop/dist/
