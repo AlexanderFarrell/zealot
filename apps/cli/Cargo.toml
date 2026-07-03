@@ -11,6 +11,7 @@ path = "src/main.rs"
 [dependencies]
 zealot-domain = {path = "../../crates/zealot-domain"}
 zealot-client = {path = "../../crates/zealot-client"}
+zealot-zscript = {path = "../../crates/zealot-zscript"}
 
 anyhow.workspace = true
 chrono.workspace = true

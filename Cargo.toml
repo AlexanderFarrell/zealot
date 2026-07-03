@@ -11,7 +11,8 @@ members = [
     "crates/zealot-infra",
     "crates/zealot-api",
     "crates/zealot-lua",
-    "crates/zealot-client"
+    "crates/zealot-client",
+    "crates/zealot-zscript"
 ]
 resolver = "2"
 

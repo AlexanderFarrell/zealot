@@ -5,7 +5,7 @@
 //! `[[wikilinks]]`, `_underline_`, `<mark>`, and `$math$`. Emoji shortcodes
 //! are already resolved to unicode at storage time, so they pass through.
 
-use super::{blue, bold, cyan, dim, hyperlink, italic, magenta, paint, underline};
+use crate::style::{blue, bold, cyan, dim, hyperlink, italic, magenta, paint, underline};
 
 pub fn render(content: &str) -> String {
     let mut out = Vec::new();
@@ -346,7 +346,7 @@ fn render_table(rows: &[String]) -> Vec<String> {
     let mut widths = vec![0usize; cols];
     for row in &parsed {
         for (i, cell) in row.iter().enumerate() {
-            widths[i] = widths[i].max(super::visible_width(&render_inline(cell)));
+            widths[i] = widths[i].max(crate::style::visible_width(&render_inline(cell)));
         }
     }
 
@@ -360,7 +360,7 @@ fn render_table(rows: &[String]) -> Vec<String> {
             } else {
                 render_inline(cell)
             };
-            let pad = width - super::visible_width(&rendered).min(*width);
+            let pad = width - crate::style::visible_width(&rendered).min(*width);
             line.push_str(&rendered);
             line.push_str(&" ".repeat(pad));
             if i + 1 < cols {

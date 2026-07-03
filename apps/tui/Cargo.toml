@@ -4,5 +4,22 @@ version.workspace = true
 edition.workspace = true
 # license.workspace = true
 
+[[bin]]
+name = "zealot-tui"
+path = "src/main.rs"
+
 [dependencies]
 zealot-domain = {path = "../../crates/zealot-domain"}
+zealot-client = {path = "../../crates/zealot-client"}
+zealot-zscript = {path = "../../crates/zealot-zscript"}
+
+anyhow.workspace = true
+chrono.workspace = true
+tokio.workspace = true
+serde_json.workspace = true
+tempfile = "3"
+
+ratatui.workspace = true
+crossterm = {workspace = true, features = ["event-stream"]}
+ansi-to-tui = "7"
+futures = "0.3"
