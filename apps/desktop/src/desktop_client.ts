@@ -12,6 +12,7 @@ import {
     setRightSidebarHost,
     setToolHost,
     setOpenInNewTabHandler,
+    setTabHistoryController,
 } from '@websoil/engine';
 import { AddItemModal, CommandPaletteModal, ItemSearchModal, RightSidebar, default_side_button_entries, SideButtons } from '@zealot/ui';
 import '@zealot/ui/src/shell/mobile_title_bar';
@@ -44,6 +45,8 @@ class DesktopClient extends BaseElementEmpty {
         });
         commands.runner.register('New Tab', [new Hotkey('t', [CTRL_OR_META_KEY])], () => getDockHost().openInNewTab('/'));
         commands.runner.register('Close Tab', [new Hotkey('w', [CTRL_OR_META_KEY])], () => getDockHost().closeActiveTab());
+        commands.runner.register('Go Back', [new Hotkey('[', [CTRL_OR_META_KEY])], () => nav.goBack());
+        commands.runner.register('Go Forward', [new Hotkey(']', [CTRL_OR_META_KEY])], () => nav.goForward());
 
         this.innerHTML = `
         <header-bar></header-bar>
@@ -66,6 +69,14 @@ class DesktopClient extends BaseElementEmpty {
         dockHost.init(nav);
 
         setOpenInNewTabHandler((path) => getDockHost().openInNewTab(path));
+
+        setTabHistoryController({
+            canGoBack: () => getDockHost().canGoBack(),
+            canGoForward: () => getDockHost().canGoForward(),
+            goBack: () => nav.goBack(),
+            goForward: () => nav.goForward(),
+            subscribe: (cb) => getDockHost().onHistoryChange(cb),
+        });
 
         initPanelResizers();
 

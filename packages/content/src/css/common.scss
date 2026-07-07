@@ -66,6 +66,11 @@ header-bar {
     color: var(--text-0);
     box-shadow: none;
   }
+
+  &:disabled {
+    opacity: 0.35;
+    pointer-events: none;
+  }
 }
 
 .header-bar-window-controls {

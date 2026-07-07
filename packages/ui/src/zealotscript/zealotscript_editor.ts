@@ -18,6 +18,7 @@ import { TabsView } from "./zealotscript_view";
 import { lookupEmoji } from "./emoji_map";
 import { hasIcon, setIconRefElement } from "./icon_registry";
 import { ShortcodePicker, detectShortcodeTriggerInText, type ShortcodeSuggestion } from "./shortcode_picker";
+import { codeHighlightPlugin } from "./code_highlight_plugin";
 import { getNavigator, commands, ModalCommands } from "@websoil/engine";
 import { MediaAPI } from "@zealot/api/src/media";
 import { ItemSearchInline } from "../views/item_search_inline";
@@ -360,6 +361,7 @@ const buildPlugins = (schema: Schema) => {
 		history(),
 		keymap({ "Mod-k": addLink, "Mod-Shift-k": removeLink }),
 		buildInputRules(schema),
+		codeHighlightPlugin(),
 	];
 };
 
@@ -847,6 +849,18 @@ export class ZealotScriptEditor extends HTMLElement {
 				return true;
 			},
 			handlePaste: (_view, event) => {
+				// Inside a code block, paste raw text verbatim: ProseMirror's default
+				// clipboard parser turns pasted line breaks into extra hard breaks /
+				// block splits, which doubles the newlines. Insert the plain-text
+				// clipboard payload as a single text node (with `\n` preserved) instead.
+				if (_view.state.selection.$from.parent.type.spec.code) {
+					const text = event.clipboardData?.getData("text/plain") ?? "";
+					if (text.length === 0) return false;
+					event.preventDefault();
+					const normalized = text.replace(/\r\n?/g, "\n");
+					_view.dispatch(_view.state.tr.insertText(normalized).scrollIntoView());
+					return true;
+				}
 				const items = Array.from(event.clipboardData?.items ?? []);
 				const imageItem = items.find((i) => i.type.startsWith("image/"));
 				if (!imageItem) return false;

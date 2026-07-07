@@ -13,6 +13,7 @@
         "dev:desktop": "npm run dev -w @zealot/desktop",
         "build:desktop": "npm run build -w @zealot/desktop",
         "tauri:desktop": "npm run tauri:desktop -w @zealot/desktop",
+        "package:desktop": "npm run tauri:desktop:build -w @zealot/desktop && ./scripts/package-desktop.sh",
         "tauri:ios": "npm run tauri:ios -w @zealot/mobile",
         "tauri:android": "npm run tauri:android -w @zealot/mobile",
         "tauri:ios:build": "npm run tauri:ios:build -w @zealot/mobile",

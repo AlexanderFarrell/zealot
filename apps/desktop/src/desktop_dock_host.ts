@@ -11,6 +11,16 @@ interface PanelParams {
 // without going through updateParameters (which triggers update() → infinite loop risk).
 const panelContentMap = new Map<string, HTMLElement>();
 
+interface PanelHistory {
+    current: string;
+    back: string[];
+    forward: string[];
+}
+
+// Per-tab back/forward stacks, keyed by panel id. Kept independent of window.history,
+// which is a single global stack and can't represent each tab's own navigation path.
+const panelHistoryMap = new Map<string, PanelHistory>();
+
 export class ZealotPanelContent implements IContentRenderer {
     readonly element: HTMLElement;
     private _api: GroupPanelPartInitParameters['api'] | null = null;
@@ -30,6 +40,7 @@ export class ZealotPanelContent implements IContentRenderer {
         this._api = parameters.api;
         panelContentMap.set(parameters.api.id, this.element);
         const path = (parameters.params as PanelParams).path ?? '/';
+        panelHistoryMap.set(parameters.api.id, { current: path, back: [], forward: [] });
         this._dockHost?.renderPath(this.element, path, parameters.api);
     }
 
@@ -41,7 +52,10 @@ export class ZealotPanelContent implements IContentRenderer {
     }
 
     dispose(): void {
-        if (this._api) panelContentMap.delete(this._api.id);
+        if (this._api) {
+            panelContentMap.delete(this._api.id);
+            panelHistoryMap.delete(this._api.id);
+        }
         this.element.innerHTML = '';
     }
 }
@@ -49,6 +63,7 @@ export class ZealotPanelContent implements IContentRenderer {
 export class DesktopDockHost extends HTMLElement {
     private _dockview: DockviewComponent | null = null;
     private _navigator: DesktopNavigator | null = null;
+    private readonly historyListeners = new Set<() => void>();
 
     // Called from desktop_client.ts after the element is in the DOM.
     // Must be called before any tabs are opened.
@@ -98,6 +113,7 @@ export class DesktopDockHost extends HTMLElement {
                     getRightSidebarHost()?.setContent(null);
                 }
             }
+            this.notifyHistoryChange();
         };
 
         this._dockview.api.onDidActivePanelChange(refreshActivePanel);
@@ -138,7 +154,69 @@ export class DesktopDockHost extends HTMLElement {
             return;
         }
         const el = panelContentMap.get(active.id);
-        if (el) this.renderPath(el, path, active.api);
+        if (el) {
+            this.recordPush(path);
+            this.renderPath(el, path, active.api);
+        }
+    }
+
+    private getActiveHistory(): PanelHistory | undefined {
+        const active = this._dockview?.api.activePanel;
+        if (!active) return undefined;
+        return panelHistoryMap.get(active.id);
+    }
+
+    recordPush(path: string): void {
+        const h = this.getActiveHistory();
+        if (!h) return;
+        h.back.push(h.current);
+        h.forward = [];
+        h.current = path;
+        this.notifyHistoryChange();
+    }
+
+    recordReplace(path: string): void {
+        const h = this.getActiveHistory();
+        if (!h) return;
+        h.current = path;
+        this.notifyHistoryChange();
+    }
+
+    canGoBack(): boolean {
+        return (this.getActiveHistory()?.back.length ?? 0) > 0;
+    }
+
+    canGoForward(): boolean {
+        return (this.getActiveHistory()?.forward.length ?? 0) > 0;
+    }
+
+    goBack(): string | undefined {
+        const h = this.getActiveHistory();
+        if (!h || h.back.length === 0) return undefined;
+        const prev = h.back.pop()!;
+        h.forward.push(h.current);
+        h.current = prev;
+        this.notifyHistoryChange();
+        return prev;
+    }
+
+    goForward(): string | undefined {
+        const h = this.getActiveHistory();
+        if (!h || h.forward.length === 0) return undefined;
+        const next = h.forward.pop()!;
+        h.back.push(h.current);
+        h.current = next;
+        this.notifyHistoryChange();
+        return next;
+    }
+
+    onHistoryChange(cb: () => void): () => void {
+        this.historyListeners.add(cb);
+        return () => this.historyListeners.delete(cb);
+    }
+
+    private notifyHistoryChange(): void {
+        this.historyListeners.forEach((cb) => cb());
     }
 
     openInNewTab(path: string): void {

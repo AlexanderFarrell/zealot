@@ -82,9 +82,25 @@ export class DesktopNavigator implements Navigator {
     private navigate(path: string, mode: 'push' | 'replace' = 'push'): void {
         if (mode === 'replace') {
             history.replaceState(null, '', path);
+            getDockHost().recordReplace(path);
         } else {
             history.pushState(null, '', path);
+            getDockHost().recordPush(path);
         }
+        this.renderCurrent();
+    }
+
+    goBack(): void {
+        const path = getDockHost().goBack();
+        if (path === undefined) return;
+        history.replaceState(null, '', path);
+        this.renderCurrent();
+    }
+
+    goForward(): void {
+        const path = getDockHost().goForward();
+        if (path === undefined) return;
+        history.replaceState(null, '', path);
         this.renderCurrent();
     }
 

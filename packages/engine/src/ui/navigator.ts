@@ -92,6 +92,24 @@ export function openInNewTab(path: string): void {
     }
 }
 
+export interface TabHistoryController {
+    canGoBack(): boolean;
+    canGoForward(): boolean;
+    goBack(): void;
+    goForward(): void;
+    subscribe(listener: () => void): () => void;
+}
+
+let _tabHistoryController: TabHistoryController | null = null;
+
+export function setTabHistoryController(controller: TabHistoryController): void {
+    _tabHistoryController = controller;
+}
+
+export function getTabHistoryController(): TabHistoryController | null {
+    return _tabHistoryController;
+}
+
 export function registerNavigationCommands(): void {
     runner.register(NavigationCommands.goHome, [new Hotkey('h', [CTRL_OR_META_KEY])], () => getNavigator().openHome());
     runner.register(NavigationCommands.openDailyPlanner, [new Hotkey('1', [CTRL_OR_META_KEY])], () => getNavigator().openPlanner('daily'));

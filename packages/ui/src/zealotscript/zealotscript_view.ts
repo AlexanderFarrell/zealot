@@ -10,6 +10,7 @@ import { parseZealotScript } from "./parser";
 import { serializeZealotScript } from "./serializer";
 import { YoutubeEmbedView } from "./zealotscript_editor";
 import { setIconRefElement } from "./icon_registry";
+import { highlightToHtml, whenHighlighterReady } from "./highlight";
 
 let katexLib: typeof katex | null = null;
 const loadKatex = async (): Promise<typeof katex> => {
@@ -94,6 +95,36 @@ const renderMathInContainer = async (container: HTMLElement): Promise<void> => {
 			el.appendChild(err);
 		}
 	}
+};
+
+// Syntax-highlight fenced code blocks in a read-only container. Safe to swap
+// innerHTML here (unlike the editor) because this view is not contenteditable.
+// highlight.js loads async, so we re-run once it is ready.
+const renderCodeBlocksInContainer = async (container: HTMLElement): Promise<void> => {
+	const codes = Array.from(
+		container.querySelectorAll<HTMLElement>(
+			"pre[data-language]:not([data-language='mermaid']) > code, pre:not([data-language]) > code",
+		),
+	);
+	if (codes.length === 0) return;
+
+	const apply = (): void => {
+		for (const code of codes) {
+			const pre = code.parentElement as HTMLElement | null;
+			const lang = pre?.getAttribute("data-language") ?? "";
+			const source = code.textContent ?? "";
+			if (source.length === 0) continue;
+			const html = highlightToHtml(source, lang);
+			if (html !== null) {
+				code.innerHTML = html;
+				code.classList.add("hljs");
+			}
+		}
+	};
+
+	apply();
+	await whenHighlighterReady();
+	apply();
 };
 
 export class TabsView {
@@ -201,6 +232,7 @@ export class ZealotScriptView extends HTMLElement {
 					renderIconsInContainer(container);
 					renderMathInContainer(container);
 					renderMermaidInContainer(container);
+					renderCodeBlocksInContainer(container);
 				}
 			},
 			handleClick: (view, _pos, event) => {
@@ -280,6 +312,7 @@ export class ZealotScriptView extends HTMLElement {
 		renderIconsInContainer(container);
 		renderMathInContainer(container);
 		renderMermaidInContainer(container);
+		renderCodeBlocksInContainer(container);
 	}
 
 	disconnectedCallback(): void {

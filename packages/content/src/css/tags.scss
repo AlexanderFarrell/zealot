@@ -69,97 +69,6 @@ a {
 	filter: none;
 }
 
-.zealot-code-block {
-	margin: 10px 0;
-	position: relative;
-}
-
-.zealot-code-block-toolbar {
-	position: absolute;
-	top: 0;
-	left: 8px;
-	z-index: 3;
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	margin: 0;
-	padding: 6px 10px;
-	border: 1px solid color-mix(in srgb, var(--accent-0) 28%, transparent);
-	border-radius: 8px;
-	background: color-mix(in srgb, var(--panel-0) 80%, var(--accent-0) 20%);
-	box-shadow: 0 8px 16px var(--shadow-color-3);
-	width: auto;
-	max-width: min(92%, 420px);
-	opacity: 0;
-	pointer-events: none;
-	transform: translateY(calc(-100% - 4px));
-	transition: opacity 120ms ease, transform 120ms ease;
-}
-
-.zealot-code-block:hover .zealot-code-block-toolbar,
-.zealot-code-block:focus-within .zealot-code-block-toolbar,
-.zealot-code-block-toolbar:hover,
-.zealot-code-block-toolbar:focus-within {
-	opacity: 1;
-	pointer-events: auto;
-	transform: translateY(calc(-100% + 2px));
-}
-
-.zealot-code-block-language-label {
-	font-size: 11px;
-	font-weight: 700;
-	letter-spacing: 0.06em;
-	text-transform: uppercase;
-	color: var(--text-1);
-	white-space: nowrap;
-}
-
-.zealot-code-block-language-input {
-	width: 220px;
-	max-width: 220px;
-	padding: 4px 8px;
-	height: 30px;
-	font-size: 13px;
-}
-
-.zealot-code-block-copy {
-	width: auto;
-	padding: 6px 10px;
-	font-size: 12px;
-	line-height: 1;
-	border: 1px solid color-mix(in srgb, var(--accent-0) 35%, transparent);
-	background: color-mix(in srgb, var(--panel-0) 74%, var(--accent-0) 26%);
-}
-
-.zealot-code-block pre {
-	margin: 0;
-}
-
-.zealot-code-block code {
-	width: 100%;
-}
-
-.zealot-code-block > pre:not(.zealot-code-block-preview) {
-	position: relative;
-	z-index: 1;
-	display: block;
-}
-
-.zealot-code-block > .zealot-code-block-preview {
-	position: absolute;
-	inset: 0;
-	z-index: 2;
-	pointer-events: none;
-}
-
-.zealot-code-block:focus-within > .zealot-code-block-preview {
-	display: none;
-}
-
-.ProseMirror-focused .zealot-code-block > .zealot-code-block-preview {
-	display: none;
-}
-
 input, textarea, select, chips-input {
 	background-color: var(--panel-0);
 	border: 1px solid var(--border-0);
@@ -261,19 +170,18 @@ hr {
 	line-height: 1.35;
 	padding: 0.1em 0.38em;
 	border-radius: 5px;
-	border: 1px solid color-mix(in srgb, var(--accent-0) 34%, transparent);
-	background: color-mix(in srgb, var(--bg-1) 70%, var(--accent-0) 30%);
-	color: color-mix(in srgb, var(--text-0) 90%, white 10%);
-	box-shadow: inset 0 1px 0 var(--shadow-color-1);
+	border: 1px solid var(--border-1);
+	background: var(--bg-2);
+	color: var(--text-0);
 }
 
-.ProseMirror pre code,
-.zealot-code-block code {
+.ProseMirror pre code {
 	padding: 0;
 	border: 0;
 	border-radius: 0;
 	background: transparent;
 	box-shadow: none;
+	color: inherit;
 	font-size: inherit;
 	line-height: inherit;
 	tab-size: 4;
@@ -281,18 +189,41 @@ hr {
 }
 
 pre {
+	position: relative;
 	background-color: var(--bg--1);
-	padding: 10px;
-	border-radius: 3px;
+	color: var(--text-0);
+	border: 1px solid var(--border-1);
+	padding: 12px 14px;
+	border-radius: 8px;
 	overflow-x: auto;
-	max-width: 600px;
 	white-space: pre;
 	min-width: 0;
 	width: 100%;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+	font-size: 0.88em;
+	line-height: 1.5;
+	tab-size: 4;
+	-moz-tab-size: 4;
 }
 
-pre.hljs {
-	background-color: var(--bg--1);
+// Subtle uppercase language tag in the top-right corner of a fenced block.
+pre[data-language]:not([data-language=""]):not([data-language="mermaid"])::before {
+	content: attr(data-language);
+	position: absolute;
+	top: 0;
+	right: 0;
+	padding: 2px 8px;
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-1);
+	background: color-mix(in srgb, var(--bg-2) 70%, transparent);
+	border-bottom-left-radius: 6px;
+	border-left: 1px solid var(--border-1);
+	border-bottom: 1px solid var(--border-1);
+	pointer-events: none;
+	user-select: none;
 }
 
 blockquote {
@@ -778,3 +709,87 @@ dl.zealot-definition dd p {
 .zealot-tabs-panels {
 	padding: 12px 14px;
 }
+
+// --- Syntax highlighting -----------------------------------------------------
+// Self-contained token theme tuned to the dark palette. The same `hljs-*`
+// classes are produced two ways: as spans (read-only <zealotscript-view>, via
+// highlight.js `innerHTML`) and as ProseMirror inline decorations (live editor).
+// No external highlight.js CDN theme is imported.
+
+:root {
+	--code-token: var(--text-0);
+	--code-keyword: #c792ea;
+	--code-string: #a5e6a1;
+	--code-number: #f6c177;
+	--code-comment: #7d7292;
+	--code-function: #82aaff;
+	--code-type: #ffcb6b;
+	--code-attr: #d7a3ff;
+	--code-punct: var(--text-1);
+	--code-meta: #89ddff;
+}
+
+.hljs,
+.ProseMirror pre code {
+	color: var(--code-token);
+}
+
+.hljs-comment,
+.hljs-quote { color: var(--code-comment); font-style: italic; }
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-doctag {
+	color: var(--code-keyword);
+}
+
+.hljs-string,
+.hljs-regexp,
+.hljs-template-tag,
+.hljs-selector-attr,
+.hljs-selector-pseudo {
+	color: var(--code-string);
+}
+
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet {
+	color: var(--code-number);
+}
+
+.hljs-title,
+.hljs-title.function_,
+.hljs-section {
+	color: var(--code-function);
+}
+
+.hljs-class .hljs-title,
+.hljs-title.class_,
+.hljs-type,
+.hljs-built_in {
+	color: var(--code-type);
+}
+
+.hljs-attr,
+.hljs-attribute,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-property {
+	color: var(--code-attr);
+}
+
+.hljs-meta,
+.hljs-link,
+.hljs-tag,
+.hljs-name {
+	color: var(--code-meta);
+}
+
+.hljs-punctuation,
+.hljs-operator { color: var(--code-punct); }
+
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }
+.hljs-deletion { color: var(--danger-0); }
+.hljs-addition { color: var(--code-string); }

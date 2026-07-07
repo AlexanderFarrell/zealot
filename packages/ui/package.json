@@ -16,6 +16,7 @@
         "@zealot/content": "file:../content",
         "@zealot/domain": "file:../domain",
         "dockview-core": "^5.2.0",
+        "highlight.js": "^11.11.1",
         "katex": "^0.16.45",
         "lucide": "^1.16.0",
         "luxon": "^3.7.2",
