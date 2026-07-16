@@ -126,188 +126,80 @@ codex --mcp-server "http://zealot-mcp.example.com:3100/mcp" "Show me today's pla
 
 ---
 
-## Tool reference
+## Tool Reference
 
-The MCP server exposes 39 tools grouped below by workflow.
+The authoritative agent-facing tool contract lives in [MCP System Prompt](./mcp-system-prompt.md). Keep detailed tool names, parameter shapes, and workflow idioms there so MCP clients do not receive conflicting instructions from two documents.
 
-### Items — wiki management
+At a high level, the server covers these workflows:
 
-These tools cover the core Zealot data model. Every piece of information in Zealot is an item.
+- Wiki items: browse, search, filter, outline, read, create, update, append, delete, type assignment, attributes, and links.
+- Planner and habits: day dashboards, period plans, habit entries, habit status updates, comments, and journal entries.
+- Time blocks: range/item reads plus create, update, and delete operations using `HH:MM` times.
+- Media: list, read, upload, create folder, rename, and delete.
+- Analysis: wiki stats, orphan samples, attribute usage, and habit statistics.
+- Automation: list, inspect, create, update, delete, and run Lua rules.
+- Schema: item types and attribute kinds.
 
-| Tool | Parameters | What it does |
-|---|---|---|
-| `list_items` | `type_filter?` | List root-level items, optionally filtered by type name (e.g. `"Goal"`, `"Project"`) |
-| `list_recent_items` | `limit?` (default 30), `offset?` | List recently modified items with pagination |
-| `search_items` | `term` | Search items by title keyword; results sorted by relevance |
-| `filter_items` | `filters`, `limit?` (default 50, max 100), `offset?` | Filter items by attribute values; filters are ANDed, values may be scalars or arrays, and ops support `eq`, `ne`, `gt`, `lt`, `gte`, `lte`, and `ilike` |
-| `get_item` | `id` | Fetch a single item by numeric ID — returns full attributes, types, and links |
-| `get_item_by_title` | `title` | Fetch a single item by exact title |
-| `get_children` | `id` | List all child items of a parent |
-| `get_related_items` | `id` | List all items linked to this item, regardless of relationship type |
-| `create_item` | `title`, `content`, `attributes?` | Create a new item |
-| `update_item` | `id`, `title?`, `content?` | Update title and/or content (partial — omitted fields unchanged) |
-| `delete_item` | `id` | Permanently delete an item |
-| `set_item_attributes` | `id`, `attributes` | Set one or more attributes; only specified keys are overwritten, others preserved |
-| `delete_item_attribute` | `id`, `key` | Delete a single attribute by key |
-| `assign_item_type` | `item_id`, `type_name` | Assign a type to an item (items can have multiple types) |
-| `unassign_item_type` | `item_id`, `type_name` | Remove a type from an item (item itself is not deleted) |
-
-### Planner
-
-| Tool | Parameters | What it does |
-|---|---|---|
-| `get_day_plan` | `date` (`YYYY-MM-DD`) | Get all items scheduled for a specific day |
-| `get_week_plan` | `week` (`YYYY-WNN`, e.g. `"2026-W23"`) | Get all items scheduled for a week |
-| `get_month_plan` | `month` (1–12), `year` | Get all items scheduled for a month |
-
-### Comments
-
-| Tool | Parameters | What it does |
-|---|---|---|
-| `get_comments_for_item` | `item_id` | Get all comments attached to an item |
-| `get_comments_for_day` | `date` (`YYYY-MM-DD`) | Get all comments logged for a day (journal view) |
-| `add_comment` | `item_id`, `timestamp` (`YYYY-MM-DD HH:MM:SS`), `content` | Add a timestamped comment to an item |
-| `update_comment` | `comment_id`, `content` | Update comment body text |
-| `delete_comment` | `comment_id` | Permanently delete a comment |
-
-### Repeats / habits
-
-| Tool | Parameters | What it does |
-|---|---|---|
-| `get_repeat_items` | — | List all items enrolled in the repeat tracker |
-| `get_repeat_entries` | `date` (`YYYY-MM-DD`) | Get habit/repeat entries with completion status for a day |
-| `get_repeat_entries_for_range` | `start_date`, `end_date` (`YYYY-MM-DD`) | Get habit entries for a date range (inclusive) |
-| `update_repeat_status` | `item_id`, `date`, `status?`, `comment?` | Update habit completion; status is one of `Complete`, `Skip`, `Alternate`, `NotComplete` |
-
-### Media
-
-| Tool | Parameters | What it does |
-|---|---|---|
-| `list_media` | `path?` (relative; omit for root) | List files and folders with metadata |
-| `create_media_folder` | `folder` | Create a folder (e.g. `"images/2026"`) |
-| `delete_media` | `path` | Delete a file or empty directory |
-
-### Automation rules
-
-| Tool | Parameters | What it does |
-|---|---|---|
-| `list_rules` | — | List all automation rules |
-| `get_rule` | `rule_id` | Get a single rule including its full Lua script |
-| `create_rule` | `name`, `script`, `trigger`, `description?`, `enabled?` | Create a new rule |
-| `update_rule` | `rule_id`, `name?`, `script?`, `trigger?`, `description?`, `enabled?` | Update rule properties |
-| `delete_rule` | `rule_id` | Delete a rule |
-| `run_rule` | `rule_id` | Run a rule immediately regardless of its configured trigger |
-
-Trigger formats:
-
-```json
-{"kind": "manual"}
-{"kind": "cron", "expression": "0 9 * * *"}
-{"kind": "on_item_create"}
-{"kind": "on_type_assign", "type_name": "Goal"}
-```
-
-See [Rules Engine](./rules-engine.md) for the full Lua API reference.
-
-### Schema — item types and attribute kinds
-
-These tools manage the type system. Changes here affect all items that use a given type or attribute.
-
-| Tool | Parameters | What it does |
-|---|---|---|
-| `list_item_types` | — | List all item types |
-| `get_item_type_by_name` | `name` | Get type definition including required attributes |
-| `create_item_type` | `name`, `description?`, `icon?`, `color?` | Create a new item type |
-| `update_item_type` | `type_id`, `name?`, `description?`, `icon?`, `color?` | Update type properties |
-| `delete_item_type` | `type_id` | Delete a type (items with this type are not deleted) |
-| `list_attribute_kinds` | — | List all attribute kind definitions |
-| `get_attribute_by_key` | `key` | Get an attribute kind by its key/slug |
-| `create_attribute_kind` | `key`, `base_type`, `description?`, `config?` | Create attribute schema; for `dropdown`, pass `config: {"values": ["opt1", "opt2"]}` |
-| `update_attribute_kind` | `kind_id`, `description?`, `config?` | Update attribute config |
-
-Valid `base_type` values: `text`, `integer`, `decimal`, `date`, `week`, `boolean`, `dropdown`, `item`, `list`.
+When checking a live server, prefer your MCP client's tool list over this human guide. If the client exposes an older tool surface, use the closest legacy tool names but keep the same operating rules: browse before deep reads, page until complete, verify schema before unfamiliar writes, and read before overwriting content.
 
 ---
 
-## Example prompts and workflows
+## Example Prompts And Workflows
 
-These examples show the natural-language prompt, the tool call sequence the agent will execute, and what to expect.
+These examples describe intent and expected tool strategy rather than exact call syntax. See [MCP System Prompt](./mcp-system-prompt.md) for current call shapes.
 
-### 1. Creating a ticket
+### 1. Creating a Ticket
 
 **Prompt:** "Create a task called 'Fix login bug' under the Auth project, due this Friday, priority High"
 
-```
-search_items("Auth project")
-  → finds item_id 42
+Expected strategy:
 
-create_item(title="Fix login bug", content="", attributes={"Date": "2026-06-07"})
-  → creates item_id 87
+- Search or filter for the Auth project and preserve its item id.
+- Check live type and attribute schema if the task/ticket conventions are unfamiliar.
+- Create the item with content, attributes, type, and parent/link in one call when supported.
+- If using an older tool surface, create the item first, then set attributes, assign the type, and establish the parent/link using the available legacy tools.
+- Confirm destructive or ambiguous changes before writing.
 
-set_item_attributes(id=87, attributes={"Priority": "High"})
-
-assign_item_type(item_id=87, type_name="Task")
-
-# Link to parent (Auth project)
-# Note: linking uses the HTTP API directly; the agent may use update_item or
-# set_item_attributes to add a parent reference if your schema supports it.
-```
-
-### 2. Planning a day
+### 2. Planning A Day
 
 **Prompt:** "Show me today's plan and mark my morning standup habit as complete"
 
-```
-get_day_plan("2026-06-05")
-  → list of scheduled items
+Expected strategy:
 
-get_repeat_entries("2026-06-05")
-  → finds standup habit at item_id 15, status=NotComplete
+- Prefer the composite day dashboard tool when available; otherwise gather the day plan, habit entries, time blocks, and comments separately.
+- Identify the habit by id from the live result.
+- Update habit status with one of the supported status values.
 
-update_repeat_status(item_id=15, date="2026-06-05", status="Complete")
-```
-
-### 3. Reading a project
+### 3. Reading A Project
 
 **Prompt:** "Give me a summary of the Q3 Roadmap project and its open tasks"
 
-```
-get_item_by_title("Q3 Roadmap")
-  → item_id 33, content, attributes
+Expected strategy:
 
-get_children(id=33)
-  → list of child task items
+- Resolve the project by exact title or search result, then use its id.
+- Use an outline or summary view before reading long content.
+- Read children or linked items through the current link tool; fall back to older child-list tools if needed.
+- Fetch full item details only for the project and relevant open tasks.
 
-# For each task with Status != "Done":
-get_item(id=<task_id>)
-  → full details including Status attribute
-```
+### 4. Updating A Habit With A Note
 
-### 4. Updating repeat status with a note
+**Prompt:** "I exercised today but only for 20 minutes; log it as alternate with a note"
 
-**Prompt:** "I exercised today but only for 20 minutes — log it as alternate with a note"
+Expected strategy:
 
-```
-get_repeat_entries("2026-06-05")
-  → finds exercise habit at item_id 22
-
-update_repeat_status(
-  item_id=22,
-  date="2026-06-05",
-  status="Alternate",
-  comment="Only 20 min today, shortened due to early meeting"
-)
-```
+- Read habit entries for the date or dashboard.
+- Resolve the exercise habit id.
+- Set the habit status to `Alternate` with the user's note.
 
 ---
 
-## Safe operating rules for agents
+## Safe Operating Rules For Agents
 
 These rules help agents avoid data loss or unintended changes. Paste them into your system prompt or reference this guide when configuring agent behavior.
 
 ### Read before writing
 
-Always call `get_item` or `search_items` before calling `update_item`, `set_item_attributes`, or `delete_item`. Confirm the item is correct before changing it.
+Always resolve and inspect the target item before calling update or delete tools. Confirm the item is correct before changing it, and read existing content before overwriting content fields.
 
 ### Destructive operations require user confirmation
 
@@ -320,11 +212,11 @@ Before executing any of the following, the agent should present what it is about
 - `delete_item_type` — removes the type definition (items keep their data, but lose the type label)
 - `update_attribute_kind` or `delete_attribute_kind` changes affect every item using that attribute
 
-### Attribute updates are merge, not replace
+### Attribute Updates Are Merge, Not Replace
 
-`set_item_attributes` only overwrites the keys you pass. Existing attributes not included in the call are left unchanged. You do not need to read and re-send all attributes to update one field.
+Attribute update tools only overwrite the keys you pass unless the specific tool documents full replacement semantics. Existing attributes not included in the call are normally left unchanged, so you do not need to read and re-send all attributes to update one field.
 
-### Item content updates are partial
+### Item Content Updates Are Partial
 
 `update_item` updates only the fields you pass. Omitting `content` leaves the existing content unchanged. Omitting `title` leaves the title unchanged.
 

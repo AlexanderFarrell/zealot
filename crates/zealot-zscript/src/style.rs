@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 static COLOR_ENABLED: AtomicBool = AtomicBool::new(false);
 static HYPERLINKS_ENABLED: AtomicBool = AtomicBool::new(true);
+static LINK_TARGETS_ENABLED: AtomicBool = AtomicBool::new(false);
 
 pub fn set_color_enabled(enabled: bool) {
     COLOR_ENABLED.store(enabled, Ordering::Relaxed);
@@ -11,6 +12,18 @@ pub fn set_color_enabled(enabled: bool) {
 
 pub fn color_enabled() -> bool {
     COLOR_ENABLED.load(Ordering::Relaxed)
+}
+
+/// When on, wikilinks are wrapped in OSC 8 hyperlinks carrying a
+/// `zealot:<title>` target (like markdown links already carry their URL), so a
+/// structured consumer such as the TUI can recover each link's destination.
+/// Off by default: the CLI keeps rendering plain, non-navigable wikilinks.
+pub fn set_link_targets_enabled(enabled: bool) {
+    LINK_TARGETS_ENABLED.store(enabled, Ordering::Relaxed);
+}
+
+pub fn link_targets_enabled() -> bool {
+    LINK_TARGETS_ENABLED.load(Ordering::Relaxed)
 }
 
 /// OSC 8 hyperlinks are on by default with color; the TUI turns them off
@@ -66,6 +79,17 @@ pub fn blue(text: &str) -> String {
 
 pub fn magenta(text: &str) -> String {
     paint("35", text)
+}
+
+/// Emit an OSC 8 hyperlink to `uri` with a plain `label`, regardless of the
+/// `hyperlinks` flag. Used to carry a navigable target to structured consumers
+/// (the TUI) without styling the label — they restyle it themselves.
+pub fn link_target(uri: &str, label: &str) -> String {
+    if color_enabled() {
+        format!("\x1b]8;;{uri}\x1b\\{label}\x1b]8;;\x1b\\")
+    } else {
+        label.to_string()
+    }
 }
 
 /// Terminal hyperlink (OSC 8) when enabled; styled label otherwise.

@@ -175,7 +175,11 @@ fn render_inline(text: &str) -> String {
             if let Some(end) = find_seq(&chars, i + 2, &[']', ']']) {
                 let inner: String = chars[i + 2..end].iter().collect();
                 let label = inner.split_once(':').map(|(_, l)| l).unwrap_or(&inner);
-                out.push_str(&blue(&underline(label)));
+                if crate::style::link_targets_enabled() {
+                    out.push_str(&crate::style::link_target(&format!("zealot:{label}"), label));
+                } else {
+                    out.push_str(&blue(&underline(label)));
+                }
                 i = end + 2;
                 continue;
             }

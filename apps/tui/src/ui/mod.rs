@@ -4,10 +4,10 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph};
 
-use crate::app::{App, Screen};
+use crate::app::App;
+use crate::screens::{Pane, Screen};
 
 pub mod ansi;
-pub mod screens;
 
 pub fn draw(frame: &mut Frame, app: &App) {
     frame.render_widget(Clear, frame.area());
@@ -16,12 +16,13 @@ pub fn draw(frame: &mut Frame, app: &App) {
         Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(frame.area());
 
     match app.screen {
-        Screen::Today => screens::today::draw(frame, main, app),
-        Screen::Browse => screens::browse::draw(frame, main, app),
-        Screen::Search => screens::search::draw(frame, main, app),
-        Screen::Viewer => screens::viewer::draw(frame, main, app),
-        Screen::Habits => screens::habits::draw(frame, main, app),
-        Screen::Rules => screens::rules::draw(frame, main, app),
+        Screen::Today => app.today.draw(frame, main),
+        Screen::Browse => app.browse.draw(frame, main),
+        Screen::Search => app.search.draw(frame, main),
+        Screen::Viewer => app.viewer.draw(frame, main),
+        Screen::Habits => app.habits.draw(frame, main),
+        Screen::Rules => app.rules.draw(frame, main),
+        Screen::Random => app.random.draw(frame, main),
     }
 
     draw_status_bar(frame, status, app);
@@ -54,8 +55,20 @@ fn draw_status_bar(frame: &mut Frame, area: Rect, app: &App) {
             Style::default().fg(if *is_error { Color::Red } else { Color::Green }),
         ));
     } else {
+        // Numbered legend of every screen; the current one is highlighted so
+        // the shortcut key is always in view.
+        for screen in Screen::NAV {
+            let Some(key) = screen.key() else { continue };
+            let current = screen == app.screen;
+            let style = if current {
+                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::DarkGray)
+            };
+            spans.push(Span::styled(format!("{key} {} ", screen.title()), style));
+        }
         spans.push(Span::styled(
-            "1-5 screens  / search  : palette  ? help  q quit",
+            " /find  :cmd  ? help  q quit",
             Style::default().fg(Color::DarkGray),
         ));
     }
@@ -121,28 +134,32 @@ fn draw_palette(frame: &mut Frame, app: &App) {
 fn draw_help(frame: &mut Frame, _app: &App) {
     const HELP: &[(&str, &str)] = &[
         ("Global", ""),
-        ("  1-5", "switch screen (Today, Browse, Search, Habits, Rules)"),
+        ("  1-6", "switch screen (Today Browse Search Habits Rules Random)"),
         ("  /", "jump to search"),
         ("  : or Ctrl-P", "command palette"),
         ("  R", "refresh current screen"),
         ("  q / Esc", "back or quit · Ctrl-C force quit"),
         ("Today", ""),
-        ("  [ ]", "previous / next day · t today"),
-        ("  j k", "select habit · Space cycle status · Enter open"),
+        ("  Tab", "switch section (Plan · Habits · Blocks · Journal)"),
+        ("  j k", "move within section · Enter open item"),
+        ("  Space", "cycle status (in Habits) · [ ] day · t today"),
         ("  i", "journal entry (Enter submit, Esc cancel)"),
         ("Browse", ""),
         ("  j k", "move · l expand · h collapse · Enter open · e edit"),
         ("Search", ""),
         ("  type", "live search · Tab scope · Ctrl-R regex"),
-        ("  ↑ ↓", "select · Enter open"),
+        ("  ↑ ↓ → ←", "select · → children · ← collapse · Enter open"),
         ("Item viewer", ""),
         ("  j k Ctrl-D Ctrl-U g", "scroll"),
+        ("  Tab / Shift-Tab", "cycle links · Enter follow selected link"),
         ("  e", "edit in $EDITOR · b backlinks · r related · c children"),
         ("  Backspace", "back to previous item"),
         ("Habits", ""),
         ("  h j k l", "move in grid · Space cycle · [ ] shift week · t today"),
         ("Rules", ""),
         ("  j k", "select · r/Enter run · e edit script"),
+        ("Random", ""),
+        ("  j k", "move · r reroll · l children · Enter open"),
     ];
 
     let lines: Vec<Line> = HELP

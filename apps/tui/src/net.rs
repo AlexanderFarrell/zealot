@@ -61,6 +61,14 @@ impl Net {
         });
     }
 
+    pub fn load_random(&self, count: usize, generation: u64) {
+        let net = self.clone();
+        tokio::spawn(async move {
+            let items = net.client.random_items(count).await.map_err(stringify);
+            net.send(Msg::Random { generation, items });
+        });
+    }
+
     pub fn search(&self, term: String, scope: SearchScope, regex: bool, generation: u64) {
         let net = self.clone();
         tokio::spawn(async move {

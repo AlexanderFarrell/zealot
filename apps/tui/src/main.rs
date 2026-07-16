@@ -2,6 +2,7 @@ mod app;
 mod editor;
 mod msg;
 mod net;
+mod screens;
 mod ui;
 
 use std::io::stdout;
@@ -18,9 +19,10 @@ use ratatui::backend::CrosstermBackend;
 use tokio::sync::mpsc;
 use zealot_client::{Config, ZealotClient};
 
-use crate::app::{App, EditRequest};
+use crate::app::App;
 use crate::msg::Msg;
 use crate::net::Net;
+use crate::screens::EditRequest;
 
 fn connect() -> Result<(ZealotClient, String, Option<String>)> {
     let config_path = Config::default_path()?;
@@ -61,10 +63,12 @@ fn leave_terminal() {
 async fn main() -> Result<()> {
     let (client, label, journal_item) = connect()?;
 
-    // The TUI parses the renderer's ANSI back into spans; OSC 8 links would
-    // confuse that parser.
+    // The TUI parses the renderer's ANSI back into spans, including OSC 8
+    // hyperlinks: markdown links carry their URL, and link-targets mode makes
+    // wikilinks carry a `zealot:<title>` target so both are navigable.
     zealot_zscript::set_color_enabled(true);
-    zealot_zscript::style::set_hyperlinks_enabled(false);
+    zealot_zscript::style::set_hyperlinks_enabled(true);
+    zealot_zscript::style::set_link_targets_enabled(true);
 
     // Restore the terminal on panic so the shell isn't left in raw mode.
     let default_hook = std::panic::take_hook();

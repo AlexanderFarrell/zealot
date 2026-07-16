@@ -62,6 +62,10 @@ pub enum Msg {
         parent_id: i64,
         items: Result<Vec<ItemDto>, String>,
     },
+    Random {
+        generation: u64,
+        items: Result<Vec<ItemDto>, String>,
+    },
     SearchResults {
         generation: u64,
         results: Result<Vec<SearchResultDto>, String>,
