@@ -90,6 +90,16 @@ The Zealot subsystem that evaluates and executes Lua automation rules in a sandb
 
 A browser-based authentication state managed via `session_id` and CSRF cookies. Scripts and API clients should use API keys rather than sessions. See [HTTP API — Authentication](./http-api.md#authentication).
 
+### Statistic
+
+An ordinary item assigned the system Statistic type and configured with Value Kind, Unit, and
+Daily Aggregation. It defines one typed numeric series. See [Data Model — Statistics](./data-model.md#statistics).
+
+### Statistic Entry
+
+One timestamped numeric observation belonging to a Statistic, with an optional related item and
+comment. See [Data Model — Statistics](./data-model.md#statistics).
+
 ### trigger
 
 The condition that causes a rule to run. Triggers can be event-based (for example `on_item_create`, `on_attribute_set`), scheduled (cron or interval), or manual. See [Data Model — Trigger shapes](./data-model.md#trigger-shapes).

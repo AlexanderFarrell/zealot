@@ -25,7 +25,12 @@ pub enum Section {
 
 impl Section {
     /// Tab order, laid out to roughly follow the on-screen columns.
-    const ORDER: [Section; 4] = [Section::Plan, Section::Habits, Section::Blocks, Section::Journal];
+    const ORDER: [Section; 4] = [
+        Section::Plan,
+        Section::Habits,
+        Section::Blocks,
+        Section::Journal,
+    ];
 
     fn step(self, delta: isize) -> Section {
         let pos = Self::ORDER.iter().position(|s| *s == self).unwrap_or(0) as isize;
@@ -100,7 +105,10 @@ impl TodayState {
             Section::Plan => data.plan.get(self.plan.index).map(|i| i.item_id),
             Section::Habits => data.habits.get(self.habits.index).map(|e| e.item.item_id),
             Section::Blocks => data.blocks.get(self.blocks.index).map(|b| b.item.item_id),
-            Section::Journal => data.comments.get(self.journal.index).map(|c| c.item.item_id),
+            Section::Journal => data
+                .comments
+                .get(self.journal.index)
+                .map(|c| c.item.item_id),
         }
     }
 
@@ -113,7 +121,10 @@ impl TodayState {
         let Some(entry) = data.habits.get_mut(index) else {
             return;
         };
-        let current = HABIT_STATUSES.iter().position(|s| *s == entry.status).unwrap_or(0);
+        let current = HABIT_STATUSES
+            .iter()
+            .position(|s| *s == entry.status)
+            .unwrap_or(0);
         let next = HABIT_STATUSES[(current + 1) % HABIT_STATUSES.len()];
         entry.status = next.to_string(); // optimistic; the Done() reply refetches
         net.set_habit_status(entry.item.item_id, date, next);
@@ -250,16 +261,30 @@ impl Pane for TodayState {
         let plan_items = list_or_hint(
             data.plan.iter().map(|item| {
                 ListItem::new(Line::from(vec![
-                    Span::styled(format!("#{} ", item.item_id), Style::default().fg(Color::Cyan)),
+                    Span::styled(
+                        format!("#{} ", item.item_id),
+                        Style::default().fg(Color::Cyan),
+                    ),
                     Span::raw(display_title(item)),
                 ]))
             }),
             "nothing planned",
         );
-        self.section(frame, plan_area, " Plan ", Section::Plan, plan_items, self.plan);
+        self.section(
+            frame,
+            plan_area,
+            " Plan ",
+            Section::Plan,
+            plan_items,
+            self.plan,
+        );
 
         // ── Habits ──
-        let done = data.habits.iter().filter(|e| e.status == "Complete").count();
+        let done = data
+            .habits
+            .iter()
+            .filter(|e| e.status == "Complete")
+            .count();
         let habit_items = list_or_hint(
             data.habits.iter().map(|entry| {
                 let mut spans = vec![
@@ -279,7 +304,14 @@ impl Pane for TodayState {
         );
         // The Habits panel doubles as a hint that "4" opens the full Habits screen.
         let habits_title = format!(" [4] Habits {done}/{} (Space cycles) ", data.habits.len());
-        self.section(frame, habits_area, &habits_title, Section::Habits, habit_items, self.habits);
+        self.section(
+            frame,
+            habits_area,
+            &habits_title,
+            Section::Habits,
+            habit_items,
+            self.habits,
+        );
 
         // ── Time blocks ──
         let block_items = list_or_hint(
@@ -305,7 +337,14 @@ impl Pane for TodayState {
             }),
             "no time blocks",
         );
-        self.section(frame, blocks_area, " Time blocks ", Section::Blocks, block_items, self.blocks);
+        self.section(
+            frame,
+            blocks_area,
+            " Time blocks ",
+            Section::Blocks,
+            block_items,
+            self.blocks,
+        );
 
         // ── Journal (day comments) + composer ──
         let mut journal_items: Vec<ListItem> = data
@@ -316,7 +355,10 @@ impl Pane for TodayState {
                 ListItem::new(Line::from(vec![
                     Span::styled(time, Style::default().fg(Color::DarkGray)),
                     Span::raw(" "),
-                    Span::styled(display_title(&comment.item), Style::default().fg(Color::Magenta)),
+                    Span::styled(
+                        display_title(&comment.item),
+                        Style::default().fg(Color::Magenta),
+                    ),
                     Span::raw(" "),
                     Span::raw(comment.content.replace('\n', " ")),
                 ]))
@@ -334,7 +376,14 @@ impl Pane for TodayState {
                 Style::default().fg(Color::DarkGray),
             )));
         }
-        self.section(frame, journal_area, " Journal ", Section::Journal, journal_items, self.journal);
+        self.section(
+            frame,
+            journal_area,
+            " Journal ",
+            Section::Journal,
+            journal_items,
+            self.journal,
+        );
     }
 }
 
@@ -366,13 +415,13 @@ impl TodayState {
 }
 
 /// Build list items from `iter`, or a single dim hint when it is empty.
-fn list_or_hint<'a>(
-    iter: impl Iterator<Item = ListItem<'a>>,
-    hint: &'a str,
-) -> Vec<ListItem<'a>> {
+fn list_or_hint<'a>(iter: impl Iterator<Item = ListItem<'a>>, hint: &'a str) -> Vec<ListItem<'a>> {
     let items: Vec<ListItem> = iter.collect();
     if items.is_empty() {
-        vec![ListItem::new(Span::styled(hint, Style::default().fg(Color::DarkGray)))]
+        vec![ListItem::new(Span::styled(
+            hint,
+            Style::default().fg(Color::DarkGray),
+        ))]
     } else {
         items
     }

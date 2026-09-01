@@ -25,7 +25,9 @@ pub struct BodyLink {
 /// Style applied to every link label. Magenta reads far brighter than blue on
 /// dark terminals; underline keeps links legible when color is unavailable.
 pub fn link_style() -> Style {
-    Style::default().fg(Color::Magenta).add_modifier(Modifier::UNDERLINED)
+    Style::default()
+        .fg(Color::Magenta)
+        .add_modifier(Modifier::UNDERLINED)
 }
 
 /// Parse the renderer's ANSI (SGR + OSC 8 hyperlinks) into styled text, keep
@@ -116,7 +118,11 @@ fn push_link(
     if label.is_empty() {
         return;
     }
-    links.push(BodyLink { line, span: spans.len(), target });
+    links.push(BodyLink {
+        line,
+        span: spans.len(),
+        target,
+    });
     spans.push(Span::styled(label, link_style()));
 }
 
@@ -184,15 +190,17 @@ fn apply_sgr(code: &str, style: &mut Style) {
             100..=107 => *style = style.bg(basic_color(param - 100, true)),
             38 => {
                 if params.next() == Some(5)
-                    && let Some(idx) = params.next() {
-                        *style = style.fg(Color::Indexed(idx));
-                    }
+                    && let Some(idx) = params.next()
+                {
+                    *style = style.fg(Color::Indexed(idx));
+                }
             }
             48 => {
                 if params.next() == Some(5)
-                    && let Some(idx) = params.next() {
-                        *style = style.bg(Color::Indexed(idx));
-                    }
+                    && let Some(idx) = params.next()
+                {
+                    *style = style.bg(Color::Indexed(idx));
+                }
             }
             _ => {}
         }
@@ -223,8 +231,11 @@ mod tests {
         let span = &text.lines[links[0].line].spans[links[0].span];
         assert_eq!(span.content, "Some Note");
         assert_eq!(span.style.fg, Some(Color::Magenta));
-        let joined: String =
-            text.lines[0].spans.iter().map(|s| s.content.as_ref()).collect();
+        let joined: String = text.lines[0]
+            .spans
+            .iter()
+            .map(|s| s.content.as_ref())
+            .collect();
         assert_eq!(joined, "see Some Note here");
     }
 
@@ -255,15 +266,21 @@ mod tests {
     fn type_wikilink_uses_label() {
         let (text, links) = rendered("a [[type:Recipe]] link");
         assert_eq!(links.len(), 1);
-        assert_eq!(text.lines[links[0].line].spans[links[0].span].content, "Recipe");
+        assert_eq!(
+            text.lines[links[0].line].spans[links[0].span].content,
+            "Recipe"
+        );
     }
 
     #[test]
     fn plain_sgr_still_parses_without_links() {
         let (text, links) = rendered("**bold** text");
         assert!(links.is_empty());
-        let joined: String =
-            text.lines[0].spans.iter().map(|s| s.content.as_ref()).collect();
+        let joined: String = text.lines[0]
+            .spans
+            .iter()
+            .map(|s| s.content.as_ref())
+            .collect();
         assert_eq!(joined, "bold text");
     }
 }

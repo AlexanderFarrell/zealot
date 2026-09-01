@@ -12,6 +12,7 @@ mod middleware;
 mod planner;
 mod repeat;
 mod rule;
+mod statistic;
 mod time_block;
 
 use axum::Router;
@@ -64,6 +65,7 @@ fn build_router(state: AppState) -> Router {
         .nest("/planner", planner::routes(state.clone()))
         .nest("/repeat", repeat::routes(state.clone()))
         .nest("/rule", rule::routes(state.clone()))
+        .nest("/statistic", statistic::routes(state.clone()))
         .nest("/time_block", time_block::routes(state.clone()))
         .layer(cors)
         .layer(

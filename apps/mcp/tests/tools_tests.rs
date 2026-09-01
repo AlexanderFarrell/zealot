@@ -15,6 +15,7 @@ use zealot_mcp::{
         err_ctx,
         media::GetMediaParams,
         planner::{AddJournalEntryParams, DayDashboardParams, GetPlanParams},
+        statistic::{RecordStatisticEntryParams, StatisticQueryParams},
         time_block::CreateTimeBlockParams,
         wiki::{
             AppendToItemParams, BrowseItemsParams, BrowseMode, CreateItemParams, ItemRefParam,
@@ -564,4 +565,91 @@ async fn habit_stats_computes_neutral_status_streaks() {
     assert_eq!(habit["longest_streak"], 2);
     assert_eq!(habit["current_streak"], 1);
     assert_eq!(habit["completion_rate"], 0.75);
+}
+
+#[tokio::test]
+async fn record_statistic_entry_resolves_item_and_posts_typed_body() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("GET"))
+        .and(path("/item/id/42"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(item(42, "Body mass", "")))
+        .expect(1)
+        .mount(&mock)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/statistic/42/entries"))
+        .and(body_json(json!({
+            "value": 82.5,
+            "occurred_at": "2026-08-13T08:30:00Z",
+            "comment": "Morning"
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "statistic_entry_id": 7,
+            "item_id": 42,
+            "value": 82.5,
+            "occurred_at": "2026-08-13T08:30:00+00:00",
+            "related_item_id": null,
+            "comment": "Morning",
+            "created_at": "2026-08-13T08:31:00+00:00",
+            "updated_at": "2026-08-13T08:31:00+00:00"
+        })))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    let result = server
+        .record_statistic_entry(Parameters(RecordStatisticEntryParams {
+            statistic: "#42".to_string(),
+            value: 82.5,
+            occurred_at: Some("2026-08-13T08:30:00Z".to_string()),
+            related_item: None,
+            comment: Some("Morning".to_string()),
+        }))
+        .await
+        .unwrap();
+    let value: Value = serde_json::from_str(&text_of(result)).unwrap();
+    assert_eq!(value["statistic_entry_id"], 7);
+    assert_eq!(value["value"], 82.5);
+}
+
+#[tokio::test]
+async fn get_statistic_summary_returns_period_statistics() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("GET"))
+        .and(path("/item/id/42"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(item(42, "Body mass", "")))
+        .expect(1)
+        .mount(&mock)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/statistic/42/summary"))
+        .and(query_param("start", "2026-08-01T00:00:00Z"))
+        .and(query_param("end", "2026-09-01T00:00:00Z"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "count": 2,
+            "first": {"value": 82.5, "occurred_at": "2026-08-13T08:30:00+00:00"},
+            "latest": {"value": 81.5, "occurred_at": "2026-08-14T08:30:00+00:00"},
+            "minimum": 81.5,
+            "maximum": 82.5,
+            "average": 82.0,
+            "sum": 164.0,
+            "delta": -1.0
+        })))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    let result = server
+        .get_statistic_summary(Parameters(StatisticQueryParams {
+            statistic: "#42".to_string(),
+            start: Some("2026-08-01T00:00:00Z".to_string()),
+            end: Some("2026-09-01T00:00:00Z".to_string()),
+            limit: None,
+            offset: None,
+        }))
+        .await
+        .unwrap();
+    let value: Value = serde_json::from_str(&text_of(result)).unwrap();
+    assert_eq!(value["count"], 2);
+    assert_eq!(value["delta"], -1.0);
 }

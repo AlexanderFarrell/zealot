@@ -193,6 +193,15 @@ Expected strategy:
 
 ---
 
+### 5. Recording And Reviewing Statistics
+
+Use list_statistics to discover series, record_statistic_entry to add a value, and
+get_statistic_entries for raw history. get_statistic_daily_series applies the configured UTC
+daily rollup. get_statistic_summary returns count, first, latest, minimum, maximum, average, sum,
+and latest-minus-first delta. Edit and delete operations use the stable Statistic Entry ID.
+
+---
+
 ## Safe Operating Rules For Agents
 
 These rules help agents avoid data loss or unintended changes. Paste them into your system prompt or reference this guide when configuring agent behavior.

@@ -85,7 +85,7 @@ function showMenu(actions: ContextAction[], x: number, y: number): void {
         itemEls.push(btn);
     }
 
-    // Position off-screen first to measure
+		// Position off-screen first to calculate its size
     el.style.left = '-9999px';
     el.style.top = '-9999px';
     el.style.display = 'block';

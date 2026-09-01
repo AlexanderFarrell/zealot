@@ -157,6 +157,69 @@ async fn repeat_status_put_sends_dto() {
 }
 
 #[tokio::test]
+async fn statistic_entry_contract_uses_canonical_routes_and_nullable_patch() {
+    let (server, client) = setup().await;
+    Mock::given(method("POST"))
+        .and(path("/statistic/4/entries"))
+        .and(body_json(json!({
+            "value": 81.4,
+            "occurred_at": "2026-08-13T07:00:00Z",
+            "comment": "Morning"
+        })))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+            "statistic_entry_id": 12,
+            "item_id": 4,
+            "value": 81.4,
+            "occurred_at": "2026-08-13T07:00:00+00:00",
+            "related_item_id": null,
+            "comment": "Morning",
+            "created_at": "2026-08-13T07:01:00+00:00",
+            "updated_at": "2026-08-13T07:01:00+00:00"
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let created = client.create_statistic_entry(
+        4,
+        &zealot_domain::statistic::CreateStatisticEntryDto {
+            value: 81.4,
+            occurred_at: Some("2026-08-13T07:00:00Z".into()),
+            related_item_id: None,
+            comment: Some("Morning".into()),
+        },
+    ).await.unwrap();
+    assert_eq!(created.statistic_entry_id, 12);
+
+    Mock::given(method("PATCH"))
+        .and(path("/statistic/entries/12"))
+        .and(body_json(json!({"related_item_id": null, "comment": null})))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "statistic_entry_id": 12,
+            "item_id": 4,
+            "value": 81.4,
+            "occurred_at": "2026-08-13T07:00:00+00:00",
+            "related_item_id": null,
+            "comment": null,
+            "created_at": "2026-08-13T07:01:00+00:00",
+            "updated_at": "2026-08-13T07:02:00+00:00"
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    client.update_statistic_entry(
+        12,
+        &zealot_domain::statistic::UpdateStatisticEntryDto {
+            value: None,
+            occurred_at: None,
+            related_item_id: Some(None),
+            comment: Some(None),
+        },
+    ).await.unwrap();
+}
+
+#[tokio::test]
 async fn media_get_distinguishes_directories_from_files() {
     let (server, client) = setup().await;
     Mock::given(method("GET"))

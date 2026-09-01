@@ -61,7 +61,9 @@ fn draw_status_bar(frame: &mut Frame, area: Rect, app: &App) {
             let Some(key) = screen.key() else { continue };
             let current = screen == app.screen;
             let style = if current {
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::DarkGray)
             };
@@ -134,7 +136,10 @@ fn draw_palette(frame: &mut Frame, app: &App) {
 fn draw_help(frame: &mut Frame, _app: &App) {
     const HELP: &[(&str, &str)] = &[
         ("Global", ""),
-        ("  1-6", "switch screen (Today Browse Search Habits Rules Random)"),
+        (
+            "  1-6",
+            "switch screen (Today Browse Search Habits Rules Random)",
+        ),
         ("  /", "jump to search"),
         ("  : or Ctrl-P", "command palette"),
         ("  R", "refresh current screen"),
@@ -145,17 +150,29 @@ fn draw_help(frame: &mut Frame, _app: &App) {
         ("  Space", "cycle status (in Habits) · [ ] day · t today"),
         ("  i", "journal entry (Enter submit, Esc cancel)"),
         ("Browse", ""),
-        ("  j k", "move · l expand · h collapse · Enter open · e edit"),
+        (
+            "  j k",
+            "move · l expand · h collapse · Enter open · e edit",
+        ),
         ("Search", ""),
         ("  type", "live search · Tab scope · Ctrl-R regex"),
         ("  ↑ ↓ → ←", "select · → children · ← collapse · Enter open"),
         ("Item viewer", ""),
         ("  j k Ctrl-D Ctrl-U g", "scroll"),
-        ("  Tab / Shift-Tab", "cycle links · Enter follow selected link"),
-        ("  e", "edit in $EDITOR · b backlinks · r related · c children"),
+        (
+            "  Tab / Shift-Tab",
+            "cycle links · Enter follow selected link",
+        ),
+        (
+            "  e",
+            "edit in $EDITOR · b backlinks · r related · c children",
+        ),
         ("  Backspace", "back to previous item"),
         ("Habits", ""),
-        ("  h j k l", "move in grid · Space cycle · [ ] shift week · t today"),
+        (
+            "  h j k l",
+            "move in grid · Space cycle · [ ] shift week · t today",
+        ),
         ("Rules", ""),
         ("  j k", "select · r/Enter run · e edit script"),
         ("Random", ""),

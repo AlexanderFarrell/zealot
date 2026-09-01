@@ -2,6 +2,7 @@ pub mod analysis;
 pub mod automation;
 pub mod media;
 pub mod planner;
+pub mod statistic;
 pub mod time_block;
 pub mod wiki;
 
@@ -61,6 +62,7 @@ impl ZealotServer {
         router.merge(Self::automation_tool_router());
         router.merge(Self::media_tool_router());
         router.merge(Self::time_block_tool_router());
+        router.merge(Self::statistic_tool_router());
         router.merge(Self::analysis_tool_router());
         router
     }

@@ -1,5 +1,6 @@
 pub mod comments;
 pub mod items;
+pub mod statistics;
 pub mod utils;
 
 use std::sync::{Arc, Mutex};
@@ -19,6 +20,7 @@ pub fn setup_zealot_globals(
 
     items::register(&zealot, lua, services.clone(), account_id)?;
     comments::register(&zealot, lua, services.clone(), account_id)?;
+    statistics::register(&zealot, lua, services.clone(), account_id)?;
     utils::register(&zealot, lua, context, account_id, output_buf)?;
 
     lua.globals().set("zealot", zealot)?;

@@ -154,6 +154,10 @@ pub enum Command {
     #[command(subcommand)]
     Rule(RuleCmd),
 
+    /// Typed numeric statistics
+    #[command(subcommand)]
+    Statistic(StatisticCmd),
+
     /// Media files
     #[command(subcommand)]
     Media(MediaCmd),
@@ -380,6 +384,72 @@ pub enum BlockCmd {
 }
 
 #[derive(Subcommand)]
+pub enum StatisticCmd {
+    /// List Statistic items
+    Items {
+        #[arg(long)]
+        parent: Option<ItemRef>,
+    },
+    /// List raw entries for a Statistic item
+    Entries {
+        item: ItemRef,
+        #[arg(long)]
+        start: Option<String>,
+        #[arg(long)]
+        end: Option<String>,
+        #[arg(long, short = 'n', default_value_t = 50)]
+        limit: i64,
+        #[arg(long, default_value_t = 0)]
+        offset: i64,
+    },
+    /// Show daily aggregate points
+    Daily {
+        item: ItemRef,
+        #[arg(long)]
+        start: Option<String>,
+        #[arg(long)]
+        end: Option<String>,
+    },
+    /// Show a period summary
+    Summary {
+        item: ItemRef,
+        #[arg(long)]
+        start: Option<String>,
+        #[arg(long)]
+        end: Option<String>,
+    },
+    /// Record a Statistic Entry
+    Record {
+        item: ItemRef,
+        value: f64,
+        #[arg(long)]
+        at: Option<String>,
+        #[arg(long)]
+        related: Option<ItemRef>,
+        #[arg(long, short = 'm')]
+        comment: Option<String>,
+    },
+    /// Edit a Statistic Entry
+    Edit {
+        statistic_entry_id: i64,
+        #[arg(long)]
+        value: Option<f64>,
+        #[arg(long)]
+        at: Option<String>,
+        #[arg(long, conflicts_with = "clear_related")]
+        related: Option<ItemRef>,
+        #[arg(long)]
+        clear_related: bool,
+        #[arg(long, short = 'm', conflicts_with = "clear_comment")]
+        comment: Option<String>,
+        #[arg(long)]
+        clear_comment: bool,
+    },
+    /// Delete a Statistic Entry
+    Rm { statistic_entry_id: i64 },
+}
+
+#[derive(Subcommand)]
 pub enum CommentCmd {
     /// Add a comment to an item
     Add {
@@ -500,4 +570,49 @@ pub enum MediaCmd {
     Mkdir { path: String },
     /// Rename a file or folder
     Mv { from: String, to: String },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Cli, Command, StatisticCmd};
+    use clap::Parser;
+
+    #[test]
+    fn parses_statistic_record_and_nullable_edit_commands() {
+        let record = Cli::try_parse_from([
+            "zealot",
+            "statistic",
+            "record",
+            "#42",
+            "82.5",
+            "--at",
+            "2026-08-13T08:30:00Z",
+            "--comment",
+            "Morning",
+        ])
+        .unwrap();
+        assert!(matches!(
+            record.command,
+            Command::Statistic(StatisticCmd::Record { value, .. }) if value == 82.5
+        ));
+
+        let edit = Cli::try_parse_from([
+            "zealot",
+            "statistic",
+            "edit",
+            "7",
+            "--clear-related",
+            "--clear-comment",
+        ])
+        .unwrap();
+        assert!(matches!(
+            edit.command,
+            Command::Statistic(StatisticCmd::Edit {
+                statistic_entry_id: 7,
+                clear_related: true,
+                clear_comment: true,
+                ..
+            })
+        ));
+    }
 }

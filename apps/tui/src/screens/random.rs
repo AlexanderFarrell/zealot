@@ -69,7 +69,9 @@ impl Pane for RandomState {
         match &self.status {
             Load::Loaded(_) => self.tree.render_list(frame, area, block),
             Load::Loading => frame.render_widget(
-                Paragraph::new("Shuffling…").style(Style::default().fg(Color::DarkGray)).block(block),
+                Paragraph::new("Shuffling…")
+                    .style(Style::default().fg(Color::DarkGray))
+                    .block(block),
                 area,
             ),
             Load::Idle => frame.render_widget(
@@ -79,7 +81,9 @@ impl Pane for RandomState {
                 area,
             ),
             Load::Error(e) => frame.render_widget(
-                Paragraph::new(format!("Error: {e}")).style(Style::default().fg(Color::Red)).block(block),
+                Paragraph::new(format!("Error: {e}"))
+                    .style(Style::default().fg(Color::Red))
+                    .block(block),
                 area,
             ),
         }

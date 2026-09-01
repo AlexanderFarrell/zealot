@@ -171,30 +171,52 @@ pub async fn new_item(ctx: &Ctx, args: NewArgs) -> Result<()> {
 }
 
 async fn edit(ctx: &Ctx, item_ref: ItemRef, full: bool) -> Result<()> {
+    if !full
+        && let ItemRef::Id(item_id) = &item_ref
+        && editor::has_item_draft(&ctx.draft_identity, *item_id)?
+    {
+        return edit_content(ctx, *item_id, None).await;
+    }
     let item = ctx.resolve_item(&item_ref).await?;
 
     if full {
         return edit_full(ctx, item).await;
     }
 
-    let Some(content) = editor::edit_text(&item.content, "md")? else {
-        println!("{}", dim("No changes."));
-        return Ok(());
-    };
-    let dto = UpdateItemDto {
-        item_id: item.item_id,
-        title: None,
-        content: Some(content),
-        attributes: None,
-        links: None,
-    };
-    let updated = ctx.client.update_item(&dto).await?;
-    println!(
-        "{} Updated {} {}",
-        green("✔"),
-        cyan(&format!("#{}", updated.item_id)),
-        bold(&updated.title)
-    );
+    edit_content(
+        ctx,
+        item.item_id,
+        Some((&item.content, item.title.as_str())),
+    )
+    .await
+}
+
+async fn edit_content(ctx: &Ctx, item_id: i64, initial: Option<(&str, &str)>) -> Result<()> {
+    match editor::edit_item_content(
+        &ctx.draft_identity,
+        item_id,
+        initial.map(|(content, _)| content),
+        ctx.client.clone(),
+    )
+    .await?
+    {
+        editor::ItemEditOutcome::Saved => {
+            let title = initial
+                .map(|(_, title)| title.to_string())
+                .unwrap_or_default();
+            let label = if title.is_empty() {
+                format!("#{item_id}")
+            } else {
+                format!("#{item_id} {title}")
+            };
+            println!("{} Updated {}", green("✔"), bold(&label));
+        }
+        editor::ItemEditOutcome::NoChanges => println!("{}", dim("No changes.")),
+        editor::ItemEditOutcome::ReadOnly => println!(
+            "{}",
+            dim("Read-only snapshot closed; changes were discarded.")
+        ),
+    }
     Ok(())
 }
 

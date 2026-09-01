@@ -65,11 +65,16 @@ impl HabitsState {
             .entries
             .loaded()
             .and_then(|entries| {
-                entries.iter().find(|e| e.item.item_id == item_id && e.date == date_str)
+                entries
+                    .iter()
+                    .find(|e| e.item.item_id == item_id && e.date == date_str)
             })
             .map(|e| e.status.clone())
             .unwrap_or_else(|| "Not Complete".to_string());
-        let idx = HABIT_STATUSES.iter().position(|s| *s == current).unwrap_or(0);
+        let idx = HABIT_STATUSES
+            .iter()
+            .position(|s| *s == current)
+            .unwrap_or(0);
         let next = HABIT_STATUSES[(idx + 1) % HABIT_STATUSES.len()];
         net.set_habit_status(item_id, date, next);
     }
@@ -155,7 +160,12 @@ impl Pane for HabitsState {
             return;
         }
 
-        let title_width = rows.iter().map(|(t, _)| t.chars().count()).max().unwrap_or(0).min(28);
+        let title_width = rows
+            .iter()
+            .map(|(t, _)| t.chars().count())
+            .max()
+            .unwrap_or(0)
+            .min(28);
         let mut lines: Vec<Line> = Vec::new();
 
         // Header row: day-of-month numbers, weekend dimmed.

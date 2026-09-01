@@ -108,7 +108,10 @@ impl Pane for RulesState {
                 ListItem::new(Line::from(vec![
                     enabled,
                     Span::raw(" "),
-                    Span::styled(rule.name.clone(), Style::default().add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        rule.name.clone(),
+                        Style::default().add_modifier(Modifier::BOLD),
+                    ),
                     Span::styled(
                         format!("  {}", rule.trigger.kind_str()),
                         Style::default().fg(Color::Yellow),
@@ -117,8 +120,7 @@ impl Pane for RulesState {
                 ]))
             })
             .collect();
-        let mut state =
-            ListState::default().with_selected(self.sel.resolved(rules.len()));
+        let mut state = ListState::default().with_selected(self.sel.resolved(rules.len()));
         frame.render_stateful_widget(
             List::new(items)
                 .block(list_block)
@@ -138,8 +140,14 @@ impl Pane for RulesState {
 
         let mut lines = vec![
             Line::from(vec![
-                Span::styled(rule.name.clone(), Style::default().add_modifier(Modifier::BOLD)),
-                Span::styled(format!("  #{}", rule.rule_id), Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    rule.name.clone(),
+                    Style::default().add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    format!("  #{}", rule.rule_id),
+                    Style::default().fg(Color::DarkGray),
+                ),
             ]),
             Line::from(Span::raw(rule.description.clone())),
             Line::from(vec![
@@ -157,13 +165,19 @@ impl Pane for RulesState {
             Line::default(),
         ];
         if let Some(output) = rule.last_output.as_deref().filter(|o| !o.is_empty()) {
-            lines.push(Line::from(Span::styled("Last output:", Style::default().fg(Color::Green))));
+            lines.push(Line::from(Span::styled(
+                "Last output:",
+                Style::default().fg(Color::Green),
+            )));
             for line in output.lines().take(20) {
                 lines.push(Line::from(Span::raw(line.to_string())));
             }
         }
         if let Some(error) = rule.last_error.as_deref().filter(|e| !e.is_empty()) {
-            lines.push(Line::from(Span::styled("Last error:", Style::default().fg(Color::Red))));
+            lines.push(Line::from(Span::styled(
+                "Last error:",
+                Style::default().fg(Color::Red),
+            )));
             for line in error.lines().take(20) {
                 lines.push(Line::from(Span::styled(
                     line.to_string(),
@@ -172,7 +186,9 @@ impl Pane for RulesState {
             }
         }
         frame.render_widget(
-            Paragraph::new(lines).block(detail_block).wrap(Wrap { trim: false }),
+            Paragraph::new(lines)
+                .block(detail_block)
+                .wrap(Wrap { trim: false }),
             detail_area,
         );
     }

@@ -13,6 +13,7 @@ pub mod media;
 pub mod planner;
 pub mod repeats;
 pub mod rules;
+pub mod statistics;
 pub mod time_blocks;
 
 /// Percent-encode a single path segment (titles, type names, keys).

@@ -92,4 +92,3 @@ pub enum Msg {
     /// Outcome of a fire-and-forget mutation; Ok toasts, Err warns.
     Done(Result<String, String>),
 }
-

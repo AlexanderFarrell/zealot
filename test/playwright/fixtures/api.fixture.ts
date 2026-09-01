@@ -48,8 +48,10 @@ export const test = base.extend<ApiFixture>({
 
   createItem: async ({ request }, use) => {
     const factory = async (title: string, content = ''): Promise<number> => {
+      const csrf = (await request.storageState()).cookies.find(cookie => cookie.name === 'csfr_')?.value;
       const res = await request.post('/api/item', {
         data: { title, content },
+        headers: csrf ? { 'X-Csrf-Token': csrf } : undefined,
       });
       if (!res.ok()) {
         throw new Error(`createItem failed: ${res.status()} ${await res.text()}`);

@@ -16,6 +16,15 @@ EXPECTED_MIGRATIONS = [
     "backfill parent links",
     "rules",
     "relationship string",
+    "api key",
+    "template item type",
+    "add status values",
+    "cascade delete comments",
+    "api keys multi",
+    "heading and link index",
+    "item views",
+    "time blocks",
+    "statistics",
 ]
 
 EXPECTED_SYSTEM_ATTRIBUTE_KINDS = [
@@ -32,9 +41,12 @@ EXPECTED_SYSTEM_ATTRIBUTE_KINDS = [
     "Email",
     "Schedule",
     "End Date",
+    "Value Kind",
+    "Unit",
+    "Daily Aggregation",
 ]
 
-EXPECTED_ITEM_TYPES = ["Plan", "Repeat"]
+EXPECTED_ITEM_TYPES = ["Plan", "Repeat", "Template", "Statistic"]
 
 
 @pytest.fixture(scope="module")
@@ -88,6 +100,39 @@ def test_item_type_attribute_kind_links_seeded(db: sqlite3.Connection) -> None:
     """).fetchall()
     repeat_kinds = {row["key"] for row in rows}
     assert "Schedule" in repeat_kinds
+
+    rows = db.execute("""
+        select ak.key
+        from item_type_attribute_kind_link link
+        join attribute_kind ak on ak.kind_id = link.attribute_kind_id
+        join item_type it on it.type_id = link.item_type_id
+        where it.name = 'Statistic'
+    """).fetchall()
+    statistic_kinds = {row["key"] for row in rows}
+    assert statistic_kinds == {"Value Kind", "Unit", "Daily Aggregation"}
+
+
+def test_statistic_entry_schema(db: sqlite3.Connection) -> None:
+    cols = {row[1] for row in db.execute("pragma table_info(statistic_entry)").fetchall()}
+    assert cols == {
+        "statistic_entry_id",
+        "item_id",
+        "account_id",
+        "value",
+        "occurred_at",
+        "related_item_id",
+        "comment",
+        "created_at",
+        "updated_at",
+    }
+    table_sql = db.execute(
+        "select sql from sqlite_master where type = 'table' and name = 'statistic_entry'"
+    ).fetchone()[0]
+    assert "abs(value) <= 1.7976931348623157e308" in table_sql
+    indexes = {
+        row[1] for row in db.execute("pragma index_list(statistic_entry)").fetchall()
+    }
+    assert "idx_statistic_entry_item_time" in indexes
 
 
 def test_account_table_has_given_name_and_surname(db: sqlite3.Connection) -> None:

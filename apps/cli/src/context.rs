@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::{Context as _, Result};
+use sha2::{Digest, Sha256};
 use zealot_client::{Config, ZealotClient};
 use zealot_domain::item::ItemDto;
 
@@ -10,6 +11,8 @@ use crate::args::ItemRef;
 /// config, and output preferences.
 pub struct Ctx {
     pub client: ZealotClient,
+    /// Stable, credential-safe namespace for durable local editor drafts.
+    pub draft_identity: String,
     pub config: Config,
     pub config_path: PathBuf,
     pub profile: Option<String>,
@@ -42,8 +45,11 @@ impl Ctx {
             }
         };
 
+        let draft_identity = draft_identity(&server_url, &api_key);
+
         Ok(Self {
             client: ZealotClient::new(server_url, api_key),
+            draft_identity,
             config,
             config_path,
             profile: profile_name,
@@ -72,6 +78,33 @@ impl Ctx {
         let name = self.config.select_profile(self.profile.as_deref())?;
         let profile = self.config.profiles.get_mut(&name)?;
         Some((name, profile))
+    }
+}
+
+pub(crate) fn draft_identity(server_url: &str, api_key: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(server_url.trim_end_matches('/').as_bytes());
+    hasher.update([0]);
+    hasher.update(api_key.as_bytes());
+    hex::encode(hasher.finalize())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::draft_identity;
+
+    #[test]
+    fn draft_identity_is_stable_and_does_not_expose_credentials() {
+        let identity = draft_identity("https://zealot.example/", "top-secret-key");
+        assert_eq!(
+            identity,
+            draft_identity("https://zealot.example", "top-secret-key")
+        );
+        assert_ne!(
+            identity,
+            draft_identity("https://zealot.example", "another-key")
+        );
+        assert!(!identity.contains("top-secret-key"));
     }
 }
 

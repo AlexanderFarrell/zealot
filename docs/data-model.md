@@ -456,7 +456,8 @@ Item
   ├─ links to → Items (directed graph via ItemLink.relationship)
   │              well-known: parent | blocks | tag | topic | other
   ├─ has → Comments (many, timestamped ZealotScript notes)
-  └─ has → RepeatEntries (one per date tracked)
+  ├─ has → RepeatEntries (one per date tracked)
+  └─ has → StatisticEntries (timestamped numeric observations)
 
 Planner (not a separate entity)
   └─ Items with a "Date" or "Week" attribute surface in planner views
@@ -467,3 +468,15 @@ Rule
 ```
 
 All IDs are stable integers. The item graph supports cycles and multiple parents (it is a general directed graph, not a strict tree).
+
+## Statistics
+
+A Statistic is an ordinary item assigned the system Statistic type. Its title names the series,
+and the required Value Kind, Unit, and Daily Aggregation attributes define presentation and UTC
+daily rollup behavior. Parent remains the ownership relationship, so a Statistic can belong to
+one or more Programs without another ownership table.
+
+Each observation is stored in statistic_entry with a stable statistic_entry_id, numeric value,
+RFC 3339 occurrence time, optional related item and comment, and audit timestamps. Raw entries
+are ordered newest first. Period ranges include start and exclude end. Existing Tracker data is
+not converted automatically.

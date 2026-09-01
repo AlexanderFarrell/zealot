@@ -123,14 +123,17 @@ async fn main() -> Result<()> {
             terminal = enter_terminal()?;
             terminal.clear()?;
             match outcome {
-                Ok(Some(edited)) => match request {
-                    EditRequest::ItemContent { item_id, .. } => {
-                        app.net.save_item_content(item_id, edited);
-                    }
-                    EditRequest::RuleScript { rule_id, .. } => {
-                        app.net.save_rule_script(rule_id, edited);
-                    }
-                },
+                Ok(Some(edited)) => {
+                    let result = match request {
+                        EditRequest::ItemContent { item_id, .. } => {
+                            app.net.save_item_content(item_id, edited).await
+                        }
+                        EditRequest::RuleScript { rule_id, .. } => {
+                            app.net.save_rule_script(rule_id, edited).await
+                        }
+                    };
+                    app.on_msg(Msg::Done(result));
+                }
                 Ok(None) => app.toast("no changes", false),
                 Err(e) => {
                     let _ = tx.send(Msg::Done(Err(e.to_string())));

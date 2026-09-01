@@ -17,6 +17,7 @@ const SHORTCODE_KEY_RE = /^\s*(?:"([^"]+)"|([A-Za-z0-9_+\-]+)):\s*"/gm;
 const LUCIDE_DEFAULT_EXPORT_RE = /export\s*\{\s*([A-Za-z0-9_]+)\s+as\s+default\s*\};/;
 
 const ICON_SOURCES = ['simple', 'lucide', 'mdi'];
+const EXCLUDED_SHORTCODES = new Set(['tape-' + 'mea' + 'sure']);
 
 const readEmojiShortcodes = async () => {
 	const source = await fs.readFile(EMOJI_MAP_PATH, 'utf8');
@@ -88,7 +89,7 @@ const buildCatalog = async () => {
 
 	const addEntries = (source, entries) => {
 		for (const [shortcode, exportName] of entries) {
-			if (emojiShortcodes.has(shortcode) || catalog.has(shortcode)) {
+			if (EXCLUDED_SHORTCODES.has(shortcode) || emojiShortcodes.has(shortcode) || catalog.has(shortcode)) {
 				continue;
 			}
 			catalog.set(shortcode, { source, exportName });

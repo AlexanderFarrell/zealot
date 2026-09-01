@@ -975,6 +975,27 @@ curl -s "$BASE/planner/day/$(date +%Y-%m-%d)" \
 
 ---
 
+## Statistics
+
+All routes require authentication.
+
+| Method and path | Result |
+|---|---|
+| GET /statistic/items?parent_id=ID | Statistic items, optionally filtered by Parent |
+| GET /statistic/ITEM_ID/entries?start=&end=&limit=&offset= | Newest-first paginated entries |
+| GET /statistic/ITEM_ID/daily?start=&end= | UTC daily aggregate points |
+| GET /statistic/ITEM_ID/summary?start=&end= | Period count and numeric summary |
+| POST /statistic/ITEM_ID/entries | Create an entry |
+| PATCH /statistic/entries/ENTRY_ID | Update supplied fields |
+| DELETE /statistic/entries/ENTRY_ID | Delete one entry |
+
+Create accepts value plus optional occurred_at, related_item_id, and comment. Patch accepts those
+same editable fields; null clears related_item_id or comment. All timestamps are RFC 3339. Range
+start is inclusive and end is exclusive. Entry pages contain count, next_offset, and entries.
+Page size defaults to 50 and is limited to 100. Empty summaries contain count 0 and null values.
+
+---
+
 ## Worked script: create a project with tasks
 
 The following bash script uses `curl` and `jq` to:

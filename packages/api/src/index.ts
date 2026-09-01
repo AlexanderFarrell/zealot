@@ -9,6 +9,7 @@ import { MediaAPI } from "./media";
 import { PlannerAPI } from "./planner";
 import { RepeatAPI } from "./repeat";
 import { RuleAPI } from "./rule";
+import { StatisticAPI } from "./statistic";
 
 class ZealotAPI extends BaseAPI {
     public Auth: AuthAPI;
@@ -21,6 +22,7 @@ class ZealotAPI extends BaseAPI {
     public Planner: PlannerAPI;
     public Repeat: RepeatAPI;
     public Rule: RuleAPI;
+    public Statistic: StatisticAPI;
 
     public constructor(baseUrl: string) {
         super(baseUrl)
@@ -34,6 +36,7 @@ class ZealotAPI extends BaseAPI {
         this.Planner = new PlannerAPI(baseUrl);
         this.Repeat = new RepeatAPI(baseUrl);
         this.Rule = new RuleAPI(baseUrl);
+        this.Statistic = new StatisticAPI(baseUrl);
     }
 }
 

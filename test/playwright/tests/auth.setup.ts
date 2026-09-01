@@ -38,8 +38,10 @@ setup('create authenticated session', async ({ page, request }) => {
   // Create the Home item required by the home-page tests.
   // Use page.request (shares the browser context's cookies) not the standalone
   // request fixture (which has no session cookie at this point).
+  const csrf = (await page.context().cookies()).find(cookie => cookie.name === 'csfr_')?.value;
   const homeRes = await page.request.post('/api/item', {
     data: { title: 'Home', content: '' },
+    headers: csrf ? { 'X-Csrf-Token': csrf } : undefined,
   });
   expect(homeRes.ok()).toBeTruthy();
 

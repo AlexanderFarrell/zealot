@@ -202,7 +202,13 @@ pub struct TreeNode {
 
 impl TreeNode {
     fn new(item: ItemDto, depth: usize, note: Option<String>) -> Self {
-        Self { item, depth, expanded: false, children_loaded: false, note }
+        Self {
+            item,
+            depth,
+            expanded: false,
+            children_loaded: false,
+            note,
+        }
     }
 }
 
@@ -251,7 +257,10 @@ impl Tree {
 
     /// Replace the tree with fresh root rows, each with an optional note.
     pub fn set_roots(&mut self, roots: Vec<(ItemDto, Option<String>)>) {
-        self.nodes = roots.into_iter().map(|(item, note)| TreeNode::new(item, 0, note)).collect();
+        self.nodes = roots
+            .into_iter()
+            .map(|(item, note)| TreeNode::new(item, 0, note))
+            .collect();
         self.sel.first();
         self.loading = false;
     }
@@ -267,8 +276,10 @@ impl Tree {
         self.nodes[pos].children_loaded = true;
         self.nodes[pos].expanded = true;
         let empty = items.is_empty();
-        let children: Vec<TreeNode> =
-            items.into_iter().map(|item| TreeNode::new(item, depth, None)).collect();
+        let children: Vec<TreeNode> = items
+            .into_iter()
+            .map(|item| TreeNode::new(item, depth, None))
+            .collect();
         self.nodes.splice(pos + 1..pos + 1, children);
         empty
     }

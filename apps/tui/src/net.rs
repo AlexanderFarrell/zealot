@@ -161,24 +161,24 @@ impl Net {
         });
     }
 
-    pub fn save_item_content(&self, item_id: i64, content: String) {
-        let net = self.clone();
-        tokio::spawn(async move {
-            let dto = zealot_domain::item::UpdateItemDto {
-                item_id,
-                title: None,
-                content: Some(content),
-                attributes: None,
-                links: None,
-            };
-            let result = net
-                .client
-                .update_item(&dto)
-                .await
-                .map(|item| format!("saved '{}'", item.title))
-                .map_err(stringify);
-            net.send(Msg::Done(result));
-        });
+    /// Persist content returned by `$EDITOR` before the app accepts more input.
+    ///
+    /// Unlike the other fire-and-forget mutations, an editor round-trip must
+    /// not outlive the main loop: quitting the TUI would drop the Tokio runtime
+    /// and cancel an in-flight save.
+    pub async fn save_item_content(&self, item_id: i64, content: String) -> Result<String, String> {
+        let dto = zealot_domain::item::UpdateItemDto {
+            item_id,
+            title: None,
+            content: Some(content),
+            attributes: None,
+            links: None,
+        };
+        self.client
+            .update_item(&dto)
+            .await
+            .map(|item| format!("saved '{}'", item.title))
+            .map_err(stringify)
     }
 
     pub fn load_habits_range(&self, start: NaiveDate, end: NaiveDate, generation: u64) {
@@ -212,24 +212,20 @@ impl Net {
         });
     }
 
-    pub fn save_rule_script(&self, rule_id: i64, script: String) {
-        let net = self.clone();
-        tokio::spawn(async move {
-            let dto = zealot_domain::rule::UpdateRuleDto {
-                name: None,
-                description: None,
-                trigger: None,
-                script: Some(script),
-                enabled: None,
-            };
-            let result = net
-                .client
-                .update_rule(rule_id, &dto)
-                .await
-                .map(|rule| format!("saved script for '{}'", rule.name))
-                .map_err(stringify);
-            net.send(Msg::Done(result));
-        });
+    /// Persist a rule script returned by `$EDITOR` before the main loop resumes.
+    pub async fn save_rule_script(&self, rule_id: i64, script: String) -> Result<String, String> {
+        let dto = zealot_domain::rule::UpdateRuleDto {
+            name: None,
+            description: None,
+            trigger: None,
+            script: Some(script),
+            enabled: None,
+        };
+        self.client
+            .update_rule(rule_id, &dto)
+            .await
+            .map(|rule| format!("saved script for '{}'", rule.name))
+            .map_err(stringify)
     }
 }
 

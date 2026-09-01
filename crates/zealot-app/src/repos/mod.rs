@@ -5,7 +5,7 @@ use crate::repos::{
     item_attribute_value::ItemAttributeValueRepo, item_external_link::ItemExternalLinkRepo,
     item_heading::ItemHeadingRepo, item_link::ItemLinkRepo, item_type::ItemTypeRepo,
     item_view::ItemViewRepo, meta::MetaRepo, repeat::RepeatRepo, rule::RuleRepo, scope::ScopeRepo,
-    session::SessionRepo, time_block::TimeBlockRepo,
+    session::SessionRepo, statistic::StatisticRepo, time_block::TimeBlockRepo,
 };
 
 pub mod account;
@@ -24,6 +24,7 @@ pub mod repeat;
 pub mod rule;
 pub mod scope;
 pub mod session;
+pub mod statistic;
 pub mod time_block;
 
 #[derive(Debug, Clone)]
@@ -44,5 +45,6 @@ pub struct ZealotRepos {
     pub rule: Arc<dyn RuleRepo>,
     pub scope: Arc<dyn ScopeRepo>,
     pub session: Arc<dyn SessionRepo>,
+    pub statistic: Arc<dyn StatisticRepo>,
     pub time_block: Arc<dyn TimeBlockRepo>,
 }

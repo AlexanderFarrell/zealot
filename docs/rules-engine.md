@@ -848,4 +848,28 @@ end
 
 ---
 
+### Statistic period delta
+
+Scheduled rules can record entries and query period summaries without raw HTTP:
+
+    local entry = zealot.statistics.record(statistic_id, 81.4, {
+        occurred_at = "2026-08-13T07:00:00Z",
+        comment = "Morning",
+    })
+
+    local summary = zealot.statistics.summary(statistic_id, {
+        start = "2026-08-01T00:00:00Z",
+        ["end"] = "2026-09-01T00:00:00Z",
+    })
+
+    if summary.delta then
+        zealot.notify("Statistic delta: " .. summary.delta)
+    end
+
+The entries and daily functions accept the same optional start and end fields. list optionally
+accepts a parent item ID. update uses clear_related_item and clear_comment when contextual fields
+must be removed.
+
+---
+
 *For the technical architecture of the rules engine, see [docs/ai-tasks/rules-engine/architecture.md](ai-tasks/rules-engine/architecture.md).*

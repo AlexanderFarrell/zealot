@@ -163,16 +163,21 @@ impl App {
 
     pub fn on_tick(&mut self) {
         // Debounced live search.
-        if self.search.dirty_at.is_some_and(|at| at.elapsed().as_millis() > 250) {
+        if self
+            .search
+            .dirty_at
+            .is_some_and(|at| at.elapsed().as_millis() > 250)
+        {
             let gen_id = self.next_generation();
             let net = self.net.clone();
             self.search.fire(&net, gen_id);
         }
         // Expire toasts.
         if let Some((_, _, at)) = &self.toast
-            && at.elapsed().as_secs() > 4 {
-                self.toast = None;
-            }
+            && at.elapsed().as_secs() > 4
+        {
+            self.toast = None;
+        }
         // Auto-refresh Today every 60s while idle.
         if self.screen == Screen::Today
             && self.today.input.is_none()
@@ -203,13 +208,18 @@ impl App {
                 }
                 self.browse.tree.loading = false;
                 match items {
-                    Ok(items) => {
-                        self.browse.tree.set_roots(items.into_iter().map(|i| (i, None)).collect())
-                    }
+                    Ok(items) => self
+                        .browse
+                        .tree
+                        .set_roots(items.into_iter().map(|i| (i, None)).collect()),
                     Err(e) => self.toast(format!("browse: {e}"), true),
                 }
             }
-            Msg::Children { generation, parent_id, items } => {
+            Msg::Children {
+                generation,
+                parent_id,
+                items,
+            } => {
                 // Children are routed to whichever tree fired them; generations
                 // are globally unique, so at most one matches.
                 let tree = if generation == self.browse.tree.generation {
@@ -241,13 +251,18 @@ impl App {
                 self.random.status = match items {
                     Ok(items) => {
                         let count = items.len();
-                        self.random.tree.set_roots(items.into_iter().map(|i| (i, None)).collect());
+                        self.random
+                            .tree
+                            .set_roots(items.into_iter().map(|i| (i, None)).collect());
                         Load::Loaded(count)
                     }
                     Err(e) => Load::Error(e),
                 };
             }
-            Msg::SearchResults { generation, results } => {
+            Msg::SearchResults {
+                generation,
+                results,
+            } => {
                 if generation != self.search.generation {
                     return;
                 }
@@ -274,7 +289,10 @@ impl App {
                 Err(e) => self.toast(format!("open: {e}"), true),
             },
             Msg::Links { kind, items } => self.viewer.set_links(kind, items),
-            Msg::HabitsRange { generation, entries } => {
+            Msg::HabitsRange {
+                generation,
+                entries,
+            } => {
                 if generation != self.habits.generation {
                     return;
                 }
@@ -361,7 +379,10 @@ impl App {
         match (key.code, key.modifiers) {
             (KeyCode::Char('c'), KeyModifiers::CONTROL) => return self.should_quit = true,
             (KeyCode::Char('p'), KeyModifiers::CONTROL) | (KeyCode::Char(':'), _) => {
-                self.palette = Some(PaletteState { query: String::new(), selected: 0 });
+                self.palette = Some(PaletteState {
+                    query: String::new(),
+                    selected: 0,
+                });
                 return;
             }
             (KeyCode::Char('?'), _) => return self.show_help = true,
@@ -404,10 +425,16 @@ impl App {
     // ─── Palette ─────────────────────────────────────────────────────────────
 
     pub fn palette_actions(&self) -> Vec<PaletteAction> {
-        let query = self.palette.as_ref().map(|p| p.query.to_lowercase()).unwrap_or_default();
+        let query = self
+            .palette
+            .as_ref()
+            .map(|p| p.query.to_lowercase())
+            .unwrap_or_default();
         let mut actions = Vec::new();
         if !query.trim().is_empty() {
-            actions.push(PaletteAction::OpenByTitle(self.palette.as_ref().unwrap().query.clone()));
+            actions.push(PaletteAction::OpenByTitle(
+                self.palette.as_ref().unwrap().query.clone(),
+            ));
         }
         for screen in Screen::NAV {
             actions.push(PaletteAction::Goto(screen));

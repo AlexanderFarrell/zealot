@@ -55,8 +55,11 @@ impl Pane for BrowseState {
             Layout::horizontal([Constraint::Percentage(40), Constraint::Percentage(60)])
                 .areas(area);
 
-        let title =
-            if self.tree.loading { Screen::Browse.titled("Items (loading…)") } else { Screen::Browse.titled("Items") };
+        let title = if self.tree.loading {
+            Screen::Browse.titled("Items (loading…)")
+        } else {
+            Screen::Browse.titled("Items")
+        };
         self.tree.render_list(
             frame,
             tree_area,
@@ -79,7 +82,10 @@ impl Pane for BrowseState {
                 preview_area,
             );
         } else {
-            frame.render_widget(Paragraph::new("No items.").block(preview_block), preview_area);
+            frame.render_widget(
+                Paragraph::new("No items.").block(preview_block),
+                preview_area,
+            );
         }
     }
 }

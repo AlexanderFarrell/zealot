@@ -42,9 +42,10 @@ impl ViewerState {
     pub fn show(&mut self, item: ItemDto, push_back: bool) {
         if push_back
             && let Some(current) = &self.item
-                && current.item_id != item.item_id {
-                    self.back_stack.push(current.item_id);
-                }
+            && current.item_id != item.item_id
+        {
+            self.back_stack.push(current.item_id);
+        }
         let (body, nav_links) = render_links(&zealot_zscript::render(&item.content));
         self.body = body;
         self.nav_links = nav_links;
@@ -61,12 +62,13 @@ impl ViewerState {
     /// Apply a links fetch result to the open overlay, if it still matches.
     pub fn set_links(&mut self, kind: LinkKind, items: Result<Vec<ItemDto>, String>) {
         if let Some((expected, slot, _)) = &mut self.links
-            && *expected == kind {
-                *slot = match items {
-                    Ok(items) => Load::Loaded(items),
-                    Err(e) => Load::Error(e),
-                };
-            }
+            && *expected == kind
+        {
+            *slot = match items {
+                Ok(items) => Load::Loaded(items),
+                Err(e) => Load::Error(e),
+            };
+        }
     }
 
     fn open_links(&mut self, kind: LinkKind, net: &Net) {
@@ -95,7 +97,9 @@ impl ViewerState {
 
     /// Adjust `scroll` so the focused link's line sits inside the viewport.
     fn scroll_to_link(&mut self, index: usize) {
-        let Some(link) = self.nav_links.get(index) else { return };
+        let Some(link) = self.nav_links.get(index) else {
+            return;
+        };
         let (width, height) = self.viewport.get();
         if width == 0 || height == 0 {
             return;
@@ -124,8 +128,12 @@ impl ViewerState {
     }
 
     fn open_selected_link(&mut self, cx: &mut Cx) {
-        let Some(index) = self.selected_link else { return };
-        let Some(link) = self.nav_links.get(index) else { return };
+        let Some(index) = self.selected_link else {
+            return;
+        };
+        let Some(link) = self.nav_links.get(index) else {
+            return;
+        };
         match &link.target {
             LinkTarget::Item(title) => cx.open_by_title(title.clone()),
             LinkTarget::Url(url) => {
@@ -150,11 +158,12 @@ impl ViewerState {
             KeyCode::Char('k') | KeyCode::Up => sel.up(),
             KeyCode::Enter => {
                 if let Load::Loaded(items) = slot
-                    && let Some(i) = sel.resolved(items.len()) {
-                        let id = items[i].item_id;
-                        self.links = None;
-                        cx.open(id);
-                    }
+                    && let Some(i) = sel.resolved(items.len())
+                {
+                    let id = items[i].item_id;
+                    self.links = None;
+                    cx.open(id);
+                }
             }
             _ => {}
         }
@@ -213,12 +222,21 @@ impl Pane for ViewerState {
             return;
         };
 
-        let types = item.types.iter().map(|t| t.name.clone()).collect::<Vec<_>>().join(", ");
+        let types = item
+            .types
+            .iter()
+            .map(|t| t.name.clone())
+            .collect::<Vec<_>>()
+            .join(", ");
         let title = format!(
             " #{} {}{} ",
             item.item_id,
             display_title(item),
-            if types.is_empty() { String::new() } else { format!(" · {types}") }
+            if types.is_empty() {
+                String::new()
+            } else {
+                format!(" · {types}")
+            }
         );
 
         let mut block = Block::default()
@@ -299,16 +317,15 @@ impl Pane for ViewerState {
 
 /// Hand a URL to the platform's opener, best-effort.
 fn open_external(url: &str) {
-    let opener = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
+    let opener = if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
+    };
     let _ = std::process::Command::new(opener).arg(url).spawn();
 }
 
-fn draw_links_overlay(
-    frame: &mut Frame,
-    kind: LinkKind,
-    slot: &Load<Vec<ItemDto>>,
-    sel: &Select,
-) {
+fn draw_links_overlay(frame: &mut Frame, kind: LinkKind, slot: &Load<Vec<ItemDto>>, sel: &Select) {
     let title = match kind {
         LinkKind::Backlinks => " Backlinks ",
         LinkKind::Related => " Related ",

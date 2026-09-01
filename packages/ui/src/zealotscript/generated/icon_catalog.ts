@@ -10317,7 +10317,6 @@ export const GENERATED_ICON_CATALOG: Record<string, IconCatalogEntry> = {
 	"taobao": { source: "simple", exportName: "siTaobao" },
 	"tapas": { source: "simple", exportName: "siTapas" },
 	"tape-drive": { source: "mdi", exportName: "mdiTapeDrive" },
-	"tape-measure": { source: "mdi", exportName: "mdiTapeMeasure" },
 	"target": { source: "simple", exportName: "siTarget" },
 	"target-account": { source: "mdi", exportName: "mdiTargetAccount" },
 	"target-variant": { source: "mdi", exportName: "mdiTargetVariant" },
@@ -22058,7 +22057,6 @@ export const GENERATED_ICON_SHORTCODES: string[] = [
 	"taobao",
 	"tapas",
 	"tape-drive",
-	"tape-measure",
 	"target",
 	"target-account",
 	"target-variant",
@@ -23488,6 +23486,6 @@ export const GENERATED_ICON_SHORTCODES: string[] = [
 export const GENERATED_ICON_COUNTS = {
 	simple: 3401,
 	lucide: 1550,
-	mdi: 6787,
-	total: 11738,
+	mdi: 6786,
+	total: 11737,
 } as const;

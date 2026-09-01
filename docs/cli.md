@@ -174,6 +174,21 @@ zealot media get screenshots/diagram.png -o /tmp/d.png
 
 ---
 
+### Statistics
+
+    zealot statistic items
+    zealot statistic items --parent Health
+    zealot statistic record "Body Weight" 81.4 --comment "Morning"
+    zealot statistic entries "Body Weight" --limit 20
+    zealot statistic daily "Body Weight" --start 2026-08-01T00:00:00Z
+    zealot statistic summary "Body Weight" --start 2026-08-01T00:00:00Z --end 2026-09-01T00:00:00Z
+    zealot statistic edit 42 --value 81.2
+    zealot statistic rm 42
+
+Times use RFC 3339. The global JSON flag emits the API DTOs.
+
+---
+
 ## Scripting cookbook
 
 `--json` on any command emits the raw API DTOs — pipe to `jq` and go.

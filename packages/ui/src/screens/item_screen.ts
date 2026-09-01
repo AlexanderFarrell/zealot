@@ -15,6 +15,7 @@ import type { CreateDraftState } from '../views/item_table_types';
 import { AssignTypeModal } from '../common/assign_type_modal';
 import { PasteTemplateModal } from '../common/paste_template_modal';
 import { createItemTitleIconElement } from '../views/item_title';
+import { StatisticsView } from '../views/statistics_view';
 
 const itemApi = new ItemAPI('/api');
 
@@ -279,6 +280,12 @@ export class ItemScreen extends BaseElementEmpty {
         this._titleListener?.(item.Title);
         getRightSidebarHost()?.setContent(collectionsEl);
         void this.renderCollections(item, collectionsEl);
+
+        if (item.Types.some(typeRef => typeRef.Name === 'Statistic')) {
+            const statisticsSection = this.buildCollectionSection('Statistics');
+            statisticsSection.content.appendChild(new StatisticsView().init(item));
+            this.appendChild(statisticsSection.section);
+        }
 
         const commentsSection = this.buildCollectionSection('Comments');
         const commentsView = new CommentsView().init({
