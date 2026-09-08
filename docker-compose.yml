@@ -32,6 +32,8 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
     image: zealot-web:local
+    environment:
+      API_UPSTREAM: http://server:8456
     depends_on:
       server:
         condition: service_healthy

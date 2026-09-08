@@ -1,6 +1,11 @@
-# GAP-009 — Make nginx upstream configurable (not hardcoded)
+# GAP-009 — Make nginx upstream configurable (resolved)
 
-## Problem
+**Resolved 2026-09-08.** The web image renders its nginx configuration at
+container startup. Set `API_UPSTREAM` to the complete API URL reachable from
+the web container; the bundled Compose and Swarm deployments use
+`http://server:8456`.
+
+## Original problem
 
 `apps/web/nginx.conf` hardcodes the upstream as:
 
@@ -24,29 +29,24 @@ The limitation surfaces when:
 - Someone forks the repo and changes the compose service name
 - A Docker Swarm or Kubernetes deployment uses a different service name
 
-## Proposed fix
+## Implemented design
 
-Use an environment variable in `nginx.conf` with `envsubst`:
+Use nginx's built-in runtime template rendering:
 
-1. Change `nginx.conf` to use a variable for the upstream:
+1. The `nginx.conf.template` proxy target is:
    ```nginx
-   resolver 127.0.0.11 valid=5s;
-   set $upstream ${ZEALOT_UPSTREAM:-zealot_zealot:8456};
-   proxy_pass http://$upstream/;
+   proxy_pass ${API_UPSTREAM}/;
    ```
 
-2. In the `web` Dockerfile's CMD, run `envsubst` on the template before starting nginx:
-   ```dockerfile
-   CMD ["/bin/sh", "-c", "envsubst '${ZEALOT_UPSTREAM}' < /etc/nginx/nginx.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
-   ```
+2. The official nginx entrypoint renders
+   `/etc/nginx/templates/default.conf.template` into its active configuration.
 
-3. The `ZEALOT_UPSTREAM` env var defaults to `zealot_zealot:8456` in the compose files
-   so existing deployments require no change.
+3. `API_UPSTREAM` defaults to `http://server:8456` in the image and is set
+   explicitly in the bundled Compose files.
 
 ## Files to change
 
-- `apps/web/nginx.conf` → rename to `nginx.conf.template`, use `$ZEALOT_UPSTREAM`
-- `apps/web/Dockerfile` — add `envsubst` step
-- `scripts/zealot-compose.yml` and `docker-compose.yml` — optionally set `ZEALOT_UPSTREAM`
-- `docs/deployment.md` — remove known limitation, document the variable
-- `docs/troubleshooting.md` — update nginx upstream section
+- `apps/web/nginx.conf.template` — uses `${API_UPSTREAM}`
+- `apps/web/Dockerfile` — installs the template and declares its default
+- `scripts/zealot-compose.yml` and `docker-compose.yml` — set `API_UPSTREAM`
+- `docs/deployment.md` and `docs/troubleshooting.md` — document the variable

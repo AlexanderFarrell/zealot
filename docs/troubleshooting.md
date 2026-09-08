@@ -250,11 +250,12 @@ CREATE DATABASE zealot OWNER zealot;
 
 nginx proxies `/api/` to the server container. If the server is down or not yet healthy, nginx returns 502. Check `docker compose logs server` to diagnose the server problem.
 
-### nginx upstream error after changing project name
+### nginx upstream error after changing deployment topology
 
-`apps/web/nginx.conf` hardcodes the upstream as `zealot_zealot:8456`. This is the Docker Compose internal DNS name assuming the project is named `zealot` and the service is named `zealot`. If you changed the Compose project name (via `-p` flag or `COMPOSE_PROJECT_NAME`), the DNS name changes and the web image will fail to proxy.
-
-Fix: update `apps/web/nginx.conf` to match your project name and rebuild the `web` image.
+The web container proxies `/api/` to `API_UPSTREAM`. Set it to an address reachable
+from the web container, including its scheme, then recreate the web service. For
+example, the bundled Compose and Swarm deployments use `http://server:8456`; a
+separate API host could use `https://api.zealot.example`.
 
 ### All API requests return CORS errors
 
@@ -432,7 +433,9 @@ The following are current gaps that affect production deployments and recovery s
 
 2. **Port 8456 is published to the host by default** in both `docker-compose.yml` and `scripts/zealot-compose.yml`. Remove this mapping in production to prevent direct API access bypassing nginx.
 
-3. **The nginx upstream is hardcoded.** `apps/web/nginx.conf` references `zealot_zealot:8456`. If the Compose project is not named `zealot`, the web image cannot proxy to the server and must be rebuilt.
+3. **The nginx upstream must be reachable from the web container.** Configure
+   `API_UPSTREAM` with a full URL such as `http://server:8456`; changing it
+   requires recreating the web service, but not rebuilding the image.
 
 4. **No built-in backup scheduling.** Zealot does not run its own backup jobs. This is the operator's responsibility. Data loss from hardware failure or accidental volume deletion is unrecoverable without a backup.
 

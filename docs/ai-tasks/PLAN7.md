@@ -95,7 +95,7 @@ The modal already performs its own blank-title check in `submit()` (lines 134–
 **Backend routing (should be correct):**
 - `mod.rs`: `.nest("/item", item::routes(state.clone()))`
 - `item.rs`: `.route("/", get(get_root_items).post(add_item))`
-- nginx: `location /api/ { proxy_pass http://server:8456/; }` strips `/api` prefix correctly
+- nginx: `location /api/ { proxy_pass ${API_UPSTREAM}/; }` strips `/api` prefix correctly
 
 **Likely causes (in order of probability):**
 1. **Stale Docker image** — a previous image named `zealot-server:playwright` is cached and doesn't include the item routes. Despite `compose up --build`, Docker layer caching may have skipped re-compilation. Fix: `docker rmi zealot-server:playwright zealot-web:playwright` then re-run.

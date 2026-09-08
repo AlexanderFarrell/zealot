@@ -456,7 +456,9 @@ The following are current gaps that affect production deployments. They are not 
 
 2. **Port 8456 is published to the host by default** in both `docker-compose.yml` and `scripts/zealot-compose.yml`. Remove this mapping in production.
 
-3. **The nginx upstream is hardcoded.** `apps/web/nginx.conf` references `zealot_zealot:8456` as the upstream. This is the Docker Compose internal DNS name for a project named `zealot`. If you change the project name or service name, the web image must be rebuilt with an updated `nginx.conf`.
+3. **The nginx upstream must be reachable from the web container.** Configure
+   `API_UPSTREAM` with a full URL such as `http://server:8456`; changing it
+   requires recreating the web service, but not rebuilding the image.
 
 4. **No built-in backup scheduling.** Zealot does not run its own backup jobs. This is the operator's responsibility.
 
