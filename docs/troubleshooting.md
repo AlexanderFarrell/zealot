@@ -327,77 +327,23 @@ docker exec $(docker compose ps -q server) wget -qO- http://localhost:8456/healt
 
 ## Backup and restore
 
-### Finding the volume name
-
-The volume is named after the Compose project. For a project named `zealot` (the default), the volume is `zealot_zealot_data`. Confirm with:
+Create a verified bundle without stopping a running server:
 
 ```
-docker volume ls | grep zealot
+docker compose exec server zealot-server backup create --json
+docker compose exec server zealot-server backup status --json
+docker compose exec server zealot-server backup verify /backups/zealot-backup-v1-....tar.gz --json
 ```
 
-### SQLite — back up
-
-Stop the server first to avoid backing up a file mid-write:
+To recover, stop the server and run the operator command with the same `/backups` mount:
 
 ```
 docker compose stop server
-
-BACKUP_DIR=/your/backup/directory
-TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-
-docker run --rm \
-  -v zealot_zealot_data:/data \
-  -v "$BACKUP_DIR":/backup \
-  alpine cp /data/zealot.db /backup/zealot.db-$TIMESTAMP
-
-docker run --rm \
-  -v zealot_zealot_data:/data \
-  -v "$BACKUP_DIR":/backup \
-  alpine tar czf /backup/zealot-media-$TIMESTAMP.tar.gz -C /data/public .
-
-docker compose start server
+docker compose run --rm server zealot-server restore /backups/zealot-backup-v1-....tar.gz --force --json
+docker compose up -d server
 ```
 
-### SQLite — restore
-
-```
-docker compose stop server
-
-docker run --rm \
-  -v zealot_zealot_data:/data \
-  -v /your/backup/directory:/backup \
-  alpine cp /backup/zealot.db-TIMESTAMP /data/zealot.db
-
-docker compose start server
-```
-
-The server will run migrations on startup. If restoring to a point before a migration that is present in the current image, that migration will re-run. This is safe — migrations are written to be reapplied.
-
-### PostgreSQL — back up
-
-`pg_dump` is safe on a live database:
-
-```
-docker exec <postgres-container-name> \
-  pg_dump -U zealot zealot \
-  > zealot-$(date +%Y%m%d-%H%M%S).sql
-```
-
-### PostgreSQL — restore
-
-```
-docker compose stop server
-docker exec -i <postgres-container-name> psql -U zealot zealot < zealot-YYYYMMDD-HHMMSS.sql
-docker compose start server
-```
-
-### Backup scheduling
-
-Zealot does not schedule its own backups. Set up a host cron job or systemd timer. Example crontab entry for daily SQLite backups at 2 AM:
-
-```
-0 2 * * * docker compose -f /path/to/docker-compose.yml stop server && docker run --rm -v zealot_zealot_data:/data -v /backups:/backup alpine cp /data/zealot.db /backup/zealot.db-$(date +\%Y\%m\%d) && docker compose -f /path/to/docker-compose.yml start server
-```
+`BACKUP_ENABLED=true` enables the UTC `BACKUP_SCHEDULE` (default `0 2 * * *`); the default retention is seven verified bundles. Inspect `/backups/attempts.jsonl` and `/backups/latest-status.json` after a failed scheduled job or restore. A backup mount on the same host is not host-loss protection: replicate verified bundles elsewhere.
 
 ---
 
