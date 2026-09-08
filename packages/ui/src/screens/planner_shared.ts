@@ -259,9 +259,10 @@ export function mountPlannerCardList(
         cardListDiv.appendChild(buildItemCardList(items, emptyMessage, { grouped: true, showParent: true, onDrop: refreshCardList }));
     };
 
-    refreshCardList();
-
-    if (!options.createRow) return;
+    if (!options.createRow) {
+        refreshCardList();
+        return;
+    }
 
     const createRowConfig = options.createRow;
     const defaultAttributes = { ...createRowConfig.defaultAttributes };
@@ -289,7 +290,7 @@ export function mountPlannerCardList(
         if (panelEl) {
             panelEl.replaceWith(nextPanel);
         } else {
-            container.appendChild(nextPanel);
+            container.insertBefore(nextPanel, cardListDiv);
         }
         panelEl = nextPanel;
     };
@@ -313,6 +314,7 @@ export function mountPlannerCardList(
         draft = newDraft();
     };
 
+    refreshCardList();
     rebuildPanel(false);
 
     void loadAttributeKinds().then((kinds) => {

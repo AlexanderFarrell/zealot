@@ -9,7 +9,7 @@ import { getCachedItem } from './item_id_cache';
 const attrApi = new AttributeAPI('/api');
 const itemApi = new ItemAPI('/api');
 
-const STATUS_ORDER = ['Working', 'Specify', 'To Do', 'On Going', 'Complete', 'Hold', 'Blocked'];
+const STATUS_ORDER = ['Working', 'Specify', 'To Do', 'On Going', 'Hold', 'Blocked', 'Complete'];
 const BOTTOM_STATUS_ORDER = ['Rejected', 'Retired'];
 
 function buildCard(item: Item, showStatus: boolean, showParent: boolean, onDrop?: () => void): HTMLElement {

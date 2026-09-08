@@ -703,8 +703,6 @@ export class ItemScreen extends BaseElementEmpty {
                 args.container.appendChild(err);
             }
 
-            args.container.appendChild(buildItemCardList(items, args.emptyMessage, { ...(args.grouped ? { grouped: true } : {}), ...(args.showParent ? { showParent: true } : {}), onDrop: render }));
-
             if (args.createRow) {
                 args.container.appendChild(buildAddPanel(
                     { contextItemId: args.createRow.contextItemId, enabled: true, panelMode: true, relationship: args.createRow.relationship, submitLabel: args.createRow.submitLabel },
@@ -744,6 +742,8 @@ export class ItemScreen extends BaseElementEmpty {
                     },
                 ));
             }
+
+            args.container.appendChild(buildItemCardList(items, args.emptyMessage, { ...(args.grouped ? { grouped: true } : {}), ...(args.showParent ? { showParent: true } : {}), onDrop: render }));
         };
 
         render();
