@@ -7,11 +7,14 @@ services:
       MEDIA_SOURCE: FILESYSTEM
       MEDIA_PATH: /data/public
       PORT: "8456"
+      BACKUP_PATH: /backups
+      BACKUP_ENABLED: "false"
       RUST_LOG: "zealot_app=info,zealot_api=info,warn"
     ports:
       - "8456:8456"
     volumes:
       - zealot_data:/data
+      - zealot_backups:/backups
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8456/health"]
       interval: 5s
@@ -35,3 +38,4 @@ services:
 
 volumes:
   zealot_data:
+  zealot_backups:

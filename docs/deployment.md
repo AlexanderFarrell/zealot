@@ -347,69 +347,38 @@ If you mount a host directory for media storage instead of using the named volum
 
 ## Backup and restore
 
-### SQLite — backup
+Backups are operator commands, not HTTP endpoints. Bundles contain a database snapshot, filesystem media, a versioned manifest, and SHA-256 evidence. They are unencrypted: the backup mount must have restrictive permissions.
 
-Stop the server before copying the database to avoid a partial write:
+The Compose files mount a separate `zealot_backups` volume at `/backups`. It survives container replacement, but storage on the same host does **not** protect against host loss. Replicate verified bundles to separate storage.
+
+### Create, verify, and inspect
+
+```
+# Runs an online SQLite snapshot (or pg_dump custom format), then verifies it.
+docker compose exec server zealot-server backup create --json
+docker compose exec server zealot-server backup status --json
+docker compose exec server zealot-server backup verify /backups/zealot-backup-v1-....tar.gz --json
+```
+
+Use `--destination PATH` for a one-off location. Successful verified bundles are retained newest-first according to `BACKUP_RETENTION_COUNT` (default `7`). `attempts.jsonl` and `latest-status.json` in the backup directory preserve both success and failure evidence.
+
+### Scheduling and upgrades
+
+Set `BACKUP_ENABLED=true` to enable the UTC cron schedule. Defaults are `BACKUP_PATH=/backups`, `BACKUP_SCHEDULE="0 2 * * *"`, and `BACKUP_RETENTION_COUNT=7`. A scheduled failure is recorded and logged without stopping an already-running server. On non-fresh startup, an enabled backup is created and verified before migrations; failure prevents migration.
+
+Before an upgrade, run `zealot-server backup create --json`, verify the returned bundle, then deploy. For Swarm, mount a distinct persistent volume or host path at `/backups`; for a direct local run set `BACKUP_PATH` to a protected persistent directory.
+
+### Restore
+
+Stop Zealot before restoring. Restore refuses a populated target unless `--force` is present and validates the archive, manifest, hashes, integrity, and counts before replacing data:
 
 ```
 docker compose stop server
-
-BACKUP_DIR=/your/backup/directory
-TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-
-# Back up the database
-docker run --rm \
-  -v zealot_zealot_data:/data \
-  -v "$BACKUP_DIR":/backup \
-  alpine cp /data/zealot.db /backup/zealot.db-$TIMESTAMP
-
-# Back up media files
-docker run --rm \
-  -v zealot_zealot_data:/data \
-  -v "$BACKUP_DIR":/backup \
-  alpine tar czf /backup/zealot-media-$TIMESTAMP.tar.gz -C /data/public .
-
-docker compose start server
+docker compose run --rm server zealot-server restore /backups/zealot-backup-v1-....tar.gz --force --json
+docker compose up -d server
 ```
 
-> The volume name `zealot_zealot_data` assumes the Compose project is named `zealot`. If you used a different project name, adjust accordingly. Check your volume name with `docker volume ls`.
-
-### SQLite — restore
-
-```
-docker compose stop server
-
-docker run --rm \
-  -v zealot_zealot_data:/data \
-  -v /your/backup/directory:/backup \
-  alpine cp /backup/zealot.db-TIMESTAMP /data/zealot.db
-
-docker compose start server
-```
-
-The server will run migrations on startup. If you are restoring to a point before a migration that was later applied, and the image has that migration baked in, the migration will re-run. This is generally safe; the migration was already written to be idempotent.
-
-### PostgreSQL — backup
-
-`pg_dump` is safe to run against a live database:
-
-```
-docker exec <postgres-container-name> \
-  pg_dump -U zealot zealot \
-  > zealot-$(date +%Y%m%d).sql
-```
-
-### PostgreSQL — restore
-
-```
-docker compose stop server
-docker exec -i <postgres-container-name> psql -U zealot zealot < zealot-YYYYMMDD.sql
-docker compose start server
-```
-
-### Backup scheduling
-
-Zealot does not schedule its own backups. Set up a host cron job or systemd timer to run the backup commands above on a schedule appropriate for your tolerance for data loss. Daily backups with a 7-day retention are a reasonable starting point.
+For a clean-environment recovery, start the same image with empty `/data` and the existing `/backups` mount, run the restore command above, then start the server. The successful restore appends a versioned receipt to `attempts.jsonl`. A bundle can only be restored into the matching configured database engine; SQLite-to-PostgreSQL conversion and remote/S3 storage are intentionally out of scope.
 
 ---
 

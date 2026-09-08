@@ -11,6 +11,10 @@ pub struct ZealotConfig {
     pub media_path: String,
 
     pub port: i32,
+    pub backup_enabled: bool,
+    pub backup_path: String,
+    pub backup_schedule: String,
+    pub backup_retention_count: usize,
 }
 
 impl ZealotConfig {
@@ -27,6 +31,10 @@ impl ZealotConfig {
             media_path: get_env("MEDIA_PATH", "./public"),
 
             port: get_env_int("PORT", 8456),
+            backup_enabled: get_env("BACKUP_ENABLED", "false").parse().unwrap_or(false),
+            backup_path: get_env("BACKUP_PATH", "./backups"),
+            backup_schedule: get_env("BACKUP_SCHEDULE", "0 2 * * *"),
+            backup_retention_count: get_env("BACKUP_RETENTION_COUNT", "7").parse().unwrap_or(7),
         }
     }
 

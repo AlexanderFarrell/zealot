@@ -351,7 +351,10 @@ fn process_is_dead(pid: u32) -> bool {
     if pid > i32::MAX as u32 {
         return true;
     }
-    unsafe { libc::kill(pid as i32, 0) != 0 && *libc::__errno_location() == libc::ESRCH }
+    unsafe {
+        libc::kill(pid as i32, 0) != 0
+            && std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
+    }
 }
 
 #[cfg(not(unix))]
