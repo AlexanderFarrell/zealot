@@ -6,6 +6,7 @@ const RIGHT_COLLAPSED_CLASS = 'right-panel-collapsed';
 
 export class HeaderBar extends BaseElementEmpty {
     private unsubscribeHistory: (() => void) | null = null;
+    private unlistenWindowResize: (() => void) | null = null;
 
     async render() {
         this.classList.add('box');
@@ -66,18 +67,39 @@ export class HeaderBar extends BaseElementEmpty {
         if (document.body.classList.contains('tauri-app')) {
             const { getCurrentWindow } = await import('@tauri-apps/api/window');
             const win = getCurrentWindow();
+            const isMacOS = navigator.userAgent.includes('Macintosh');
+            document.body.classList.toggle('macos', isMacOS);
+
+            const syncWindowState = async () => {
+                document.body.classList.toggle('window-maximized', await win.isMaximized());
+                document.body.classList.toggle('window-fullscreen', await win.isFullscreen());
+            };
+            await syncWindowState();
+            this.unlistenWindowResize = await win.onResized(() => { void syncWindowState(); });
 
             this.querySelector('[name="minimise"]')!.addEventListener('click', () => { void win.minimize(); });
-            this.querySelector('[name="maximise"]')!.addEventListener('click', () => { void win.toggleMaximize(); });
+            this.querySelector('[name="maximise"]')!.addEventListener('click', () => {
+                if (isMacOS) {
+                    void win.isFullscreen()
+                        .then((fullscreen) => win.setFullscreen(!fullscreen))
+                        .then(syncWindowState);
+                } else {
+                    void win.toggleMaximize().then(syncWindowState);
+                }
+            });
             this.querySelector('[name="close"]')!.addEventListener('click', () => { void win.close(); });
 
-            this.querySelector('.header-bar-spacer')!.addEventListener('dblclick', () => { void win.toggleMaximize(); });
+            this.querySelector('.header-bar-spacer')!.addEventListener('dblclick', () => {
+                void win.toggleMaximize().then(syncWindowState);
+            });
         }
     }
 
     disconnectedCallback(): void {
         this.unsubscribeHistory?.();
         this.unsubscribeHistory = null;
+        this.unlistenWindowResize?.();
+        this.unlistenWindowResize = null;
     }
 }
 

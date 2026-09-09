@@ -105,6 +105,69 @@ header-bar {
   }
 }
 
+// Match the traffic-light controls users expect from a borderless macOS window.
+// The DOM order is retained for Linux; flex ordering moves these to the left on macOS.
+body.macos header-bar .header-bar-window-controls {
+  order: -1;
+  gap: 8px;
+  margin: 0 12px 0 4px;
+
+  button {
+    width: 12px;
+    height: 12px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 0;
+    color: transparent;
+    border: 1px solid transparent;
+
+    &[name="close"] {
+      order: 1;
+      background: #ff5f57;
+      border-color: #e0443e;
+    }
+
+    &[name="minimise"] {
+      order: 2;
+      background: #ffbd2e;
+      border-color: #dea123;
+    }
+
+    &[name="maximise"] {
+      order: 3;
+      background: #28c840;
+      border-color: #1aa52f;
+    }
+
+    &:hover {
+      color: rgba(0, 0, 0, 0.6);
+      box-shadow: none;
+    }
+
+    &[name="close"]:hover {
+      background: #ff5f57;
+      color: rgba(0, 0, 0, 0.6);
+    }
+  }
+}
+
+// A transparent native window lets the content's corners show through. The
+// squared-off form is restored whenever macOS owns the full window bounds.
+body.tauri-app.macos {
+  background: transparent;
+  overflow: hidden;
+
+  #app {
+    min-height: 100vh;
+    background: var(--bg-0);
+  }
+
+  &:not(.window-maximized):not(.window-fullscreen) #app {
+    border-radius: 10px;
+    overflow: hidden;
+  }
+}
+
 body:not(.tauri-app) .tauri_only {
   display: none;
 }
@@ -191,7 +254,17 @@ body.tauri-app {
 side-buttons {
 	@extend .box;
   width: 40px;
-	min-height: 100vh;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+side-buttons::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 side-buttons > side-button {
@@ -228,8 +301,10 @@ icon-button {
     minmax(0, 1fr)
     4px
     var(--right-panel-w);
+  grid-template-rows: minmax(0, 1fr);
   height: calc(100vh - var(--header-bar-h));
   overflow-x: hidden;
+  overflow-y: auto;
   transition: grid-template-columns 120ms ease;
 }
 
@@ -298,7 +373,7 @@ right-sidebar {
   overflow-y: auto;
   overflow-x: hidden;
   padding: 10px;
-  height: calc(100vh - var(--header-bar-h));
+  height: 100%;
 }
 
 popup- {
@@ -327,7 +402,7 @@ desktop-tool-host {
   @extend .box;
   display: block;
   width: 100%;
-  height: calc(100vh - var(--header-bar-h));
+  height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 10px;
@@ -362,7 +437,7 @@ center-content {
   padding: 10px;
   display: block;
   overflow-y: auto;
-  height: calc(100vh - var(--header-bar-h));
+  height: 100%;
 
   item-screen {
     min-height: 100%;
@@ -1529,7 +1604,7 @@ item-search-inline *[name="generic_results"] {
 
 desktop-dock-host {
   display: block;
-  height: calc(100vh - var(--header-bar-h));
+  height: 100%;
   overflow: hidden;
   --dv-group-view-background-color: var(--bg-1);
   --dv-tabs-and-actions-container-background-color: var(--bg-0);

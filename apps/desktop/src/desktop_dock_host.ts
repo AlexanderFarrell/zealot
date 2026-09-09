@@ -70,7 +70,7 @@ export class DesktopDockHost extends HTMLElement {
     init(nav: DesktopNavigator): this {
         this._navigator = nav;
 
-        this.style.cssText = 'display:block;width:100%;height:100vh;min-width:0;position:relative;';
+        this.style.cssText = 'display:block;width:100%;height:100%;min-width:0;position:relative;';
         this.classList.add('dockview-theme-dark');
 
         this._dockview = new DockviewComponent(this, {

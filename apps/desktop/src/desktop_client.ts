@@ -24,6 +24,8 @@ import './desktop_dock_host';
 import { DesktopDockHost, setDockHost, getDockHost } from './desktop_dock_host';
 
 class DesktopClient extends BaseElementEmpty {
+    private unlistenMenu: (() => void) | null = null;
+
     render() {
         const nav = new DesktopNavigator();
         setNavigator(nav);
@@ -47,6 +49,41 @@ class DesktopClient extends BaseElementEmpty {
         commands.runner.register('Close Tab', [new Hotkey('w', [CTRL_OR_META_KEY])], () => getDockHost().closeActiveTab());
         commands.runner.register('Go Back', [new Hotkey('[', [CTRL_OR_META_KEY])], () => nav.goBack());
         commands.runner.register('Go Forward', [new Hotkey(']', [CTRL_OR_META_KEY])], () => nav.goForward());
+
+        // The native menu forwards its selections here, so menu actions and
+        // in-app hotkeys always use the same command implementations.
+        void import('@tauri-apps/api/event').then(({ listen }) =>
+            listen<string>('zealot-menu-command', ({ payload }) => {
+                const menuCommands: Record<string, string> = {
+                    'new-item': ModalCommands.newItem,
+                    'new-tab': 'New Tab',
+                    'close-tab': 'Close Tab',
+                    'today-note': NavigationCommands.openTodayNote,
+                    'random-item': NavigationCommands.openRandomItem,
+                    'go-back': 'Go Back',
+                    'go-forward': 'Go Forward',
+                    'go-home': NavigationCommands.goHome,
+                    'planner-daily': NavigationCommands.openDailyPlanner,
+                    'planner-weekly': NavigationCommands.openWeeklyPlanner,
+                    'planner-monthly': NavigationCommands.openMonthlyPlanner,
+                    'planner-annual': NavigationCommands.openAnnualPlanner,
+                    'time-blocks-day': 'Time Blocks: Today',
+                    'time-blocks-week': 'Time Blocks: This Week',
+                    'open-media': NavigationCommands.openMedia,
+                    'open-analysis': NavigationCommands.openAnalysis,
+                    'analysis-recent': 'Analysis: Recent',
+                    'open-rules': NavigationCommands.openRules,
+                    'open-types': NavigationCommands.openTypes,
+                    'open-settings': NavigationCommands.openSettings,
+                    'global-search': ModalCommands.openGlobalSearch,
+                    'command-palette': ModalCommands.openCommandRunner,
+                };
+                const command = menuCommands[payload];
+                if (command) commands.runner.run(command);
+            }).then((unlisten) => {
+                this.unlistenMenu = unlisten;
+            }),
+        );
 
         this.innerHTML = `
         <header-bar></header-bar>
@@ -80,6 +117,11 @@ class DesktopClient extends BaseElementEmpty {
 
         initPanelResizers();
 
+    }
+
+    disconnectedCallback(): void {
+        this.unlistenMenu?.();
+        this.unlistenMenu = null;
     }
 }
 

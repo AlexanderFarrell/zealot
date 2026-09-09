@@ -863,10 +863,13 @@ export class ZealotScriptEditor extends HTMLElement {
 				}
 				const items = Array.from(event.clipboardData?.items ?? []);
 				const imageItem = items.find((i) => i.type.startsWith("image/"));
-				if (!imageItem) return false;
-				event.preventDefault();
-				const file = imageItem.getAsFile();
+				// WKWebView on macOS can expose a pasted image only through
+				// clipboardData.files; WebKitGTK commonly exposes it in items.
+				const imageFile = Array.from(event.clipboardData?.files ?? [])
+					.find((candidate) => candidate.type.startsWith("image/"));
+				const file = imageItem?.getAsFile() ?? imageFile;
 				if (!file) return false;
+				event.preventDefault();
 				const ext = file.type.split("/")[1] ?? "png";
 				const filename = `paste-${Date.now()}.${ext}`;
 				const namedFile = new File([file], filename, { type: file.type });
