@@ -1,6 +1,6 @@
 # Zealot Data Model & Content Syntax
 
-This document is the canonical reference for every persistent entity in Zealot and the ZealotScript markup language. It is authoritative for users, developers, API clients (see [HTTP API](./http-api.md)), and MCP agents (see [MCP Guide](./mcp.md)). All other documentation should stay consistent with what is written here. For definitions of terms used throughout this document and the rest of the docs, see the [Glossary](./glossary.md).
+This document is the canonical reference for every currently shipped persistent entity in Zealot and the ZealotScript markup language. It is authoritative for users, developers, API clients (see [HTTP API](./http-api.md)), and MCP agents (see [MCP Guide](./mcp.md)). All other documentation should stay consistent with what is written here. For definitions of terms used throughout this document and the rest of the docs, see the [Glossary](./glossary.md). The approved, not-yet-shipped scope, schema-item, and lifecycle foundation is specified separately in [Core Model Foundation Design](./core-model-foundation-design.md); it must not be represented as current API behavior until its implementation slices land.
 
 ---
 
