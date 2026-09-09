@@ -3,8 +3,10 @@ import type { AttributeKind } from '@zealot/domain/src/attribute';
 import type { ItemType } from '@zealot/domain/src/item_type';
 import { createAttributeValueInput, isBlankAttributeValue } from './attribute_value_input';
 import type { CreateDraftState, ItemTableCreateRowConfig } from './item_table_types';
+import { confirmDiscard, registerPendingWork, type PendingWork } from '../common/unsaved_changes';
 
 const itemTypeApi = new ItemTypeAPI('/api');
+let panelSequence = 0;
 
 export function buildAddPanel(
     createRowConfig: ItemTableCreateRowConfig,
@@ -30,6 +32,28 @@ export function buildAddPanel(
     panel.appendChild(form);
 
     let selectedType: ItemType | null = null;
+    const initialDraft = JSON.stringify({ attributes: draft.attributes, types: draft.types });
+    const panelId = `item-add-panel-${++panelSequence}`;
+    const hasDraft = (): boolean =>
+        draft.title.trim() !== '' ||
+        JSON.stringify({ attributes: draft.attributes, types: draft.types }) !== initialDraft;
+    const pendingWork = (): PendingWork => ({
+        id: panelId,
+        isDirty: hasDraft,
+        prompt: () => ({
+            title: 'Discard new item draft?',
+            message: 'This item has not been created yet.',
+            discardLabel: 'Discard draft',
+        }),
+    });
+    const unregisterPendingWork = registerPendingWork(pendingWork());
+    const lifecycleObserver = new MutationObserver(() => {
+        if (!panel.isConnected) {
+            unregisterPendingWork();
+            lifecycleObserver.disconnect();
+        }
+    });
+    lifecycleObserver.observe(document.documentElement, { childList: true, subtree: true });
 
     const focusTitle = (): void => {
         window.requestAnimationFrame(() => {
@@ -47,6 +71,12 @@ export function buildAddPanel(
         panel.classList.add('item-table-add-panel--collapsed');
         selectedType = null;
         onReset();
+    };
+
+    const requestCollapse = (): void => {
+        void confirmDiscard(pendingWork()).then((confirmed) => {
+            if (confirmed) collapse();
+        });
     };
 
     openBtn.addEventListener('click', expand);
@@ -119,7 +149,7 @@ export function buildAddPanel(
         titleInput.addEventListener('input', () => { draft.title = titleInput.value; });
         titleInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') { e.preventDefault(); onSubmit(); }
-            if (e.key === 'Escape') { e.preventDefault(); collapse(); }
+            if (e.key === 'Escape') { e.preventDefault(); requestCollapse(); }
         });
 
         titleField.append(titleLabel, titleInput);
@@ -143,7 +173,7 @@ export function buildAddPanel(
         cancelBtn.type = 'button';
         cancelBtn.className = 'item-table-add-panel__cancel';
         cancelBtn.textContent = 'Cancel';
-        cancelBtn.addEventListener('click', collapse);
+        cancelBtn.addEventListener('click', requestCollapse);
 
         actions.append(submitBtn, cancelBtn);
         form.appendChild(actions);
@@ -182,7 +212,7 @@ export function buildAddPanel(
 
                 binding.element.addEventListener('keydown', (e: KeyboardEvent) => {
                     if (e.key === 'Enter') { e.preventDefault(); onSubmit(); }
-                    if (e.key === 'Escape') { e.preventDefault(); collapse(); }
+                    if (e.key === 'Escape') { e.preventDefault(); requestCollapse(); }
                 });
 
                 field.append(lbl, binding.element);

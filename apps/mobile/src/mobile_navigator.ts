@@ -12,6 +12,7 @@ import { AnalysisScreen, SpecifyScreen, WorkingScreen, RecentScreen, BacklogScre
 import { TimeBlocksScreen } from '@zealot/ui/src/screens/time_blocks_screen';
 import { RulesScreen } from '@zealot/ui/src/screens/rules_screen';
 import { SettingsScreen } from '@zealot/ui/src/screens/settings_screen';
+import { confirmLeave } from '@zealot/ui/src/common/unsaved_changes';
 
 function todayIso(): string {
     return DateTime.local().toISODate() ?? DateTime.local().toFormat('yyyy-MM-dd');
@@ -37,10 +38,11 @@ interface RouteMatch {
 
 export class MobileNavigator implements Navigator {
     private location: AppLocation = { kind: 'not_found', path: window.location.pathname };
+    private currentPath = window.location.pathname;
     private readonly listeners = new Set<LocationListener>();
 
     constructor() {
-        window.addEventListener('popstate', () => this.renderCurrent());
+        window.addEventListener('popstate', () => { void this.renderAfterPopstate(); });
     }
 
     private getContent(): HTMLElement {
@@ -50,12 +52,25 @@ export class MobileNavigator implements Navigator {
     }
 
     private navigate(path: string, mode: 'push' | 'replace' = 'push'): void {
+        void this.navigateWhenSafe(path, mode);
+    }
+
+    private async navigateWhenSafe(path: string, mode: 'push' | 'replace'): Promise<void> {
+        if (!await confirmLeave()) return;
         if (mode === 'replace') {
             history.replaceState(null, '', path);
         } else {
             history.pushState(null, '', path);
         }
         this.renderCurrent();
+    }
+
+    private async renderAfterPopstate(): Promise<void> {
+        if (await confirmLeave()) {
+            this.renderCurrent();
+            return;
+        }
+        history.pushState(null, '', this.currentPath);
     }
 
     private setLocation(location: AppLocation): void {
@@ -171,6 +186,7 @@ export class MobileNavigator implements Navigator {
         }
         content.innerHTML = '';
         content.appendChild(route.screen);
+        this.currentPath = path;
         this.setLocation(route.location);
     }
 

@@ -18,6 +18,7 @@ import { TypeScreen } from '@zealot/ui/src/screens/type_screen';
 import { AnalysisScreen, SpecifyScreen, WorkingScreen, RecentScreen, BacklogScreen, OverdueScreen, MostViewedScreen } from '@zealot/ui/src/screens/analysis_screen';
 import { RulesScreen } from '@zealot/ui/src/screens/rules_screen';
 import { SettingsScreen } from '@zealot/ui/src/screens/settings_screen';
+import { confirmLeave } from '@zealot/ui/src/common/unsaved_changes';
 
 function todayIso(): string {
     return DateTime.local().toISODate() ?? DateTime.local().toFormat('yyyy-MM-dd');
@@ -69,10 +70,11 @@ interface RouteMatch {
 
 export class DesktopNavigator implements Navigator {
     private location: AppLocation = { kind: 'not_found', path: window.location.pathname };
+    private currentPath = window.location.pathname;
     private readonly listeners = new Set<LocationListener>();
 
     constructor() {
-        window.addEventListener('popstate', () => this.renderCurrent());
+        window.addEventListener('popstate', () => { void this.renderAfterPopstate(); });
     }
 
     private getContent(): HTMLElement {
@@ -80,6 +82,11 @@ export class DesktopNavigator implements Navigator {
     }
 
     private navigate(path: string, mode: 'push' | 'replace' = 'push'): void {
+        void this.navigateWhenSafe(path, mode);
+    }
+
+    private async navigateWhenSafe(path: string, mode: 'push' | 'replace'): Promise<void> {
+        if (!await confirmLeave()) return;
         if (mode === 'replace') {
             history.replaceState(null, '', path);
             getDockHost().recordReplace(path);
@@ -90,18 +97,32 @@ export class DesktopNavigator implements Navigator {
         this.renderCurrent();
     }
 
+    private async renderAfterPopstate(): Promise<void> {
+        if (await confirmLeave()) {
+            this.renderCurrent();
+            return;
+        }
+        history.pushState(null, '', this.currentPath);
+    }
+
     goBack(): void {
-        const path = getDockHost().goBack();
-        if (path === undefined) return;
-        history.replaceState(null, '', path);
-        this.renderCurrent();
+        void (async () => {
+            if (!await confirmLeave()) return;
+            const path = getDockHost().goBack();
+            if (path === undefined) return;
+            history.replaceState(null, '', path);
+            this.renderCurrent();
+        })();
     }
 
     goForward(): void {
-        const path = getDockHost().goForward();
-        if (path === undefined) return;
-        history.replaceState(null, '', path);
-        this.renderCurrent();
+        void (async () => {
+            if (!await confirmLeave()) return;
+            const path = getDockHost().goForward();
+            if (path === undefined) return;
+            history.replaceState(null, '', path);
+            this.renderCurrent();
+        })();
     }
 
     private setLocation(location: AppLocation): void {
@@ -230,6 +251,7 @@ export class DesktopNavigator implements Navigator {
         }
         content.innerHTML = '';
         content.appendChild(route.screen);
+        this.currentPath = path;
         // Update the active tab title when the item loads asynchronously.
         const activePanel = getDockHost().getActivePanelApi();
         if (activePanel) hookTitleListener(route.screen, t => activePanel.setTitle(t));

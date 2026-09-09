@@ -32,6 +32,23 @@ test('Escape closes the add-item modal', async ({ page }) => {
   await expect(page.locator(ADD_ITEM.modal)).not.toBeVisible();
 });
 
+test('dirty add-item modal requires confirmation before Escape discards it', async ({ page }) => {
+  await page.keyboard.press(CTRL_N);
+  await page.fill(ADD_ITEM.titleInput, uniqueTitle('UnsavedModal'));
+
+  await page.keyboard.press('Escape');
+  const dialog = page.locator('.unsaved-changes-dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('Discard new item?');
+
+  await dialog.getByRole('button', { name: 'Keep editing' }).click();
+  await expect(page.locator(ADD_ITEM.modal)).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await dialog.getByRole('button', { name: 'Discard item' }).click();
+  await expect(page.locator(ADD_ITEM.modal)).not.toBeVisible();
+});
+
 test('Cancel button closes the add-item modal', async ({ page }) => {
   await page.keyboard.press(CTRL_N);
   await expect(page.locator(ADD_ITEM.modal)).toBeVisible();

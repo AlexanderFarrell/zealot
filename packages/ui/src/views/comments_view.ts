@@ -10,6 +10,7 @@ import { ItemSearchInline } from './item_search_inline';
 import { ZealotScriptEditor } from '../zealotscript/zealotscript_editor';
 import { ZealotScriptView } from '../zealotscript/zealotscript_view';
 import { renderItemTitle } from './item_title';
+import { confirmDiscard, registerPendingWork, type PendingWork } from '../common/unsaved_changes';
 
 const authApi = new AuthAPI('/api');
 const commentApi = new CommentAPI('/api');
@@ -60,15 +61,20 @@ export class CommentsView extends HTMLElement {
     private _draftError: string | null = null;
     private _draftItem: Item | null = null;
     private _draftTime = currentTimeValue();
+    private _draftInitialTime = this._draftTime;
     private _editingCommentId: number | null = null;
     private _editingContent = '';
     private _editingDate = '';
     private _editingTime = '';
+    private _editingOriginalContent = '';
+    private _editingOriginalDate = '';
+    private _editingOriginalTime = '';
     private _loadError: string | null = null;
     private _loading = false;
     private _requestId = 0;
     private _savingCommentId: number | null = null;
     private _submitting = false;
+    private _unregisterPendingWork: (() => void) | null = null;
 
     connectedCallback(): void {
         if (!this._config) {
@@ -80,6 +86,15 @@ export class CommentsView extends HTMLElement {
         if (!this._loading && this._comments.length === 0 && this._loadError == null) {
             void this._loadComments();
         }
+
+        if (!this._unregisterPendingWork) {
+            this._unregisterPendingWork = registerPendingWork(this.pendingWork());
+        }
+    }
+
+    disconnectedCallback(): void {
+        this._unregisterPendingWork?.();
+        this._unregisterPendingWork = null;
     }
 
     init(config: CommentsViewConfig): this {
@@ -91,10 +106,14 @@ export class CommentsView extends HTMLElement {
         this._draftError = null;
         this._draftItem = null;
         this._draftTime = currentTimeValue();
+        this._draftInitialTime = this._draftTime;
         this._editingCommentId = null;
         this._editingContent = '';
         this._editingDate = '';
         this._editingTime = '';
+        this._editingOriginalContent = '';
+        this._editingOriginalDate = '';
+        this._editingOriginalTime = '';
         this._loadError = null;
         this._loading = false;
         this._savingCommentId = null;
@@ -211,11 +230,14 @@ export class CommentsView extends HTMLElement {
         toggle.className = 'comments-view-composer-toggle';
         toggle.textContent = this._composerOpen ? 'Add Comment ▲' : 'Add Comment ▼';
         toggle.addEventListener('click', () => {
-            this._composerOpen = !this._composerOpen;
-            this._render();
             if (this._composerOpen) {
-                this._focusDraft();
+                void this.closeComposer();
+                return;
             }
+            this._composerOpen = true;
+            this._draftInitialTime = this._draftTime;
+            this._render();
+            this._focusDraft();
         });
         return toggle;
     }
@@ -260,12 +282,7 @@ export class CommentsView extends HTMLElement {
             cancel.textContent = 'Cancel';
             cancel.disabled = this._savingCommentId === comment.CommentID;
             cancel.addEventListener('click', () => {
-                this._editingCommentId = null;
-                this._editingContent = '';
-                this._editingDate = '';
-                this._editingTime = '';
-                this._savingCommentId = null;
-                this._render();
+                void this.cancelEdit();
             });
 
             const save = document.createElement('button');
@@ -283,12 +300,7 @@ export class CommentsView extends HTMLElement {
             edit.textContent = 'Edit';
             edit.disabled = this._deletingCommentId === comment.CommentID;
             edit.addEventListener('click', () => {
-                this._editingCommentId = comment.CommentID;
-                this._editingContent = comment.Content;
-                this._editingDate = comment.Timestamp.toISODate() ?? '';
-                this._editingTime = comment.Timestamp.toFormat('HH:mm');
-                this._render();
-                this._focusEdit(comment.CommentID);
+                void this.startEditing(comment);
             });
 
             const del = document.createElement('button');
@@ -452,6 +464,7 @@ export class CommentsView extends HTMLElement {
             return;
         }
 
+        this.syncEditors();
         const content = this._draftContent.trim();
         if (!content) {
             this._draftError = 'Comment content is required.';
@@ -495,6 +508,7 @@ export class CommentsView extends HTMLElement {
             if (this._config.scope.kind === 'day') {
                 this._draftTime = currentTimeValue();
                 this._draftItem = null;
+                this._draftInitialTime = this._draftTime;
             }
         } catch (error) {
             const message = extractMessage(error, 'Failed to post comment.');
@@ -507,6 +521,7 @@ export class CommentsView extends HTMLElement {
     }
 
     private async _saveComment(comment: Comment): Promise<void> {
+        this.syncEditors();
         const content = this._editingContent.trim();
         if (!content || this._savingCommentId === comment.CommentID) {
             return;
@@ -534,6 +549,9 @@ export class CommentsView extends HTMLElement {
             this._editingContent = '';
             this._editingDate = '';
             this._editingTime = '';
+            this._editingOriginalContent = '';
+            this._editingOriginalDate = '';
+            this._editingOriginalTime = '';
         } catch (error) {
             Popups.add_error(extractMessage(error, 'Failed to save comment.'));
         } finally {
@@ -560,10 +578,7 @@ export class CommentsView extends HTMLElement {
             this._comments = this._comments.filter((entry) => entry.CommentID !== comment.CommentID);
 
             if (this._editingCommentId === comment.CommentID) {
-                this._editingCommentId = null;
-                this._editingContent = '';
-                this._editingDate = '';
-                this._editingTime = '';
+                this.clearEdit();
             }
         } catch (error) {
             Popups.add_error(extractMessage(error, 'Failed to delete comment.'));
@@ -571,6 +586,103 @@ export class CommentsView extends HTMLElement {
             this._deletingCommentId = null;
             this._render();
         }
+    }
+
+    private async closeComposer(): Promise<void> {
+        if (await confirmDiscard(this.pendingWorkForComposer())) {
+            this._composerOpen = false;
+            this._draftContent = '';
+            this._draftError = null;
+            if (this._config?.scope.kind === 'day') {
+                this._draftItem = null;
+                this._draftTime = currentTimeValue();
+                this._draftInitialTime = this._draftTime;
+            }
+            this._render();
+        }
+    }
+
+    private async cancelEdit(): Promise<void> {
+        if (!await confirmDiscard(this.pendingWorkForEdit())) return;
+        this.clearEdit();
+        this._render();
+    }
+
+    private async startEditing(comment: Comment): Promise<void> {
+        if (this._editingCommentId != null && !await confirmDiscard(this.pendingWorkForEdit())) return;
+        this._editingCommentId = comment.CommentID;
+        this._editingContent = comment.Content;
+        this._editingDate = comment.Timestamp.toISODate() ?? '';
+        this._editingTime = comment.Timestamp.toFormat('HH:mm');
+        this._editingOriginalContent = this._editingContent;
+        this._editingOriginalDate = this._editingDate;
+        this._editingOriginalTime = this._editingTime;
+        this._render();
+        this._focusEdit(comment.CommentID);
+    }
+
+    private clearEdit(): void {
+        this._editingCommentId = null;
+        this._editingContent = '';
+        this._editingDate = '';
+        this._editingTime = '';
+        this._editingOriginalContent = '';
+        this._editingOriginalDate = '';
+        this._editingOriginalTime = '';
+        this._savingCommentId = null;
+    }
+
+    private syncEditors(): void {
+        const draft = this.querySelector<ZealotScriptEditor>('zealotscript-editor[data-comments-draft="true"]');
+        if (draft) this._draftContent = draft.content;
+        const edit = this.querySelector<ZealotScriptEditor>('zealotscript-editor[data-comment-edit-id]');
+        if (edit) this._editingContent = edit.content;
+    }
+
+    private pendingWork(): PendingWork {
+        return {
+            id: `comments-${this._config?.scope.kind ?? 'unknown'}-${this._config?.scope.kind === 'item' ? this._config.scope.itemId : this._config?.scope.kind === 'day' ? this._config.scope.date.toISODate() : ''}`,
+            isDirty: () => this.isComposerDirty() || this.isEditDirty(),
+            prompt: () => this.isEditDirty() ? this.pendingWorkForEdit().prompt() : this.pendingWorkForComposer().prompt(),
+        };
+    }
+
+    private pendingWorkForComposer(): PendingWork {
+        return {
+            id: 'comment-composer',
+            isDirty: () => this.isComposerDirty(),
+            prompt: () => ({
+                title: 'Discard comment draft?',
+                message: 'Your comment has not been posted.',
+                discardLabel: 'Discard draft',
+            }),
+        };
+    }
+
+    private pendingWorkForEdit(): PendingWork {
+        return {
+            id: 'comment-edit',
+            isDirty: () => this.isEditDirty(),
+            prompt: () => ({
+                title: 'Discard comment changes?',
+                message: 'Your edits have not been saved.',
+                discardLabel: 'Discard changes',
+            }),
+        };
+    }
+
+    private isComposerDirty(): boolean {
+        this.syncEditors();
+        return this._draftContent.trim() !== '' ||
+            (this._config?.scope.kind === 'day' && (this._draftItem != null || this._draftTime !== this._draftInitialTime));
+    }
+
+    private isEditDirty(): boolean {
+        if (this._editingCommentId == null) return false;
+        this.syncEditors();
+        return this._editingContent !== this._editingOriginalContent ||
+            this._editingDate !== this._editingOriginalDate ||
+            this._editingTime !== this._editingOriginalTime;
     }
 
     private _resolveDraftTimestamp(): DateTime | null {

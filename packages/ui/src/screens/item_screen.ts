@@ -16,6 +16,8 @@ import { AssignTypeModal } from '../common/assign_type_modal';
 import { PasteTemplateModal } from '../common/paste_template_modal';
 import { createItemTitleIconElement } from '../views/item_title';
 import { StatisticsView } from '../views/statistics_view';
+import { getItemSaveQueue, type ItemSaveQueue } from './item_save_queue';
+import { registerPendingWork, type PendingWork } from '../common/unsaved_changes';
 
 const itemApi = new ItemAPI('/api');
 
@@ -76,9 +78,13 @@ const ITEM_CONTEXT_COMMANDS = [
 export class ItemScreen extends BaseElementEmpty {
     private item: Item | null = null;
     private last_loaded_title: string | null = null;
-    private content_debounce: ReturnType<typeof setTimeout> | null = null;
     private _titleListener: ((title: string) => void) | null = null;
     private _sidebarEl: HTMLElement | null = null;
+    private _saveQueue: ItemSaveQueue | null = null;
+    private _unregisterPendingWork: (() => void) | null = null;
+    private _contentEditor: ZealotScriptEditor | null = null;
+    private _titleEditor: HTMLElement | null = null;
+    private _saveStatus: HTMLElement | null = null;
 
     setTitleListener(fn: (title: string) => void): void {
         this._titleListener = fn;
@@ -104,6 +110,8 @@ export class ItemScreen extends BaseElementEmpty {
     }
 
     disconnectedCallback(): void {
+        this._unregisterPendingWork?.();
+        this._unregisterPendingWork = null;
         getRightSidebarHost()?.setContent(null);
         unregisterContextMenu(this);
         for (const name of ITEM_CONTEXT_COMMANDS) {
@@ -157,6 +165,9 @@ export class ItemScreen extends BaseElementEmpty {
 
     private renderItem(): void {
         const item = this.item!;
+        this._unregisterPendingWork?.();
+        this._saveQueue = getItemSaveQueue(item.ItemID);
+        this._unregisterPendingWork = registerPendingWork(this.pendingWork(item));
         // Apply persisted view mode
         const viewConfigs = getViewModeConfig(icons);
         applyViewMode(this, getViewMode(), viewConfigs);
@@ -210,12 +221,7 @@ export class ItemScreen extends BaseElementEmpty {
             { label: 'Manage Types', onClick: () => AssignTypeModal.show(item, () => onTypesDone()) },
             { label: 'Paste Template', onClick: () => {
                 PasteTemplateModal.show((templateContent) => {
-                    const separator = item.Content.trim().length > 0 ? '\n\n' : '';
-                    item.Content = item.Content + separator + templateContent;
-                    const editorEl = this.querySelector('zealotscript-editor') as ZealotScriptEditor | null;
-                    if (editorEl) editorEl.content = item.Content;
-                    void itemApi.Update(item.ItemID, { item_id: item.ItemID, content: item.Content })
-                        .then(() => Popups.add('Template pasted'));
+                    this.pasteTemplate(item, templateContent);
                 });
             }},
             { separator: true },
@@ -246,18 +252,15 @@ export class ItemScreen extends BaseElementEmpty {
         const title = document.createElement('h1');
         title.contentEditable = 'true';
         title.innerText = item.Title;
-        title.addEventListener('input', () => {
-            item.Title = title.textContent ?? item.Title;
-        });
         title.addEventListener('blur', () => {
-            void itemApi.Update(item.ItemID, { item_id: item.ItemID, title: item.Title }).then((updated) => {
-                // Keep the URL in sync so a reload fetches the item by its current title.
-                if (this.last_loaded_title != null && updated.Title !== this.last_loaded_title) {
-                    window.history.replaceState(null, '', `/item/${encodeURIComponent(updated.Title)}`);
-                    this.last_loaded_title = updated.Title;
-                }
+            this.syncPendingItemValues(item);
+            void this._saveQueue?.flush().then((saved) => {
+                if (!saved || this.last_loaded_title == null) return;
+                window.history.replaceState(null, '', `/item/${encodeURIComponent(item.Title)}`);
+                this.last_loaded_title = item.Title;
             });
         });
+        this._titleEditor = title;
         titleRow.appendChild(title);
         this.appendChild(titleRow);
 
@@ -334,12 +337,7 @@ export class ItemScreen extends BaseElementEmpty {
         commands.runner.register('Item: Manage Types', [], () => AssignTypeModal.show(item, onTypesDone));
         commands.runner.register('Item: Paste Template', [], () => {
             PasteTemplateModal.show((templateContent) => {
-                const separator = item.Content.trim().length > 0 ? '\n\n' : '';
-                item.Content = item.Content + separator + templateContent;
-                const editorEl = this.querySelector('zealotscript-editor') as ZealotScriptEditor | null;
-                if (editorEl) editorEl.content = item.Content;
-                void itemApi.Update(item.ItemID, { item_id: item.ItemID, content: item.Content })
-                    .then(() => Popups.add('Template pasted'));
+                this.pasteTemplate(item, templateContent);
             });
         });
     }
@@ -408,12 +406,7 @@ export class ItemScreen extends BaseElementEmpty {
 
         row.appendChild(makeBtn(icons.postAdd, 'Paste Template', () => {
             PasteTemplateModal.show((templateContent) => {
-                const separator = item.Content.trim().length > 0 ? '\n\n' : '';
-                item.Content = item.Content + separator + templateContent;
-                const editorEl = this.querySelector('zealotscript-editor') as ZealotScriptEditor | null;
-                if (editorEl) editorEl.content = item.Content;
-                void itemApi.Update(item.ItemID, { item_id: item.ItemID, content: item.Content })
-                    .then(() => Popups.add('Template pasted'));
+                this.pasteTemplate(item, templateContent);
             });
         }));
 
@@ -579,17 +572,69 @@ export class ItemScreen extends BaseElementEmpty {
 
     private renderContent(item: Item, container: HTMLElement): void {
         const editor = document.createElement('zealotscript-editor') as ZealotScriptEditor;
+        this._contentEditor = editor;
         editor.content = item.Content;
         editor.addEventListener('change', (e: Event) => {
             const value = (e as CustomEvent<string>).detail;
             item.Content = value;
-            if (this.content_debounce) clearTimeout(this.content_debounce);
-            this.content_debounce = setTimeout(async () => {
-                await itemApi.Update(item.ItemID, { item_id: item.ItemID, content: item.Content });
-                Popups.add('Saved', 'note', 2);
-            }, 1000);
+            this._saveQueue?.enqueue({ content: value });
         });
+        const status = document.createElement('span');
+        status.className = 'item-save-status tool-muted';
+        this._saveStatus = status;
+        this._saveQueue?.subscribe((state) => {
+            status.textContent = state === 'saving' ? 'Saving…' : state === 'failed' ? 'Could not save — click to retry' : '';
+        });
+        status.addEventListener('click', () => { void this._saveQueue?.flush(); });
         container.appendChild(editor);
+        container.appendChild(status);
+    }
+
+    private pasteTemplate(item: Item, templateContent: string): void {
+        const separator = item.Content.trim().length > 0 ? '\n\n' : '';
+        item.Content = item.Content + separator + templateContent;
+        if (this._contentEditor) this._contentEditor.content = item.Content;
+        this._saveQueue?.enqueue({ content: item.Content }, 0);
+        void this._saveQueue?.flush().then((saved) => {
+            if (saved) Popups.add('Template pasted');
+        });
+    }
+
+    private pendingWork(item: Item): PendingWork {
+        return {
+            id: `item-${item.ItemID}-autosave`,
+            isDirty: () => this.hasPendingItemValues(item),
+            flush: async () => {
+                this.syncPendingItemValues(item);
+                return this._saveQueue?.flush() ?? true;
+            },
+            prompt: () => ({
+                title: 'Changes could not be saved',
+                message: 'Your latest item changes are still only on this device.',
+                discardLabel: 'Leave without saving',
+            }),
+        };
+    }
+
+    private hasPendingItemValues(item: Item): boolean {
+        const title = this._titleEditor?.textContent ?? item.Title;
+        const content = this._contentEditor?.content ?? item.Content;
+        return title !== item.Title || content !== item.Content || this._saveQueue?.dirty === true;
+    }
+
+    private syncPendingItemValues(item: Item): void {
+        const title = this._titleEditor?.textContent ?? item.Title;
+        const content = this._contentEditor?.content ?? item.Content;
+        const patch: { title?: string; content?: string } = {};
+        if (title !== item.Title) {
+            item.Title = title;
+            patch.title = title;
+        }
+        if (content !== item.Content) {
+            item.Content = content;
+            patch.content = content;
+        }
+        if (Object.keys(patch).length > 0) this._saveQueue?.enqueue(patch, 0);
     }
 
     private async renderCollections(item: Item, container: HTMLElement): Promise<void> {

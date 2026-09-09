@@ -746,7 +746,8 @@ calendar-view {
 }
 
 add-item-modal,
-item-search-modal {
+item-search-modal,
+.unsaved-changes-dialog {
   z-index: 1100;
 }
 
@@ -778,6 +779,38 @@ item-search-modal {
 
 .add-item-modal-actions > button {
   width: auto;
+}
+
+.unsaved-changes-dialog__window {
+  width: min(460px, calc(100vw - 32px));
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  background: var(--panel-0, var(--bg-2));
+  border: 1px solid var(--border-0, var(--border-1));
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+
+.unsaved-changes-dialog__window h2,
+.unsaved-changes-dialog__message {
+  margin: 0;
+}
+
+.unsaved-changes-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.unsaved-changes-dialog__actions button {
+  width: auto;
+}
+
+.unsaved-changes-dialog__actions .danger {
+  background: var(--error-0, #b42318);
+  color: #fff;
 }
 
 assign-type-modal {

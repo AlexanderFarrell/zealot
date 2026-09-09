@@ -11,6 +11,7 @@ import {
     loadAttributeKinds,
     type AttributeValueInputBinding,
 } from '../views/attribute_value_input';
+import { confirmDiscard, registerPendingWork, type PendingWork } from './unsaved_changes';
 
 const itemApi = new ItemAPI('/api');
 const itemTypeApi = new ItemTypeAPI('/api');
@@ -27,6 +28,7 @@ export class AddItemModal extends HTMLElement {
     private selectedType: ItemType | null = null;
     private attributeKinds: Record<string, AttributeKind> = {};
     private attributeBindings: Array<{ key: string; binding: AttributeValueInputBinding }> = [];
+    private unregisterPendingWork: (() => void) | null = null;
 
     static show(): AddItemModal {
         const existing = document.querySelector('add-item-modal') as AddItemModal | null;
@@ -46,6 +48,14 @@ export class AddItemModal extends HTMLElement {
             this.render();
             void this.loadTypes();
         }
+        if (!this.unregisterPendingWork) {
+            this.unregisterPendingWork = registerPendingWork(this.pendingWork());
+        }
+    }
+
+    disconnectedCallback(): void {
+        this.unregisterPendingWork?.();
+        this.unregisterPendingWork = null;
     }
 
     private render(): void {
@@ -95,19 +105,19 @@ export class AddItemModal extends HTMLElement {
 
         this.addEventListener('click', (event) => {
             if (event.target === this) {
-                this.close();
+                void this.requestClose();
             }
         });
 
         this.addEventListener('keydown', (event) => {
             if (event.key === 'Escape') {
                 event.preventDefault();
-                this.close();
+                void this.requestClose();
             }
         });
 
         this.querySelector('[data-role="cancel"]')?.addEventListener('click', () => {
-            this.close();
+            void this.requestClose();
         });
 
         this.querySelector('form')?.addEventListener('submit', (event) => {
@@ -292,6 +302,33 @@ export class AddItemModal extends HTMLElement {
 
     private close(): void {
         this.remove();
+    }
+
+    private pendingWork(): PendingWork {
+        return {
+            id: 'add-item-modal',
+            isDirty: () => this.hasDraft(),
+            prompt: () => ({
+                title: 'Discard new item?',
+                message: 'This item has not been created yet.',
+                discardLabel: 'Discard item',
+            }),
+            discard: () => this.close(),
+        };
+    }
+
+    private hasDraft(): boolean {
+        if ((this.titleInput?.value.trim() ?? '') !== '') return true;
+        if ((this.parentChips?.value.length ?? 0) > 0) return true;
+        if ((this.typeSelect?.value ?? '') !== '') return true;
+        return this.attributeBindings.some(({ key, binding }) =>
+            !isBlankAttributeValue(binding.getValue(), this.attributeKinds[key]),
+        );
+    }
+
+    private async requestClose(): Promise<void> {
+        if (this.creating) return;
+        if (await confirmDiscard(this.pendingWork())) this.close();
     }
 }
 
