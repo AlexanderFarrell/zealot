@@ -5,6 +5,11 @@
 **Prerequisite:** the server/principal/scope foundation in
 [Core Model Foundation Design](core-model-foundation-design.md).
 
+**Related policy:** [Server Administration, Enrolment, and Scope Sharing
+Contract](server-administration-contract.md) (Z179) defines which identity and
+administration data stays server-local, and the membership descriptors and
+authorization events that may cross this replication boundary.
+
 Zealot replicates a *scope*, never an entire server by default. A server can
 therefore keep a private personal scope local while participating in a shared
 project scope from another server. This document specifies the v1 replication

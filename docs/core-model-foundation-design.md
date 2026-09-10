@@ -5,6 +5,11 @@
 **Applies to:** the Rust server, SQLite, PostgreSQL, HTTP API, CLI, MCP, Lua,
 export/restore, and future sync.
 
+**Related policy:** [Server Administration, Enrolment, and Scope Sharing
+Contract](server-administration-contract.md) (Z179) defines server-local
+administration, enrolment, invitations, service-principal credentials, and
+membership recovery on top of this foundation.
+
 This is a single design because tenancy, schema, and lifecycle are not safely
 separable. A schema definition belongs somewhere; a lifecycle is schema; and a
 transition must be authorized in the subject's scope. The design is additive to
