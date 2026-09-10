@@ -1,10 +1,13 @@
+#[cfg(target_os = "macos")]
 use tauri::{
-    menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu},
     Emitter,
+    menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu},
 };
 
+#[cfg(target_os = "macos")]
 const MENU_EVENT: &str = "zealot-menu-command";
 
+#[cfg(target_os = "macos")]
 fn item<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     id: &str,
@@ -14,11 +17,17 @@ fn item<R: tauri::Runtime>(
     MenuItem::with_id(app, id, title, true, accelerator)
 }
 
+#[cfg(target_os = "macos")]
 fn menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<Menu<R>> {
     let new_item = item(app, "new-item", "New Item", Some("CmdOrCtrl+N"))?;
     let new_tab = item(app, "new-tab", "New Tab", Some("CmdOrCtrl+T"))?;
     let close_tab = item(app, "close-tab", "Close Tab", Some("CmdOrCtrl+W"))?;
-    let today_note = item(app, "today-note", "Open Today's Note", Some("CmdOrCtrl+Shift+D"))?;
+    let today_note = item(
+        app,
+        "today-note",
+        "Open Today's Note",
+        Some("CmdOrCtrl+Shift+D"),
+    )?;
     let random_item = item(app, "random-item", "Open Random Item", None)?;
 
     let go_back = item(app, "go-back", "Back", Some("CmdOrCtrl+["))?;
@@ -33,13 +42,23 @@ fn menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<Menu<R>> 
 
     let media = item(app, "open-media", "Media", Some("CmdOrCtrl+M"))?;
     let analysis = item(app, "open-analysis", "Analysis", Some("CmdOrCtrl+Shift+1"))?;
-    let analysis_recent = item(app, "analysis-recent", "Analysis: Recent", Some("CmdOrCtrl+Shift+R"))?;
+    let analysis_recent = item(
+        app,
+        "analysis-recent",
+        "Analysis: Recent",
+        Some("CmdOrCtrl+Shift+R"),
+    )?;
     let rules = item(app, "open-rules", "Rules", Some("CmdOrCtrl+Shift+2"))?;
     let types = item(app, "open-types", "Types", Some("CmdOrCtrl+Alt+Shift+T"))?;
     let settings = item(app, "open-settings", "Settings…", Some("CmdOrCtrl+,"))?;
 
     let search = item(app, "global-search", "Search Zealot", Some("CmdOrCtrl+O"))?;
-    let commands = item(app, "command-palette", "Command Palette…", Some("CmdOrCtrl+P"))?;
+    let commands = item(
+        app,
+        "command-palette",
+        "Command Palette…",
+        Some("CmdOrCtrl+P"),
+    )?;
 
     let file = Submenu::with_items(
         app,
@@ -115,40 +134,39 @@ fn menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<Menu<R>> 
     )?;
     let help = Submenu::with_items(app, "Help", true, &[&search, &commands])?;
 
-    #[cfg(target_os = "macos")]
-    {
-        let app_menu = Submenu::with_items(
-            app,
-            "Zealot",
-            true,
-            &[
-                &PredefinedMenuItem::about(app, Some("About Zealot"), Some(AboutMetadata::default()))?,
-                &PredefinedMenuItem::separator(app)?,
-                &PredefinedMenuItem::services(app, None)?,
-                &PredefinedMenuItem::separator(app)?,
-                &PredefinedMenuItem::hide(app, None)?,
-                &PredefinedMenuItem::hide_others(app, None)?,
-                &PredefinedMenuItem::show_all(app, None)?,
-                &PredefinedMenuItem::separator(app)?,
-                &PredefinedMenuItem::quit(app, None)?,
-            ],
-        )?;
-        Menu::with_items(app, &[&app_menu, &file, &edit, &view, &navigate, &window, &help])
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    Menu::with_items(app, &[&file, &edit, &view, &navigate, &window, &help])
+    let app_menu = Submenu::with_items(
+        app,
+        "Zealot",
+        true,
+        &[
+            &PredefinedMenuItem::about(app, Some("About Zealot"), Some(AboutMetadata::default()))?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::services(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::hide(app, None)?,
+            &PredefinedMenuItem::hide_others(app, None)?,
+            &PredefinedMenuItem::show_all(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::quit(app, None)?,
+        ],
+    )?;
+    Menu::with_items(
+        app,
+        &[&app_menu, &file, &edit, &view, &navigate, &window, &help],
+    )
 }
 
 pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_http::init())
-        .menu(menu)
-        .on_menu_event(|app, event| {
-            // Native menus own their accelerators, then delegate the actual work to
-            // the web UI's existing command runner.
-            let _ = app.emit(MENU_EVENT, event.id().0.as_str());
-        })
+    let builder = tauri::Builder::default().plugin(tauri_plugin_http::init());
+
+    #[cfg(target_os = "macos")]
+    let builder = builder.menu(menu).on_menu_event(|app, event| {
+        // Native menus own their accelerators, then delegate the actual work to
+        // the web UI's existing command runner.
+        let _ = app.emit(MENU_EVENT, event.id().0.as_str());
+    });
+
+    builder
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

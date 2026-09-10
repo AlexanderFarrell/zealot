@@ -1,0 +1,32 @@
+FROM ubuntu:22.04
+
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PATH=/home/builder/.cargo/bin:$PATH
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        curl \
+        file \
+        libayatana-appindicator3-dev \
+        librsvg2-dev \
+        libssl-dev \
+        libwebkit2gtk-4.1-dev \
+        patchelf \
+        pkg-config \
+        xdg-utils \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && groupadd --gid "${GROUP_ID}" builder \
+    && useradd --create-home --uid "${USER_ID}" --gid builder --shell /bin/bash builder \
+    && rm -rf /var/lib/apt/lists/*
+
+USER builder
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+
+WORKDIR /work
