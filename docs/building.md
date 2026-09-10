@@ -14,6 +14,39 @@ The server listens on port **8456** by default.
 
 ---
 
+## Linux desktop AppImage
+
+Build the AppImage in the Ubuntu 22.04 container. This avoids the
+incompatible `linuxdeploy` toolchain on rolling-release hosts such as Arch:
+
+```bash
+npm run build:desktop:appimage
+```
+
+The artifact is written to:
+
+```text
+target/release/bundle/appimage/Zealot Desktop_0.1.0_amd64.AppImage
+```
+
+Install the current artifact for the logged-in user with:
+
+```bash
+npm run install:desktop
+```
+
+The installer copies the executable to `~/.local/opt/zealot-desktop`, installs
+its icon and XDG desktop entry under `~/.local/share`, and refreshes caches when
+the relevant utilities are available. i3/Rofi, XFCE, and KDE all discover that
+same user-level launcher. To install a differently named artifact, pass its path
+directly:
+
+```bash
+./scripts/linux-install.sh /path/to/Zealot.AppImage
+```
+
+---
+
 ## Web App
 
 ```bash
