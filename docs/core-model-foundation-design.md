@@ -31,7 +31,7 @@ migration.
 | Lifecycle | An item has no lifecycle unless its effective type binding resolves to exactly one active lifecycle. Governed changes go through a transition command that appends history and materializes the current state. |
 | Legacy `Status` | Existing values are preserved. For governed items the transition transaction mirrors the active status label to the current `Status` attribute; ungoverned items keep the present flexible attribute behavior. |
 
-## 1. Server, principals, and scopes (Z137)
+## 1. Server, principals, and scopes (Z137/Z138)
 
 ### 1.1 Terms and ownership
 
@@ -44,7 +44,7 @@ this version before exchanging scope data; it is intentionally independent from
 the editable schema revisions introduced by Z156.
 
 `account` continues to hold login credentials and profile information. A
-`server_principal` is the authorization identity:
+`server_principal` is the stable, server-local authorization identity. A human principal has a nullable foreign-key `default_scope_id` populated with its personal scope; a service principal has no account and no default scope:
 
 * `kind = human` has a non-null, unique `account_id`.
 * `kind = service` has no account and has a named, revocable service identity.
@@ -90,7 +90,7 @@ product elects to prohibit duplicate titles. Scope UUIDs, not titles, are API
 and sync identifiers. Index `item(scope_id, item_id)` and scope-qualified
 indexes for all planner, attribute-filter, search, heading, and link queries.
 
-Every item access begins by resolving the authenticated account to a principal,
+Z139 will make every item access begin by resolving the authenticated account to a principal,
 checking active membership, then adding `scope_id` to the repository query. It
 is invalid for an application service to accept an item ID and query it without
 the resolved scope authorization context.

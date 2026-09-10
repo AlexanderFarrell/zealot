@@ -1,6 +1,12 @@
 # Zealot Data Model & Content Syntax
 
-This document is the canonical reference for every currently shipped persistent entity in Zealot and the ZealotScript markup language. It is authoritative for users, developers, API clients (see [HTTP API](./http-api.md)), and MCP agents (see [MCP Guide](./mcp.md)). All other documentation should stay consistent with what is written here. For definitions of terms used throughout this document and the rest of the docs, see the [Glossary](./glossary.md). The approved, not-yet-shipped scope, schema-item, and lifecycle foundation is specified separately in [Core Model Foundation Design](./core-model-foundation-design.md); it must not be represented as current API behavior until its implementation slices land.
+This document is the canonical reference for every currently shipped persistent entity in Zealot and the ZealotScript markup language. It is authoritative for users, developers, API clients (see [HTTP API](./http-api.md)), and MCP agents (see [MCP Guide](./mcp.md)). All other documentation should stay consistent with what is written here. For definitions of terms used throughout this document and the rest of the docs, see the [Glossary](./glossary.md).
+
+## Server identities and scopes
+
+Each Zealot server has one server-local identity namespace. An `account` remains the login and API-key compatibility record; it resolves to exactly one human `server_principal`. Each human principal has a personal default scope, is its active `owner`, and newly created items enter that scope. A service principal has no account and no implicit default scope.
+
+Scopes are persistent ownership boundaries with active memberships. The only v1 roles are `owner`, `editor`, and `viewer`; roles are the same for human and service principals, and custom permissions are not supported. Existing HTTP, CLI, MCP, and API-key behavior remains account-based in this release. Z139 will apply scope-qualified authorization to items, search, planner, media, comments, and links; this foundation intentionally does not yet expose a scope selector, service credentials, invitations, or scope-management endpoints.
 
 ---
 
