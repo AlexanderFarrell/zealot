@@ -346,12 +346,13 @@ impl ItemRepo for ItemSqliteRepo {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
                 let row = sqlx::query_as::<_, ItemRow>(
-                    "INSERT INTO item (title, content, account_id)
-                     VALUES (?, ?, ?)
+                    "INSERT INTO item (title, content, account_id, scope_id)
+                     VALUES (?, ?, ?, (SELECT sc.scope_id FROM scope sc JOIN server_principal p ON p.principal_id = sc.owner_principal_id WHERE p.account_id = ? AND sc.status = 'active' LIMIT 1))
                      RETURNING item_id, title, content",
                 )
                 .bind(&title)
                 .bind(&content)
+                .bind(account_id_val)
                 .bind(account_id_val)
                 .fetch_one(&pool)
                 .await

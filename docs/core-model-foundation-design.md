@@ -21,7 +21,7 @@ migration.
 
 | Concern | Decision |
 |---|---|
-| Server identity | Every database has one durable `server` row with an opaque UUID. It is created once and is never derived from a hostname or account. |
+| Server identity | Every database has one durable `server` row with an opaque UUID and its applied SQL migration-head version. It is created once and is never derived from a hostname or account. |
 | Actor identity | An `account` remains the authentication record. A `server_principal` maps an account or service identity to a stable, server-local principal. |
 | Scope | Every item belongs to exactly one active scope. A scope has members, roles, an owner principal, and a stable UUID. |
 | Existing data | Migration creates one personal scope per existing account, owner membership, and assigns that account's items to it. No item is copied or renumbered. |
@@ -38,7 +38,10 @@ migration.
 `server` is an installation identity, not a remote host or tenant. Its UUID is
 included in backups, exports, sync envelopes, and audit records. It is generated
 at bootstrap and is retained on restore; a deliberate clone operation must mint
-a new ID.
+a new ID. `schema_migration_version` is reconciled at startup from the applied
+SQLx migration ledger. A future sync handshake must require exact equality of
+this version before exchanging scope data; it is intentionally independent from
+the editable schema revisions introduced by Z156.
 
 `account` continues to hold login credentials and profile information. A
 `server_principal` is the authorization identity:
@@ -71,7 +74,7 @@ The physical column types differ by engine (SQLite `TEXT` UUID/timestamp,
 PostgreSQL `uuid`/`timestamptz`), but the semantics are identical.
 
 ```text
-server(server_id PK, display_name, created_at)
+server(server_id PK, display_name, schema_migration_version, created_at)
 server_principal(principal_id PK, server_id FK, kind, account_id nullable FK,
                  display_name, status, created_at, retired_at)
 scope(scope_id PK, server_id FK, title, description, status,

@@ -7,7 +7,7 @@ use crate::{
         account::AccountService, analysis::AnalysisService, attribute::AttributeService,
         auth::AuthService, comment::CommentService, item::ItemService, item_type::ItemTypeService,
         media::MediaService, planner::PlannerService, repeat::RepeatService, rule::RuleService,
-        statistic::StatisticService, time_block::TimeBlockService,
+        scope::ScopeService, statistic::StatisticService, time_block::TimeBlockService,
     },
 };
 
@@ -41,6 +41,7 @@ pub struct ZealotServices {
     pub planner: Arc<PlannerService>,
     pub repeat: Arc<RepeatService>,
     pub rule: Arc<RuleService>,
+    pub scope: Arc<ScopeService>,
     pub statistic: Arc<StatisticService>,
     pub time_block: Arc<TimeBlockService>,
 
@@ -85,6 +86,7 @@ impl ZealotServices {
             planner,
             repeat,
             rule,
+            scope: Arc::new(ScopeService::new(&repos.scope)),
             statistic,
             time_block,
             repos,

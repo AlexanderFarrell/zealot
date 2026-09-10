@@ -11,6 +11,32 @@ pub mod mysql;
 pub mod postgres;
 pub mod sqlite;
 
+async fn reconcile_schema_migration_version_sqlite(pool: &sqlx::SqlitePool) -> Result<(), String> {
+    let version: i64 = sqlx::query_scalar("SELECT COALESCE(MAX(version), 0) FROM _sqlx_migrations")
+        .fetch_one(pool)
+        .await
+        .map_err(|e| format!("SQLite schema version lookup failed: {e}"))?;
+    sqlx::query("UPDATE server SET schema_migration_version = ?")
+        .bind(version)
+        .execute(pool)
+        .await
+        .map_err(|e| format!("SQLite schema version update failed: {e}"))?;
+    Ok(())
+}
+
+async fn reconcile_schema_migration_version_postgres(pool: &sqlx::PgPool) -> Result<(), String> {
+    let version: i64 = sqlx::query_scalar("SELECT COALESCE(MAX(version), 0) FROM _sqlx_migrations")
+        .fetch_one(pool)
+        .await
+        .map_err(|e| format!("Postgres schema version lookup failed: {e}"))?;
+    sqlx::query("UPDATE server SET schema_migration_version = $1")
+        .bind(version)
+        .execute(pool)
+        .await
+        .map_err(|e| format!("Postgres schema version update failed: {e}"))?;
+    Ok(())
+}
+
 pub async fn get_repo_from_config(config: &ZealotConfig) -> Result<ZealotRepos, String> {
     match config.database.as_str() {
         "postgres" => {
@@ -32,6 +58,7 @@ pub async fn get_repo_from_config(config: &ZealotConfig) -> Result<ZealotRepos, 
                         .run(&pool)
                         .await
                         .map_err(|e| format!("Postgres migration failed: {}", e))?;
+                    reconcile_schema_migration_version_postgres(&pool).await?;
                     Ok(get_postgres_repos(pool))
                 }
                 Err(err) => Err(format!("Error connecting to postgres: {}", err)),
@@ -53,6 +80,7 @@ pub async fn get_repo_from_config(config: &ZealotConfig) -> Result<ZealotRepos, 
                         .run(&pool)
                         .await
                         .map_err(|e| format!("SQLite migration failed: {}", e))?;
+                    reconcile_schema_migration_version_sqlite(&pool).await?;
                     Ok(get_sqlite_repos(pool))
                 }
                 Err(err) => Err(format!("Error connecting to sqlite: {}", err)),

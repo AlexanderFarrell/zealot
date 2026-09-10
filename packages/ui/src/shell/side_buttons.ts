@@ -1,15 +1,18 @@
 import { DateTime } from 'luxon';
 import {
-    BaseElement, ModalCommands, NavigationCommands, Popups, ToolCommands, commands,
+    BaseElement, Events, ModalCommands, NavigationCommands, Popups, ToolCommands, commands,
     registerContextMenu, unregisterContextMenu,
     registerDropZone, unregisterDropZone,
     getNavigator, openInNewTab,
 } from '@websoil/engine';
 import type { ContextAction } from '@websoil/engine';
 import { AttributeAPI } from '@zealot/api/src/attribute';
+import { AuthAPI } from '@zealot/api/src/auth';
 import { icons } from '@zealot/content';
 
 const attrApi = new AttributeAPI('/api');
+const authApi = new AuthAPI('/api');
+let loggingOut = false;
 
 const todayIso    = () => DateTime.local().toISODate()!;
 const thisWeekIso = () => DateTime.local().toFormat("kkkk-'W'WW");
@@ -90,7 +93,18 @@ export class SideButtons extends BaseElement<SideButtonEntry[]> {
 }
 
 export function default_side_button_entries(): SideButtonEntry[] {
-    const showNotImplemented = () => Popups.add_warning('This action is not implemented yet.');
+    const logout = async () => {
+        if (loggingOut) return;
+        loggingOut = true;
+        try {
+            await authApi.Basic.logout();
+            Events.emit('to_auth');
+        } catch (error) {
+            Popups.add_error(error instanceof Error && error.message ? error.message : 'Logout failed.');
+        } finally {
+            loggingOut = false;
+        }
+    };
 
     const buttons: SideButtonEntry[] = [
         {
@@ -224,7 +238,7 @@ export function default_side_button_entries(): SideButtonEntry[] {
         {
             Title: "Logout",
             IconURL: icons.logout,
-            On: showNotImplemented,
+            On: () => { void logout(); },
         },
     ];
 

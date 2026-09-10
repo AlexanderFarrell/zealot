@@ -43,6 +43,12 @@ administrator-managed directory, or a previously trusted peer advertisement;
 none is trusted until an owner verifies the peer fingerprint and accepts the
 scope invitation.
 
+Before a peer exchanges any scope data, it must compare the durable
+`server.schema_migration_version` values and reject the session unless they are
+exactly equal. The value is the applied SQL migration head, not a mutable
+schema-definition revision; this keeps incompatible storage shapes from being
+mistaken for compatible replicas.
+
 An invitation names the exact `scope_id`, requested participation mode
 (`read_only` or `writer`), minimum protocol/schema versions, expiry, and a
 single-use nonce. The origin/authorizing participant signs it. Activation is a

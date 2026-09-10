@@ -363,8 +363,8 @@ impl ItemRepo for ItemPostgresRepo {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
                 let row = sqlx::query_as::<_, ItemRow>(
-                    "INSERT INTO item (title, content, account_id)
-                     VALUES ($1, $2, $3)
+                    "INSERT INTO item (title, content, account_id, scope_id)
+                     VALUES ($1, $2, $3, (SELECT sc.scope_id FROM scope sc JOIN server_principal p ON p.principal_id = sc.owner_principal_id WHERE p.account_id = $3 AND sc.status = 'active' LIMIT 1))
                      RETURNING item_id, title, content",
                 )
                 .bind(&title)
