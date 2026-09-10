@@ -32,6 +32,34 @@ string_enum!(ScopeRole { Owner => "owner", Editor => "editor", Viewer => "viewer
 string_enum!(ScopeStatus { Active => "active", Archived => "archived" });
 string_enum!(ScopeMemberStatus { Active => "active", Revoked => "revoked" });
 
+/// Named grants are intentionally separate from roles.  Roles are the v1
+/// presets; future membership work can add overrides without changing callers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ScopePermission {
+    ViewItems,
+    CreateItems,
+    UpdateItems,
+    DeleteItems,
+    ManageMembers,
+    ManageScopeSettings,
+}
+
+impl ScopeRole {
+    pub const fn grants(self, permission: ScopePermission) -> bool {
+        match self {
+            Self::Owner => true,
+            Self::Editor => matches!(
+                permission,
+                ScopePermission::ViewItems
+                    | ScopePermission::CreateItems
+                    | ScopePermission::UpdateItems
+                    | ScopePermission::DeleteItems
+            ),
+            Self::Viewer => matches!(permission, ScopePermission::ViewItems),
+        }
+    }
+}
+
 /// A stable, server-local identity. Human principals map one-to-one to an
 /// account; service principals deliberately have no account or default scope.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -67,4 +95,18 @@ pub struct ScopeMember {
     pub status: ScopeMemberStatus,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ScopePermission, ScopeRole};
+
+    #[test]
+    fn built_in_roles_have_the_documented_grants() {
+        assert!(ScopeRole::Owner.grants(ScopePermission::ManageMembers));
+        assert!(ScopeRole::Editor.grants(ScopePermission::DeleteItems));
+        assert!(!ScopeRole::Editor.grants(ScopePermission::ManageScopeSettings));
+        assert!(ScopeRole::Viewer.grants(ScopePermission::ViewItems));
+        assert!(!ScopeRole::Viewer.grants(ScopePermission::CreateItems));
+    }
 }

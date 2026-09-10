@@ -18,7 +18,12 @@ pub trait ScopeRepo: Debug + Send + Sync {
         &self,
         account_id: i64,
     ) -> Result<Option<ServerPrincipal>, RepoError>;
+    fn principal_for_api_key_hash(
+        &self,
+        key_hash: &str,
+    ) -> Result<Option<ServerPrincipal>, RepoError>;
     fn default_scope_for_account(&self, account_id: i64) -> Result<Option<Scope>, RepoError>;
+    fn default_scope_for_principal(&self, principal_id: Uuid) -> Result<Option<Scope>, RepoError>;
     fn active_scopes_for_principal(&self, principal_id: Uuid) -> Result<Vec<Scope>, RepoError>;
     fn members_for_scope(&self, scope_id: Uuid) -> Result<Vec<ScopeMember>, RepoError>;
     fn create_service_principal(&self, display_name: &str) -> Result<ServerPrincipal, RepoError>;

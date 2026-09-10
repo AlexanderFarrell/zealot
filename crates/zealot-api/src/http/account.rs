@@ -6,11 +6,13 @@ use axum::{
     routing::{delete, get, patch, post},
 };
 use serde::Deserialize;
+use uuid::Uuid;
 use zealot_app::app::AppState;
 use zealot_domain::{
     account::{ApiKeyRecordDto, CreateApiKeyResponseDto},
     auth::Actor,
     common::id::Id,
+    scope::{ScopePermission, ScopeRole},
 };
 
 use crate::http::{
@@ -24,6 +26,11 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .route("/api-keys", get(list_api_keys))
         .route("/api-keys", post(create_api_key))
         .route("/api-keys/{id}", delete(revoke_api_key))
+        .route("/scopes/{scope_id}/service-keys", post(create_service_key))
+        .route(
+            "/scopes/{scope_id}/service-keys/{principal_id}/{id}",
+            delete(revoke_service_key),
+        )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             csrf_middleware,
@@ -33,6 +40,116 @@ pub fn routes(state: AppState) -> Router<AppState> {
             auth_middleware,
         ))
         .with_state(state)
+}
+
+#[derive(Deserialize)]
+struct CreateServiceKeyBody {
+    display_name: String,
+    label: Option<String>,
+    /// `owner` is intentionally disallowed here; an owner must remain a human
+    /// account until membership administration is implemented.
+    role: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+struct CreateServiceKeyResponse {
+    key: String,
+    api_key_id: i64,
+    principal_id: Uuid,
+    label: String,
+    created_at: String,
+}
+
+fn require_scope_owner(state: &AppState, actor: &Actor, scope_id: Uuid) -> Result<(), HttpError> {
+    let principal_id = actor.principal_id.ok_or(HttpError::Unauthorized)?;
+    let allowed = state
+        .services
+        .scope
+        .authorize(principal_id, scope_id, ScopePermission::ManageScopeSettings)
+        .map_err(|e| {
+            tracing::error!(%e, "scope authorization failed");
+            HttpError::Internal
+        })?;
+    if allowed {
+        Ok(())
+    } else {
+        Err(HttpError::Unauthorized)
+    }
+}
+
+async fn create_service_key(
+    State(state): State<AppState>,
+    Extension(actor): Extension<Actor>,
+    Path(scope_id): Path<Uuid>,
+    Json(body): Json<CreateServiceKeyBody>,
+) -> Result<Json<CreateServiceKeyResponse>, HttpError> {
+    require_scope_owner(&state, &actor, scope_id)?;
+    if body.display_name.trim().is_empty() {
+        return Err(HttpError::UserError {
+            err: "display_name is required".into(),
+        });
+    }
+    let role = match body.role.as_deref().unwrap_or("editor") {
+        "editor" => ScopeRole::Editor,
+        "viewer" => ScopeRole::Viewer,
+        _ => {
+            return Err(HttpError::UserError {
+                err: "service role must be editor or viewer".into(),
+            });
+        }
+    };
+    let principal = state
+        .services
+        .scope
+        .create_service_principal(body.display_name.trim())
+        .map_err(|e| {
+            tracing::error!(%e, "service principal creation failed");
+            HttpError::Internal
+        })?;
+    state
+        .services
+        .scope
+        .add_member(scope_id, principal.principal_id, role)
+        .map_err(|e| {
+            tracing::error!(%e, "service membership creation failed");
+            HttpError::Internal
+        })?;
+    let label = body.label.unwrap_or_else(|| "Service".to_owned());
+    let (record, key) = state
+        .services
+        .account
+        .generate_service_api_key(principal.principal_id, &label)
+        .map_err(|e| {
+            tracing::error!(%e, "service key creation failed");
+            HttpError::Internal
+        })?;
+    Ok(Json(CreateServiceKeyResponse {
+        key,
+        api_key_id: record.api_key_id.into(),
+        principal_id: principal.principal_id,
+        label: record.label,
+        created_at: record.created_at,
+    }))
+}
+
+async fn revoke_service_key(
+    State(state): State<AppState>,
+    Extension(actor): Extension<Actor>,
+    Path((scope_id, principal_id, id)): Path<(Uuid, Uuid, i64)>,
+) -> Result<StatusCode, HttpError> {
+    require_scope_owner(&state, &actor, scope_id)?;
+    let id = Id::try_from(id).map_err(|_| HttpError::UserError {
+        err: "Invalid API key id".into(),
+    })?;
+    state
+        .services
+        .account
+        .revoke_service_api_key(&id, principal_id)
+        .map_err(|e| {
+            tracing::error!(%e, "service key revoke failed");
+            HttpError::Internal
+        })?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn update_settings(

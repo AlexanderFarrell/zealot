@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 
 use crate::account::Account;
 use crate::common::id::Id;
+use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub enum AuthSource {
@@ -29,6 +30,9 @@ pub struct CreateSessionDto {
 #[derive(Debug, Clone)]
 pub struct Actor {
     pub account: Option<Account>,
+    /// Stable server-local identity used for scope authorization.  Account is
+    /// deliberately optional because service API keys have no human account.
+    pub principal_id: Option<Uuid>,
     pub source: AuthSource,
 }
 

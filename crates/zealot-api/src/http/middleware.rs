@@ -65,7 +65,7 @@ async fn resolve_actor(state: &AppState, headers: HeaderMap) -> Actor {
     if let Some(api_key) = headers.get("x-api-key") {
         if let Ok(api_key) = api_key.to_str() {
             match state.services.auth.authenticate_api_key(api_key).await {
-                Ok(actor) => return actor,
+                Ok(actor) => return attach_human_principal(state, actor),
                 Err(_) => {
                     // TODO: Handle server errors.
                 }
@@ -82,7 +82,7 @@ async fn resolve_actor(state: &AppState, headers: HeaderMap) -> Actor {
             .authenticate_session(cookie.value())
             .await
         {
-            Ok(actor) => return actor,
+            Ok(actor) => return attach_human_principal(state, actor),
             Err(e) => {
                 tracing::warn!("Session lookup failed: {:?}", e);
             }
@@ -91,4 +91,23 @@ async fn resolve_actor(state: &AppState, headers: HeaderMap) -> Actor {
 
     // 4. Anonymous Fallback
     state.services.auth.get_anonymous_actor()
+}
+
+fn attach_human_principal(state: &AppState, mut actor: Actor) -> Actor {
+    if actor.principal_id.is_none() {
+        if let Some(account) = actor.account.as_ref() {
+            match state
+                .services
+                .scope
+                .human_principal_for_account(account.account_id.into())
+            {
+                Ok(Some(principal)) => actor.principal_id = Some(principal.principal_id),
+                Ok(None) => {
+                    tracing::warn!(account_id = ?account.account_id, "authenticated account has no server principal")
+                }
+                Err(error) => tracing::error!(%error, "failed to resolve server principal"),
+            }
+        }
+    }
+    actor
 }

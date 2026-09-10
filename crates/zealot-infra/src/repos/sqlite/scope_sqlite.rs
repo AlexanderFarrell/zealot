@@ -134,10 +134,38 @@ impl ScopeRepo for ScopeSqliteRepo {
             })
         })
     }
+    fn principal_for_api_key_hash(
+        &self,
+        key_hash: &str,
+    ) -> Result<Option<ServerPrincipal>, RepoError> {
+        let p = self.pool.clone();
+        let key_hash = key_hash.to_owned();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                sqlx::query_as::<_, PrincipalRow>(&format!(
+                    "SELECT {P} FROM server_principal p JOIN api_key k ON k.principal_id=p.principal_id WHERE k.key_hash=? AND p.status='active'"
+                ))
+                .bind(key_hash)
+                .fetch_optional(&p)
+                .await?
+                .map(principal)
+                .transpose()
+            })
+        })
+    }
     fn default_scope_for_account(&self, a: i64) -> Result<Option<Scope>, RepoError> {
         let p = self.pool.clone();
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move{sqlx::query_as::<_,ScopeRow>(&format!("SELECT {S} FROM scope sc JOIN server_principal p ON p.default_scope_id=sc.scope_id WHERE p.account_id=?")).bind(a).fetch_optional(&p).await?.map(scope).transpose()})
+        })
+    }
+    fn default_scope_for_principal(&self, id: Uuid) -> Result<Option<Scope>, RepoError> {
+        let p = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+            sqlx::query_as::<_, ScopeRow>(&format!("SELECT {S} FROM scope sc JOIN server_principal p ON p.default_scope_id=sc.scope_id WHERE p.principal_id=?"))
+                .bind(id.to_string()).fetch_optional(&p).await?.map(scope).transpose()
+        })
         })
     }
     fn active_scopes_for_principal(&self, id: Uuid) -> Result<Vec<Scope>, RepoError> {
