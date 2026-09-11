@@ -74,6 +74,12 @@ impl ScopeService {
         scope_id: Uuid,
         permission: ScopePermission,
     ) -> Result<bool, RepoError> {
+        let Some(scope) = self.repo.scope_by_id(scope_id)? else {
+            return Ok(false);
+        };
+        if scope.status != zealot_domain::scope::ScopeStatus::Active {
+            return Ok(false);
+        }
         Ok(self
             .repo
             .members_for_scope(scope_id)?
@@ -110,11 +116,12 @@ impl ScopeService {
             if !read_only {
                 return Err(ScopeAccessError::AllScopesMutation);
             }
-            let scopes = self
-                .active_scopes_for_principal(principal_id)?
-                .into_iter()
-                .filter(|scope| self.authorize(principal_id, scope.scope_id, permission).unwrap_or(false))
-                .collect();
+            let mut scopes = Vec::new();
+            for scope in self.active_scopes_for_principal(principal_id)? {
+                if self.authorize(principal_id, scope.scope_id, permission)? {
+                    scopes.push(scope);
+                }
+            }
             return Ok(ScopeAccess { principal_id, scopes, permission, read_only });
         }
 
