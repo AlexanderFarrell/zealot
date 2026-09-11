@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use uuid::Uuid;
 use zealot_domain::{
     account::{Account, ApiKeyRecord, CreateAccountDto},
     common::id::Id,
@@ -20,8 +21,19 @@ pub trait AccountRepo: Debug + Send + Sync {
         key_hash: &str,
         label: &str,
     ) -> Result<ApiKeyRecord, RepoError>;
+    fn insert_api_key_for_principal(
+        &self,
+        principal_id: Uuid,
+        key_hash: &str,
+        label: &str,
+    ) -> Result<ApiKeyRecord, RepoError>;
     fn list_api_keys(&self, account_id: &Id) -> Result<Vec<ApiKeyRecord>, RepoError>;
     fn delete_api_key_by_id(&self, api_key_id: &Id, account_id: &Id) -> Result<(), RepoError>;
+    fn delete_api_key_by_id_for_principal(
+        &self,
+        api_key_id: &Id,
+        principal_id: Uuid,
+    ) -> Result<(), RepoError>;
     fn update_settings(
         &self,
         account_id: &Id,

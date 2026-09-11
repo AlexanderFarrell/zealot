@@ -13,7 +13,7 @@ use zealot_domain::{
 
 use crate::{
     ports::password::PasswordPort,
-    repos::{account::AccountRepo, session::SessionRepo},
+    repos::{account::AccountRepo, scope::ScopeRepo, session::SessionRepo},
     services::common::ServiceError,
 };
 
@@ -23,6 +23,7 @@ pub struct AuthService {
     repo: Arc<dyn AccountRepo>,
     password: Arc<dyn PasswordPort>,
     session: Arc<dyn SessionRepo>,
+    scope: Arc<dyn ScopeRepo>,
 }
 
 impl AuthService {
@@ -30,11 +31,13 @@ impl AuthService {
         repo: &Arc<dyn AccountRepo>,
         password: &Arc<dyn PasswordPort>,
         session: &Arc<dyn SessionRepo>,
+        scope: &Arc<dyn ScopeRepo>,
     ) -> Self {
         Self {
             repo: repo.clone(),
             password: password.clone(),
             session: session.clone(),
+            scope: scope.clone(),
         }
     }
 
@@ -103,20 +106,34 @@ impl AuthService {
         }
 
         let key_hash = Self::hash_token(key);
-        let account =
-            self.repo
-                .get_account_by_api_key(&key_hash)
-                .map_err(|_| ServiceError::DomainError {
-                    err: AuthError::ServerError,
-                })?;
+        let principal = self
+            .scope
+            .principal_for_api_key_hash(&key_hash)
+            .map_err(|_| ServiceError::DomainError {
+                err: AuthError::ServerError,
+            })?;
 
-        let Some(account) = account else {
+        let Some(principal) = principal else {
             return Err(ServiceError::DomainError {
                 err: Self::invalid_api_key_error(),
             });
         };
-
-        Ok(Self::actor_from_account(account, AuthSource::ApiKey))
+        let account = match principal.account_id {
+            Some(id) => self
+                .repo
+                .get_account_by_id(&id.try_into().map_err(|_| ServiceError::DomainError {
+                    err: AuthError::ServerError,
+                })?)
+                .map_err(|_| ServiceError::DomainError {
+                    err: AuthError::ServerError,
+                })?,
+            None => None,
+        };
+        Ok(Actor {
+            account,
+            principal_id: Some(principal.principal_id),
+            source: AuthSource::ApiKey,
+        })
     }
 
     pub async fn authenticate_session(
@@ -147,6 +164,7 @@ impl AuthService {
     pub fn get_anonymous_actor(&self) -> Actor {
         Actor {
             account: None,
+            principal_id: None,
             source: AuthSource::Anonymous,
         }
     }
@@ -275,6 +293,7 @@ impl AuthService {
     fn actor_from_account(account: Account, source: AuthSource) -> Actor {
         Actor {
             account: Some(account),
+            principal_id: None,
             source,
         }
     }

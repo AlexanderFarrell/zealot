@@ -8,5 +8,6 @@ pub mod item_type;
 pub mod media;
 pub mod repeat;
 pub mod rule;
+pub mod scope;
 pub mod statistic;
 pub mod time_block;

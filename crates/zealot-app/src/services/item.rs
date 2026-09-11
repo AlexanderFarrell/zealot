@@ -283,7 +283,11 @@ impl ItemService {
         self.hydrate_items(items, &account.account_id)
     }
 
-    pub fn get_random_items(&self, count: usize, account: &Account) -> Result<Vec<Item>, ItemServiceError> {
+    pub fn get_random_items(
+        &self,
+        count: usize,
+        account: &Account,
+    ) -> Result<Vec<Item>, ItemServiceError> {
         use rand::seq::SliceRandom;
         let mut ids = self
             .item_repo

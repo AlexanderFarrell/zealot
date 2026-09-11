@@ -77,6 +77,36 @@ impl AccountService {
         tracing::info!(account_id = ?account_id, ?api_key_id, "api key revoked");
         Ok(())
     }
+
+    /// Generates a key for a non-human principal.  The raw value is returned
+    /// exactly once, just like a human API key.
+    pub fn generate_service_api_key(
+        &self,
+        principal_id: Uuid,
+        label: &str,
+    ) -> Result<(ApiKeyRecord, String), ServiceError<AccountError>> {
+        let raw = Uuid::new_v4().simple().to_string();
+        let hash = AuthService::hash_token(&raw);
+        let record = self
+            .repo
+            .insert_api_key_for_principal(principal_id, &hash, label)
+            .map_err(|_| ServiceError::DomainError {
+                err: AccountError::ServerError,
+            })?;
+        Ok((record, raw))
+    }
+
+    pub fn revoke_service_api_key(
+        &self,
+        api_key_id: &Id,
+        principal_id: Uuid,
+    ) -> Result<(), ServiceError<AccountError>> {
+        self.repo
+            .delete_api_key_by_id_for_principal(api_key_id, principal_id)
+            .map_err(|_| ServiceError::DomainError {
+                err: AccountError::ServerError,
+            })
+    }
 }
 
 #[derive(Debug, thiserror::Error)]

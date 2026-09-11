@@ -13,7 +13,7 @@ use super::item::ItemService;
 
 #[derive(Debug)]
 pub struct TimeBlockService {
-    repo:         Arc<dyn TimeBlockRepo>,
+    repo: Arc<dyn TimeBlockRepo>,
     item_service: Arc<ItemService>,
 }
 
@@ -73,14 +73,17 @@ impl TimeBlockService {
             .item_service
             .get_items_by_ids(&ids, account)
             .map_err(|_| TimeBlockServiceError::NotFound)?;
-        let item = items.into_iter().next().ok_or(TimeBlockServiceError::NotFound)?;
+        let item = items
+            .into_iter()
+            .next()
+            .ok_or(TimeBlockServiceError::NotFound)?;
         let block = TimeBlock {
-            block_id:  core.block_id,
+            block_id: core.block_id,
             item,
-            date:      core.date,
+            date: core.date,
             start_min: core.start_min,
-            end_min:   core.end_min,
-            note:      core.note,
+            end_min: core.end_min,
+            note: core.note,
         };
         tracing::info!(account_id = ?account.account_id, block_id = ?block.block_id, item_id = ?block.item.item_id, date = %block.date, "time block created");
         Ok(block)
@@ -133,12 +136,12 @@ impl TimeBlockService {
             .into_iter()
             .filter_map(|core| {
                 items_map.get(&core.item_id).map(|item| TimeBlock {
-                    block_id:  core.block_id,
-                    item:      item.clone(),
-                    date:      core.date,
+                    block_id: core.block_id,
+                    item: item.clone(),
+                    date: core.date,
                     start_min: core.start_min,
-                    end_min:   core.end_min,
-                    note:      core.note,
+                    end_min: core.end_min,
+                    note: core.note,
                 })
             })
             .collect();

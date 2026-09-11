@@ -10,6 +10,7 @@ REQUIREMENTS_FILE="$SCRIPT_DIR/requirements.txt"
 COMPOSE_FILE="$SCRIPT_DIR/compose.yml"
 SERVER_URL="http://127.0.0.1:18456"
 WEB_URL="http://127.0.0.1:18080"
+POSTGRES_DSN="postgresql://zealot:zealot@127.0.0.1:15432/zealot"
 
 compose() {
     docker compose -f "$COMPOSE_FILE" "$@"
@@ -40,7 +41,60 @@ wait_for_http() {
 
 cleanup() {
     echo "[e2e] Stopping docker compose stack"
-    compose down -v --remove-orphans
+    compose --profile postgres down -v --remove-orphans
+}
+
+run_backend() {
+    database=$1
+    shift
+    compose --profile postgres down -v --remove-orphans
+
+    if [ "$database" = "postgres" ]; then
+        echo "[e2e] Starting PostgreSQL-backed stack"
+        if ! compose --profile postgres up --wait --remove-orphans postgres; then
+            echo "[e2e] PostgreSQL stack could not be started" >&2
+            return 75
+        fi
+        if ! ZEALOT_E2E_DATABASE=postgres compose up --build --wait --remove-orphans; then
+            echo "[e2e] PostgreSQL-backed server stack could not be started" >&2
+            return 75
+        fi
+    else
+        echo "[e2e] Starting SQLite-backed stack"
+        ZEALOT_E2E_DATABASE=sqlite compose up --build --wait --remove-orphans
+    fi
+
+    echo "[e2e] Waiting for backend health at $SERVER_URL/health ($database)"
+    if ! wait_for_http "$SERVER_URL/health" "ok"; then
+        [ "$database" = "postgres" ] && return 75
+        return 1
+    fi
+
+    echo "[e2e] Waiting for backend readiness at $SERVER_URL/health/ready ($database)"
+    if ! wait_for_http "$SERVER_URL/health/ready" "ready"; then
+        [ "$database" = "postgres" ] && return 75
+        return 1
+    fi
+
+    echo "[e2e] Waiting for web root at $WEB_URL/ ($database)"
+    if ! wait_for_http "$WEB_URL/"; then
+        [ "$database" = "postgres" ] && return 75
+        return 1
+    fi
+
+    echo "[e2e] Waiting for proxied API health at $WEB_URL/api/health ($database)"
+    if ! wait_for_http "$WEB_URL/api/health" "ok"; then
+        [ "$database" = "postgres" ] && return 75
+        return 1
+    fi
+
+    echo "[e2e] Running pytest ($database)"
+    cd "$REPO_ROOT"
+    ZEALOT_E2E_DATABASE="$database" \
+    ZEALOT_E2E_SERVER_URL="$SERVER_URL" \
+    ZEALOT_E2E_WEB_URL="$WEB_URL" \
+    ZEALOT_E2E_POSTGRES_DSN="$POSTGRES_DSN" \
+    "$PYTHON_BIN" -m pytest "$SCRIPT_DIR" "$@"
 }
 
 if [ ! -x "$PYTHON_BIN" ]; then
@@ -56,23 +110,26 @@ fi
 
 trap cleanup EXIT INT TERM
 
-echo "[e2e] Starting docker compose stack from $COMPOSE_FILE"
-compose up --build --wait --remove-orphans
-
-echo "[e2e] Waiting for backend health at $SERVER_URL/health"
-wait_for_http "$SERVER_URL/health" "ok"
-
-echo "[e2e] Waiting for backend readiness at $SERVER_URL/health/ready"
-wait_for_http "$SERVER_URL/health/ready" "ready"
-
-echo "[e2e] Waiting for web root at $WEB_URL/"
-wait_for_http "$WEB_URL/"
-
-echo "[e2e] Waiting for proxied API health at $WEB_URL/api/health"
-wait_for_http "$WEB_URL/api/health" "ok"
-
-echo "[e2e] Running pytest"
-cd "$REPO_ROOT"
-ZEALOT_E2E_SERVER_URL="$SERVER_URL" \
-ZEALOT_E2E_WEB_URL="$WEB_URL" \
-"$PYTHON_BIN" -m pytest "$SCRIPT_DIR" "$@"
+case "${ZEALOT_E2E_DATABASE:-all}" in
+    sqlite)
+        run_backend sqlite "$@"
+        ;;
+    postgres)
+        run_backend postgres "$@"
+        ;;
+    all)
+        run_backend sqlite "$@"
+        if run_backend postgres "$@"; then
+            :
+        elif [ "$?" -eq 75 ]; then
+            echo "[e2e] PostgreSQL run unavailable; SQLite run remains the usable default" >&2
+        else
+            echo "[e2e] PostgreSQL tests failed" >&2
+            exit 1
+        fi
+        ;;
+    *)
+        echo "[e2e] ZEALOT_E2E_DATABASE must be sqlite, postgres, or all" >&2
+        exit 2
+        ;;
+esac

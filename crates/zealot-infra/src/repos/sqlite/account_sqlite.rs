@@ -174,10 +174,11 @@ impl AccountRepo for AccountSqliteRepo {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
                 sqlx::query_as::<_, ApiKeyRow>(
-                    "INSERT INTO api_key (account_id, key_hash, label)
-                     VALUES (?, ?, ?)
+                    "INSERT INTO api_key (account_id, principal_id, key_hash, label)
+                     VALUES (?, (SELECT principal_id FROM server_principal WHERE account_id = ? AND kind = 'human'), ?, ?)
                      RETURNING api_key_id, label, created_at",
                 )
+                .bind(id_val)
                 .bind(id_val)
                 .bind(key_hash)
                 .bind(label)
@@ -186,6 +187,21 @@ impl AccountRepo for AccountSqliteRepo {
                 .map_err(RepoError::from)
                 .and_then(row_to_api_key_record)
             })
+        })
+    }
+
+    fn insert_api_key_for_principal(
+        &self,
+        principal_id: uuid::Uuid,
+        key_hash: &str,
+        label: &str,
+    ) -> Result<ApiKeyRecord, RepoError> {
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+            sqlx::query_as::<_, ApiKeyRow>("INSERT INTO api_key (principal_id, key_hash, label) VALUES (?, ?, ?) RETURNING api_key_id, label, created_at")
+                .bind(principal_id.to_string()).bind(key_hash).bind(label).fetch_one(&self.pool).await
+                .map_err(RepoError::from).and_then(row_to_api_key_record)
+        })
         })
     }
 
@@ -217,6 +233,25 @@ impl AccountRepo for AccountSqliteRepo {
                 sqlx::query("DELETE FROM api_key WHERE api_key_id = ? AND account_id = ?")
                     .bind(key_id_val)
                     .bind(account_id_val)
+                    .execute(&self.pool)
+                    .await
+                    .map(|_| ())
+                    .map_err(RepoError::from)
+            })
+        })
+    }
+
+    fn delete_api_key_by_id_for_principal(
+        &self,
+        api_key_id: &Id,
+        principal_id: uuid::Uuid,
+    ) -> Result<(), RepoError> {
+        let id = i64::from(*api_key_id);
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                sqlx::query("DELETE FROM api_key WHERE api_key_id = ? AND principal_id = ?")
+                    .bind(id)
+                    .bind(principal_id.to_string())
                     .execute(&self.pool)
                     .await
                     .map(|_| ())

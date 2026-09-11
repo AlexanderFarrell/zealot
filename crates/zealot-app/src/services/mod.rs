@@ -78,6 +78,7 @@ impl ZealotServices {
                 &repos.account,
                 &ports.password,
                 &repos.session,
+                &repos.scope,
             )),
             comment,
             item,

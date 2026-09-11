@@ -4,6 +4,7 @@ import os
 import sqlite3
 
 import pytest
+import requests
 
 
 # The compose bind-mount puts the SQLite file at zealot_data/zealot.db
@@ -25,6 +26,10 @@ EXPECTED_MIGRATIONS = [
     "item views",
     "time blocks",
     "statistics",
+    "reorder status values",
+    "core model foundation",
+    "default scope invariants",
+    "scope authorization",
 ]
 
 EXPECTED_SYSTEM_ATTRIBUTE_KINDS = [
@@ -140,3 +145,101 @@ def test_account_table_has_given_name_and_surname(db: sqlite3.Connection) -> Non
     assert "given_name" in cols
     assert "surname" in cols
     assert "full_name" not in cols
+
+
+def test_scope_foundation_schema_is_present(db: sqlite3.Connection) -> None:
+    tables = {
+        row["name"]
+        for row in db.execute(
+            "select name from sqlite_master where type = 'table'"
+        ).fetchall()
+    }
+    assert {"server", "server_principal", "scope", "scope_member"} <= tables
+
+    principal_columns = {
+        row["name"]
+        for row in db.execute("pragma table_info(server_principal)").fetchall()
+    }
+    assert {
+        "principal_id",
+        "server_id",
+        "kind",
+        "account_id",
+        "default_scope_id",
+    } <= principal_columns
+
+    item_columns = {row["name"] for row in db.execute("pragma table_info(item)").fetchall()}
+    assert "scope_id" in item_columns
+
+
+def test_scope_foundation_bootstrap_is_consistent(db: sqlite3.Connection) -> None:
+    server_rows = db.execute("select server_id, display_name from server").fetchall()
+    assert len(server_rows) == 1
+    assert server_rows[0]["display_name"] == "Zealot server"
+
+    human_principals = db.execute(
+        """
+        select p.principal_id, p.account_id, p.default_scope_id,
+               s.scope_id, sm.role, sm.status
+        from server_principal p
+        join scope s on s.scope_id = p.default_scope_id
+        join scope_member sm on sm.scope_id = s.scope_id
+                            and sm.principal_id = p.principal_id
+        where p.kind = 'human'
+        """
+    ).fetchall()
+    for principal in human_principals:
+        assert principal["account_id"] is not None
+        assert principal["default_scope_id"] == principal["scope_id"]
+        assert principal["role"] == "owner"
+        assert principal["status"] == "active"
+
+    # The migration must not leave any item unscoped, including the empty
+    # account state produced before the first login/register request.
+    unscoped_items = db.execute(
+        "select count(*) from item where scope_id is null"
+    ).fetchone()[0]
+    assert unscoped_items == 0
+
+
+def test_new_account_gets_personal_default_scope(
+    db: sqlite3.Connection,
+    stack_urls: dict[str, str],
+) -> None:
+    # Register through the public compatibility path, then verify the same
+    # persisted principal/scope/member shape that legacy accounts receive.
+    import uuid
+
+    suffix = uuid.uuid4().hex[:12]
+    response = requests.post(
+        f"{stack_urls['server_url']}/auth/register",
+        json={
+            "username": f"scope_{suffix}",
+            "password": "correct horse battery staple",
+            "email": f"scope_{suffix}@example.com",
+            "given_name": "Scope",
+            "surname": "Fixture",
+        },
+        timeout=5,
+    )
+    assert response.status_code == 200
+    account_id = response.json()["account_id"]
+
+    row = db.execute(
+        """
+        select p.kind, p.account_id, p.default_scope_id,
+               s.title, sm.role, sm.status
+        from server_principal p
+        join scope s on s.scope_id = p.default_scope_id
+        join scope_member sm on sm.scope_id = s.scope_id
+                            and sm.principal_id = p.principal_id
+        where p.account_id = ?
+        """,
+        (account_id,),
+    ).fetchone()
+    assert row is not None
+    assert row["kind"] == "human"
+    assert row["account_id"] == account_id
+    assert row["title"].startswith("Personal — scope_")
+    assert row["role"] == "owner"
+    assert row["status"] == "active"
