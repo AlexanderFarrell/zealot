@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use sqlx::SqlitePool;
 use zealot_app::repos::{common::RepoError, item_link::ItemLinkRepo};
 use zealot_domain::{account::Account, common::id::Id, item::ItemLink};
+use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct ItemLinkSqliteRepo {
@@ -23,6 +24,48 @@ struct ItemLinkRow {
 }
 
 impl ItemLinkRepo for ItemLinkSqliteRepo {
+    fn get_links_for_items_in_scopes(
+        &self,
+        item_ids: &Vec<Id>,
+        scope_ids: &[Uuid],
+    ) -> Result<HashMap<Id, Vec<ItemLink>>, RepoError> {
+        if item_ids.is_empty() || scope_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let item_placeholders = item_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let scope_placeholders = scope_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let sql = format!(
+            "SELECT l.first_item_id, l.second_item_id, l.relationship
+             FROM item_item_link l
+             JOIN item src ON src.item_id = l.first_item_id
+             JOIN item target ON target.item_id = l.second_item_id
+             WHERE src.scope_id IN ({scopes}) AND target.scope_id IN ({scopes})
+               AND l.first_item_id IN ({items})
+             ORDER BY l.first_item_id, l.second_item_id",
+            scopes = scope_placeholders,
+            items = item_placeholders
+        );
+        let scope_ids: Vec<String> = scope_ids.iter().map(Uuid::to_string).collect();
+        let item_ids = item_ids.clone();
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let mut query = sqlx::query_as::<_, ItemLinkRow>(&sql);
+                for scope_id in &scope_ids { query = query.bind(scope_id); }
+                for scope_id in &scope_ids { query = query.bind(scope_id); }
+                for item_id in &item_ids { query = query.bind(i64::from(*item_id)); }
+                let rows = query.fetch_all(&pool).await.map_err(RepoError::from)?;
+                let mut links_by_item = HashMap::new();
+                for row in rows {
+                    let first = Id::try_from(row.first_item_id).map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
+                    let second = Id::try_from(row.second_item_id).map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
+                    links_by_item.entry(first).or_insert_with(Vec::new).push(ItemLink { other_item_id: second, relationship: row.relationship });
+                }
+                Ok(links_by_item)
+            })
+        })
+    }
+
     fn get_links_for_items(
         &self,
         item_ids: &Vec<Id>,

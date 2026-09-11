@@ -122,10 +122,18 @@ impl ItemService {
         else {
             return Ok(None);
         };
-        Ok(self
+        let mut hydrated = self
             .hydrate_items(vec![item], &owner_account_id)?
             .into_iter()
-            .next())
+            .next();
+        if let Some(ref mut item) = hydrated {
+            let links = self
+                .item_link_repo
+                .get_links_for_items_in_scopes(&vec![item.item_id], &scope_ids)
+                .map_err(ItemServiceError::Repo)?;
+            item.links = links.get(&item.item_id).cloned().unwrap_or_default();
+        }
+        Ok(hydrated)
     }
 
     pub fn get_items_by_title(

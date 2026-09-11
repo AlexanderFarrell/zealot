@@ -1,10 +1,21 @@
 use std::{collections::HashMap, fmt::Debug};
 
 use zealot_domain::{account::Account, common::id::Id, item::ItemLink};
+use uuid::Uuid;
 
 use crate::repos::common::RepoError;
 
 pub trait ItemLinkRepo: Debug + Send + Sync {
+    fn get_links_for_items_in_scopes(
+        &self,
+        item_ids: &Vec<Id>,
+        scope_ids: &[Uuid],
+    ) -> Result<HashMap<Id, Vec<ItemLink>>, RepoError> {
+        let _ = (item_ids, scope_ids);
+        Err(RepoError::DatabaseError {
+            err: "scope-qualified link lookup is not implemented by this repository".to_string(),
+        })
+    }
     fn get_links_for_items(
         &self,
         item_ids: &Vec<Id>,

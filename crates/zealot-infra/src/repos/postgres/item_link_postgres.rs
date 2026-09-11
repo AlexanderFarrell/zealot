@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use sqlx::PgPool;
 use zealot_app::repos::{common::RepoError, item_link::ItemLinkRepo};
 use zealot_domain::{account::Account, common::id::Id, item::ItemLink};
+use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct ItemLinkPostgresRepo {
@@ -23,6 +24,44 @@ struct ItemLinkRow {
 }
 
 impl ItemLinkRepo for ItemLinkPostgresRepo {
+    fn get_links_for_items_in_scopes(
+        &self,
+        item_ids: &Vec<Id>,
+        scope_ids: &[Uuid],
+    ) -> Result<HashMap<Id, Vec<ItemLink>>, RepoError> {
+        if item_ids.is_empty() || scope_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let item_ids: Vec<i64> = item_ids.iter().map(|id| i64::from(*id)).collect();
+        let scope_ids = scope_ids.to_vec();
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let rows = sqlx::query_as::<_, ItemLinkRow>(
+                    "SELECT l.first_item_id, l.second_item_id, l.relationship
+                     FROM item_item_link l
+                     JOIN item src ON src.item_id = l.first_item_id
+                     JOIN item target ON target.item_id = l.second_item_id
+                     WHERE src.scope_id = ANY($1) AND target.scope_id = ANY($1)
+                       AND l.first_item_id = ANY($2)
+                     ORDER BY l.first_item_id, l.second_item_id",
+                )
+                .bind(&scope_ids)
+                .bind(&item_ids)
+                .fetch_all(&pool)
+                .await
+                .map_err(RepoError::from)?;
+                let mut links_by_item = HashMap::new();
+                for row in rows {
+                    let first = Id::try_from(row.first_item_id as i64).map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
+                    let second = Id::try_from(row.second_item_id as i64).map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
+                    links_by_item.entry(first).or_insert_with(Vec::new).push(ItemLink { other_item_id: second, relationship: row.relationship });
+                }
+                Ok(links_by_item)
+            })
+        })
+    }
+
     fn get_links_for_items(
         &self,
         item_ids: &Vec<Id>,
