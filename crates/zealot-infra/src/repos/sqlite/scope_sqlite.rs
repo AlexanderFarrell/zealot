@@ -168,6 +168,19 @@ impl ScopeRepo for ScopeSqliteRepo {
         })
         })
     }
+    fn scope_by_id(&self, id: Uuid) -> Result<Option<Scope>, RepoError> {
+        let p = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                sqlx::query_as::<_, ScopeRow>(&format!("SELECT {S} FROM scope WHERE scope_id=?"))
+                    .bind(id.to_string())
+                    .fetch_optional(&p)
+                    .await?
+                    .map(scope)
+                    .transpose()
+            })
+        })
+    }
     fn active_scopes_for_principal(&self, id: Uuid) -> Result<Vec<Scope>, RepoError> {
         let p = self.pool.clone();
         let id = id.to_string();

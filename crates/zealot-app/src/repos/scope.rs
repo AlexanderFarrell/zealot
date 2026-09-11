@@ -24,6 +24,10 @@ pub trait ScopeRepo: Debug + Send + Sync {
     ) -> Result<Option<ServerPrincipal>, RepoError>;
     fn default_scope_for_account(&self, account_id: i64) -> Result<Option<Scope>, RepoError>;
     fn default_scope_for_principal(&self, principal_id: Uuid) -> Result<Option<Scope>, RepoError>;
+    /// Resolves a scope independently of membership. Callers must still apply
+    /// `authorize`; this exists to distinguish a known denied scope (403) from
+    /// an unknown/inaccessible item reference (404).
+    fn scope_by_id(&self, scope_id: Uuid) -> Result<Option<Scope>, RepoError>;
     fn active_scopes_for_principal(&self, principal_id: Uuid) -> Result<Vec<Scope>, RepoError>;
     fn members_for_scope(&self, scope_id: Uuid) -> Result<Vec<ScopeMember>, RepoError>;
     fn create_service_principal(&self, display_name: &str) -> Result<ServerPrincipal, RepoError>;

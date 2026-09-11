@@ -9,6 +9,36 @@ use crate::{
     repos::scope::{ScopeRepo, ServerMetadata},
 };
 
+/// A request-scoped, already-authorized selection. Repository/service APIs
+/// must accept this instead of treating an account as the authorization
+/// boundary. `all_scopes` is represented by more than one scope and is never
+/// returned for a mutation.
+#[derive(Debug, Clone)]
+pub struct ScopeAccess {
+    pub principal_id: Uuid,
+    pub scopes: Vec<Scope>,
+    pub permission: ScopePermission,
+    pub read_only: bool,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ScopeAccessError {
+    #[error("authentication required")]
+    Unauthenticated,
+    #[error("authenticated actor has no server principal")]
+    MissingPrincipal,
+    #[error("scope not found")]
+    NotFound,
+    #[error("scope access forbidden")]
+    Forbidden,
+    #[error("all_scopes is read-only")]
+    AllScopesMutation,
+    #[error("default scope unavailable")]
+    DefaultUnavailable,
+    #[error("scope repository error: {0}")]
+    Repo(#[from] RepoError),
+}
+
 #[derive(Debug, Clone)]
 pub struct ScopeService {
     repo: Arc<dyn ScopeRepo>,
@@ -64,6 +94,40 @@ impl ScopeService {
         self.repo.default_scope_for_principal(principal_id)
     }
 
+    /// Resolves a principal's scope selection once, before any item lookup or
+    /// mutation. A denied explicit scope is intentionally not silently
+    /// replaced by a default scope.
+    pub fn resolve_access(
+        &self,
+        principal_id: Option<Uuid>,
+        requested: Option<Uuid>,
+        all_scopes: bool,
+        permission: ScopePermission,
+        read_only: bool,
+    ) -> Result<ScopeAccess, ScopeAccessError> {
+        let principal_id = principal_id.ok_or(ScopeAccessError::MissingPrincipal)?;
+        if all_scopes {
+            if !read_only {
+                return Err(ScopeAccessError::AllScopesMutation);
+            }
+            let scopes = self
+                .active_scopes_for_principal(principal_id)?
+                .into_iter()
+                .filter(|scope| self.authorize(principal_id, scope.scope_id, permission).unwrap_or(false))
+                .collect();
+            return Ok(ScopeAccess { principal_id, scopes, permission, read_only });
+        }
+
+        let scope = match requested {
+            Some(scope_id) => self.scope_by_id(scope_id)?.ok_or(ScopeAccessError::NotFound)?,
+            None => self.default_scope_for_principal(principal_id)?.ok_or(ScopeAccessError::DefaultUnavailable)?,
+        };
+        if !self.authorize(principal_id, scope.scope_id, permission)? {
+            return Err(ScopeAccessError::Forbidden);
+        }
+        Ok(ScopeAccess { principal_id, scopes: vec![scope], permission, read_only })
+    }
+
     /// Resolves the API's scope controls.  A missing selection uses the
     /// principal default; all-scopes is intentionally available only to reads.
     pub fn authorize_selection(
@@ -105,6 +169,9 @@ impl ScopeService {
     }
     pub fn active_scopes_for_principal(&self, principal_id: Uuid) -> Result<Vec<Scope>, RepoError> {
         self.repo.active_scopes_for_principal(principal_id)
+    }
+    pub fn scope_by_id(&self, scope_id: Uuid) -> Result<Option<Scope>, RepoError> {
+        self.repo.scope_by_id(scope_id)
     }
     pub fn members_for_scope(&self, scope_id: Uuid) -> Result<Vec<ScopeMember>, RepoError> {
         self.repo.members_for_scope(scope_id)
