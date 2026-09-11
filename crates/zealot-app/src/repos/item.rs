@@ -5,10 +5,21 @@ use zealot_domain::{
     common::id::Id,
     item::{AddItemCoreDto, ItemCore, UpdateItemCoreDto},
 };
+use uuid::Uuid;
 
 use crate::repos::common::RepoError;
 
 pub trait ItemRepo: Debug + Send + Sync {
+    fn get_item_by_id_in_scopes(
+        &self,
+        item_id: &Id,
+        scope_ids: &[Uuid],
+    ) -> Result<Option<(ItemCore, Id)>, RepoError> {
+        let _ = (item_id, scope_ids);
+        Err(RepoError::DatabaseError {
+            err: "scope-qualified item lookup is not implemented by this repository".to_string(),
+        })
+    }
     fn get_item_by_id(
         &self,
         item_id: &Id,

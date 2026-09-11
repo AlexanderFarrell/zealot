@@ -11,8 +11,10 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::Value;
+use uuid::Uuid;
 use zealot_app::{
     app::AppState,
+    services::scope::{ScopeAccess, ScopeAccessError},
     services::item::{ItemServiceError, SearchResult},
 };
 use zealot_domain::{
@@ -20,6 +22,7 @@ use zealot_domain::{
     auth::Actor,
     common::id::Id,
     item::{AddItemDto, Item, ItemDto, SearchResultDto, SearchScope, UpdateItemDto},
+    scope::ScopePermission,
 };
 
 use crate::http::{
@@ -133,8 +136,45 @@ struct RecentParams {
     offset: i64,
 }
 
+#[derive(Deserialize, Default)]
+struct ItemScopeParams {
+    scope_id: Option<Uuid>,
+    #[serde(default)]
+    all_scopes: bool,
+}
+
 fn default_recent_limit() -> i64 {
     30
+}
+
+fn resolve_item_read_access(
+    state: &AppState,
+    actor: &Actor,
+    params: &ItemScopeParams,
+) -> Result<ScopeAccess, HttpError> {
+    if !actor.is_authenticated() {
+        return Err(HttpError::Unauthorized);
+    }
+    state
+        .services
+        .scope
+        .resolve_access(
+            actor.principal_id,
+            params.scope_id,
+            params.all_scopes,
+            ScopePermission::ViewItems,
+            true,
+        )
+        .map_err(|error| match error {
+            ScopeAccessError::MissingPrincipal | ScopeAccessError::DefaultUnavailable => {
+                HttpError::Unauthorized
+            }
+            ScopeAccessError::NotFound => HttpError::NotFound,
+            ScopeAccessError::Forbidden => HttpError::Forbidden,
+            ScopeAccessError::AllScopesMutation => HttpError::Forbidden,
+            ScopeAccessError::Unauthenticated => HttpError::Unauthorized,
+            ScopeAccessError::Repo(_) => HttpError::Internal,
+        })
 }
 
 #[derive(Deserialize)]
@@ -236,13 +276,14 @@ async fn get_by_id(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(item_id): Path<i64>,
+    Query(params): Query<ItemScopeParams>,
 ) -> Result<Json<ItemDto>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_read_access(&state, &actor, &params)?;
     let id = parse_item_id(item_id)?;
     match state
         .services
         .item
-        .get_item_by_id(&id, &account)
+        .get_item_by_id_in_scopes(&id, &access)
         .map_err(item_service_err)?
     {
         Some(item) => {

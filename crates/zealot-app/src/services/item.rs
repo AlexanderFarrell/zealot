@@ -27,6 +27,7 @@ use crate::{
         item_heading::ItemHeadingRepo, item_link::ItemLinkRepo, item_type::ItemTypeRepo,
     },
 };
+use crate::services::scope::ScopeAccess;
 
 #[derive(Debug, Clone)]
 pub struct ItemService {
@@ -106,6 +107,25 @@ impl ItemService {
                 .next()),
             None => Ok(None),
         }
+    }
+
+    pub fn get_item_by_id_in_scopes(
+        &self,
+        item_id: &Id,
+        access: &ScopeAccess,
+    ) -> Result<Option<Item>, ItemServiceError> {
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let Some((item, owner_account_id)) = self
+            .item_repo
+            .get_item_by_id_in_scopes(item_id, &scope_ids)
+            .map_err(ItemServiceError::Repo)?
+        else {
+            return Ok(None);
+        };
+        Ok(self
+            .hydrate_items(vec![item], &owner_account_id)?
+            .into_iter()
+            .next())
     }
 
     pub fn get_items_by_title(

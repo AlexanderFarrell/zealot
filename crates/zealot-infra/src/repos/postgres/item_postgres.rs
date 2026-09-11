@@ -7,6 +7,7 @@ use zealot_domain::{
     common::id::Id,
     item::{AddItemCoreDto, ItemCore, UpdateItemCoreDto},
 };
+use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct ItemPostgresRepo {
@@ -24,6 +25,14 @@ struct ItemRow {
     item_id: i32,
     title: String,
     content: String,
+}
+
+#[derive(sqlx::FromRow)]
+struct ScopedItemRow {
+    item_id: i32,
+    title: String,
+    content: String,
+    account_id: i64,
 }
 
 fn row_to_item_core(row: ItemRow) -> Result<ItemCore, RepoError> {
@@ -68,6 +77,37 @@ async fn fetch_items_by_ids(
 }
 
 impl ItemRepo for ItemPostgresRepo {
+    fn get_item_by_id_in_scopes(
+        &self,
+        item_id: &Id,
+        scope_ids: &[Uuid],
+    ) -> Result<Option<(ItemCore, Id)>, RepoError> {
+        if scope_ids.is_empty() {
+            return Ok(None);
+        }
+        let item_id_val = i64::from(*item_id);
+        let scope_ids = scope_ids.to_vec();
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let row = sqlx::query_as::<_, ScopedItemRow>(
+                    "SELECT item_id, title, content, account_id FROM item
+                     WHERE item_id = $1 AND scope_id = ANY($2)",
+                )
+                .bind(item_id_val)
+                .bind(&scope_ids)
+                .fetch_optional(&pool)
+                .await
+                .map_err(RepoError::from)?;
+                row.map(|row| {
+                    let account_id = Id::try_from(row.account_id).map_err(|err| RepoError::DatabaseError { err: err.to_string() })?;
+                    let item = row_to_item_core(ItemRow { item_id: row.item_id, title: row.title, content: row.content })?;
+                    Ok((item, account_id))
+                }).transpose()
+            })
+        })
+    }
+
     fn get_item_by_id(
         &self,
         item_id: &Id,
