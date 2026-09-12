@@ -36,6 +36,12 @@ struct ItemTypeRefRow {
 }
 
 #[derive(sqlx::FromRow)]
+struct ScopedItemTypeRow {
+    item_id: i64,
+    account_id: i64,
+}
+
+#[derive(sqlx::FromRow)]
 struct ItemTypeSummaryRow {
     type_id: i64,
     name: String,
@@ -268,6 +274,57 @@ impl ItemTypeRepo for ItemTypeSqliteRepo {
                     .map(|item_id| {
                         Id::try_from(item_id)
                             .map_err(|err| RepoError::DatabaseError { err: err.to_string() })
+                    })
+                    .collect()
+            })
+        })
+    }
+
+    fn get_item_ids_for_type_name_in_scopes(
+        &self,
+        name: &str,
+        scope_ids: &[uuid::Uuid],
+    ) -> Result<Vec<(Id, Id)>, RepoError> {
+        if scope_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let name = name.to_string();
+        let scope_ids: Vec<String> = scope_ids.iter().map(uuid::Uuid::to_string).collect();
+        let placeholders = scope_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let sql = format!(
+            "SELECT DISTINCT lnk.item_id, i.account_id
+             FROM item_item_type_link lnk
+             JOIN item_type it ON it.type_id = lnk.type_id
+             JOIN item i ON i.item_id = lnk.item_id
+             WHERE it.name = ?
+               AND (it.account_id = i.account_id OR it.account_id IS NULL)
+               AND i.scope_id IN ({placeholders})
+             ORDER BY lnk.item_id",
+            placeholders = placeholders
+        );
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let mut query = sqlx::query_as::<_, ScopedItemTypeRow>(&sql).bind(&name);
+                for scope_id in &scope_ids {
+                    query = query.bind(scope_id);
+                }
+                query
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?
+                    .into_iter()
+                    .map(|row| {
+                        let item_id =
+                            Id::try_from(row.item_id).map_err(|err| RepoError::DatabaseError {
+                                err: err.to_string(),
+                            })?;
+                        let account_id = Id::try_from(row.account_id).map_err(|err| {
+                            RepoError::DatabaseError {
+                                err: err.to_string(),
+                            }
+                        })?;
+                        Ok((item_id, account_id))
                     })
                     .collect()
             })

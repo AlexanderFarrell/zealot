@@ -105,6 +105,9 @@ fn parse_item_id(raw: i64) -> Result<Id, HttpError> {
 struct RootItemsParams {
     #[serde(rename = "type", default)]
     item_type: Option<String>,
+    scope_id: Option<Uuid>,
+    #[serde(default)]
+    all_scopes: bool,
 }
 
 const MAX_SEARCH_LIMIT: i64 = 100;
@@ -193,6 +196,9 @@ struct FilterBody {
     limit: i64,
     #[serde(default)]
     offset: i64,
+    scope_id: Option<Uuid>,
+    #[serde(default)]
+    all_scopes: bool,
 }
 
 fn default_filter_limit() -> i64 {
@@ -212,11 +218,21 @@ async fn get_root_items(
     Extension(actor): Extension<Actor>,
     Query(params): Query<RootItemsParams>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_read_access(
+        &state,
+        &actor,
+        &ItemScopeParams {
+            scope_id: params.scope_id,
+            all_scopes: params.all_scopes,
+        },
+    )?;
     let items = if let Some(type_name) = params.item_type {
-        state.services.item.get_items_by_type(&type_name, &account)
+        state
+            .services
+            .item
+            .get_items_by_type_in_scopes(&type_name, &access)
     } else {
-        state.services.item.get_root_items(&account)
+        state.services.item.get_root_items_in_scopes(&access)
     }
     .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
@@ -425,13 +441,20 @@ async fn filter_items(
     Extension(actor): Extension<Actor>,
     Json(body): Json<FilterBody>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
-    let account = require_account(&actor)?;
     let limit = body.limit.clamp(1, MAX_FILTER_LIMIT);
     let offset = body.offset.max(0);
+    let access = resolve_item_read_access(
+        &state,
+        &actor,
+        &ItemScopeParams {
+            scope_id: body.scope_id,
+            all_scopes: body.all_scopes,
+        },
+    )?;
     let items = state
         .services
         .item
-        .filter_items_paginated(&body.filters, limit, offset, &account)
+        .filter_items_paginated_in_scopes(&body.filters, limit, offset, &access)
         .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }

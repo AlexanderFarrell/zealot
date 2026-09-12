@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use chrono::NaiveDate;
 use serde_json::Value;
 use sqlx::PgPool;
+use uuid::Uuid;
 use zealot_app::repos::{common::RepoError, item_attribute_value::ItemAttributeValueRepo};
 use zealot_domain::{
     account::Account,
@@ -45,6 +46,12 @@ struct AttrListRow {
     value_int: Option<i32>,
     value_date: Option<chrono::DateTime<chrono::Utc>>,
     value_item_id: Option<i32>,
+}
+
+#[derive(sqlx::FromRow)]
+struct ScopedItemIdRow {
+    item_id: i32,
+    account_id: i32,
 }
 
 #[derive(sqlx::FromRow)]
@@ -625,6 +632,111 @@ impl ItemAttributeValueRepo for ItemAttributeValuePostgresRepo {
                         Id::try_from(item_id as i64).map_err(|err| RepoError::DatabaseError {
                             err: err.to_string(),
                         })
+                    })
+                    .collect()
+            })
+        })
+    }
+
+    fn find_item_ids_by_filters_in_scopes(
+        &self,
+        filters: &Vec<AttributeFilter>,
+        scope_ids: &[Uuid],
+        limit: Option<i64>,
+        offset: i64,
+    ) -> Result<Vec<(Id, Id)>, RepoError> {
+        if filters.is_empty() {
+            return Err(RepoError::DatabaseError {
+                err: String::from("no filters provided"),
+            });
+        }
+        if scope_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let filters = filters.clone();
+        let scope_ids = scope_ids.to_vec();
+        let limit = limit.map(|limit| limit.max(1));
+        let offset = offset.max(0);
+        let pool = self.pool.clone();
+
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let account_ids = sqlx::query_scalar::<_, i32>(
+                    "SELECT DISTINCT account_id FROM item WHERE scope_id = ANY($1)",
+                )
+                .bind(&scope_ids)
+                .fetch_all(&pool)
+                .await
+                .map_err(RepoError::from)?;
+                if account_ids.is_empty() {
+                    return Ok(Vec::new());
+                }
+
+                let mut branches = Vec::new();
+                let mut values = Vec::new();
+                let mut next_param = 2;
+                for account_id in account_ids {
+                    let kind_map = get_kind_scalar_map(i64::from(account_id), &pool).await?;
+                    let account_param = next_param;
+                    next_param += 1;
+                    let mut where_parts = Vec::new();
+                    let mut branch_values = vec![SqlValue::Int(i64::from(account_id))];
+                    for filter in &filters {
+                        let (clause, clause_values) =
+                            build_attr_filter_clause(filter, &kind_map, next_param)?;
+                        next_param += clause_values.len();
+                        where_parts.push(format!("({clause})"));
+                        branch_values.extend(clause_values);
+                    }
+                    branches.push(format!(
+                        "(i.account_id = ${account_param} AND {})",
+                        where_parts.join(" AND ")
+                    ));
+                    values.extend(branch_values);
+                }
+
+                let mut sql = format!(
+                    "SELECT DISTINCT i.item_id, i.account_id FROM item i
+                     WHERE i.scope_id = ANY($1)
+                       AND ({})
+                     ORDER BY i.item_id",
+                    branches.join(" OR ")
+                );
+                if limit.is_some() {
+                    sql.push_str(&format!(" LIMIT ${next_param} OFFSET ${}", next_param + 1));
+                }
+
+                let mut query = sqlx::query_as::<_, ScopedItemIdRow>(&sql).bind(&scope_ids);
+                for value in &values {
+                    query = match value {
+                        SqlValue::Str(value) => query.bind(value.clone()),
+                        SqlValue::Int(value) => query.bind(*value as i32),
+                        SqlValue::Float(value) => query.bind(*value),
+                        SqlValue::Date(value) => query.bind(*value),
+                    };
+                }
+                if let Some(limit) = limit {
+                    query = query.bind(limit).bind(offset);
+                }
+
+                query
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?
+                    .into_iter()
+                    .map(|row| {
+                        let item_id = Id::try_from(row.item_id as i64).map_err(|err| {
+                            RepoError::DatabaseError {
+                                err: err.to_string(),
+                            }
+                        })?;
+                        let account_id = Id::try_from(row.account_id as i64).map_err(|err| {
+                            RepoError::DatabaseError {
+                                err: err.to_string(),
+                            }
+                        })?;
+                        Ok((item_id, account_id))
                     })
                     .collect()
             })

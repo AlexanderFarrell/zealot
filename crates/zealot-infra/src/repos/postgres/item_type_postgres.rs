@@ -36,6 +36,12 @@ struct ItemTypeRefRow {
 }
 
 #[derive(sqlx::FromRow)]
+struct ScopedItemTypeRow {
+    item_id: i32,
+    account_id: i32,
+}
+
+#[derive(sqlx::FromRow)]
 struct ItemTypeSummaryRow {
     type_id: i32,
     name: String,
@@ -275,6 +281,53 @@ impl ItemTypeRepo for ItemTypePostgresRepo {
                         })
                     })
                     .collect()
+            })
+        })
+    }
+
+    fn get_item_ids_for_type_name_in_scopes(
+        &self,
+        name: &str,
+        scope_ids: &[uuid::Uuid],
+    ) -> Result<Vec<(Id, Id)>, RepoError> {
+        if scope_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let name = name.to_string();
+        let scope_ids = scope_ids.to_vec();
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                sqlx::query_as::<_, ScopedItemTypeRow>(
+                    "SELECT DISTINCT lnk.item_id, i.account_id
+                     FROM item_item_type_link lnk
+                     JOIN item_type it ON it.type_id = lnk.type_id
+                     JOIN item i ON i.item_id = lnk.item_id
+                     WHERE it.name = $1
+                       AND (it.account_id = i.account_id OR it.account_id IS NULL)
+                       AND i.scope_id = ANY($2)
+                     ORDER BY lnk.item_id",
+                )
+                .bind(&name)
+                .bind(&scope_ids)
+                .fetch_all(&pool)
+                .await
+                .map_err(RepoError::from)?
+                .into_iter()
+                .map(|row| {
+                    let item_id = Id::try_from(row.item_id as i64).map_err(|err| {
+                        RepoError::DatabaseError {
+                            err: err.to_string(),
+                        }
+                    })?;
+                    let account_id = Id::try_from(row.account_id as i64).map_err(|err| {
+                        RepoError::DatabaseError {
+                            err: err.to_string(),
+                        }
+                    })?;
+                    Ok((item_id, account_id))
+                })
+                .collect()
             })
         })
     }

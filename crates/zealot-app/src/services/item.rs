@@ -600,6 +600,41 @@ impl ItemService {
     }
 
     /// Returns items where the "Root" attribute is boolean `true`.
+    pub fn get_root_items_in_scopes(
+        &self,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let ids = self
+            .item_attribute_value_repo
+            .find_item_ids_by_filters_in_scopes(
+                &vec![AttributeFilter {
+                    key: String::from("Root"),
+                    op: zealot_domain::attribute::AttributeFilterOp::Equal,
+                    value: Value::Bool(true),
+                    list_mode: AttributeListMode::Any,
+                }],
+                &scope_ids,
+                None,
+                0,
+            )
+            .map_err(ItemServiceError::Repo)?;
+        self.hydrate_scoped_item_ids(ids, &scope_ids)
+    }
+
+    pub fn get_items_by_type_in_scopes(
+        &self,
+        type_name: &str,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let ids = self
+            .item_type_repo
+            .get_item_ids_for_type_name_in_scopes(type_name, &scope_ids)
+            .map_err(ItemServiceError::Repo)?;
+        self.hydrate_scoped_item_ids(ids, &scope_ids)
+    }
+
     pub fn get_root_items(&self, account: &Account) -> Result<Vec<Item>, ItemServiceError> {
         let ids = self
             .item_attribute_value_repo
@@ -701,6 +736,25 @@ impl ItemService {
             .find_item_ids_by_filters(&filters, &account.account_id, limit, offset)
             .map_err(ItemServiceError::Repo)?;
         self.hydrate_item_ids(&ids, account)
+    }
+
+    pub fn filter_items_paginated_in_scopes(
+        &self,
+        filter_dtos: &Vec<AttributeFilterDto>,
+        limit: i64,
+        offset: i64,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        let filters: Vec<AttributeFilter> = filter_dtos
+            .iter()
+            .map(|dto| AttributeFilter::try_from(dto).map_err(ItemServiceError::InvalidFilter))
+            .collect::<Result<Vec<_>, _>>()?;
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let ids = self
+            .item_attribute_value_repo
+            .find_item_ids_by_filters_in_scopes(&filters, &scope_ids, Some(limit), offset)
+            .map_err(ItemServiceError::Repo)?;
+        self.hydrate_scoped_item_ids(ids, &scope_ids)
     }
 
     // --- Mutations ---
