@@ -46,11 +46,10 @@ fn row_to_item_core(row: ItemRow) -> Result<ItemCore, RepoError> {
 }
 
 fn row_to_scoped_item(row: ScopedItemRow) -> Result<(ItemCore, Id), RepoError> {
-    let account_id = Id::try_from(i64::from(row.account_id)).map_err(|err| {
-        RepoError::DatabaseError {
+    let account_id =
+        Id::try_from(i64::from(row.account_id)).map_err(|err| RepoError::DatabaseError {
             err: err.to_string(),
-        }
-    })?;
+        })?;
     let item = row_to_item_core(ItemRow {
         item_id: row.item_id,
         title: row.title,
@@ -349,12 +348,11 @@ impl ItemRepo for ItemPostgresRepo {
                 .await
                 .map_err(RepoError::from)?;
                 row.map(|row| {
-                    let account_id =
-                        Id::try_from(i64::from(row.account_id)).map_err(|err| {
-                            RepoError::DatabaseError {
-                                err: err.to_string(),
-                            }
-                        })?;
+                    let account_id = Id::try_from(i64::from(row.account_id)).map_err(|err| {
+                        RepoError::DatabaseError {
+                            err: err.to_string(),
+                        }
+                    })?;
                     let item = row_to_item_core(ItemRow {
                         item_id: row.item_id,
                         title: row.title,
@@ -669,6 +667,37 @@ impl ItemRepo for ItemPostgresRepo {
                 .bind(&title)
                 .bind(&content)
                 .bind(account_id_val)
+                .fetch_one(&pool)
+                .await
+                .map_err(RepoError::from)?;
+
+                Ok(Some(row_to_item_core(row)?))
+            })
+        })
+    }
+
+    fn add_item_in_scope(
+        &self,
+        dto: &AddItemCoreDto,
+        account: &Account,
+        scope_id: Uuid,
+    ) -> Result<Option<ItemCore>, RepoError> {
+        let title = dto.title.clone();
+        let content = dto.content.clone();
+        let account_id_val = i64::from(account.account_id);
+        let pool = self.pool.clone();
+
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let row = sqlx::query_as::<_, ItemRow>(
+                    "INSERT INTO item (title, content, account_id, scope_id)
+                     VALUES ($1, $2, $3, $4)
+                     RETURNING item_id, title, content",
+                )
+                .bind(&title)
+                .bind(&content)
+                .bind(account_id_val)
+                .bind(scope_id)
                 .fetch_one(&pool)
                 .await
                 .map_err(RepoError::from)?;

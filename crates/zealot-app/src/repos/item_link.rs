@@ -66,6 +66,19 @@ pub trait ItemLinkRepo: Debug + Send + Sync {
         account: &Account,
     ) -> Result<(), RepoError>;
 
+    fn replace_links_for_item_in_scopes(
+        &self,
+        item_id: &Id,
+        links: &Vec<ItemLink>,
+        scope_ids: &[Uuid],
+    ) -> Result<(), RepoError> {
+        let _ = (item_id, links, scope_ids);
+        Err(RepoError::DatabaseError {
+            err: "scope-qualified link replacement is not implemented by this repository"
+                .to_string(),
+        })
+    }
+
     /// Replaces all outgoing links from `item_id` that have the given
     /// `relationship` label with a new set pointing to `linked_ids`.
     /// Links with other relationship labels are left untouched.
@@ -76,4 +89,18 @@ pub trait ItemLinkRepo: Debug + Send + Sync {
         linked_ids: &[Id],
         account: &Account,
     ) -> Result<(), RepoError>;
+
+    fn replace_links_by_relationship_in_scopes(
+        &self,
+        item_id: &Id,
+        relationship: &str,
+        linked_ids: &[Id],
+        scope_ids: &[Uuid],
+    ) -> Result<(), RepoError> {
+        let _ = (item_id, relationship, linked_ids, scope_ids);
+        Err(RepoError::DatabaseError {
+            err: "scope-qualified relationship replacement is not implemented by this repository"
+                .to_string(),
+        })
+    }
 }

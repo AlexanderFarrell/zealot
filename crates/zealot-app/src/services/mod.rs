@@ -52,6 +52,7 @@ pub struct ZealotServices {
 impl ZealotServices {
     pub fn new(ports: ZealotPorts, repos: ZealotRepos) -> Self {
         let item = Arc::new(ItemService::new(
+            &repos.account,
             &repos.item,
             &repos.item_attribute_value,
             &repos.item_external_link,

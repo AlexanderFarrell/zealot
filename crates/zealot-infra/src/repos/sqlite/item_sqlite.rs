@@ -702,6 +702,37 @@ impl ItemRepo for ItemSqliteRepo {
         })
     }
 
+    fn add_item_in_scope(
+        &self,
+        dto: &AddItemCoreDto,
+        account: &Account,
+        scope_id: Uuid,
+    ) -> Result<Option<ItemCore>, RepoError> {
+        let title = dto.title.clone();
+        let content = dto.content.clone();
+        let account_id_val = i64::from(account.account_id);
+        let pool = self.pool.clone();
+
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let row = sqlx::query_as::<_, ItemRow>(
+                    "INSERT INTO item (title, content, account_id, scope_id)
+                     VALUES (?, ?, ?, ?)
+                     RETURNING item_id, title, content",
+                )
+                .bind(&title)
+                .bind(&content)
+                .bind(account_id_val)
+                .bind(scope_id.to_string())
+                .fetch_one(&pool)
+                .await
+                .map_err(RepoError::from)?;
+
+                Ok(Some(row_to_item_core(row)?))
+            })
+        })
+    }
+
     fn update_item(
         &self,
         dto: &UpdateItemCoreDto,

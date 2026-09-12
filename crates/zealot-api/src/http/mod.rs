@@ -12,6 +12,7 @@ mod middleware;
 mod planner;
 mod repeat;
 mod rule;
+mod scope;
 mod statistic;
 mod time_block;
 

@@ -142,6 +142,17 @@ pub trait ItemRepo: Debug + Send + Sync {
         dto: &AddItemCoreDto,
         account: &Account,
     ) -> Result<Option<ItemCore>, RepoError>;
+    fn add_item_in_scope(
+        &self,
+        dto: &AddItemCoreDto,
+        account: &Account,
+        scope_id: Uuid,
+    ) -> Result<Option<ItemCore>, RepoError> {
+        let _ = (dto, account, scope_id);
+        Err(RepoError::DatabaseError {
+            err: "scope-qualified item creation is not implemented by this repository".to_string(),
+        })
+    }
     fn update_item(
         &self,
         dto: &UpdateItemCoreDto,

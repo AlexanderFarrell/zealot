@@ -434,6 +434,87 @@ impl ItemLinkRepo for ItemLinkPostgresRepo {
         })
     }
 
+    fn replace_links_for_item_in_scopes(
+        &self,
+        item_id: &Id,
+        links: &Vec<ItemLink>,
+        scope_ids: &[Uuid],
+    ) -> Result<(), RepoError> {
+        if scope_ids.is_empty() {
+            return Err(RepoError::NotFound);
+        }
+        let item_id_val = i64::from(*item_id);
+        let scope_ids = scope_ids.to_vec();
+        let mut deduped: HashMap<(Id, String), ()> = HashMap::new();
+        for link in links {
+            deduped.insert((link.other_item_id, link.relationship.clone()), ());
+        }
+        let links: Vec<ItemLink> = deduped
+            .into_keys()
+            .map(|(other_item_id, relationship)| ItemLink {
+                other_item_id,
+                relationship,
+            })
+            .collect();
+        let target_ids: Vec<i64> = links
+            .iter()
+            .map(|link| i64::from(link.other_item_id))
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+        let pool = self.pool.clone();
+
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let exists: bool = sqlx::query_scalar(
+                    "SELECT EXISTS(SELECT 1 FROM item WHERE item_id = $1 AND scope_id = ANY($2))",
+                )
+                .bind(item_id_val)
+                .bind(&scope_ids)
+                .fetch_one(&pool)
+                .await
+                .map_err(RepoError::from)?;
+                if !exists {
+                    return Err(RepoError::NotFound);
+                }
+                if !target_ids.is_empty() {
+                    let count: i64 = sqlx::query_scalar(
+                        "SELECT COUNT(DISTINCT item_id) FROM item
+                         WHERE item_id = ANY($1) AND scope_id = ANY($2)",
+                    )
+                    .bind(&target_ids)
+                    .bind(&scope_ids)
+                    .fetch_one(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
+                    if count as usize != target_ids.len() {
+                        return Err(RepoError::NotFound);
+                    }
+                }
+                let mut tx = pool.begin().await.map_err(RepoError::from)?;
+                sqlx::query("DELETE FROM item_item_link WHERE first_item_id = $1")
+                    .bind(item_id_val)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(RepoError::from)?;
+                for link in &links {
+                    sqlx::query(
+                        "INSERT INTO item_item_link (first_item_id, second_item_id, relationship)
+                         VALUES ($1, $2, $3)
+                         ON CONFLICT (first_item_id, second_item_id, relationship) DO NOTHING",
+                    )
+                    .bind(item_id_val)
+                    .bind(i64::from(link.other_item_id))
+                    .bind(&link.relationship)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(RepoError::from)?;
+                }
+                tx.commit().await.map_err(RepoError::from)
+            })
+        })
+    }
+
     fn replace_links_by_relationship(
         &self,
         item_id: &Id,
@@ -482,6 +563,81 @@ impl ItemLinkRepo for ItemLinkPostgresRepo {
                 // (We trust the service layer to validate that item_id belongs to account.)
                 let _ = account_id_val; // used implicitly through service-layer ownership check
 
+                tx.commit().await.map_err(RepoError::from)
+            })
+        })
+    }
+
+    fn replace_links_by_relationship_in_scopes(
+        &self,
+        item_id: &Id,
+        relationship: &str,
+        linked_ids: &[Id],
+        scope_ids: &[Uuid],
+    ) -> Result<(), RepoError> {
+        if scope_ids.is_empty() {
+            return Err(RepoError::NotFound);
+        }
+        let item_id_val = i64::from(*item_id);
+        let relationship = relationship.to_owned();
+        let scope_ids = scope_ids.to_vec();
+        let target_ids: Vec<i64> = linked_ids
+            .iter()
+            .map(|id| i64::from(*id))
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+        let pool = self.pool.clone();
+
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let exists: bool = sqlx::query_scalar(
+                    "SELECT EXISTS(SELECT 1 FROM item WHERE item_id = $1 AND scope_id = ANY($2))",
+                )
+                .bind(item_id_val)
+                .bind(&scope_ids)
+                .fetch_one(&pool)
+                .await
+                .map_err(RepoError::from)?;
+                if !exists {
+                    return Err(RepoError::NotFound);
+                }
+                if !target_ids.is_empty() {
+                    let count: i64 = sqlx::query_scalar(
+                        "SELECT COUNT(DISTINCT item_id) FROM item
+                         WHERE item_id = ANY($1) AND scope_id = ANY($2)",
+                    )
+                    .bind(&target_ids)
+                    .bind(&scope_ids)
+                    .fetch_one(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
+                    if count as usize != target_ids.len() {
+                        return Err(RepoError::NotFound);
+                    }
+                }
+                let mut tx = pool.begin().await.map_err(RepoError::from)?;
+                sqlx::query(
+                    "DELETE FROM item_item_link WHERE first_item_id = $1 AND relationship = $2",
+                )
+                .bind(item_id_val)
+                .bind(&relationship)
+                .execute(&mut *tx)
+                .await
+                .map_err(RepoError::from)?;
+                for target_id in &target_ids {
+                    sqlx::query(
+                        "INSERT INTO item_item_link (first_item_id, second_item_id, relationship)
+                         VALUES ($1, $2, $3)
+                         ON CONFLICT (first_item_id, second_item_id, relationship) DO NOTHING",
+                    )
+                    .bind(item_id_val)
+                    .bind(*target_id)
+                    .bind(&relationship)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(RepoError::from)?;
+                }
                 tx.commit().await.map_err(RepoError::from)
             })
         })
