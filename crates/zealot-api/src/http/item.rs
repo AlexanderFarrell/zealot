@@ -376,13 +376,14 @@ async fn get_children(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(item_id): Path<i64>,
+    Query(params): Query<ItemScopeParams>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_read_access(&state, &actor, &params)?;
     let id = parse_item_id(item_id)?;
     let items = state
         .services
         .item
-        .get_children(&id, &account)
+        .get_children_in_scopes(&id, &access)
         .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -391,13 +392,14 @@ async fn get_related(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(item_id): Path<i64>,
+    Query(params): Query<ItemScopeParams>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_read_access(&state, &actor, &params)?;
     let id = parse_item_id(item_id)?;
     let items = state
         .services
         .item
-        .get_related_items(&id, &account)
+        .get_related_items_in_scopes(&id, &access)
         .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -406,13 +408,14 @@ async fn get_backlinks(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(item_id): Path<i64>,
+    Query(params): Query<ItemScopeParams>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_read_access(&state, &actor, &params)?;
     let id = parse_item_id(item_id)?;
     let items = state
         .services
         .item
-        .get_backlinks(&id, &account)
+        .get_backlinks_in_scopes(&id, &access)
         .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }

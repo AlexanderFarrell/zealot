@@ -1,11 +1,36 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use zealot_domain::{account::Account, common::id::Id, item::ItemLink};
 use uuid::Uuid;
+use zealot_domain::{account::Account, common::id::Id, item::ItemLink};
 
 use crate::repos::common::RepoError;
 
 pub trait ItemLinkRepo: Debug + Send + Sync {
+    fn get_source_item_ids_in_scopes(
+        &self,
+        target_item_id: &Id,
+        relationship: &str,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<(Id, Id)>, RepoError> {
+        let _ = (target_item_id, relationship, scope_ids);
+        Err(RepoError::DatabaseError {
+            err: "scope-qualified source item lookup is not implemented by this repository"
+                .to_string(),
+        })
+    }
+
+    fn get_related_item_ids_in_scopes(
+        &self,
+        item_id: &Id,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<(Id, Id)>, RepoError> {
+        let _ = (item_id, scope_ids);
+        Err(RepoError::DatabaseError {
+            err: "scope-qualified related item lookup is not implemented by this repository"
+                .to_string(),
+        })
+    }
+
     fn get_links_for_items_in_scopes(
         &self,
         item_ids: &Vec<Id>,

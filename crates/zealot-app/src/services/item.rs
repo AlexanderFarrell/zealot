@@ -161,6 +161,24 @@ impl ItemService {
         Ok(hydrated)
     }
 
+    fn hydrate_scoped_item_ids(
+        &self,
+        item_ids: Vec<(Id, Id)>,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        let mut items = Vec::with_capacity(item_ids.len());
+        for (item_id, owner_account_id) in item_ids {
+            if let Some((item, _)) = self
+                .item_repo
+                .get_item_by_id_in_scopes(&item_id, scope_ids)
+                .map_err(ItemServiceError::Repo)?
+            {
+                items.push((item, owner_account_id));
+            }
+        }
+        self.hydrate_scoped_items(items, scope_ids)
+    }
+
     pub fn get_items_by_title_in_scopes(
         &self,
         title: &str,
@@ -349,6 +367,45 @@ impl ItemService {
             }
         }
         self.hydrate_scoped_items(items, &scope_ids)
+    }
+
+    pub fn get_children_in_scopes(
+        &self,
+        item_id: &Id,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let items = self
+            .item_link_repo
+            .get_source_item_ids_in_scopes(item_id, relationship::PARENT, &scope_ids)
+            .map_err(ItemServiceError::Repo)?;
+        self.hydrate_scoped_item_ids(items, &scope_ids)
+    }
+
+    pub fn get_related_items_in_scopes(
+        &self,
+        item_id: &Id,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let items = self
+            .item_link_repo
+            .get_related_item_ids_in_scopes(item_id, &scope_ids)
+            .map_err(ItemServiceError::Repo)?;
+        self.hydrate_scoped_item_ids(items, &scope_ids)
+    }
+
+    pub fn get_backlinks_in_scopes(
+        &self,
+        item_id: &Id,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let items = self
+            .item_link_repo
+            .get_source_item_ids_in_scopes(item_id, "wikilink", &scope_ids)
+            .map_err(ItemServiceError::Repo)?;
+        self.hydrate_scoped_item_ids(items, &scope_ids)
     }
 
     pub fn get_items_by_title(
