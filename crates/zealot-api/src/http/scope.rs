@@ -4,6 +4,7 @@ use zealot_app::{
     app::AppState,
     services::scope::{ScopeAccess, ScopeAccessError},
 };
+use zealot_domain::{account::Account, common::id::Id};
 use zealot_domain::{auth::Actor, scope::ScopePermission};
 
 use super::common::HttpError;
@@ -83,4 +84,38 @@ pub fn delete_scope_access(
     query: &ScopeQuery,
 ) -> Result<ScopeAccess, HttpError> {
     resolve_scope_access(state, actor, query, ScopePermission::DeleteItems, false)
+}
+
+pub fn resolve_scope_owner_account(
+    state: &AppState,
+    actor: &Actor,
+    access: &ScopeAccess,
+) -> Result<Account, HttpError> {
+    if let Some(account) = actor.account.clone() {
+        return Ok(account);
+    }
+    let scope = access.scopes.first().ok_or(HttpError::Forbidden)?;
+    let principal = state
+        .services
+        .scope
+        .principal_by_id(scope.owner_principal_id)
+        .map_err(|error| {
+            tracing::error!(%error, "Failed to resolve scope owner principal");
+            HttpError::Internal
+        })?
+        .ok_or(HttpError::Forbidden)?;
+    let account_id = principal.account_id.ok_or(HttpError::Forbidden)?;
+    let account_id = Id::try_from(account_id).map_err(|error| {
+        tracing::error!(%error, "Scope owner has an invalid account id");
+        HttpError::Internal
+    })?;
+    state
+        .services
+        .account
+        .get_account_by_id(&account_id)
+        .map_err(|error| {
+            tracing::error!(%error, "Failed to resolve scope owner account");
+            HttpError::Internal
+        })?
+        .ok_or(HttpError::Forbidden)
 }

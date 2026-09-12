@@ -1,9 +1,9 @@
 use axum::{
-    Extension, Json, Router,
     extract::{Path, Query, State},
     http::StatusCode,
     middleware,
     routing::{delete, get, patch, post},
+    Extension, Json, Router,
 };
 use serde::Deserialize;
 use sqlx::types::chrono::NaiveDate;
@@ -17,6 +17,10 @@ use zealot_domain::{
 use crate::http::{
     common::HttpError,
     middleware::{auth_middleware, csrf_middleware},
+    scope::{
+        create_scope_access, delete_scope_access, read_scope_access, resolve_scope_owner_account,
+        update_scope_access, ScopeQuery,
+    },
 };
 
 pub fn routes(state: AppState) -> Router<AppState> {
@@ -41,14 +45,7 @@ pub fn routes(state: AppState) -> Router<AppState> {
 #[derive(Deserialize)]
 struct RangeParams {
     start: String,
-    end:   String,
-}
-
-fn require_account(actor: &Actor) -> Result<zealot_domain::account::Account, HttpError> {
-    if !actor.is_authenticated() {
-        return Err(HttpError::Unauthorized);
-    }
-    actor.account.clone().ok_or(HttpError::Unauthorized)
+    end: String,
 }
 
 fn service_err(err: TimeBlockServiceError) -> HttpError {
@@ -65,15 +62,16 @@ async fn get_for_day(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(date): Path<String>,
+    Query(query): Query<ScopeQuery>,
 ) -> Result<Json<Vec<TimeBlockDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = read_scope_access(&state, &actor, &query)?;
     let day = NaiveDate::parse_from_str(&date, "%Y-%m-%d").map_err(|e| HttpError::UserError {
         err: format!("invalid date '{}': {}", date, e),
     })?;
     let blocks = state
         .services
         .time_block
-        .get_for_day(&day, &account)
+        .get_for_day_in_scopes(&day, &access)
         .await
         .map_err(service_err)?;
     Ok(Json(blocks.into_iter().map(TimeBlockDto::from).collect()))
@@ -83,8 +81,9 @@ async fn get_for_range(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Query(params): Query<RangeParams>,
+    Query(query): Query<ScopeQuery>,
 ) -> Result<Json<Vec<TimeBlockDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = read_scope_access(&state, &actor, &query)?;
     let start =
         NaiveDate::parse_from_str(&params.start, "%Y-%m-%d").map_err(|e| HttpError::UserError {
             err: format!("invalid start date '{}': {}", params.start, e),
@@ -101,7 +100,7 @@ async fn get_for_range(
     let blocks = state
         .services
         .time_block
-        .get_for_range(&start, &end, &account)
+        .get_for_range_in_scopes(&start, &end, &access)
         .await
         .map_err(service_err)?;
     Ok(Json(blocks.into_iter().map(TimeBlockDto::from).collect()))
@@ -111,15 +110,16 @@ async fn get_for_item(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(item_id): Path<i64>,
+    Query(query): Query<ScopeQuery>,
 ) -> Result<Json<Vec<TimeBlockDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = read_scope_access(&state, &actor, &query)?;
     let id = Id::try_from(item_id).map_err(|_| HttpError::UserError {
         err: "invalid item_id".to_string(),
     })?;
     let blocks = state
         .services
         .time_block
-        .get_for_item(id, &account)
+        .get_for_item_in_scopes(id, &access)
         .await
         .map_err(service_err)?;
     Ok(Json(blocks.into_iter().map(TimeBlockDto::from).collect()))
@@ -128,13 +128,15 @@ async fn get_for_item(
 async fn create(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
+    Query(query): Query<ScopeQuery>,
     Json(dto): Json<CreateTimeBlockDto>,
 ) -> Result<Json<TimeBlockDto>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = create_scope_access(&state, &actor, &query)?;
+    let owner_account = resolve_scope_owner_account(&state, &actor, &access)?;
     let block = state
         .services
         .time_block
-        .create(&dto, &account)
+        .create_in_scopes(&dto, &access, &owner_account)
         .await
         .map_err(service_err)?;
     Ok(Json(TimeBlockDto::from(block)))
@@ -144,14 +146,15 @@ async fn update(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(block_id): Path<i64>,
+    Query(query): Query<ScopeQuery>,
     Json(mut dto): Json<UpdateTimeBlockDto>,
 ) -> Result<StatusCode, HttpError> {
-    let account = require_account(&actor)?;
+    let access = update_scope_access(&state, &actor, &query)?;
     dto.block_id = block_id;
     state
         .services
         .time_block
-        .update(&dto, &account)
+        .update_in_scopes(&dto, &access)
         .await
         .map(|_| StatusCode::NO_CONTENT)
         .map_err(service_err)
@@ -161,15 +164,16 @@ async fn delete_block(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(block_id): Path<i64>,
+    Query(query): Query<ScopeQuery>,
 ) -> Result<StatusCode, HttpError> {
-    let account = require_account(&actor)?;
+    let access = delete_scope_access(&state, &actor, &query)?;
     let id = Id::try_from(block_id).map_err(|_| HttpError::UserError {
         err: "invalid block_id".to_string(),
     })?;
     state
         .services
         .time_block
-        .delete(id, &account)
+        .delete_in_scopes(id, &access)
         .await
         .map(|_| StatusCode::NO_CONTENT)
         .map_err(service_err)

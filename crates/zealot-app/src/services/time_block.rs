@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use chrono::NaiveDate;
+use uuid::Uuid;
 use zealot_domain::{
     account::Account,
     common::id::Id,
@@ -10,6 +11,7 @@ use zealot_domain::{
 use crate::repos::{common::RepoError, time_block::TimeBlockRepo};
 
 use super::item::ItemService;
+use super::scope::ScopeAccess;
 
 #[derive(Debug)]
 pub struct TimeBlockService {
@@ -147,5 +149,112 @@ impl TimeBlockService {
             .collect();
 
         Ok(blocks)
+    }
+
+    fn scope_ids(access: &ScopeAccess) -> Vec<Uuid> {
+        access.scopes.iter().map(|scope| scope.scope_id).collect()
+    }
+
+    fn hydrate_scoped(
+        &self,
+        cores: Vec<TimeBlockCore>,
+        access: &ScopeAccess,
+    ) -> Result<Vec<TimeBlock>, TimeBlockServiceError> {
+        let mut blocks = Vec::with_capacity(cores.len());
+        for core in cores {
+            let item = self
+                .item_service
+                .get_item_by_id_in_scopes(&core.item_id, access)
+                .map_err(|_| TimeBlockServiceError::NotFound)?
+                .ok_or(TimeBlockServiceError::NotFound)?;
+            blocks.push(TimeBlock {
+                block_id: core.block_id,
+                item,
+                date: core.date,
+                start_min: core.start_min,
+                end_min: core.end_min,
+                note: core.note,
+            });
+        }
+        Ok(blocks)
+    }
+
+    pub async fn get_for_day_in_scopes(
+        &self,
+        date: &NaiveDate,
+        access: &ScopeAccess,
+    ) -> Result<Vec<TimeBlock>, TimeBlockServiceError> {
+        self.hydrate_scoped(
+            self.repo
+                .get_for_day_in_scopes(date, &Self::scope_ids(access))?,
+            access,
+        )
+    }
+
+    pub async fn get_for_range_in_scopes(
+        &self,
+        start: &NaiveDate,
+        end: &NaiveDate,
+        access: &ScopeAccess,
+    ) -> Result<Vec<TimeBlock>, TimeBlockServiceError> {
+        self.hydrate_scoped(
+            self.repo
+                .get_for_range_in_scopes(start, end, &Self::scope_ids(access))?,
+            access,
+        )
+    }
+
+    pub async fn get_for_item_in_scopes(
+        &self,
+        item_id: Id,
+        access: &ScopeAccess,
+    ) -> Result<Vec<TimeBlock>, TimeBlockServiceError> {
+        if self
+            .item_service
+            .get_item_by_id_in_scopes(&item_id, access)
+            .map_err(|_| TimeBlockServiceError::NotFound)?
+            .is_none()
+        {
+            return Err(TimeBlockServiceError::NotFound);
+        }
+        self.hydrate_scoped(
+            self.repo
+                .get_for_item_in_scopes(item_id, &Self::scope_ids(access))?,
+            access,
+        )
+    }
+
+    pub async fn create_in_scopes(
+        &self,
+        dto: &CreateTimeBlockDto,
+        access: &ScopeAccess,
+        owner_account: &Account,
+    ) -> Result<TimeBlock, TimeBlockServiceError> {
+        let core = self
+            .repo
+            .create_in_scopes(dto, owner_account, &Self::scope_ids(access))?;
+        self.hydrate_scoped(vec![core], access)?
+            .into_iter()
+            .next()
+            .ok_or(TimeBlockServiceError::NotFound)
+    }
+
+    pub async fn update_in_scopes(
+        &self,
+        dto: &UpdateTimeBlockDto,
+        access: &ScopeAccess,
+    ) -> Result<(), TimeBlockServiceError> {
+        self.repo.update_in_scopes(dto, &Self::scope_ids(access))?;
+        Ok(())
+    }
+
+    pub async fn delete_in_scopes(
+        &self,
+        block_id: Id,
+        access: &ScopeAccess,
+    ) -> Result<(), TimeBlockServiceError> {
+        self.repo
+            .delete_in_scopes(block_id, &Self::scope_ids(access))?;
+        Ok(())
     }
 }
