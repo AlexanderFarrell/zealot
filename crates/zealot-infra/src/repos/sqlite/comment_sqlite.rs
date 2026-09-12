@@ -1,5 +1,6 @@
 use chrono::NaiveDateTime;
 use sqlx::SqlitePool;
+use uuid::Uuid;
 use zealot_app::repos::{comment::CommentRepo, common::RepoError};
 use zealot_domain::{
     comment::{AddCommentDto, CommentCore, UpdateCommentDto},
@@ -222,6 +223,216 @@ impl CommentRepo for CommentSqliteRepo {
                 .await
                 .map(|_| ())
                 .map_err(RepoError::from)
+            })
+        })
+    }
+
+    fn get_for_day_in_scopes(
+        &self,
+        day: &chrono::NaiveDate,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<CommentCore>, RepoError> {
+        if scope_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let day_start = day.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp();
+        let day_end = day
+            .succ_opt()
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_utc()
+            .timestamp();
+        let scope_ids: Vec<String> = scope_ids.iter().map(Uuid::to_string).collect();
+        let placeholders = scope_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let sql = format!(
+                    "SELECT c.comment_id, c.item_id, c.time, c.content
+                     FROM comment c JOIN item i ON i.item_id = c.item_id
+                     WHERE i.scope_id IN ({}) AND c.time >= ? AND c.time < ?
+                     ORDER BY c.time ASC",
+                    placeholders
+                );
+                let mut query = sqlx::query_as::<_, CommentRow>(&sql);
+                for scope_id in &scope_ids {
+                    query = query.bind(scope_id);
+                }
+                let rows = query
+                    .bind(day_start)
+                    .bind(day_end)
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
+                rows.into_iter().map(row_to_comment_core).collect()
+            })
+        })
+    }
+
+    fn get_for_item_in_scopes(
+        &self,
+        item_id: &Id,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<CommentCore>, RepoError> {
+        if scope_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let item_id_val = i64::from(*item_id);
+        let scope_ids: Vec<String> = scope_ids.iter().map(Uuid::to_string).collect();
+        let placeholders = scope_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let sql = format!(
+                    "SELECT c.comment_id, c.item_id, c.time, c.content
+                     FROM comment c JOIN item i ON i.item_id = c.item_id
+                     WHERE c.item_id = ? AND i.scope_id IN ({})
+                     ORDER BY c.time ASC",
+                    placeholders
+                );
+                let mut query = sqlx::query_as::<_, CommentRow>(&sql).bind(item_id_val);
+                for scope_id in &scope_ids {
+                    query = query.bind(scope_id);
+                }
+                query
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?
+                    .into_iter()
+                    .map(row_to_comment_core)
+                    .collect()
+            })
+        })
+    }
+
+    fn add_comment_in_scopes(
+        &self,
+        dto: &AddCommentDto,
+        scope_ids: &[Uuid],
+    ) -> Result<Option<CommentCore>, RepoError> {
+        if scope_ids.is_empty() {
+            return Err(RepoError::NotFound);
+        }
+        let item_id_val = dto.item_id;
+        let timestamp_unix = parse_timestamp(&dto.timestamp)?;
+        let content = dto.content.clone();
+        let scope_ids: Vec<String> = scope_ids.iter().map(Uuid::to_string).collect();
+        let placeholders = scope_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let sql = format!(
+                    "SELECT item_id FROM item WHERE item_id = ? AND scope_id IN ({})",
+                    placeholders
+                );
+                let mut query = sqlx::query_scalar::<_, i64>(&sql).bind(item_id_val);
+                for scope_id in &scope_ids {
+                    query = query.bind(scope_id);
+                }
+                if query
+                    .fetch_optional(&pool)
+                    .await
+                    .map_err(RepoError::from)?
+                    .is_none()
+                {
+                    return Err(RepoError::NotFound);
+                }
+                let row = sqlx::query_as::<_, CommentRow>(
+                    "INSERT INTO comment (item_id, time, content)
+                     VALUES (?, ?, ?) RETURNING comment_id, item_id, time, content",
+                )
+                .bind(item_id_val)
+                .bind(timestamp_unix)
+                .bind(&content)
+                .fetch_one(&pool)
+                .await
+                .map_err(RepoError::from)?;
+                Ok(Some(row_to_comment_core(row)?))
+            })
+        })
+    }
+
+    fn update_comment_in_scopes(
+        &self,
+        dto: &UpdateCommentDto,
+        scope_ids: &[Uuid],
+    ) -> Result<Option<CommentCore>, RepoError> {
+        if scope_ids.is_empty() {
+            return Ok(None);
+        }
+        let comment_id_val = dto.comment_id;
+        let new_timestamp = dto.timestamp.as_deref().map(parse_timestamp).transpose()?;
+        let new_content = dto.content.clone();
+        let scope_ids: Vec<String> = scope_ids.iter().map(Uuid::to_string).collect();
+        let placeholders = scope_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let update_sql = format!(
+                    "UPDATE comment SET time = COALESCE(?, time), content = COALESCE(?, content),
+                     last_updated = strftime('%s', 'now')
+                     WHERE comment_id = ? AND item_id IN
+                     (SELECT item_id FROM item WHERE scope_id IN ({}))",
+                    placeholders
+                );
+                let mut update = sqlx::query(&update_sql)
+                    .bind(new_timestamp)
+                    .bind(new_content)
+                    .bind(comment_id_val);
+                for scope_id in &scope_ids {
+                    update = update.bind(scope_id);
+                }
+                update.execute(&pool).await.map_err(RepoError::from)?;
+
+                let select_sql = format!(
+                    "SELECT c.comment_id, c.item_id, c.time, c.content
+                     FROM comment c JOIN item i ON i.item_id = c.item_id
+                     WHERE c.comment_id = ? AND i.scope_id IN ({})",
+                    placeholders
+                );
+                let mut select = sqlx::query_as::<_, CommentRow>(&select_sql).bind(comment_id_val);
+                for scope_id in &scope_ids {
+                    select = select.bind(scope_id);
+                }
+                select
+                    .fetch_optional(&pool)
+                    .await
+                    .map_err(RepoError::from)?
+                    .map(row_to_comment_core)
+                    .transpose()
+            })
+        })
+    }
+
+    fn delete_comment_in_scopes(
+        &self,
+        comment_id: &Id,
+        scope_ids: &[Uuid],
+    ) -> Result<(), RepoError> {
+        if scope_ids.is_empty() {
+            return Ok(());
+        }
+        let comment_id_val = i64::from(*comment_id);
+        let scope_ids: Vec<String> = scope_ids.iter().map(Uuid::to_string).collect();
+        let placeholders = scope_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let sql = format!(
+                    "DELETE FROM comment WHERE comment_id = ? AND item_id IN
+                     (SELECT item_id FROM item WHERE scope_id IN ({}))",
+                    placeholders
+                );
+                let mut query = sqlx::query(&sql).bind(comment_id_val);
+                for scope_id in &scope_ids {
+                    query = query.bind(scope_id);
+                }
+                query
+                    .execute(&pool)
+                    .await
+                    .map(|_| ())
+                    .map_err(RepoError::from)
             })
         })
     }

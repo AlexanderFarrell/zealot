@@ -153,6 +153,21 @@ impl ScopeRepo for ScopeSqliteRepo {
             })
         })
     }
+    fn principal_by_id(&self, id: Uuid) -> Result<Option<ServerPrincipal>, RepoError> {
+        let p = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                sqlx::query_as::<_, PrincipalRow>(&format!(
+                    "SELECT {P} FROM server_principal WHERE principal_id=?"
+                ))
+                .bind(id.to_string())
+                .fetch_optional(&p)
+                .await?
+                .map(principal)
+                .transpose()
+            })
+        })
+    }
     fn default_scope_for_account(&self, a: i64) -> Result<Option<Scope>, RepoError> {
         let p = self.pool.clone();
         tokio::task::block_in_place(|| {
@@ -172,12 +187,14 @@ impl ScopeRepo for ScopeSqliteRepo {
         let p = self.pool.clone();
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
-                sqlx::query_as::<_, ScopeRow>(&format!("SELECT {S} FROM scope sc WHERE sc.scope_id=?"))
-                    .bind(id.to_string())
-                    .fetch_optional(&p)
-                    .await?
-                    .map(scope)
-                    .transpose()
+                sqlx::query_as::<_, ScopeRow>(&format!(
+                    "SELECT {S} FROM scope sc WHERE sc.scope_id=?"
+                ))
+                .bind(id.to_string())
+                .fetch_optional(&p)
+                .await?
+                .map(scope)
+                .transpose()
             })
         })
     }

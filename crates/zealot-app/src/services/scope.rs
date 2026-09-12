@@ -1,7 +1,8 @@
 use std::sync::Arc;
 use uuid::Uuid;
 use zealot_domain::scope::{
-    Scope, ScopeMember, ScopeMemberStatus, ScopePermission, ScopeRole, ServerPrincipal,
+    PrincipalStatus, Scope, ScopeMember, ScopeMemberStatus, ScopePermission, ScopeRole,
+    ServerPrincipal,
 };
 
 use crate::{
@@ -65,6 +66,12 @@ impl ScopeService {
     ) -> Result<Option<ServerPrincipal>, RepoError> {
         self.repo.principal_for_api_key_hash(key_hash)
     }
+    pub fn principal_by_id(
+        &self,
+        principal_id: Uuid,
+    ) -> Result<Option<ServerPrincipal>, RepoError> {
+        self.repo.principal_by_id(principal_id)
+    }
 
     /// Authorizes a principal against the persisted active membership.  This is
     /// the single role-to-grant decision point for HTTP and application code.
@@ -74,6 +81,12 @@ impl ScopeService {
         scope_id: Uuid,
         permission: ScopePermission,
     ) -> Result<bool, RepoError> {
+        let Some(principal) = self.repo.principal_by_id(principal_id)? else {
+            return Ok(false);
+        };
+        if principal.status != PrincipalStatus::Active {
+            return Ok(false);
+        }
         let Some(scope) = self.repo.scope_by_id(scope_id)? else {
             return Ok(false);
         };
@@ -112,6 +125,12 @@ impl ScopeService {
         read_only: bool,
     ) -> Result<ScopeAccess, ScopeAccessError> {
         let principal_id = principal_id.ok_or(ScopeAccessError::MissingPrincipal)?;
+        let Some(principal) = self.repo.principal_by_id(principal_id)? else {
+            return Err(ScopeAccessError::MissingPrincipal);
+        };
+        if principal.status != PrincipalStatus::Active {
+            return Err(ScopeAccessError::MissingPrincipal);
+        }
         if all_scopes {
             if !read_only {
                 return Err(ScopeAccessError::AllScopesMutation);
@@ -122,17 +141,31 @@ impl ScopeService {
                     scopes.push(scope);
                 }
             }
-            return Ok(ScopeAccess { principal_id, scopes, permission, read_only });
+            return Ok(ScopeAccess {
+                principal_id,
+                scopes,
+                permission,
+                read_only,
+            });
         }
 
         let scope = match requested {
-            Some(scope_id) => self.scope_by_id(scope_id)?.ok_or(ScopeAccessError::NotFound)?,
-            None => self.default_scope_for_principal(principal_id)?.ok_or(ScopeAccessError::DefaultUnavailable)?,
+            Some(scope_id) => self
+                .scope_by_id(scope_id)?
+                .ok_or(ScopeAccessError::NotFound)?,
+            None => self
+                .default_scope_for_principal(principal_id)?
+                .ok_or(ScopeAccessError::DefaultUnavailable)?,
         };
         if !self.authorize(principal_id, scope.scope_id, permission)? {
             return Err(ScopeAccessError::Forbidden);
         }
-        Ok(ScopeAccess { principal_id, scopes: vec![scope], permission, read_only })
+        Ok(ScopeAccess {
+            principal_id,
+            scopes: vec![scope],
+            permission,
+            read_only,
+        })
     }
 
     /// Resolves the API's scope controls.  A missing selection uses the

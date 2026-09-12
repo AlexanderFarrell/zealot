@@ -3,7 +3,10 @@
 use std::sync::Arc;
 
 use uuid::Uuid;
-use zealot_domain::{account::ApiKeyRecord, common::id::Id};
+use zealot_domain::{
+    account::{Account, ApiKeyRecord},
+    common::id::Id,
+};
 
 use crate::{
     repos::{account::AccountRepo, common::RepoError},
@@ -27,6 +30,10 @@ impl AccountService {
         settings: serde_json::Value,
     ) -> Result<(), RepoError> {
         self.repo.update_settings(account_id, &settings)
+    }
+
+    pub fn get_account_by_id(&self, account_id: &Id) -> Result<Option<Account>, RepoError> {
+        self.repo.get_account_by_id(account_id)
     }
 
     /// Generates a new API key, stores its hash, and returns the record plus the raw key (shown once).

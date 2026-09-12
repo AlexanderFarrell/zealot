@@ -1,8 +1,8 @@
 use axum::{
-    Extension, Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     middleware,
     routing::get,
+    Extension, Json, Router,
 };
 use sqlx::types::chrono::NaiveDate;
 use zealot_app::{
@@ -14,6 +14,7 @@ use zealot_domain::{attribute::Week, auth::Actor, item::ItemDto};
 use crate::http::{
     common::HttpError,
     middleware::{auth_middleware, csrf_middleware},
+    scope::{read_scope_access, ScopeQuery},
 };
 
 pub fn routes(state: AppState) -> Router<AppState> {
@@ -31,13 +32,6 @@ pub fn routes(state: AppState) -> Router<AppState> {
             auth_middleware,
         ))
         .with_state(state)
-}
-
-fn require_account(actor: &Actor) -> Result<zealot_domain::account::Account, HttpError> {
-    if !actor.is_authenticated() {
-        return Err(HttpError::Unauthorized);
-    }
-    actor.account.clone().ok_or(HttpError::Unauthorized)
 }
 
 fn item_service_err(err: ItemServiceError) -> HttpError {
@@ -65,8 +59,9 @@ async fn get_for_day(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(date): Path<String>,
+    Query(query): Query<ScopeQuery>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = read_scope_access(&state, &actor, &query)?;
     let parsed =
         NaiveDate::parse_from_str(&date, "%Y-%m-%d").map_err(|e| HttpError::UserError {
             err: format!("invalid date '{}': {}", date, e),
@@ -74,7 +69,7 @@ async fn get_for_day(
     let items = state
         .services
         .planner
-        .get_for_day(&parsed, &account)
+        .get_for_day_in_scopes(&parsed, &access)
         .map_err(planner_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -83,14 +78,15 @@ async fn get_for_week(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(week): Path<String>,
+    Query(query): Query<ScopeQuery>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = read_scope_access(&state, &actor, &query)?;
     let parsed =
         Week::try_from(week.as_str()).map_err(|e| HttpError::UserError { err: e.to_string() })?;
     let items = state
         .services
         .planner
-        .get_for_week(&parsed, &account)
+        .get_for_week_in_scopes(&parsed, &access)
         .map_err(planner_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -99,8 +95,9 @@ async fn get_for_month(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path((month, year)): Path<(i64, i64)>,
+    Query(query): Query<ScopeQuery>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = read_scope_access(&state, &actor, &query)?;
     if !(1..=12).contains(&month) {
         return Err(HttpError::UserError {
             err: format!("invalid month '{}': expected 1-12", month),
@@ -110,7 +107,7 @@ async fn get_for_month(
     let items = state
         .services
         .planner
-        .get_for_month(month, year, &account)
+        .get_for_month_in_scopes(month, year, &access)
         .map_err(planner_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -119,12 +116,13 @@ async fn get_for_year(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(year): Path<i64>,
+    Query(query): Query<ScopeQuery>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = read_scope_access(&state, &actor, &query)?;
     let items = state
         .services
         .planner
-        .get_for_year(year, &account)
+        .get_for_year_in_scopes(year, &access)
         .map_err(planner_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }

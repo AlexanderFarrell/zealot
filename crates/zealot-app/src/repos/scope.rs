@@ -22,6 +22,7 @@ pub trait ScopeRepo: Debug + Send + Sync {
         &self,
         key_hash: &str,
     ) -> Result<Option<ServerPrincipal>, RepoError>;
+    fn principal_by_id(&self, principal_id: Uuid) -> Result<Option<ServerPrincipal>, RepoError>;
     fn default_scope_for_account(&self, account_id: i64) -> Result<Option<Scope>, RepoError>;
     fn default_scope_for_principal(&self, principal_id: Uuid) -> Result<Option<Scope>, RepoError>;
     /// Resolves a scope independently of membership. Callers must still apply

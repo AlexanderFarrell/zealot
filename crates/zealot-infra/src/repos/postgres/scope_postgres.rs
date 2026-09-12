@@ -140,6 +140,21 @@ impl ScopeRepo for ScopePostgresRepo {
             })
         })
     }
+    fn principal_by_id(&self, id: Uuid) -> Result<Option<ServerPrincipal>, RepoError> {
+        let p = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                sqlx::query_as::<_, PR>(&format!(
+                    "SELECT {P} FROM server_principal WHERE principal_id=$1"
+                ))
+                .bind(id)
+                .fetch_optional(&p)
+                .await?
+                .map(pr)
+                .transpose()
+            })
+        })
+    }
     fn default_scope_for_account(&self, a: i64) -> Result<Option<Scope>, RepoError> {
         let p = self.pool.clone();
         tokio::task::block_in_place(|| {
