@@ -99,7 +99,7 @@ fn member(r: MemberRow) -> Result<ScopeMember, RepoError> {
 }
 const P: &str = "principal_id, server_id, kind, account_id, display_name, status, default_scope_id, created_at, retired_at";
 const S: &str =
-    "scope_id, server_id, title, description, status, owner_principal_id, created_at, updated_at";
+    "sc.scope_id, sc.server_id, sc.title, sc.description, sc.status, sc.owner_principal_id, sc.created_at, sc.updated_at";
 const M: &str = "scope_id, principal_id, role, status, created_at, updated_at";
 impl ScopeRepo for ScopeSqliteRepo {
     fn server_metadata(&self) -> Result<ServerMetadata, RepoError> {
@@ -172,7 +172,7 @@ impl ScopeRepo for ScopeSqliteRepo {
         let p = self.pool.clone();
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
-                sqlx::query_as::<_, ScopeRow>(&format!("SELECT {S} FROM scope WHERE scope_id=?"))
+                sqlx::query_as::<_, ScopeRow>(&format!("SELECT {S} FROM scope sc WHERE sc.scope_id=?"))
                     .bind(id.to_string())
                     .fetch_optional(&p)
                     .await?

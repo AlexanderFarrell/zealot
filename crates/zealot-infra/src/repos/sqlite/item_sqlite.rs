@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
 use sqlx::SqlitePool;
+use uuid::Uuid;
 use zealot_app::repos::{common::RepoError, item::ItemRepo};
 use zealot_domain::{
     account::Account,
     common::id::Id,
     item::{AddItemCoreDto, ItemCore, UpdateItemCoreDto},
 };
-use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct ItemSqliteRepo {
@@ -45,6 +45,18 @@ fn row_to_item_core(row: ItemRow) -> Result<ItemCore, RepoError> {
     })
 }
 
+fn row_to_scoped_item(row: ScopedItemRow) -> Result<(ItemCore, Id), RepoError> {
+    let account_id = Id::try_from(row.account_id).map_err(|err| RepoError::DatabaseError {
+        err: err.to_string(),
+    })?;
+    let item = row_to_item_core(ItemRow {
+        item_id: row.item_id,
+        title: row.title,
+        content: row.content,
+    })?;
+    Ok((item, account_id))
+}
+
 async fn fetch_items_by_ids(
     item_ids: &Vec<Id>,
     account_id: i64,
@@ -79,6 +91,279 @@ async fn fetch_items_by_ids(
 }
 
 impl ItemRepo for ItemSqliteRepo {
+    fn get_items_by_title_in_scopes(
+        &self,
+        title: &str,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<(ItemCore, Id)>, RepoError> {
+        if scope_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let title = title.to_string();
+        let scope_ids: Vec<String> = scope_ids.iter().map(Uuid::to_string).collect();
+        let placeholders = scope_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let sql = format!(
+            "SELECT item_id, title, content, account_id FROM item
+             WHERE title = ? AND scope_id IN ({}) ORDER BY item_id",
+            placeholders
+        );
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let mut query = sqlx::query_as::<_, ScopedItemRow>(&sql).bind(&title);
+                for scope_id in &scope_ids {
+                    query = query.bind(scope_id);
+                }
+                query
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?
+                    .into_iter()
+                    .map(row_to_scoped_item)
+                    .collect()
+            })
+        })
+    }
+
+    fn search_items_by_title_in_scopes(
+        &self,
+        term: &str,
+        limit: i64,
+        offset: i64,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<(ItemCore, Id)>, RepoError> {
+        if scope_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let trimmed = term.trim().to_string();
+        let scope_ids: Vec<String> = scope_ids.iter().map(Uuid::to_string).collect();
+        let placeholders = scope_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let sql = if trimmed.is_empty() {
+            format!(
+                "SELECT i.item_id, i.title, i.content, i.account_id FROM item i
+                 LEFT JOIN (SELECT item_id, COUNT(*) as view_count FROM item_view GROUP BY item_id) iv ON iv.item_id = i.item_id
+                 WHERE i.title LIKE '%' AND i.scope_id IN ({})
+                 ORDER BY COALESCE(iv.view_count, 0) DESC, i.item_id DESC LIMIT ? OFFSET ?",
+                placeholders
+            )
+        } else {
+            format!(
+                "SELECT i.item_id, i.title, i.content, i.account_id FROM item i
+                 LEFT JOIN (SELECT item_id, COUNT(*) as view_count FROM item_view GROUP BY item_id) iv ON iv.item_id = i.item_id
+                 WHERE i.title LIKE ? AND i.scope_id IN ({})
+                 ORDER BY CASE WHEN LOWER(i.title) = LOWER(?) THEN 0 ELSE 1 END ASC,
+                          COALESCE(iv.view_count, 0) DESC, i.item_id DESC LIMIT ? OFFSET ?",
+                placeholders
+            )
+        };
+        let pattern = format!("%{}%", trimmed);
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let mut query = sqlx::query_as::<_, ScopedItemRow>(&sql);
+                if trimmed.is_empty() {
+                    for scope_id in &scope_ids {
+                        query = query.bind(scope_id);
+                    }
+                } else {
+                    query = query.bind(&pattern);
+                    for scope_id in &scope_ids {
+                        query = query.bind(scope_id);
+                    }
+                    query = query.bind(&trimmed);
+                }
+                query = query.bind(limit).bind(offset);
+                query
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?
+                    .into_iter()
+                    .map(row_to_scoped_item)
+                    .collect()
+            })
+        })
+    }
+
+    fn search_items_by_content_in_scopes(
+        &self,
+        term: &str,
+        limit: i64,
+        offset: i64,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<(ItemCore, Id)>, RepoError> {
+        if scope_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let trimmed = term.trim().to_string();
+        let scope_ids: Vec<String> = scope_ids.iter().map(Uuid::to_string).collect();
+        let placeholders = scope_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let (sql, pattern) = if trimmed.is_empty() {
+            (
+                format!(
+                    "SELECT item_id, title, content, account_id FROM item
+                     WHERE scope_id IN ({}) ORDER BY item_id DESC LIMIT ? OFFSET ?",
+                    placeholders
+                ),
+                None,
+            )
+        } else {
+            (
+                format!(
+                    "SELECT item_id, title, content, account_id FROM item
+                     WHERE content LIKE ? AND scope_id IN ({})
+                     ORDER BY item_id DESC LIMIT ? OFFSET ?",
+                    placeholders
+                ),
+                Some(format!("%{}%", trimmed)),
+            )
+        };
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let mut query = sqlx::query_as::<_, ScopedItemRow>(&sql);
+                if let Some(pattern) = &pattern {
+                    query = query.bind(pattern);
+                }
+                for scope_id in &scope_ids {
+                    query = query.bind(scope_id);
+                }
+                query = query.bind(limit).bind(offset);
+                query
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?
+                    .into_iter()
+                    .map(row_to_scoped_item)
+                    .collect()
+            })
+        })
+    }
+
+    fn search_items_by_heading_in_scopes(
+        &self,
+        term: &str,
+        limit: i64,
+        offset: i64,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<(ItemCore, String, Id)>, RepoError> {
+        if scope_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let pattern = format!("%{}%", term.trim());
+        let scope_ids: Vec<String> = scope_ids.iter().map(Uuid::to_string).collect();
+        let placeholders = scope_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let sql = format!(
+            "SELECT i.item_id, i.title, i.content, i.account_id, h.text AS heading_text
+             FROM item i
+             JOIN item_heading h ON h.item_id = i.item_id
+             WHERE i.scope_id IN ({}) AND h.text LIKE ?
+             ORDER BY i.item_id DESC LIMIT ? OFFSET ?",
+            placeholders
+        );
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                #[derive(sqlx::FromRow)]
+                struct ScopedItemHeadingRow {
+                    item_id: i64,
+                    title: String,
+                    content: String,
+                    account_id: i64,
+                    heading_text: String,
+                }
+
+                let mut query = sqlx::query_as::<_, ScopedItemHeadingRow>(&sql);
+                for scope_id in &scope_ids {
+                    query = query.bind(scope_id);
+                }
+                let rows = query
+                    .bind(&pattern)
+                    .bind(limit)
+                    .bind(offset)
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
+                rows.into_iter()
+                    .map(|row| {
+                        let (item, account_id) = row_to_scoped_item(ScopedItemRow {
+                            item_id: row.item_id,
+                            title: row.title,
+                            content: row.content,
+                            account_id: row.account_id,
+                        })?;
+                        Ok((item, row.heading_text, account_id))
+                    })
+                    .collect()
+            })
+        })
+    }
+
+    fn get_recent_items_in_scopes(
+        &self,
+        limit: i64,
+        offset: i64,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<(ItemCore, Id)>, RepoError> {
+        if scope_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let scope_ids: Vec<String> = scope_ids.iter().map(Uuid::to_string).collect();
+        let placeholders = scope_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let sql = format!(
+            "SELECT item_id, title, content, account_id FROM item
+             WHERE scope_id IN ({}) ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            placeholders
+        );
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let mut query = sqlx::query_as::<_, ScopedItemRow>(&sql);
+                for scope_id in &scope_ids {
+                    query = query.bind(scope_id);
+                }
+                query = query.bind(limit).bind(offset);
+                query
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?
+                    .into_iter()
+                    .map(row_to_scoped_item)
+                    .collect()
+            })
+        })
+    }
+
+    fn get_all_item_ids_in_scopes(&self, scope_ids: &[Uuid]) -> Result<Vec<Id>, RepoError> {
+        if scope_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let scope_ids: Vec<String> = scope_ids.iter().map(Uuid::to_string).collect();
+        let placeholders = scope_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let sql = format!(
+            "SELECT item_id FROM item WHERE scope_id IN ({})",
+            placeholders
+        );
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let mut query = sqlx::query_scalar::<_, i64>(&sql);
+                for scope_id in &scope_ids {
+                    query = query.bind(scope_id);
+                }
+                query
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?
+                    .into_iter()
+                    .map(|id| {
+                        Id::try_from(id)
+                            .map_err(|e| RepoError::DatabaseError { err: e.to_string() })
+                    })
+                    .collect()
+            })
+        })
+    }
+
     fn get_item_by_id_in_scopes(
         &self,
         item_id: &Id,
@@ -102,11 +387,21 @@ impl ItemRepo for ItemSqliteRepo {
                 for scope_id in &scope_ids {
                     query = query.bind(scope_id);
                 }
-                query.fetch_optional(&pool).await
+                query
+                    .fetch_optional(&pool)
+                    .await
                     .map_err(RepoError::from)?
                     .map(|row| {
-                        let account_id = Id::try_from(row.account_id).map_err(|err| RepoError::DatabaseError { err: err.to_string() })?;
-                        let item = row_to_item_core(ItemRow { item_id: row.item_id, title: row.title, content: row.content })?;
+                        let account_id = Id::try_from(row.account_id).map_err(|err| {
+                            RepoError::DatabaseError {
+                                err: err.to_string(),
+                            }
+                        })?;
+                        let item = row_to_item_core(ItemRow {
+                            item_id: row.item_id,
+                            title: row.title,
+                            content: row.content,
+                        })?;
                         Ok((item, account_id))
                     })
                     .transpose()

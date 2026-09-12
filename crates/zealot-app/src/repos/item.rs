@@ -1,15 +1,83 @@
 use std::fmt::Debug;
 
+use uuid::Uuid;
 use zealot_domain::{
     account::Account,
     common::id::Id,
     item::{AddItemCoreDto, ItemCore, UpdateItemCoreDto},
 };
-use uuid::Uuid;
 
 use crate::repos::common::RepoError;
 
 pub trait ItemRepo: Debug + Send + Sync {
+    fn get_items_by_title_in_scopes(
+        &self,
+        title: &str,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<(ItemCore, Id)>, RepoError> {
+        let _ = (title, scope_ids);
+        Err(RepoError::DatabaseError {
+            err: "scope-qualified item title lookup is not implemented by this repository"
+                .to_string(),
+        })
+    }
+    fn search_items_by_title_in_scopes(
+        &self,
+        term: &str,
+        limit: i64,
+        offset: i64,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<(ItemCore, Id)>, RepoError> {
+        let _ = (term, limit, offset, scope_ids);
+        Err(RepoError::DatabaseError {
+            err: "scope-qualified item title search is not implemented by this repository"
+                .to_string(),
+        })
+    }
+    fn search_items_by_content_in_scopes(
+        &self,
+        term: &str,
+        limit: i64,
+        offset: i64,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<(ItemCore, Id)>, RepoError> {
+        let _ = (term, limit, offset, scope_ids);
+        Err(RepoError::DatabaseError {
+            err: "scope-qualified item content search is not implemented by this repository"
+                .to_string(),
+        })
+    }
+    fn search_items_by_heading_in_scopes(
+        &self,
+        term: &str,
+        limit: i64,
+        offset: i64,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<(ItemCore, String, Id)>, RepoError> {
+        let _ = (term, limit, offset, scope_ids);
+        Err(RepoError::DatabaseError {
+            err: "scope-qualified item heading search is not implemented by this repository"
+                .to_string(),
+        })
+    }
+    fn get_recent_items_in_scopes(
+        &self,
+        limit: i64,
+        offset: i64,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<(ItemCore, Id)>, RepoError> {
+        let _ = (limit, offset, scope_ids);
+        Err(RepoError::DatabaseError {
+            err: "scope-qualified recent item lookup is not implemented by this repository"
+                .to_string(),
+        })
+    }
+    fn get_all_item_ids_in_scopes(&self, scope_ids: &[Uuid]) -> Result<Vec<Id>, RepoError> {
+        let _ = scope_ids;
+        Err(RepoError::DatabaseError {
+            err: "scope-qualified item ID lookup is not implemented by this repository".to_string(),
+        })
+    }
     fn get_item_by_id_in_scopes(
         &self,
         item_id: &Id,

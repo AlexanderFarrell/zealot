@@ -24,7 +24,7 @@ struct PR {
     principal_id: Uuid,
     server_id: Uuid,
     kind: String,
-    account_id: Option<i64>,
+    account_id: Option<i32>,
     display_name: String,
     status: String,
     default_scope_id: Option<Uuid>,
@@ -56,7 +56,7 @@ fn pr(r: PR) -> Result<ServerPrincipal, RepoError> {
         principal_id: r.principal_id,
         server_id: r.server_id,
         kind: PrincipalKind::from_str(&r.kind).map_err(|err| RepoError::DatabaseError { err })?,
-        account_id: r.account_id,
+        account_id: r.account_id.map(i64::from),
         display_name: r.display_name,
         status: PrincipalStatus::from_str(&r.status)
             .map_err(|err| RepoError::DatabaseError { err })?,
@@ -90,7 +90,7 @@ fn mb(r: MR) -> Result<ScopeMember, RepoError> {
 }
 const P: &str = "principal_id,server_id,kind,account_id,display_name,status,default_scope_id,created_at,retired_at";
 const S: &str =
-    "scope_id,server_id,title,description,status,owner_principal_id,created_at,updated_at";
+    "sc.scope_id,sc.server_id,sc.title,sc.description,sc.status,sc.owner_principal_id,sc.created_at,sc.updated_at";
 const M: &str = "scope_id,principal_id,role,status,created_at,updated_at";
 impl ScopeRepo for ScopePostgresRepo {
     fn server_metadata(&self) -> Result<ServerMetadata, RepoError> {
@@ -159,7 +159,7 @@ impl ScopeRepo for ScopePostgresRepo {
         let p = self.pool.clone();
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
-                sqlx::query_as::<_, SR>(&format!("SELECT {S} FROM scope WHERE scope_id=$1"))
+                sqlx::query_as::<_, SR>(&format!("SELECT {S} FROM scope sc WHERE sc.scope_id=$1"))
                     .bind(id)
                     .fetch_optional(&p)
                     .await?

@@ -56,6 +56,8 @@ EXPECTED_ITEM_TYPES = ["Plan", "Repeat", "Template", "Statistic"]
 
 @pytest.fixture(scope="module")
 def db() -> sqlite3.Connection:
+    if os.environ.get("ZEALOT_E2E_DATABASE") != "sqlite":
+        pytest.skip("SQLite database inspection is only valid for the SQLite E2E run")
     if not os.path.exists(DB_PATH):
         pytest.skip(f"SQLite database not found at {DB_PATH} — is the stack running?")
     conn = sqlite3.connect(DB_PATH)

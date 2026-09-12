@@ -14,8 +14,8 @@ use serde_json::Value;
 use uuid::Uuid;
 use zealot_app::{
     app::AppState,
-    services::scope::{ScopeAccess, ScopeAccessError},
     services::item::{ItemServiceError, SearchResult},
+    services::scope::{ScopeAccess, ScopeAccessError},
 };
 use zealot_domain::{
     attribute::AttributeFilterDto,
@@ -122,6 +122,9 @@ struct SearchParams {
     scope: Option<String>,
     #[serde(default)]
     regex: bool,
+    scope_id: Option<Uuid>,
+    #[serde(default)]
+    all_scopes: bool,
 }
 
 fn default_search_limit() -> i64 {
@@ -134,6 +137,9 @@ struct RecentParams {
     limit: i64,
     #[serde(default)]
     offset: i64,
+    scope_id: Option<Uuid>,
+    #[serde(default)]
+    all_scopes: bool,
 }
 
 #[derive(Deserialize, Default)]
@@ -173,7 +179,10 @@ fn resolve_item_read_access(
             ScopeAccessError::Forbidden => HttpError::Forbidden,
             ScopeAccessError::AllScopesMutation => HttpError::Forbidden,
             ScopeAccessError::Unauthenticated => HttpError::Unauthorized,
-            ScopeAccessError::Repo(_) => HttpError::Internal,
+            ScopeAccessError::Repo(error) => {
+                tracing::error!(%error, "Scope access resolution failed");
+                HttpError::Internal
+            }
         })
 }
 
@@ -218,11 +227,18 @@ async fn get_recent_items(
     Extension(actor): Extension<Actor>,
     Query(params): Query<RecentParams>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_read_access(
+        &state,
+        &actor,
+        &ItemScopeParams {
+            scope_id: params.scope_id,
+            all_scopes: params.all_scopes,
+        },
+    )?;
     let items = state
         .services
         .item
-        .get_recent_items(params.limit, params.offset, &account)
+        .get_recent_items_in_scopes(params.limit, params.offset, &access)
         .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -233,6 +249,9 @@ const MAX_RANDOM_COUNT: usize = 50;
 struct RandomParams {
     #[serde(default = "default_random_count")]
     count: usize,
+    scope_id: Option<Uuid>,
+    #[serde(default)]
+    all_scopes: bool,
 }
 
 fn default_random_count() -> usize {
@@ -244,12 +263,19 @@ async fn get_random_item(
     Extension(actor): Extension<Actor>,
     Query(params): Query<RandomParams>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_read_access(
+        &state,
+        &actor,
+        &ItemScopeParams {
+            scope_id: params.scope_id,
+            all_scopes: params.all_scopes,
+        },
+    )?;
     let count = params.count.min(MAX_RANDOM_COUNT);
     let items = state
         .services
         .item
-        .get_random_items(count, &account)
+        .get_random_items_in_scopes(count, &access)
         .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -258,12 +284,13 @@ async fn get_by_title(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(title): Path<String>,
+    Query(params): Query<ItemScopeParams>,
 ) -> Result<Json<ItemDto>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_read_access(&state, &actor, &params)?;
     let items = state
         .services
         .item
-        .get_items_by_title(&title, &account)
+        .get_items_by_title_in_scopes(&title, &access)
         .map_err(item_service_err)?;
     items
         .into_iter()
@@ -301,7 +328,14 @@ async fn search_items(
     Extension(actor): Extension<Actor>,
     Query(params): Query<SearchParams>,
 ) -> Result<Json<Vec<SearchResultDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_read_access(
+        &state,
+        &actor,
+        &ItemScopeParams {
+            scope_id: params.scope_id,
+            all_scopes: params.all_scopes,
+        },
+    )?;
     let limit = params.limit.clamp(1, MAX_SEARCH_LIMIT);
     let scope = match params.scope.as_deref() {
         None | Some("title") => SearchScope::Title,
@@ -316,13 +350,13 @@ async fn search_items(
     let results = state
         .services
         .item
-        .search_items(
+        .search_items_in_scopes(
             &params.term,
             scope,
             params.regex,
             limit,
             params.offset,
-            &account,
+            &access,
         )
         .map_err(item_service_err)?;
     Ok(Json(

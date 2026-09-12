@@ -5,6 +5,7 @@ use std::{
 
 use regex::Regex;
 use serde_json::Value;
+use uuid::Uuid;
 use zealot_domain::{
     account::Account,
     attribute::{
@@ -19,6 +20,7 @@ use zealot_domain::{
     item_type::{ItemType, ItemTypeRef},
 };
 
+use crate::services::scope::ScopeAccess;
 use crate::{
     ports::events::{EventPort, ZealotEvent},
     repos::{
@@ -27,7 +29,6 @@ use crate::{
         item_heading::ItemHeadingRepo, item_link::ItemLinkRepo, item_type::ItemTypeRepo,
     },
 };
-use crate::services::scope::ScopeAccess;
 
 #[derive(Debug, Clone)]
 pub struct ItemService {
@@ -134,6 +135,220 @@ impl ItemService {
             item.links = links.get(&item.item_id).cloned().unwrap_or_default();
         }
         Ok(hydrated)
+    }
+
+    fn hydrate_scoped_items(
+        &self,
+        items: Vec<(ItemCore, Id)>,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        let mut hydrated = Vec::with_capacity(items.len());
+        for (item, owner_account_id) in items {
+            let Some(mut item) = self
+                .hydrate_items(vec![item], &owner_account_id)?
+                .into_iter()
+                .next()
+            else {
+                continue;
+            };
+            let links = self
+                .item_link_repo
+                .get_links_for_items_in_scopes(&vec![item.item_id], scope_ids)
+                .map_err(ItemServiceError::Repo)?;
+            item.links = links.get(&item.item_id).cloned().unwrap_or_default();
+            hydrated.push(item);
+        }
+        Ok(hydrated)
+    }
+
+    pub fn get_items_by_title_in_scopes(
+        &self,
+        title: &str,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let items = self
+            .item_repo
+            .get_items_by_title_in_scopes(title, &scope_ids)
+            .map_err(ItemServiceError::Repo)?;
+        self.hydrate_scoped_items(items, &scope_ids)
+    }
+
+    pub fn search_items_in_scopes(
+        &self,
+        term: &str,
+        scope: SearchScope,
+        use_regex: bool,
+        limit: i64,
+        offset: i64,
+        access: &ScopeAccess,
+    ) -> Result<Vec<SearchResult>, ItemServiceError> {
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let compiled_regex = if use_regex {
+            let re = Regex::new(&format!("(?i){}", term))
+                .map_err(|e| ItemServiceError::InvalidRegex(e.to_string()))?;
+            Some(re)
+        } else {
+            None
+        };
+        match scope {
+            SearchScope::Title => {
+                let fetch_limit = if use_regex { 500 } else { limit };
+                let fetch_offset = if use_regex { 0 } else { offset };
+                let items = self
+                    .item_repo
+                    .search_items_by_title_in_scopes(term, fetch_limit, fetch_offset, &scope_ids)
+                    .map_err(ItemServiceError::Repo)?;
+                let filtered = if let Some(re) = &compiled_regex {
+                    items
+                        .into_iter()
+                        .filter(|(item, _)| re.is_match(&item.title))
+                        .collect()
+                } else {
+                    items
+                };
+                let paged = if use_regex {
+                    filtered
+                        .into_iter()
+                        .skip(offset as usize)
+                        .take(limit as usize)
+                        .collect()
+                } else {
+                    filtered
+                };
+                let hydrated = self.hydrate_scoped_items(paged, &scope_ids)?;
+                Ok(hydrated
+                    .into_iter()
+                    .map(|item| SearchResult {
+                        item,
+                        match_scope: SearchScope::Title,
+                        snippet: None,
+                    })
+                    .collect())
+            }
+            SearchScope::Content => {
+                let fetch_limit = if use_regex { 500 } else { limit };
+                let fetch_offset = if use_regex { 0 } else { offset };
+                let items = self
+                    .item_repo
+                    .search_items_by_content_in_scopes(term, fetch_limit, fetch_offset, &scope_ids)
+                    .map_err(ItemServiceError::Repo)?;
+                let filtered: Vec<(ItemCore, Id)> = if let Some(re) = &compiled_regex {
+                    items
+                        .into_iter()
+                        .filter(|(item, _)| re.is_match(&item.content))
+                        .collect()
+                } else {
+                    items
+                };
+                let paged: Vec<(ItemCore, Id)> = if use_regex {
+                    filtered
+                        .into_iter()
+                        .skip(offset as usize)
+                        .take(limit as usize)
+                        .collect()
+                } else {
+                    filtered
+                };
+                let snippets: Vec<Option<String>> = paged
+                    .iter()
+                    .map(|(item, _)| extract_snippet(&item.content, term, compiled_regex.as_ref()))
+                    .collect();
+                let hydrated = self.hydrate_scoped_items(paged, &scope_ids)?;
+                Ok(hydrated
+                    .into_iter()
+                    .zip(snippets)
+                    .map(|(item, snippet)| SearchResult {
+                        item,
+                        match_scope: SearchScope::Content,
+                        snippet,
+                    })
+                    .collect())
+            }
+            SearchScope::Heading => {
+                let fetch_limit = if use_regex { 500 } else { limit };
+                let fetch_offset = if use_regex { 0 } else { offset };
+                let pairs = self
+                    .item_repo
+                    .search_items_by_heading_in_scopes(term, fetch_limit, fetch_offset, &scope_ids)
+                    .map_err(ItemServiceError::Repo)?;
+                let filtered: Vec<(ItemCore, String, Id)> = if let Some(re) = &compiled_regex {
+                    pairs
+                        .into_iter()
+                        .filter(|(_, heading, _)| re.is_match(heading))
+                        .collect()
+                } else {
+                    pairs
+                };
+                let paged: Vec<(ItemCore, String, Id)> = if use_regex {
+                    filtered
+                        .into_iter()
+                        .skip(offset as usize)
+                        .take(limit as usize)
+                        .collect()
+                } else {
+                    filtered
+                };
+                let heading_texts: Vec<String> = paged
+                    .iter()
+                    .map(|(_, heading, _)| heading.clone())
+                    .collect();
+                let scoped_items: Vec<(ItemCore, Id)> = paged
+                    .into_iter()
+                    .map(|(item, _, account)| (item, account))
+                    .collect();
+                let hydrated = self.hydrate_scoped_items(scoped_items, &scope_ids)?;
+                Ok(hydrated
+                    .into_iter()
+                    .zip(heading_texts)
+                    .map(|(item, heading)| SearchResult {
+                        item,
+                        match_scope: SearchScope::Heading,
+                        snippet: Some(heading),
+                    })
+                    .collect())
+            }
+        }
+    }
+
+    pub fn get_recent_items_in_scopes(
+        &self,
+        limit: i64,
+        offset: i64,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let items = self
+            .item_repo
+            .get_recent_items_in_scopes(limit, offset, &scope_ids)
+            .map_err(ItemServiceError::Repo)?;
+        self.hydrate_scoped_items(items, &scope_ids)
+    }
+
+    pub fn get_random_items_in_scopes(
+        &self,
+        count: usize,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        use rand::seq::SliceRandom;
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let mut ids = self
+            .item_repo
+            .get_all_item_ids_in_scopes(&scope_ids)
+            .map_err(ItemServiceError::Repo)?;
+        ids.shuffle(&mut rand::thread_rng());
+        ids.truncate(count);
+        let mut items = Vec::with_capacity(ids.len());
+        for item_id in ids {
+            if let Some((item, owner_account_id)) = self
+                .item_repo
+                .get_item_by_id_in_scopes(&item_id, &scope_ids)
+                .map_err(ItemServiceError::Repo)?
+            {
+                items.push((item, owner_account_id));
+            }
+        }
+        self.hydrate_scoped_items(items, &scope_ids)
     }
 
     pub fn get_items_by_title(
