@@ -249,6 +249,15 @@ All endpoints require authentication.
 | GET | `/account/api-keys` | List API keys |
 | POST | `/account/api-keys` | Create API key |
 | DELETE | `/account/api-keys/{id}` | Revoke API key |
+| GET | `/account/scopes/{scope_id}/members` | List members visible to an authorized scope reader |
+| PATCH | `/account/scopes/{scope_id}/members/{principal_id}` | Change a member role (owner/manage-members only) |
+| DELETE | `/account/scopes/{scope_id}/members/{principal_id}` | Revoke a member (owner/manage-members only) |
+| GET | `/account/scopes/{scope_id}/invitations` | List invitation metadata (owner/manage-members only) |
+| POST | `/account/scopes/{scope_id}/invitations` | Create a one-time scope invitation |
+| POST | `/account/scopes/{scope_id}/invitations/{invitation_id}/approve` | Approve and activate a pending invitation |
+| POST | `/account/scopes/{scope_id}/invitations/{invitation_id}/cancel` | Cancel an unused invitation |
+| POST | `/account/scopes/{scope_id}/invitations/{invitation_id}/revoke` | Revoke an unused invitation |
+| POST | `/account/invitations/accept` | Accept an invitation as the authenticated account, or begin pending admission |
 
 **PATCH /account/settings** — body is a free-form JSON object stored as account settings.
 
@@ -269,6 +278,43 @@ Returns `CreateApiKeyResponseDto` (see [Getting an API key](#getting-an-api-key)
 ```
 
 **DELETE /account/api-keys/{id}** — returns `204 No Content`.
+
+#### Scope invitations and membership
+
+Membership routes authorize the authenticated server principal in the target
+scope. Unauthorized target lookups use a privacy-safe `404` response. Session
+mutations require the normal `x-csrf-token`; API-key requests do not.
+
+**POST /account/scopes/{scope_id}/invitations** accepts:
+
+```json
+{
+  "role": "viewer",
+  "recipient_principal_id": "optional-principal-uuid",
+  "ttl_seconds": 604800
+}
+```
+
+The response includes invitation metadata and the opaque `token` exactly once;
+the server signs the versioned envelope with its server-local invitation key.
+The token is not returned by list/read routes and is never a session, API key,
+password reset, or replicated credential. `ttl_seconds` must be between five
+minutes and thirty days.
+
+**POST /account/invitations/accept** accepts:
+
+```json
+{ "token": "z1.<opaque-nonce>.<signature>" }
+```
+
+An authenticated account receives an active membership when the invitation and
+recipient constraints are valid. An anonymous bearer receives `202 Accepted`
+with `pending_admission`; the bearer still needs the server's normal account
+enrolment and verification flow. The bearer never becomes a session by itself.
+
+Role changes and revocation take effect through the same scope authorization
+used by items, search, planner, comments, media, and service principals. The
+final active owner cannot be downgraded or removed.
 
 ---
 

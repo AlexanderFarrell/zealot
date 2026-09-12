@@ -1,7 +1,11 @@
+use chrono::{Duration, Utc};
+use hmac::{Hmac, Mac};
+use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use uuid::Uuid;
 use zealot_domain::scope::{
-    PrincipalStatus, Scope, ScopeMember, ScopeMemberStatus, ScopePermission, ScopeRole,
+    PrincipalKind, PrincipalStatus, Scope, ScopeInvitation, ScopeInvitationStatus,
+    ScopeLifecycleEvent, ScopeMember, ScopeMemberStatus, ScopePermission, ScopeRole,
     ServerPrincipal,
 };
 
@@ -9,6 +13,8 @@ use crate::{
     repos::common::RepoError,
     repos::scope::{ScopeRepo, ServerMetadata},
 };
+
+type InvitationHmac = Hmac<Sha256>;
 
 /// A request-scoped, already-authorized selection. Repository/service APIs
 /// must accept this instead of treating an account as the authorization
@@ -20,6 +26,42 @@ pub struct ScopeAccess {
     pub scopes: Vec<Scope>,
     pub permission: ScopePermission,
     pub read_only: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct CreatedInvitation {
+    pub invitation: ScopeInvitation,
+    /// The opaque bearer is returned once to the caller. It is never persisted
+    /// or placed in lifecycle-event metadata.
+    pub token: String,
+}
+
+#[derive(Debug, Clone)]
+pub enum InvitationAcceptance {
+    Active(ScopeMember),
+    PendingAdmission(ScopeInvitation),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum MembershipError {
+    #[error("scope membership action forbidden")]
+    Forbidden,
+    #[error("scope or membership target not found")]
+    NotFound,
+    #[error("invalid invitation")]
+    InvalidInvitation,
+    #[error("invitation expired")]
+    Expired,
+    #[error("invitation is no longer usable")]
+    TerminalInvitation,
+    #[error("requested role exceeds issuer grant")]
+    RoleEscalation,
+    #[error("cannot remove or downgrade the final active owner")]
+    FinalOwner,
+    #[error("invalid membership state")]
+    InvalidState,
+    #[error("repository error: {0}")]
+    Repo(#[from] RepoError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -260,5 +302,597 @@ impl ScopeService {
         role: ScopeRole,
     ) -> Result<ScopeMember, RepoError> {
         self.repo.upsert_member(scope_id, principal_id, role)
+    }
+
+    fn hash_token(token: &str) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(token.as_bytes());
+        hex::encode(hasher.finalize())
+    }
+
+    fn invitation_mac(
+        signing_key: &str,
+        invitation_id: Uuid,
+        scope_id: Uuid,
+        role: ScopeRole,
+        recipient_principal_id: Option<Uuid>,
+        nonce: &str,
+    ) -> InvitationHmac {
+        let mut mac = InvitationHmac::new_from_slice(signing_key.as_bytes())
+            .expect("HMAC accepts signing keys of every length");
+        mac.update(b"zealot-invitation-v1\0");
+        mac.update(invitation_id.as_bytes());
+        mac.update(b"\0");
+        mac.update(scope_id.as_bytes());
+        mac.update(b"\0");
+        mac.update(role.as_str().as_bytes());
+        mac.update(b"\0");
+        if let Some(recipient_principal_id) = recipient_principal_id {
+            mac.update(recipient_principal_id.as_bytes());
+        } else {
+            mac.update(b"unbound");
+        }
+        mac.update(b"\0");
+        mac.update(nonce.as_bytes());
+        mac
+    }
+
+    fn invitation_signature(
+        signing_key: &str,
+        invitation_id: Uuid,
+        scope_id: Uuid,
+        role: ScopeRole,
+        recipient_principal_id: Option<Uuid>,
+        nonce: &str,
+    ) -> String {
+        hex::encode(
+            Self::invitation_mac(
+                signing_key,
+                invitation_id,
+                scope_id,
+                role,
+                recipient_principal_id,
+                nonce,
+            )
+            .finalize()
+            .into_bytes(),
+        )
+    }
+
+    fn invitation_signature_valid(
+        signing_key: &str,
+        invitation_id: Uuid,
+        scope_id: Uuid,
+        role: ScopeRole,
+        recipient_principal_id: Option<Uuid>,
+        nonce: &str,
+        encoded_signature: &str,
+    ) -> bool {
+        let Ok(signature) = hex::decode(encoded_signature) else {
+            return false;
+        };
+        Self::invitation_mac(
+            signing_key,
+            invitation_id,
+            scope_id,
+            role,
+            recipient_principal_id,
+            nonce,
+        )
+        .verify_slice(&signature)
+        .is_ok()
+    }
+
+    fn invitation_signing_key(&self) -> Result<String, MembershipError> {
+        if let Some(key) = self.repo.server_invitation_signing_key()? {
+            return Ok(key);
+        }
+        // The key is generated from the OS-backed UUID v4 source and is
+        // initialized once in the server-local metadata row. The repository's
+        // conditional update makes concurrent first issuances converge on one
+        // key without exposing it outside the service.
+        let generated = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
+        Ok(self.repo.set_server_invitation_signing_key(&generated)?)
+    }
+
+    fn role_rank(role: ScopeRole) -> u8 {
+        match role {
+            ScopeRole::Viewer => 1,
+            ScopeRole::Editor => 2,
+            ScopeRole::Owner => 3,
+        }
+    }
+
+    fn role_can_grant(issuer: ScopeRole, requested: ScopeRole) -> bool {
+        Self::role_rank(requested) <= Self::role_rank(issuer)
+    }
+
+    fn role_allowed_for_principal(principal: &ServerPrincipal, role: ScopeRole) -> bool {
+        principal.kind == PrincipalKind::Human || role != ScopeRole::Owner
+    }
+
+    fn manager_role(
+        &self,
+        actor_principal_id: Uuid,
+        scope_id: Uuid,
+    ) -> Result<ScopeRole, MembershipError> {
+        let scope = self
+            .repo
+            .scope_by_id(scope_id)?
+            .ok_or(MembershipError::NotFound)?;
+        if scope.status != zealot_domain::scope::ScopeStatus::Active {
+            return Err(MembershipError::NotFound);
+        }
+        let principal = self
+            .repo
+            .principal_by_id(actor_principal_id)?
+            .ok_or(MembershipError::Forbidden)?;
+        if principal.status != PrincipalStatus::Active {
+            return Err(MembershipError::Forbidden);
+        }
+        self.repo
+            .members_for_scope(scope_id)?
+            .into_iter()
+            .find(|member| {
+                member.principal_id == actor_principal_id
+                    && member.status == ScopeMemberStatus::Active
+                    && member.role.grants(ScopePermission::ManageMembers)
+            })
+            .map(|member| member.role)
+            .ok_or(MembershipError::Forbidden)
+    }
+
+    pub fn create_invitation(
+        &self,
+        actor_principal_id: Uuid,
+        scope_id: Uuid,
+        permitted_role: ScopeRole,
+        recipient_principal_id: Option<Uuid>,
+        expires_at: Option<chrono::DateTime<Utc>>,
+    ) -> Result<CreatedInvitation, MembershipError> {
+        let issuer_role = self.manager_role(actor_principal_id, scope_id)?;
+        if !Self::role_can_grant(issuer_role, permitted_role) {
+            return Err(MembershipError::RoleEscalation);
+        }
+        if let Some(recipient) = recipient_principal_id {
+            let principal = self
+                .repo
+                .principal_by_id(recipient)?
+                .ok_or(MembershipError::NotFound)?;
+            if principal.status != PrincipalStatus::Active
+                || !Self::role_allowed_for_principal(&principal, permitted_role)
+            {
+                return Err(MembershipError::NotFound);
+            }
+        }
+        let signing_key = self.invitation_signing_key()?;
+        let invitation_id = Uuid::new_v4();
+        let nonce = Uuid::new_v4().simple().to_string();
+        let now = Utc::now();
+        let expires_at = expires_at.unwrap_or_else(|| now + Duration::days(7));
+        if expires_at <= now {
+            return Err(MembershipError::InvalidInvitation);
+        }
+        let signature = Self::invitation_signature(
+            &signing_key,
+            invitation_id,
+            scope_id,
+            permitted_role,
+            recipient_principal_id,
+            &nonce,
+        );
+        let token = format!("z1.{nonce}.{signature}");
+        let invitation = ScopeInvitation {
+            invitation_id,
+            scope_id,
+            issuer_principal_id: actor_principal_id,
+            recipient_principal_id,
+            permitted_role,
+            token_hash: Self::hash_token(&token),
+            token_signature: signature,
+            status: ScopeInvitationStatus::Pending,
+            created_at: now,
+            expires_at,
+            accepted_at: None,
+            terminal_at: None,
+            correlation_id: Uuid::new_v4(),
+        };
+        let invitation = self.repo.create_invitation(&invitation)?;
+        self.record_event(
+            &invitation,
+            Some(actor_principal_id),
+            "invitation_created",
+            "success",
+            "created",
+        )?;
+        Ok(CreatedInvitation { invitation, token })
+    }
+
+    pub fn invitations_for_scope(
+        &self,
+        actor_principal_id: Uuid,
+        scope_id: Uuid,
+    ) -> Result<Vec<ScopeInvitation>, MembershipError> {
+        self.manager_role(actor_principal_id, scope_id)?;
+        Ok(self.repo.invitations_for_scope(scope_id)?)
+    }
+
+    pub fn accept_invitation(
+        &self,
+        token: &str,
+        actor_principal_id: Option<Uuid>,
+    ) -> Result<InvitationAcceptance, MembershipError> {
+        let token = token.trim();
+        if token.is_empty() {
+            return Err(MembershipError::InvalidInvitation);
+        }
+        let invitation = self
+            .repo
+            .invitation_by_token_hash(&Self::hash_token(token))?
+            .ok_or(MembershipError::InvalidInvitation)?;
+        let signing_key = self.invitation_signing_key()?;
+        let parts: Vec<&str> = token.split('.').collect();
+        if parts.len() != 3 || parts[0] != "z1" {
+            return Err(MembershipError::InvalidInvitation);
+        }
+        if !Self::invitation_signature_valid(
+            &signing_key,
+            invitation.invitation_id,
+            invitation.scope_id,
+            invitation.permitted_role,
+            invitation.recipient_principal_id,
+            parts[1],
+            parts[2],
+        ) || invitation.token_signature != parts[2]
+        {
+            return Err(MembershipError::InvalidInvitation);
+        }
+        let scope = self
+            .repo
+            .scope_by_id(invitation.scope_id)?
+            .ok_or(MembershipError::InvalidInvitation)?;
+        if scope.status != zealot_domain::scope::ScopeStatus::Active {
+            return Err(MembershipError::InvalidInvitation);
+        }
+        let now = Utc::now();
+        if invitation.expires_at <= now {
+            self.repo.transition_invitation(
+                invitation.invitation_id,
+                ScopeInvitationStatus::Expired,
+                now,
+            )?;
+            self.record_event(
+                &invitation,
+                actor_principal_id,
+                "invitation_expired",
+                "denied",
+                "expired",
+            )?;
+            return Err(MembershipError::Expired);
+        }
+        if !matches!(
+            invitation.status,
+            ScopeInvitationStatus::Pending | ScopeInvitationStatus::PendingAdmission
+        ) {
+            return Err(MembershipError::TerminalInvitation);
+        }
+        let policy = self.repo.server_enrolment_policy()?;
+        if !matches!(
+            policy.as_str(),
+            "closed" | "admin-approved" | "invite-enabled" | "open-registration"
+        ) {
+            return Err(MembershipError::InvalidState);
+        }
+        let Some(principal_id) = actor_principal_id else {
+            let pending = self
+                .repo
+                .transition_invitation(
+                    invitation.invitation_id,
+                    ScopeInvitationStatus::PendingAdmission,
+                    now,
+                )?
+                .ok_or(MembershipError::InvalidInvitation)?;
+            self.record_event(
+                &pending,
+                None,
+                "invitation_admission_pending",
+                "pending",
+                &format!("authentication_required:{policy}"),
+            )?;
+            return Ok(InvitationAcceptance::PendingAdmission(pending));
+        };
+        if let Some(expected) = invitation.recipient_principal_id {
+            if expected != principal_id {
+                return Err(MembershipError::InvalidInvitation);
+            }
+        }
+        let principal = self
+            .repo
+            .principal_by_id(principal_id)?
+            .ok_or(MembershipError::InvalidInvitation)?;
+        if principal.status != PrincipalStatus::Active
+            || !Self::role_allowed_for_principal(&principal, invitation.permitted_role)
+        {
+            return Err(MembershipError::InvalidInvitation);
+        }
+        let member = self
+            .repo
+            .activate_invitation(invitation.invitation_id, principal_id, now)?
+            .ok_or(MembershipError::TerminalInvitation)?;
+        self.record_event(
+            &invitation,
+            Some(principal_id),
+            "invitation_accepted",
+            "success",
+            "accepted",
+        )?;
+        Ok(InvitationAcceptance::Active(member))
+    }
+
+    pub fn approve_invitation(
+        &self,
+        actor_principal_id: Uuid,
+        scope_id: Uuid,
+        invitation_id: Uuid,
+        principal_id: Uuid,
+    ) -> Result<ScopeMember, MembershipError> {
+        let issuer_role = self.manager_role(actor_principal_id, scope_id)?;
+        let invitation = self
+            .repo
+            .invitations_for_scope(scope_id)?
+            .into_iter()
+            .find(|item| item.invitation_id == invitation_id)
+            .ok_or(MembershipError::NotFound)?;
+        if !matches!(
+            invitation.status,
+            ScopeInvitationStatus::Pending | ScopeInvitationStatus::PendingAdmission
+        ) || !Self::role_can_grant(issuer_role, invitation.permitted_role)
+        {
+            return Err(MembershipError::TerminalInvitation);
+        }
+        if invitation.recipient_principal_id.is_some()
+            && invitation.recipient_principal_id != Some(principal_id)
+        {
+            return Err(MembershipError::InvalidInvitation);
+        }
+        let principal = self
+            .repo
+            .principal_by_id(principal_id)?
+            .ok_or(MembershipError::InvalidInvitation)?;
+        if principal.status != PrincipalStatus::Active
+            || !Self::role_allowed_for_principal(&principal, invitation.permitted_role)
+        {
+            return Err(MembershipError::InvalidInvitation);
+        }
+        let member = self
+            .repo
+            .activate_invitation(invitation_id, principal_id, Utc::now())?
+            .ok_or(MembershipError::TerminalInvitation)?;
+        self.record_event(
+            &invitation,
+            Some(actor_principal_id),
+            "invitation_approved",
+            "success",
+            "approved",
+        )?;
+        Ok(member)
+    }
+
+    pub fn cancel_invitation(
+        &self,
+        actor_principal_id: Uuid,
+        scope_id: Uuid,
+        invitation_id: Uuid,
+    ) -> Result<(), MembershipError> {
+        self.manager_role(actor_principal_id, scope_id)?;
+        self.transition_invitation(
+            actor_principal_id,
+            scope_id,
+            invitation_id,
+            ScopeInvitationStatus::Cancelled,
+            "cancelled",
+        )
+    }
+
+    pub fn revoke_invitation(
+        &self,
+        actor_principal_id: Uuid,
+        scope_id: Uuid,
+        invitation_id: Uuid,
+    ) -> Result<(), MembershipError> {
+        self.manager_role(actor_principal_id, scope_id)?;
+        self.transition_invitation(
+            actor_principal_id,
+            scope_id,
+            invitation_id,
+            ScopeInvitationStatus::Revoked,
+            "revoked",
+        )
+    }
+
+    fn transition_invitation(
+        &self,
+        actor_principal_id: Uuid,
+        scope_id: Uuid,
+        invitation_id: Uuid,
+        status: ScopeInvitationStatus,
+        reason: &str,
+    ) -> Result<(), MembershipError> {
+        let invitation = self
+            .repo
+            .invitations_for_scope(scope_id)?
+            .into_iter()
+            .find(|item| item.invitation_id == invitation_id)
+            .ok_or(MembershipError::NotFound)?;
+        if !matches!(
+            invitation.status,
+            ScopeInvitationStatus::Pending | ScopeInvitationStatus::PendingAdmission
+        ) {
+            return Err(MembershipError::TerminalInvitation);
+        }
+        let updated = self
+            .repo
+            .transition_invitation(invitation_id, status, Utc::now())?
+            .ok_or(MembershipError::TerminalInvitation)?;
+        self.record_event(
+            &updated,
+            Some(actor_principal_id),
+            &format!("invitation_{reason}"),
+            "success",
+            reason,
+        )?;
+        Ok(())
+    }
+
+    pub fn change_member_role(
+        &self,
+        actor_principal_id: Uuid,
+        scope_id: Uuid,
+        target_principal_id: Uuid,
+        role: ScopeRole,
+    ) -> Result<ScopeMember, MembershipError> {
+        let issuer_role = self.manager_role(actor_principal_id, scope_id)?;
+        if !Self::role_can_grant(issuer_role, role) {
+            return Err(MembershipError::RoleEscalation);
+        }
+        let target_principal = self
+            .repo
+            .principal_by_id(target_principal_id)?
+            .ok_or(MembershipError::NotFound)?;
+        if target_principal.status != PrincipalStatus::Active {
+            return Err(MembershipError::NotFound);
+        }
+        if !Self::role_allowed_for_principal(&target_principal, role) {
+            return Err(MembershipError::RoleEscalation);
+        }
+        let members = self.repo.members_for_scope(scope_id)?;
+        let target = members
+            .iter()
+            .find(|member| {
+                member.principal_id == target_principal_id
+                    && member.status == ScopeMemberStatus::Active
+            })
+            .ok_or(MembershipError::NotFound)?;
+        if target.role == ScopeRole::Owner
+            && role != ScopeRole::Owner
+            && members
+                .iter()
+                .filter(|member| {
+                    member.status == ScopeMemberStatus::Active && member.role == ScopeRole::Owner
+                })
+                .count()
+                <= 1
+        {
+            return Err(MembershipError::FinalOwner);
+        }
+        let member = self
+            .repo
+            .change_member_role(scope_id, target_principal_id, role, Utc::now())?
+            .ok_or(MembershipError::NotFound)?;
+        self.record_member_event(
+            scope_id,
+            Some(actor_principal_id),
+            Some(target_principal_id),
+            "membership_role_changed",
+            "success",
+            "role_changed",
+        )?;
+        Ok(member)
+    }
+
+    pub fn revoke_member(
+        &self,
+        actor_principal_id: Uuid,
+        scope_id: Uuid,
+        target_principal_id: Uuid,
+    ) -> Result<(), MembershipError> {
+        self.manager_role(actor_principal_id, scope_id)?;
+        let members = self.repo.members_for_scope(scope_id)?;
+        let target = members
+            .iter()
+            .find(|member| {
+                member.principal_id == target_principal_id
+                    && member.status == ScopeMemberStatus::Active
+            })
+            .ok_or(MembershipError::NotFound)?;
+        if target.role == ScopeRole::Owner
+            && members
+                .iter()
+                .filter(|member| {
+                    member.status == ScopeMemberStatus::Active && member.role == ScopeRole::Owner
+                })
+                .count()
+                <= 1
+        {
+            return Err(MembershipError::FinalOwner);
+        }
+        self.repo
+            .revoke_member(scope_id, target_principal_id, Utc::now())?
+            .ok_or(MembershipError::NotFound)?;
+        self.record_member_event(
+            scope_id,
+            Some(actor_principal_id),
+            Some(target_principal_id),
+            "membership_revoked",
+            "success",
+            "revoked",
+        )?;
+        Ok(())
+    }
+
+    pub fn lifecycle_events_for_scope(
+        &self,
+        actor_principal_id: Uuid,
+        scope_id: Uuid,
+    ) -> Result<Vec<ScopeLifecycleEvent>, MembershipError> {
+        self.manager_role(actor_principal_id, scope_id)?;
+        Ok(self.repo.lifecycle_events_for_scope(scope_id)?)
+    }
+
+    fn record_event(
+        &self,
+        invitation: &ScopeInvitation,
+        actor_principal_id: Option<Uuid>,
+        event_type: &str,
+        outcome: &str,
+        reason_code: &str,
+    ) -> Result<(), MembershipError> {
+        self.repo.append_lifecycle_event(&ScopeLifecycleEvent {
+            event_id: Uuid::new_v4(),
+            scope_id: invitation.scope_id,
+            actor_principal_id,
+            subject_principal_id: invitation.recipient_principal_id,
+            invitation_id: Some(invitation.invitation_id),
+            event_type: event_type.to_owned(),
+            outcome: outcome.to_owned(),
+            reason_code: reason_code.to_owned(),
+            correlation_id: invitation.correlation_id,
+            occurred_at: Utc::now(),
+        })?;
+        Ok(())
+    }
+
+    fn record_member_event(
+        &self,
+        scope_id: Uuid,
+        actor_principal_id: Option<Uuid>,
+        subject_principal_id: Option<Uuid>,
+        event_type: &str,
+        outcome: &str,
+        reason_code: &str,
+    ) -> Result<(), MembershipError> {
+        self.repo.append_lifecycle_event(&ScopeLifecycleEvent {
+            event_id: Uuid::new_v4(),
+            scope_id,
+            actor_principal_id,
+            subject_principal_id,
+            invitation_id: None,
+            event_type: event_type.to_owned(),
+            outcome: outcome.to_owned(),
+            reason_code: reason_code.to_owned(),
+            correlation_id: Uuid::new_v4(),
+            occurred_at: Utc::now(),
+        })?;
+        Ok(())
     }
 }
