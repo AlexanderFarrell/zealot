@@ -1,4 +1,5 @@
 use sqlx::PgPool;
+use uuid::Uuid;
 use zealot_app::repos::{common::RepoError, item_view::ItemViewRepo};
 use zealot_domain::common::id::Id;
 
@@ -55,6 +56,43 @@ impl ItemViewRepo for ItemViewPostgresRepo {
                     .map(|(item_id, cnt)| {
                         Id::try_from(item_id as i64)
                             .map(|id| (id, cnt))
+                            .map_err(|e| RepoError::DatabaseError { err: e.to_string() })
+                    })
+                    .collect()
+            })
+        })
+    }
+
+    fn get_most_viewed_in_scopes(
+        &self,
+        limit: i64,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<(Id, i64)>, RepoError> {
+        if scope_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let scope_ids = scope_ids.to_vec();
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let rows = sqlx::query_as::<_, (i32, i64)>(
+                    "SELECT iv.item_id, COUNT(*) as cnt
+                     FROM item_view iv
+                     INNER JOIN item i ON i.item_id = iv.item_id
+                     WHERE i.scope_id = ANY($1)
+                     GROUP BY iv.item_id
+                     ORDER BY cnt DESC
+                     LIMIT $2",
+                )
+                .bind(&scope_ids)
+                .bind(limit)
+                .fetch_all(&pool)
+                .await
+                .map_err(RepoError::from)?;
+                rows.into_iter()
+                    .map(|(item_id, count)| {
+                        Id::try_from(item_id as i64)
+                            .map(|id| (id, count))
                             .map_err(|e| RepoError::DatabaseError { err: e.to_string() })
                     })
                     .collect()
