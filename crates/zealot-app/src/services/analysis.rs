@@ -4,6 +4,7 @@ use zealot_domain::{account::Account, common::id::Id, item::ItemCore};
 
 use crate::repos::common::RepoError;
 use crate::repos::{item::ItemRepo, item_view::ItemViewRepo};
+use crate::services::scope::ScopeAccess;
 
 #[derive(Debug, Clone)]
 pub struct AnalysisService {
@@ -74,6 +75,30 @@ impl AnalysisService {
 
         result.sort_by(|a, b| b.view_count.cmp(&a.view_count));
 
+        Ok(result)
+    }
+
+    pub fn get_most_viewed_items_in_scopes(
+        &self,
+        limit: i64,
+        access: &ScopeAccess,
+    ) -> Result<Vec<MostViewedItem>, AnalysisServiceError> {
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let ranked = self
+            .item_view_repo
+            .get_most_viewed_in_scopes(limit, &scope_ids)
+            .map_err(AnalysisServiceError::Repo)?;
+        let mut result = Vec::with_capacity(ranked.len());
+        for (item_id, view_count) in ranked {
+            if let Some((item, _owner_account_id)) = self
+                .item_repo
+                .get_item_by_id_in_scopes(&item_id, &scope_ids)
+                .map_err(AnalysisServiceError::Repo)?
+            {
+                result.push(MostViewedItem { item, view_count });
+            }
+        }
+        result.sort_by(|a, b| b.view_count.cmp(&a.view_count));
         Ok(result)
     }
 }

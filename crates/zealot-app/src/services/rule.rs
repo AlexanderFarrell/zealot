@@ -9,6 +9,7 @@ use zealot_domain::{
 use crate::{
     ports::rule_runner::{RuleContext, RuleRunResult, RuleRunnerPort},
     repos::{common::RepoError, rule::RuleRepo},
+    services::scope::ScopeAccess,
 };
 
 #[derive(Debug, Clone)]
@@ -39,15 +40,49 @@ impl RuleService {
         Ok(self.rule_repo.get_all_rules(&account.account_id)?)
     }
 
+    pub fn get_rules_in_scopes(&self, access: &ScopeAccess) -> Result<Vec<Rule>, RuleServiceError> {
+        Ok(self
+            .rule_repo
+            .get_all_rules_in_scopes(&Self::scope_ids(access))?)
+    }
+
     pub fn get_rule(&self, rule_id: &Id, account: &Account) -> Result<Rule, RuleServiceError> {
         self.rule_repo
             .get_rule_by_id(rule_id, &account.account_id)?
             .ok_or(RuleServiceError::NotFound)
     }
 
+    pub fn get_rule_in_scopes(
+        &self,
+        rule_id: &Id,
+        access: &ScopeAccess,
+    ) -> Result<Rule, RuleServiceError> {
+        self.rule_repo
+            .get_rule_by_id_in_scopes(rule_id, &Self::scope_ids(access))?
+            .ok_or(RuleServiceError::NotFound)
+    }
+
     pub fn add_rule(&self, dto: AddRuleDto, account: &Account) -> Result<Rule, RuleServiceError> {
         let rule = self.rule_repo.add_rule(&dto, &account.account_id)?;
         tracing::info!(account_id = ?account.account_id, rule_id = ?rule.rule_id, rule_name = %rule.name, "rule created");
+        Ok(rule)
+    }
+
+    pub fn add_rule_in_scope(
+        &self,
+        dto: AddRuleDto,
+        account: &Account,
+        access: &ScopeAccess,
+    ) -> Result<Rule, RuleServiceError> {
+        let scope_id = access
+            .scopes
+            .first()
+            .map(|scope| scope.scope_id)
+            .ok_or(RuleServiceError::NotFound)?;
+        let rule = self
+            .rule_repo
+            .add_rule_in_scope(&dto, &account.account_id, scope_id)?;
+        tracing::info!(account_id = ?account.account_id, ?scope_id, rule_id = ?rule.rule_id, rule_name = %rule.name, "scoped rule created");
         Ok(rule)
     }
 
@@ -65,9 +100,34 @@ impl RuleService {
         Ok(rule)
     }
 
+    pub fn update_rule_in_scopes(
+        &self,
+        rule_id: &Id,
+        dto: UpdateRuleDto,
+        access: &ScopeAccess,
+    ) -> Result<Rule, RuleServiceError> {
+        let rule = self
+            .rule_repo
+            .update_rule_in_scopes(rule_id, &dto, &Self::scope_ids(access))?
+            .ok_or(RuleServiceError::NotFound)?;
+        tracing::info!(?rule_id, scope_id = ?rule.scope_id, rule_name = %rule.name, "scoped rule updated");
+        Ok(rule)
+    }
+
     pub fn delete_rule(&self, rule_id: &Id, account: &Account) -> Result<(), RuleServiceError> {
         self.rule_repo.delete_rule(rule_id, &account.account_id)?;
         tracing::info!(account_id = ?account.account_id, ?rule_id, "rule deleted");
+        Ok(())
+    }
+
+    pub fn delete_rule_in_scopes(
+        &self,
+        rule_id: &Id,
+        access: &ScopeAccess,
+    ) -> Result<(), RuleServiceError> {
+        self.rule_repo
+            .delete_rule_in_scopes(rule_id, &Self::scope_ids(access))?;
+        tracing::info!(?rule_id, "scoped rule deleted");
         Ok(())
     }
 
@@ -90,5 +150,29 @@ impl RuleService {
             tracing::error!(account_id = ?account.account_id, ?rule_id, error = ?result.error, duration_ms = result.duration_ms, "manual rule failed");
         }
         Ok(result)
+    }
+
+    pub async fn run_rule_now_in_scopes(
+        &self,
+        rule_id: &Id,
+        access: &ScopeAccess,
+    ) -> Result<RuleRunResult, RuleServiceError> {
+        let rule = self.get_rule_in_scopes(rule_id, access)?;
+        tracing::info!(?rule_id, scope_id = ?rule.scope_id, rule_name = %rule.name, "running scoped rule manually");
+        let result = self.rule_runner.run_rule(&rule, RuleContext::Manual).await;
+        if result.success {
+            tracing::info!(
+                ?rule_id,
+                duration_ms = result.duration_ms,
+                "scoped manual rule completed"
+            );
+        } else {
+            tracing::error!(?rule_id, error = ?result.error, duration_ms = result.duration_ms, "scoped manual rule failed");
+        }
+        Ok(result)
+    }
+
+    fn scope_ids(access: &ScopeAccess) -> Vec<uuid::Uuid> {
+        access.scopes.iter().map(|scope| scope.scope_id).collect()
     }
 }

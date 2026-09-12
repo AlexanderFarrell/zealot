@@ -1,38 +1,46 @@
 use std::cell::Cell;
 use std::fmt::Debug;
+use uuid::Uuid;
 use zealot_domain::{comment::Comment, common::id::Id, item::Item};
 
 #[derive(Debug, Clone)]
 pub enum ZealotEvent {
     ItemCreated {
         account_id: Id,
+        scope_id: Uuid,
         item: Item,
     },
     ItemUpdated {
         account_id: Id,
+        scope_id: Uuid,
         item: Item,
     },
     ItemDeleted {
         account_id: Id,
+        scope_id: Uuid,
         item_id: Id,
     },
     CommentAdded {
         account_id: Id,
+        scope_id: Uuid,
         item_id: Id,
         comment: Comment,
     },
     TypeAssigned {
         account_id: Id,
+        scope_id: Uuid,
         item: Item,
         type_name: String,
     },
     TypeUnassigned {
         account_id: Id,
+        scope_id: Uuid,
         item: Item,
         type_name: String,
     },
     AttributeSet {
         account_id: Id,
+        scope_id: Uuid,
         item: Item,
         attribute_key: String,
     },
@@ -48,6 +56,18 @@ impl ZealotEvent {
             Self::TypeAssigned { account_id, .. } => account_id,
             Self::TypeUnassigned { account_id, .. } => account_id,
             Self::AttributeSet { account_id, .. } => account_id,
+        }
+    }
+
+    pub fn scope_id(&self) -> Uuid {
+        match self {
+            Self::ItemCreated { scope_id, .. }
+            | Self::ItemUpdated { scope_id, .. }
+            | Self::ItemDeleted { scope_id, .. }
+            | Self::CommentAdded { scope_id, .. }
+            | Self::TypeAssigned { scope_id, .. }
+            | Self::TypeUnassigned { scope_id, .. }
+            | Self::AttributeSet { scope_id, .. } => *scope_id,
         }
     }
 

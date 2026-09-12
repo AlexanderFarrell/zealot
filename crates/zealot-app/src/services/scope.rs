@@ -1,13 +1,44 @@
 use std::sync::Arc;
 use uuid::Uuid;
 use zealot_domain::scope::{
-    Scope, ScopeMember, ScopeMemberStatus, ScopePermission, ScopeRole, ServerPrincipal,
+    PrincipalStatus, Scope, ScopeMember, ScopeMemberStatus, ScopePermission, ScopeRole,
+    ServerPrincipal,
 };
 
 use crate::{
     repos::common::RepoError,
     repos::scope::{ScopeRepo, ServerMetadata},
 };
+
+/// A request-scoped, already-authorized selection. Repository/service APIs
+/// must accept this instead of treating an account as the authorization
+/// boundary. `all_scopes` is represented by more than one scope and is never
+/// returned for a mutation.
+#[derive(Debug, Clone)]
+pub struct ScopeAccess {
+    pub principal_id: Uuid,
+    pub scopes: Vec<Scope>,
+    pub permission: ScopePermission,
+    pub read_only: bool,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ScopeAccessError {
+    #[error("authentication required")]
+    Unauthenticated,
+    #[error("authenticated actor has no server principal")]
+    MissingPrincipal,
+    #[error("scope not found")]
+    NotFound,
+    #[error("scope access forbidden")]
+    Forbidden,
+    #[error("all_scopes is read-only")]
+    AllScopesMutation,
+    #[error("default scope unavailable")]
+    DefaultUnavailable,
+    #[error("scope repository error: {0}")]
+    Repo(#[from] RepoError),
+}
 
 #[derive(Debug, Clone)]
 pub struct ScopeService {
@@ -35,6 +66,12 @@ impl ScopeService {
     ) -> Result<Option<ServerPrincipal>, RepoError> {
         self.repo.principal_for_api_key_hash(key_hash)
     }
+    pub fn principal_by_id(
+        &self,
+        principal_id: Uuid,
+    ) -> Result<Option<ServerPrincipal>, RepoError> {
+        self.repo.principal_by_id(principal_id)
+    }
 
     /// Authorizes a principal against the persisted active membership.  This is
     /// the single role-to-grant decision point for HTTP and application code.
@@ -44,6 +81,18 @@ impl ScopeService {
         scope_id: Uuid,
         permission: ScopePermission,
     ) -> Result<bool, RepoError> {
+        let Some(principal) = self.repo.principal_by_id(principal_id)? else {
+            return Ok(false);
+        };
+        if principal.status != PrincipalStatus::Active {
+            return Ok(false);
+        }
+        let Some(scope) = self.repo.scope_by_id(scope_id)? else {
+            return Ok(false);
+        };
+        if scope.status != zealot_domain::scope::ScopeStatus::Active {
+            return Ok(false);
+        }
         Ok(self
             .repo
             .members_for_scope(scope_id)?
@@ -62,6 +111,61 @@ impl ScopeService {
         principal_id: Uuid,
     ) -> Result<Option<Scope>, RepoError> {
         self.repo.default_scope_for_principal(principal_id)
+    }
+
+    /// Resolves a principal's scope selection once, before any item lookup or
+    /// mutation. A denied explicit scope is intentionally not silently
+    /// replaced by a default scope.
+    pub fn resolve_access(
+        &self,
+        principal_id: Option<Uuid>,
+        requested: Option<Uuid>,
+        all_scopes: bool,
+        permission: ScopePermission,
+        read_only: bool,
+    ) -> Result<ScopeAccess, ScopeAccessError> {
+        let principal_id = principal_id.ok_or(ScopeAccessError::MissingPrincipal)?;
+        let Some(principal) = self.repo.principal_by_id(principal_id)? else {
+            return Err(ScopeAccessError::MissingPrincipal);
+        };
+        if principal.status != PrincipalStatus::Active {
+            return Err(ScopeAccessError::MissingPrincipal);
+        }
+        if all_scopes {
+            if !read_only {
+                return Err(ScopeAccessError::AllScopesMutation);
+            }
+            let mut scopes = Vec::new();
+            for scope in self.active_scopes_for_principal(principal_id)? {
+                if self.authorize(principal_id, scope.scope_id, permission)? {
+                    scopes.push(scope);
+                }
+            }
+            return Ok(ScopeAccess {
+                principal_id,
+                scopes,
+                permission,
+                read_only,
+            });
+        }
+
+        let scope = match requested {
+            Some(scope_id) => self
+                .scope_by_id(scope_id)?
+                .ok_or(ScopeAccessError::NotFound)?,
+            None => self
+                .default_scope_for_principal(principal_id)?
+                .ok_or(ScopeAccessError::DefaultUnavailable)?,
+        };
+        if !self.authorize(principal_id, scope.scope_id, permission)? {
+            return Err(ScopeAccessError::Forbidden);
+        }
+        Ok(ScopeAccess {
+            principal_id,
+            scopes: vec![scope],
+            permission,
+            read_only,
+        })
     }
 
     /// Resolves the API's scope controls.  A missing selection uses the
@@ -105,6 +209,34 @@ impl ScopeService {
     }
     pub fn active_scopes_for_principal(&self, principal_id: Uuid) -> Result<Vec<Scope>, RepoError> {
         self.repo.active_scopes_for_principal(principal_id)
+    }
+    pub fn scope_by_id(&self, scope_id: Uuid) -> Result<Option<Scope>, RepoError> {
+        self.repo.scope_by_id(scope_id)
+    }
+
+    /// Resolve the persisted scope owner as the execution identity for an
+    /// automation rule. Rules have no interactive actor, so their scope and
+    /// owner membership are checked at execution time instead of falling back
+    /// to the legacy account boundary.
+    pub fn rule_access(&self, scope_id: Uuid) -> Result<Option<ScopeAccess>, RepoError> {
+        let Some(scope) = self.repo.scope_by_id(scope_id)? else {
+            return Ok(None);
+        };
+        if scope.status != zealot_domain::scope::ScopeStatus::Active
+            || !self.authorize(
+                scope.owner_principal_id,
+                scope_id,
+                ScopePermission::UpdateItems,
+            )?
+        {
+            return Ok(None);
+        }
+        Ok(Some(ScopeAccess {
+            principal_id: scope.owner_principal_id,
+            scopes: vec![scope],
+            permission: ScopePermission::UpdateItems,
+            read_only: false,
+        }))
     }
     pub fn members_for_scope(&self, scope_id: Uuid) -> Result<Vec<ScopeMember>, RepoError> {
         self.repo.members_for_scope(scope_id)

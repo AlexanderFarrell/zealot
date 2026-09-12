@@ -1,8 +1,8 @@
 use axum::{
-    Extension, Json, Router,
     extract::{Query, State},
     middleware,
     routing::get,
+    Extension, Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use zealot_app::{app::AppState, services::analysis::AnalysisServiceError};
@@ -11,6 +11,7 @@ use zealot_domain::auth::Actor;
 use crate::http::{
     common::HttpError,
     middleware::{auth_middleware, csrf_middleware},
+    scope::{read_scope_access, ScopeQuery},
 };
 
 pub fn routes(state: AppState) -> Router<AppState> {
@@ -27,13 +28,6 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .with_state(state)
 }
 
-fn require_account(actor: &Actor) -> Result<zealot_domain::account::Account, HttpError> {
-    if !actor.is_authenticated() {
-        return Err(HttpError::Unauthorized);
-    }
-    actor.account.clone().ok_or(HttpError::Unauthorized)
-}
-
 fn analysis_service_err(err: AnalysisServiceError) -> HttpError {
     match err {
         AnalysisServiceError::Repo(e) => {
@@ -47,6 +41,8 @@ fn analysis_service_err(err: AnalysisServiceError) -> HttpError {
 struct MostViewedParams {
     #[serde(default = "default_limit")]
     limit: i64,
+    #[serde(flatten)]
+    scope: ScopeQuery,
 }
 
 fn default_limit() -> i64 {
@@ -65,11 +61,11 @@ async fn get_most_viewed(
     Extension(actor): Extension<Actor>,
     Query(params): Query<MostViewedParams>,
 ) -> Result<Json<Vec<MostViewedItemDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = read_scope_access(&state, &actor, &params.scope)?;
     let results = state
         .services
         .analysis
-        .get_most_viewed_items(params.limit, &account)
+        .get_most_viewed_items_in_scopes(params.limit, &access)
         .map_err(analysis_service_err)?;
 
     let dtos = results

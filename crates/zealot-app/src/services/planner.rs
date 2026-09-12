@@ -9,6 +9,7 @@ use zealot_domain::{
 };
 
 use super::item::{ItemService, ItemServiceError};
+use super::scope::ScopeAccess;
 
 #[derive(Debug, Clone)]
 pub struct PlannerService {
@@ -112,5 +113,88 @@ impl PlannerService {
                 tracing::error!(account_id = ?account.account_id, %e, "planner filter failed");
                 PlannerServiceError::from(e)
             })
+    }
+
+    pub fn get_for_day_in_scopes(
+        &self,
+        day: &NaiveDate,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, PlannerServiceError> {
+        self.filter_items_in_scopes(
+            vec![AttributeFilterDto {
+                key: String::from("Date"),
+                op: String::from("eq"),
+                value: json!(day.format("%Y-%m-%d").to_string()),
+                list_mode: String::from("any"),
+            }],
+            access,
+        )
+    }
+
+    pub fn get_for_week_in_scopes(
+        &self,
+        week: &Week,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, PlannerServiceError> {
+        self.filter_items_in_scopes(
+            vec![AttributeFilterDto {
+                key: String::from("Week"),
+                op: String::from("eq"),
+                value: json!(week.to_string()),
+                list_mode: String::from("any"),
+            }],
+            access,
+        )
+    }
+
+    pub fn get_for_month_in_scopes(
+        &self,
+        month: i64,
+        year: i64,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, PlannerServiceError> {
+        self.filter_items_in_scopes(
+            vec![
+                AttributeFilterDto {
+                    key: String::from("Month"),
+                    op: String::from("eq"),
+                    value: json!(month),
+                    list_mode: String::from("any"),
+                },
+                AttributeFilterDto {
+                    key: String::from("Year"),
+                    op: String::from("eq"),
+                    value: json!(year),
+                    list_mode: String::from("any"),
+                },
+            ],
+            access,
+        )
+    }
+
+    pub fn get_for_year_in_scopes(
+        &self,
+        year: i64,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, PlannerServiceError> {
+        self.filter_items_in_scopes(
+            vec![AttributeFilterDto {
+                key: String::from("Year"),
+                op: String::from("eq"),
+                value: json!(year),
+                list_mode: String::from("any"),
+            }],
+            access,
+        )
+    }
+
+    fn filter_items_in_scopes(
+        &self,
+        filters: Vec<AttributeFilterDto>,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, PlannerServiceError> {
+        self.item_service
+            .filter_items_in_scopes(&filters, access)
+            .map_err(PlannerServiceError::from)
     }
 }

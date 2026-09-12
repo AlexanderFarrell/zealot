@@ -16,6 +16,7 @@ use zealot_domain::{
 use crate::repos::{common::RepoError, statistic::StatisticRepo};
 
 use super::item::{ItemService, ItemServiceError};
+use super::scope::ScopeAccess;
 
 #[derive(Debug)]
 pub struct StatisticService {
@@ -59,6 +60,24 @@ impl StatisticService {
         Ok(items)
     }
 
+    pub fn list_items_in_scopes(
+        &self,
+        parent_id: Option<Id>,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, StatisticServiceError> {
+        if let Some(parent_id) = parent_id {
+            self.require_item_in_scopes(parent_id, access)?;
+        }
+        let mut items = self
+            .item_service
+            .get_items_by_type_in_scopes("Statistic", access)
+            .map_err(map_item_error)?;
+        if let Some(parent_id) = parent_id {
+            items.retain(|item| item.parent_ids().contains(&parent_id));
+        }
+        Ok(items)
+    }
+
     pub fn list_entries(
         &self,
         item_id: Id,
@@ -73,6 +92,30 @@ impl StatisticService {
         let mut entries = self
             .repo
             .list(item_id, start, end, limit + 1, offset, account)?;
+        let has_more = entries.len() > limit as usize;
+        entries.truncate(limit as usize);
+        let count = entries.len();
+        Ok(StatisticEntryPageDto {
+            entries: entries.iter().map(StatisticEntryDto::from).collect(),
+            count,
+            next_offset: has_more.then_some(offset + count as i64),
+        })
+    }
+
+    pub fn list_entries_in_scopes(
+        &self,
+        item_id: Id,
+        start: Option<DateTime<Utc>>,
+        end: Option<DateTime<Utc>>,
+        limit: i64,
+        offset: i64,
+        access: &ScopeAccess,
+    ) -> Result<StatisticEntryPageDto, StatisticServiceError> {
+        self.validate_range(start, end)?;
+        self.require_statistic_in_scopes(item_id, access)?;
+        let mut entries =
+            self.repo
+                .list_in_scopes(item_id, start, end, limit + 1, offset, &scope_ids(access))?;
         let has_more = entries.len() > limit as usize;
         entries.truncate(limit as usize);
         let count = entries.len();
@@ -116,6 +159,25 @@ impl StatisticService {
             .collect()
     }
 
+    pub fn daily_in_scopes(
+        &self,
+        item_id: Id,
+        start: Option<DateTime<Utc>>,
+        end: Option<DateTime<Utc>>,
+        access: &ScopeAccess,
+    ) -> Result<Vec<StatisticDailyPointDto>, StatisticServiceError> {
+        self.validate_range(start, end)?;
+        let item = self.require_statistic_in_scopes(item_id, access)?;
+        let aggregation = daily_aggregation(&item)?;
+        if aggregation == DailyAggregation::None {
+            return Ok(Vec::new());
+        }
+        let entries = self
+            .repo
+            .list_all_in_scopes(item_id, start, end, &scope_ids(access))?;
+        aggregate_daily(entries, aggregation)
+    }
+
     pub fn summary(
         &self,
         item_id: Id,
@@ -126,6 +188,21 @@ impl StatisticService {
         self.validate_range(start, end)?;
         self.require_statistic(item_id, account)?;
         let entries = self.repo.list_all(item_id, start, end, account)?;
+        Ok(summarize(&entries)?)
+    }
+
+    pub fn summary_in_scopes(
+        &self,
+        item_id: Id,
+        start: Option<DateTime<Utc>>,
+        end: Option<DateTime<Utc>>,
+        access: &ScopeAccess,
+    ) -> Result<StatisticSummaryDto, StatisticServiceError> {
+        self.validate_range(start, end)?;
+        self.require_statistic_in_scopes(item_id, access)?;
+        let entries = self
+            .repo
+            .list_all_in_scopes(item_id, start, end, &scope_ids(access))?;
         Ok(summarize(&entries)?)
     }
 
@@ -154,6 +231,41 @@ impl StatisticService {
             account,
         )?;
         tracing::info!(account_id = ?account.account_id, statistic_entry_id = ?entry.statistic_entry_id, item_id = ?item_id, "statistic entry created");
+        Ok(entry)
+    }
+
+    pub fn create_in_scopes(
+        &self,
+        item_id: Id,
+        dto: &CreateStatisticEntryDto,
+        owner_account: &Account,
+        access: &ScopeAccess,
+    ) -> Result<StatisticEntry, StatisticServiceError> {
+        self.require_statistic_in_scopes(item_id, access)?;
+        validate_value(dto.value)?;
+        let occurred_at = match &dto.occurred_at {
+            Some(value) => parse_timestamp(value)?,
+            None => Utc::now(),
+        };
+        let related_item_id = parse_related(dto.related_item_id)?;
+        if let Some(related_item_id) = related_item_id {
+            self.require_item_in_scopes(related_item_id, access)?;
+        }
+        let entry = self.repo.create_in_scopes(
+            item_id,
+            dto.value,
+            occurred_at,
+            related_item_id,
+            normalize_comment(dto.comment.clone()),
+            owner_account,
+            &scope_ids(access),
+        )?;
+        tracing::info!(
+            principal_id = %access.principal_id,
+            statistic_entry_id = ?entry.statistic_entry_id,
+            item_id = ?item_id,
+            "statistic entry created"
+        );
         Ok(entry)
     }
 
@@ -206,6 +318,59 @@ impl StatisticService {
         Ok(entry)
     }
 
+    pub fn update_in_scopes(
+        &self,
+        statistic_entry_id: Id,
+        dto: &UpdateStatisticEntryDto,
+        access: &ScopeAccess,
+    ) -> Result<StatisticEntry, StatisticServiceError> {
+        let current = self
+            .repo
+            .get_in_scopes(statistic_entry_id, &scope_ids(access))?
+            .ok_or(StatisticServiceError::NotFound)?;
+        self.require_statistic_in_scopes(current.item_id, access)?;
+        let value = dto.value.unwrap_or(current.value);
+        validate_value(value)?;
+        let occurred_at = dto
+            .occurred_at
+            .as_deref()
+            .map(parse_timestamp)
+            .transpose()?
+            .unwrap_or(current.occurred_at);
+        let related_item_id =
+            match dto.related_item_id {
+                Some(Some(value)) => Some(Id::try_from(value).map_err(|_| {
+                    StatisticServiceError::Invalid("invalid related_item_id".into())
+                })?),
+                Some(None) => None,
+                None => current.related_item_id,
+            };
+        if let Some(related_item_id) = related_item_id {
+            self.require_item_in_scopes(related_item_id, access)?;
+        }
+        let comment = match &dto.comment {
+            Some(value) => normalize_comment(value.clone()),
+            None => current.comment,
+        };
+        let entry = self
+            .repo
+            .update_in_scopes(
+                statistic_entry_id,
+                value,
+                occurred_at,
+                related_item_id,
+                comment,
+                &scope_ids(access),
+            )?
+            .ok_or(StatisticServiceError::NotFound)?;
+        tracing::info!(
+            principal_id = %access.principal_id,
+            ?statistic_entry_id,
+            "statistic entry updated"
+        );
+        Ok(entry)
+    }
+
     pub fn delete(
         &self,
         statistic_entry_id: Id,
@@ -220,6 +385,30 @@ impl StatisticService {
             return Err(StatisticServiceError::NotFound);
         }
         tracing::info!(account_id = ?account.account_id, ?statistic_entry_id, "statistic entry deleted");
+        Ok(())
+    }
+
+    pub fn delete_in_scopes(
+        &self,
+        statistic_entry_id: Id,
+        access: &ScopeAccess,
+    ) -> Result<(), StatisticServiceError> {
+        let current = self
+            .repo
+            .get_in_scopes(statistic_entry_id, &scope_ids(access))?
+            .ok_or(StatisticServiceError::NotFound)?;
+        self.require_statistic_in_scopes(current.item_id, access)?;
+        if !self
+            .repo
+            .delete_in_scopes(statistic_entry_id, &scope_ids(access))?
+        {
+            return Err(StatisticServiceError::NotFound);
+        }
+        tracing::info!(
+            principal_id = %access.principal_id,
+            ?statistic_entry_id,
+            "statistic entry deleted"
+        );
         Ok(())
     }
 
@@ -252,6 +441,39 @@ impl StatisticService {
         Ok(item)
     }
 
+    fn require_item_in_scopes(
+        &self,
+        item_id: Id,
+        access: &ScopeAccess,
+    ) -> Result<Item, StatisticServiceError> {
+        self.item_service
+            .get_item_by_id_in_scopes(&item_id, access)
+            .map_err(map_item_error)?
+            .ok_or(StatisticServiceError::NotFound)
+    }
+
+    fn require_statistic_in_scopes(
+        &self,
+        item_id: Id,
+        access: &ScopeAccess,
+    ) -> Result<Item, StatisticServiceError> {
+        let item = self.require_item_in_scopes(item_id, access)?;
+        if !item.types.iter().any(|kind| kind.name == "Statistic") {
+            return Err(StatisticServiceError::Invalid(
+                "item is not assigned the Statistic type".into(),
+            ));
+        }
+        for key in ["Value Kind", "Unit", "Daily Aggregation"] {
+            if !item.attributes.contains_key(key) {
+                return Err(StatisticServiceError::Invalid(format!(
+                    "Statistic item is missing required attribute '{key}'"
+                )));
+            }
+        }
+        daily_aggregation(&item)?;
+        Ok(item)
+    }
+
     fn validate_range(
         &self,
         start: Option<DateTime<Utc>>,
@@ -264,6 +486,34 @@ impl StatisticService {
         }
         Ok(())
     }
+}
+
+fn scope_ids(access: &ScopeAccess) -> Vec<uuid::Uuid> {
+    access.scopes.iter().map(|scope| scope.scope_id).collect()
+}
+
+fn aggregate_daily(
+    entries: Vec<zealot_domain::statistic::StatisticEntryCore>,
+    aggregation: DailyAggregation,
+) -> Result<Vec<StatisticDailyPointDto>, StatisticServiceError> {
+    let mut days: BTreeMap<_, Vec<StatisticEntry>> = BTreeMap::new();
+    for entry in entries {
+        days.entry(entry.occurred_at.date_naive())
+            .or_default()
+            .push(entry);
+    }
+    days.into_iter()
+        .map(|(date, entries)| {
+            let count = entries.len();
+            let refs: Vec<&StatisticEntry> = entries.iter().collect();
+            let value = aggregate(&refs, aggregation)?;
+            Ok(StatisticDailyPointDto {
+                date: date.to_string(),
+                value,
+                count,
+            })
+        })
+        .collect()
 }
 
 fn map_item_error(error: ItemServiceError) -> StatisticServiceError {

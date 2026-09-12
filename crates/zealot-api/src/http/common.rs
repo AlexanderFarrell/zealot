@@ -3,6 +3,7 @@ use axum::{http::StatusCode, response::IntoResponse};
 pub enum HttpError {
     NotFound,
     Unauthorized,
+    Forbidden,
     Internal,
     UserError { err: String },
     Conflict { message: String },
@@ -13,6 +14,7 @@ impl IntoResponse for HttpError {
         match self {
             HttpError::NotFound => (StatusCode::NOT_FOUND, "Not found").into_response(),
             HttpError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized").into_response(),
+            HttpError::Forbidden => (StatusCode::FORBIDDEN, "Forbidden").into_response(),
             HttpError::Internal => {
                 tracing::error!("Internal server error");
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal error").into_response()

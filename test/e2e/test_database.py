@@ -30,6 +30,8 @@ EXPECTED_MIGRATIONS = [
     "core model foundation",
     "default scope invariants",
     "scope authorization",
+    "rule scope",
+    "rule scope invariants",
 ]
 
 EXPECTED_SYSTEM_ATTRIBUTE_KINDS = [
@@ -56,6 +58,8 @@ EXPECTED_ITEM_TYPES = ["Plan", "Repeat", "Template", "Statistic"]
 
 @pytest.fixture(scope="module")
 def db() -> sqlite3.Connection:
+    if os.environ.get("ZEALOT_E2E_DATABASE") != "sqlite":
+        pytest.skip("SQLite database inspection is only valid for the SQLite E2E run")
     if not os.path.exists(DB_PATH):
         pytest.skip(f"SQLite database not found at {DB_PATH} — is the stack running?")
     conn = sqlite3.connect(DB_PATH)
@@ -171,6 +175,9 @@ def test_scope_foundation_schema_is_present(db: sqlite3.Connection) -> None:
     item_columns = {row["name"] for row in db.execute("pragma table_info(item)").fetchall()}
     assert "scope_id" in item_columns
 
+    rule_columns = {row["name"] for row in db.execute("pragma table_info(rule)").fetchall()}
+    assert "scope_id" in rule_columns
+
 
 def test_scope_foundation_bootstrap_is_consistent(db: sqlite3.Connection) -> None:
     server_rows = db.execute("select server_id, display_name from server").fetchall()
@@ -200,6 +207,11 @@ def test_scope_foundation_bootstrap_is_consistent(db: sqlite3.Connection) -> Non
         "select count(*) from item where scope_id is null"
     ).fetchone()[0]
     assert unscoped_items == 0
+
+    unscoped_rules = db.execute(
+        "select count(*) from rule where scope_id is null"
+    ).fetchone()[0]
+    assert unscoped_rules == 0
 
 
 def test_new_account_gets_personal_default_scope(

@@ -5,6 +5,7 @@ use std::{
 
 use regex::Regex;
 use serde_json::Value;
+use uuid::Uuid;
 use zealot_domain::{
     account::Account,
     attribute::{
@@ -19,10 +20,11 @@ use zealot_domain::{
     item_type::{ItemType, ItemTypeRef},
 };
 
+use crate::services::scope::ScopeAccess;
 use crate::{
     ports::events::{EventPort, ZealotEvent},
     repos::{
-        attribute::AttributeRepo, common::RepoError, item::ItemRepo,
+        account::AccountRepo, attribute::AttributeRepo, common::RepoError, item::ItemRepo,
         item_attribute_value::ItemAttributeValueRepo, item_external_link::ItemExternalLinkRepo,
         item_heading::ItemHeadingRepo, item_link::ItemLinkRepo, item_type::ItemTypeRepo,
     },
@@ -30,6 +32,7 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct ItemService {
+    account_repo: Arc<dyn AccountRepo>,
     item_repo: Arc<dyn ItemRepo>,
     item_attribute_value_repo: Arc<dyn ItemAttributeValueRepo>,
     item_external_link_repo: Arc<dyn ItemExternalLinkRepo>,
@@ -67,6 +70,7 @@ pub struct SearchResult {
 
 impl ItemService {
     pub fn new(
+        account_repo: &Arc<dyn AccountRepo>,
         item_repo: &Arc<dyn ItemRepo>,
         item_attribute_value_repo: &Arc<dyn ItemAttributeValueRepo>,
         item_external_link_repo: &Arc<dyn ItemExternalLinkRepo>,
@@ -77,6 +81,7 @@ impl ItemService {
         event_port: &Arc<dyn EventPort>,
     ) -> Self {
         Self {
+            account_repo: account_repo.clone(),
             item_repo: item_repo.clone(),
             item_attribute_value_repo: item_attribute_value_repo.clone(),
             item_external_link_repo: item_external_link_repo.clone(),
@@ -106,6 +111,317 @@ impl ItemService {
                 .next()),
             None => Ok(None),
         }
+    }
+
+    pub fn get_item_by_id_in_scopes(
+        &self,
+        item_id: &Id,
+        access: &ScopeAccess,
+    ) -> Result<Option<Item>, ItemServiceError> {
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let Some((item, owner_account_id)) = self
+            .item_repo
+            .get_item_by_id_in_scopes(item_id, &scope_ids)
+            .map_err(ItemServiceError::Repo)?
+        else {
+            return Ok(None);
+        };
+        let mut hydrated = self
+            .hydrate_items(vec![item], &owner_account_id)?
+            .into_iter()
+            .next();
+        if let Some(ref mut item) = hydrated {
+            let links = self
+                .item_link_repo
+                .get_links_for_items_in_scopes(&vec![item.item_id], &scope_ids)
+                .map_err(ItemServiceError::Repo)?;
+            item.links = links.get(&item.item_id).cloned().unwrap_or_default();
+        }
+        Ok(hydrated)
+    }
+
+    pub fn get_item_owner_account_id_in_scopes(
+        &self,
+        item_id: &Id,
+        access: &ScopeAccess,
+    ) -> Result<Option<Id>, ItemServiceError> {
+        let scope_ids = Self::scope_ids(access);
+        Ok(self
+            .item_repo
+            .get_item_by_id_in_scopes(item_id, &scope_ids)
+            .map_err(ItemServiceError::Repo)?
+            .map(|(_, owner_account_id)| owner_account_id))
+    }
+
+    fn hydrate_scoped_items(
+        &self,
+        items: Vec<(ItemCore, Id)>,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        let mut hydrated = Vec::with_capacity(items.len());
+        for (item, owner_account_id) in items {
+            let Some(mut item) = self
+                .hydrate_items(vec![item], &owner_account_id)?
+                .into_iter()
+                .next()
+            else {
+                continue;
+            };
+            let links = self
+                .item_link_repo
+                .get_links_for_items_in_scopes(&vec![item.item_id], scope_ids)
+                .map_err(ItemServiceError::Repo)?;
+            item.links = links.get(&item.item_id).cloned().unwrap_or_default();
+            hydrated.push(item);
+        }
+        Ok(hydrated)
+    }
+
+    fn hydrate_scoped_item_ids(
+        &self,
+        item_ids: Vec<(Id, Id)>,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        let mut items = Vec::with_capacity(item_ids.len());
+        for (item_id, owner_account_id) in item_ids {
+            if let Some((item, _)) = self
+                .item_repo
+                .get_item_by_id_in_scopes(&item_id, scope_ids)
+                .map_err(ItemServiceError::Repo)?
+            {
+                items.push((item, owner_account_id));
+            }
+        }
+        self.hydrate_scoped_items(items, scope_ids)
+    }
+
+    pub fn get_items_by_title_in_scopes(
+        &self,
+        title: &str,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let items = self
+            .item_repo
+            .get_items_by_title_in_scopes(title, &scope_ids)
+            .map_err(ItemServiceError::Repo)?;
+        self.hydrate_scoped_items(items, &scope_ids)
+    }
+
+    pub fn search_items_in_scopes(
+        &self,
+        term: &str,
+        scope: SearchScope,
+        use_regex: bool,
+        limit: i64,
+        offset: i64,
+        access: &ScopeAccess,
+    ) -> Result<Vec<SearchResult>, ItemServiceError> {
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let compiled_regex = if use_regex {
+            let re = Regex::new(&format!("(?i){}", term))
+                .map_err(|e| ItemServiceError::InvalidRegex(e.to_string()))?;
+            Some(re)
+        } else {
+            None
+        };
+        match scope {
+            SearchScope::Title => {
+                let fetch_limit = if use_regex { 500 } else { limit };
+                let fetch_offset = if use_regex { 0 } else { offset };
+                let items = self
+                    .item_repo
+                    .search_items_by_title_in_scopes(term, fetch_limit, fetch_offset, &scope_ids)
+                    .map_err(ItemServiceError::Repo)?;
+                let filtered = if let Some(re) = &compiled_regex {
+                    items
+                        .into_iter()
+                        .filter(|(item, _)| re.is_match(&item.title))
+                        .collect()
+                } else {
+                    items
+                };
+                let paged = if use_regex {
+                    filtered
+                        .into_iter()
+                        .skip(offset as usize)
+                        .take(limit as usize)
+                        .collect()
+                } else {
+                    filtered
+                };
+                let hydrated = self.hydrate_scoped_items(paged, &scope_ids)?;
+                Ok(hydrated
+                    .into_iter()
+                    .map(|item| SearchResult {
+                        item,
+                        match_scope: SearchScope::Title,
+                        snippet: None,
+                    })
+                    .collect())
+            }
+            SearchScope::Content => {
+                let fetch_limit = if use_regex { 500 } else { limit };
+                let fetch_offset = if use_regex { 0 } else { offset };
+                let items = self
+                    .item_repo
+                    .search_items_by_content_in_scopes(term, fetch_limit, fetch_offset, &scope_ids)
+                    .map_err(ItemServiceError::Repo)?;
+                let filtered: Vec<(ItemCore, Id)> = if let Some(re) = &compiled_regex {
+                    items
+                        .into_iter()
+                        .filter(|(item, _)| re.is_match(&item.content))
+                        .collect()
+                } else {
+                    items
+                };
+                let paged: Vec<(ItemCore, Id)> = if use_regex {
+                    filtered
+                        .into_iter()
+                        .skip(offset as usize)
+                        .take(limit as usize)
+                        .collect()
+                } else {
+                    filtered
+                };
+                let snippets: Vec<Option<String>> = paged
+                    .iter()
+                    .map(|(item, _)| extract_snippet(&item.content, term, compiled_regex.as_ref()))
+                    .collect();
+                let hydrated = self.hydrate_scoped_items(paged, &scope_ids)?;
+                Ok(hydrated
+                    .into_iter()
+                    .zip(snippets)
+                    .map(|(item, snippet)| SearchResult {
+                        item,
+                        match_scope: SearchScope::Content,
+                        snippet,
+                    })
+                    .collect())
+            }
+            SearchScope::Heading => {
+                let fetch_limit = if use_regex { 500 } else { limit };
+                let fetch_offset = if use_regex { 0 } else { offset };
+                let pairs = self
+                    .item_repo
+                    .search_items_by_heading_in_scopes(term, fetch_limit, fetch_offset, &scope_ids)
+                    .map_err(ItemServiceError::Repo)?;
+                let filtered: Vec<(ItemCore, String, Id)> = if let Some(re) = &compiled_regex {
+                    pairs
+                        .into_iter()
+                        .filter(|(_, heading, _)| re.is_match(heading))
+                        .collect()
+                } else {
+                    pairs
+                };
+                let paged: Vec<(ItemCore, String, Id)> = if use_regex {
+                    filtered
+                        .into_iter()
+                        .skip(offset as usize)
+                        .take(limit as usize)
+                        .collect()
+                } else {
+                    filtered
+                };
+                let heading_texts: Vec<String> = paged
+                    .iter()
+                    .map(|(_, heading, _)| heading.clone())
+                    .collect();
+                let scoped_items: Vec<(ItemCore, Id)> = paged
+                    .into_iter()
+                    .map(|(item, _, account)| (item, account))
+                    .collect();
+                let hydrated = self.hydrate_scoped_items(scoped_items, &scope_ids)?;
+                Ok(hydrated
+                    .into_iter()
+                    .zip(heading_texts)
+                    .map(|(item, heading)| SearchResult {
+                        item,
+                        match_scope: SearchScope::Heading,
+                        snippet: Some(heading),
+                    })
+                    .collect())
+            }
+        }
+    }
+
+    pub fn get_recent_items_in_scopes(
+        &self,
+        limit: i64,
+        offset: i64,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let items = self
+            .item_repo
+            .get_recent_items_in_scopes(limit, offset, &scope_ids)
+            .map_err(ItemServiceError::Repo)?;
+        self.hydrate_scoped_items(items, &scope_ids)
+    }
+
+    pub fn get_random_items_in_scopes(
+        &self,
+        count: usize,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        use rand::seq::SliceRandom;
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let mut ids = self
+            .item_repo
+            .get_all_item_ids_in_scopes(&scope_ids)
+            .map_err(ItemServiceError::Repo)?;
+        ids.shuffle(&mut rand::thread_rng());
+        ids.truncate(count);
+        let mut items = Vec::with_capacity(ids.len());
+        for item_id in ids {
+            if let Some((item, owner_account_id)) = self
+                .item_repo
+                .get_item_by_id_in_scopes(&item_id, &scope_ids)
+                .map_err(ItemServiceError::Repo)?
+            {
+                items.push((item, owner_account_id));
+            }
+        }
+        self.hydrate_scoped_items(items, &scope_ids)
+    }
+
+    pub fn get_children_in_scopes(
+        &self,
+        item_id: &Id,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let items = self
+            .item_link_repo
+            .get_source_item_ids_in_scopes(item_id, relationship::PARENT, &scope_ids)
+            .map_err(ItemServiceError::Repo)?;
+        self.hydrate_scoped_item_ids(items, &scope_ids)
+    }
+
+    pub fn get_related_items_in_scopes(
+        &self,
+        item_id: &Id,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let items = self
+            .item_link_repo
+            .get_related_item_ids_in_scopes(item_id, &scope_ids)
+            .map_err(ItemServiceError::Repo)?;
+        self.hydrate_scoped_item_ids(items, &scope_ids)
+    }
+
+    pub fn get_backlinks_in_scopes(
+        &self,
+        item_id: &Id,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let items = self
+            .item_link_repo
+            .get_source_item_ids_in_scopes(item_id, "wikilink", &scope_ids)
+            .map_err(ItemServiceError::Repo)?;
+        self.hydrate_scoped_item_ids(items, &scope_ids)
     }
 
     pub fn get_items_by_title(
@@ -300,6 +616,41 @@ impl ItemService {
     }
 
     /// Returns items where the "Root" attribute is boolean `true`.
+    pub fn get_root_items_in_scopes(
+        &self,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let ids = self
+            .item_attribute_value_repo
+            .find_item_ids_by_filters_in_scopes(
+                &vec![AttributeFilter {
+                    key: String::from("Root"),
+                    op: zealot_domain::attribute::AttributeFilterOp::Equal,
+                    value: Value::Bool(true),
+                    list_mode: AttributeListMode::Any,
+                }],
+                &scope_ids,
+                None,
+                0,
+            )
+            .map_err(ItemServiceError::Repo)?;
+        self.hydrate_scoped_item_ids(ids, &scope_ids)
+    }
+
+    pub fn get_items_by_type_in_scopes(
+        &self,
+        type_name: &str,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let ids = self
+            .item_type_repo
+            .get_item_ids_for_type_name_in_scopes(type_name, &scope_ids)
+            .map_err(ItemServiceError::Repo)?;
+        self.hydrate_scoped_item_ids(ids, &scope_ids)
+    }
+
     pub fn get_root_items(&self, account: &Account) -> Result<Vec<Item>, ItemServiceError> {
         let ids = self
             .item_attribute_value_repo
@@ -403,7 +754,513 @@ impl ItemService {
         self.hydrate_item_ids(&ids, account)
     }
 
+    pub fn filter_items_paginated_in_scopes(
+        &self,
+        filter_dtos: &Vec<AttributeFilterDto>,
+        limit: i64,
+        offset: i64,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        let filters: Vec<AttributeFilter> = filter_dtos
+            .iter()
+            .map(|dto| AttributeFilter::try_from(dto).map_err(ItemServiceError::InvalidFilter))
+            .collect::<Result<Vec<_>, _>>()?;
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let ids = self
+            .item_attribute_value_repo
+            .find_item_ids_by_filters_in_scopes(&filters, &scope_ids, Some(limit), offset)
+            .map_err(ItemServiceError::Repo)?;
+        self.hydrate_scoped_item_ids(ids, &scope_ids)
+    }
+
+    pub fn filter_items_in_scopes(
+        &self,
+        filter_dtos: &Vec<AttributeFilterDto>,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        let filters: Vec<AttributeFilter> = filter_dtos
+            .iter()
+            .map(|dto| AttributeFilter::try_from(dto).map_err(ItemServiceError::InvalidFilter))
+            .collect::<Result<Vec<_>, _>>()?;
+        let scope_ids = Self::scope_ids(access);
+        let ids = self
+            .item_attribute_value_repo
+            .find_item_ids_by_filters_in_scopes(&filters, &scope_ids, None, 0)
+            .map_err(ItemServiceError::Repo)?;
+        self.hydrate_scoped_item_ids(ids, &scope_ids)
+    }
+
     // --- Mutations ---
+
+    pub fn add_item_in_scope(
+        &self,
+        dto: &AddItemDto,
+        access: &ScopeAccess,
+        owner_account: &Account,
+    ) -> Result<Option<Item>, ItemServiceError> {
+        let scope_id = access
+            .scopes
+            .first()
+            .map(|scope| scope.scope_id)
+            .ok_or(ItemServiceError::Unauthorized)?;
+        let scope_ids = vec![scope_id];
+
+        if dto.title.trim().is_empty() {
+            return Err(ItemServiceError::InvalidFilter(String::from(
+                "title is required",
+            )));
+        }
+
+        let attributes = match &dto.attributes {
+            Some(raw) => self.parse_attributes_map(raw, &owner_account.account_id)?,
+            None => HashMap::new(),
+        };
+        let type_names = dto.types.clone().unwrap_or_default();
+        let item_types =
+            self.resolve_requested_item_types(&type_names, &owner_account.account_id)?;
+        self.ensure_valid_for_types(&item_types, &attributes)?;
+
+        let links = match &dto.links {
+            Some(raw) => self.parse_links(raw)?,
+            None => Vec::new(),
+        };
+        self.ensure_links_exist_in_scopes(None, &links, &scope_ids)?;
+
+        let parsed = AddItemCoreDto {
+            title: dto.title.clone(),
+            content: dto.content.clone(),
+        };
+        match self
+            .item_repo
+            .add_item_in_scope(&parsed, owner_account, scope_id)
+            .map_err(ItemServiceError::Repo)?
+        {
+            Some(item) => {
+                if !attributes.is_empty() {
+                    self.item_attribute_value_repo
+                        .replace_item_attributes(&item.item_id, &attributes, owner_account)
+                        .map_err(ItemServiceError::Repo)?;
+                    self.sync_item_links_from_attributes_in_scopes(
+                        &item.item_id,
+                        &attributes,
+                        owner_account,
+                        &scope_ids,
+                    )?;
+                }
+                if !type_names.is_empty() {
+                    self.item_type_repo
+                        .assign_item_types(&type_names, &item.item_id, &owner_account.account_id)
+                        .map_err(ItemServiceError::Repo)?;
+                }
+                if !links.is_empty() {
+                    self.item_link_repo
+                        .replace_links_for_item_in_scopes(&item.item_id, &links, &scope_ids)
+                        .map_err(ItemServiceError::Repo)?;
+                }
+                self.sync_wiki_links_from_content_in_scopes(
+                    &item.item_id,
+                    &dto.content,
+                    &scope_ids,
+                )?;
+                self.sync_headings(&item.item_id, &dto.content)?;
+                self.sync_external_links(&item.item_id, &dto.content)?;
+
+                let result = self.get_item_by_id_in_scopes(
+                    &item.item_id,
+                    &ScopeAccess {
+                        principal_id: access.principal_id,
+                        scopes: access.scopes.clone(),
+                        permission: access.permission,
+                        read_only: access.read_only,
+                    },
+                )?;
+                if let Some(ref created) = result {
+                    tracing::info!(account_id = ?owner_account.account_id, item_id = ?created.item_id, title = %created.title, "item created");
+                    self.event_port.emit(ZealotEvent::ItemCreated {
+                        account_id: owner_account.account_id,
+                        scope_id,
+                        item: created.clone(),
+                    });
+                }
+                Ok(result)
+            }
+            None => Ok(None),
+        }
+    }
+
+    pub fn update_item_in_scopes(
+        &self,
+        item_id: &Id,
+        dto: &UpdateItemDto,
+        access: &ScopeAccess,
+    ) -> Result<Option<Item>, ItemServiceError> {
+        let scope_ids = Self::scope_ids(access);
+        let scope_id = access
+            .scopes
+            .first()
+            .map(|scope| scope.scope_id)
+            .ok_or(ItemServiceError::Unauthorized)?;
+        if matches!(dto.title.as_ref(), Some(title) if title.trim().is_empty()) {
+            return Err(ItemServiceError::InvalidFilter(String::from(
+                "title is required",
+            )));
+        }
+        let Some((current_item, owner_account)) = self.scoped_item_and_owner(item_id, access)?
+        else {
+            return Ok(None);
+        };
+        let item_types =
+            self.resolve_assigned_item_types(&current_item.types, &owner_account.account_id)?;
+        let parsed_attributes = match &dto.attributes {
+            Some(raw) => Some(self.parse_attributes_map(raw, &owner_account.account_id)?),
+            None => None,
+        };
+        let mut merged_attributes = current_item.attributes.clone();
+        if let Some(attributes) = &parsed_attributes {
+            for (key, value) in attributes {
+                merged_attributes.insert(key.clone(), value.clone());
+            }
+            self.ensure_valid_for_types(&item_types, &merged_attributes)?;
+        }
+        let links = match &dto.links {
+            Some(raw) => Some(self.parse_links(raw)?),
+            None => None,
+        };
+        if let Some(links) = &links {
+            self.ensure_links_exist_in_scopes(Some(*item_id), links, &scope_ids)?;
+        }
+        let parsed = UpdateItemCoreDto {
+            item_id: *item_id,
+            title: dto.title.clone(),
+            content: dto.content.clone(),
+        };
+        let title_changed = dto
+            .title
+            .as_ref()
+            .map(|new_title| new_title != &current_item.title)
+            .unwrap_or(false);
+
+        match self
+            .item_repo
+            .update_item(&parsed, &owner_account)
+            .map_err(ItemServiceError::Repo)?
+        {
+            Some(item) => {
+                if let Some(attributes) = &parsed_attributes {
+                    self.item_attribute_value_repo
+                        .replace_item_attributes(&item.item_id, attributes, &owner_account)
+                        .map_err(ItemServiceError::Repo)?;
+                    self.sync_item_links_from_attributes_in_scopes(
+                        &item.item_id,
+                        attributes,
+                        &owner_account,
+                        &scope_ids,
+                    )?;
+                }
+                if let Some(links) = &links {
+                    self.item_link_repo
+                        .replace_links_for_item_in_scopes(&item.item_id, links, &scope_ids)
+                        .map_err(ItemServiceError::Repo)?;
+                }
+                if let Some(content) = &dto.content {
+                    self.sync_wiki_links_from_content_in_scopes(
+                        &item.item_id,
+                        content,
+                        &scope_ids,
+                    )?;
+                    self.sync_headings(&item.item_id, content)?;
+                    self.sync_external_links(&item.item_id, content)?;
+                }
+                if title_changed {
+                    self.rebuild_wiki_links_in_scopes(access)?;
+                }
+                let result = self.get_item_by_id_in_scopes(item_id, access)?;
+                if let Some(ref updated) = result {
+                    tracing::info!(account_id = ?owner_account.account_id, item_id = ?updated.item_id, "item updated");
+                    self.event_port.emit(ZealotEvent::ItemUpdated {
+                        account_id: owner_account.account_id,
+                        scope_id,
+                        item: updated.clone(),
+                    });
+                }
+                Ok(result)
+            }
+            None => Ok(None),
+        }
+    }
+
+    pub fn delete_item_in_scopes(
+        &self,
+        item_id: &Id,
+        access: &ScopeAccess,
+    ) -> Result<(), ItemServiceError> {
+        let Some((_item, owner_account)) = self.scoped_item_and_owner(item_id, access)? else {
+            return Err(ItemServiceError::NotFound);
+        };
+        let scope_id = self.required_item_scope_id(item_id)?;
+        self.item_repo
+            .delete_item(item_id, &owner_account)
+            .map_err(ItemServiceError::Repo)?;
+        tracing::info!(account_id = ?owner_account.account_id, ?item_id, "item deleted");
+        self.event_port.emit(ZealotEvent::ItemDeleted {
+            account_id: owner_account.account_id,
+            scope_id,
+            item_id: *item_id,
+        });
+        Ok(())
+    }
+
+    pub fn set_attributes_in_scopes(
+        &self,
+        item_id: &Id,
+        raw: &HashMap<String, Value>,
+        access: &ScopeAccess,
+    ) -> Result<(), ItemServiceError> {
+        if raw.len() > 10 {
+            return Err(ItemServiceError::InvalidFilter(String::from(
+                "please only update 10 attributes at a time",
+            )));
+        }
+        let scope_ids = Self::scope_ids(access);
+        let Some((current_item, owner_account)) = self.scoped_item_and_owner(item_id, access)?
+        else {
+            return Err(ItemServiceError::NotFound);
+        };
+        let scope_id = self.required_item_scope_id(item_id)?;
+        let item_types =
+            self.resolve_assigned_item_types(&current_item.types, &owner_account.account_id)?;
+        let parsed = self.parse_attributes_map(raw, &owner_account.account_id)?;
+        let mut merged_attributes = current_item.attributes;
+        for (key, value) in &parsed {
+            merged_attributes.insert(key.clone(), value.clone());
+        }
+        self.ensure_valid_for_types(&item_types, &merged_attributes)?;
+        self.item_attribute_value_repo
+            .replace_item_attributes(item_id, &parsed, &owner_account)
+            .map_err(ItemServiceError::Repo)?;
+        self.sync_item_links_from_attributes_in_scopes(
+            item_id,
+            &parsed,
+            &owner_account,
+            &scope_ids,
+        )?;
+        if let Ok(Some(item)) = self.get_item_by_id_in_scopes(item_id, access) {
+            for key in raw.keys() {
+                self.event_port.emit(ZealotEvent::AttributeSet {
+                    account_id: owner_account.account_id,
+                    scope_id,
+                    item: item.clone(),
+                    attribute_key: key.clone(),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    pub fn rename_attribute_in_scopes(
+        &self,
+        item_id: &Id,
+        old_key: &str,
+        new_key: &str,
+        access: &ScopeAccess,
+    ) -> Result<(), ItemServiceError> {
+        if old_key == new_key {
+            return Err(ItemServiceError::InvalidFilter(String::from(
+                "old_key and new_key must be different",
+            )));
+        }
+        let Some((current_item, owner_account)) = self.scoped_item_and_owner(item_id, access)?
+        else {
+            return Err(ItemServiceError::NotFound);
+        };
+        if !current_item.attributes.contains_key(old_key) {
+            return Err(ItemServiceError::InvalidFilter(format!(
+                "attribute '{old_key}' does not exist"
+            )));
+        }
+        if current_item.attributes.contains_key(new_key) {
+            return Err(ItemServiceError::InvalidFilter(format!(
+                "attribute '{new_key}' already exists"
+            )));
+        }
+        let item_types =
+            self.resolve_assigned_item_types(&current_item.types, &owner_account.account_id)?;
+        let mut merged_attributes = current_item.attributes;
+        let attribute = merged_attributes.remove(old_key).ok_or_else(|| {
+            ItemServiceError::InvalidFilter(format!("attribute '{old_key}' does not exist"))
+        })?;
+        merged_attributes.insert(String::from(new_key), attribute);
+        self.ensure_valid_for_types(&item_types, &merged_attributes)?;
+        self.item_attribute_value_repo
+            .rename_item_attribute(item_id, old_key, new_key, &owner_account)
+            .map_err(ItemServiceError::Repo)
+    }
+
+    pub fn delete_attribute_in_scopes(
+        &self,
+        item_id: &Id,
+        key: &str,
+        access: &ScopeAccess,
+    ) -> Result<(), ItemServiceError> {
+        let scope_ids = Self::scope_ids(access);
+        let Some((current_item, owner_account)) = self.scoped_item_and_owner(item_id, access)?
+        else {
+            return Err(ItemServiceError::NotFound);
+        };
+        let item_types =
+            self.resolve_assigned_item_types(&current_item.types, &owner_account.account_id)?;
+        let mut merged_attributes = current_item.attributes;
+        merged_attributes.remove(key);
+        self.ensure_valid_for_types(&item_types, &merged_attributes)?;
+        self.item_attribute_value_repo
+            .delete_item_attribute(item_id, key, &owner_account)
+            .map_err(ItemServiceError::Repo)?;
+        let kinds = self
+            .attribute_repo
+            .get_attribute_kinds_for_user(&owner_account.account_id)
+            .map_err(ItemServiceError::Repo)?;
+        if let Some(kind) = kinds.get(key) {
+            let is_item_typed = matches!(
+                &kind.base_type,
+                AttributeBaseType::Scalar(AttributeBaseScalarType::Item)
+                    | AttributeBaseType::List(AttributeBaseScalarType::Item)
+            );
+            if is_item_typed {
+                self.item_link_repo
+                    .replace_links_by_relationship_in_scopes(
+                        item_id,
+                        &key.to_lowercase(),
+                        &[],
+                        &scope_ids,
+                    )
+                    .map_err(ItemServiceError::Repo)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn assign_type_in_scopes(
+        &self,
+        type_name: &str,
+        item_id: &Id,
+        access: &ScopeAccess,
+    ) -> Result<(), ItemServiceError> {
+        let Some((current_item, owner_account)) = self.scoped_item_and_owner(item_id, access)?
+        else {
+            return Err(ItemServiceError::NotFound);
+        };
+        let scope_id = self.required_item_scope_id(item_id)?;
+        let item_type = self
+            .item_type_repo
+            .get_item_type_by_name(type_name, &owner_account.account_id)
+            .map_err(ItemServiceError::Repo)?
+            .ok_or_else(|| {
+                ItemServiceError::InvalidFilter(format!("unknown item type: {type_name}"))
+            })?;
+        self.ensure_valid_for_types(&vec![item_type], &current_item.attributes)?;
+        self.item_type_repo
+            .assign_item_types(
+                &vec![type_name.to_string()],
+                item_id,
+                &owner_account.account_id,
+            )
+            .map_err(ItemServiceError::Repo)?;
+        if let Ok(Some(item)) = self.get_item_by_id_in_scopes(item_id, access) {
+            self.event_port.emit(ZealotEvent::TypeAssigned {
+                account_id: owner_account.account_id,
+                scope_id,
+                item,
+                type_name: type_name.to_string(),
+            });
+        }
+        Ok(())
+    }
+
+    pub fn unassign_type_in_scopes(
+        &self,
+        type_name: &str,
+        item_id: &Id,
+        access: &ScopeAccess,
+    ) -> Result<(), ItemServiceError> {
+        let Some((_current_item, owner_account)) = self.scoped_item_and_owner(item_id, access)?
+        else {
+            return Err(ItemServiceError::NotFound);
+        };
+        let scope_id = self.required_item_scope_id(item_id)?;
+        self.item_type_repo
+            .unassign_item_types(
+                &vec![type_name.to_string()],
+                item_id,
+                &owner_account.account_id,
+            )
+            .map_err(ItemServiceError::Repo)?;
+        if let Ok(Some(item)) = self.get_item_by_id_in_scopes(item_id, access) {
+            self.event_port.emit(ZealotEvent::TypeUnassigned {
+                account_id: owner_account.account_id,
+                scope_id,
+                item,
+                type_name: type_name.to_string(),
+            });
+        }
+        Ok(())
+    }
+
+    pub fn rebuild_links_in_scopes(&self, access: &ScopeAccess) -> Result<usize, ItemServiceError> {
+        let scope_ids = Self::scope_ids(access);
+        let item_ids = self
+            .item_repo
+            .get_all_item_ids_in_scopes(&scope_ids)
+            .map_err(ItemServiceError::Repo)?;
+        let mut count = 0;
+        for item_id in item_ids {
+            let Some((item, owner_account_id)) = self
+                .item_repo
+                .get_item_by_id_in_scopes(&item_id, &scope_ids)
+                .map_err(ItemServiceError::Repo)?
+            else {
+                continue;
+            };
+            let attributes = self
+                .item_attribute_value_repo
+                .get_attributes_for_items(&vec![item_id], &owner_account_id)
+                .map_err(ItemServiceError::Repo)?
+                .remove(&item_id)
+                .unwrap_or_default();
+            let owner_account = self.owner_account(&owner_account_id)?;
+            self.sync_item_links_from_attributes_in_scopes(
+                &item.item_id,
+                &attributes,
+                &owner_account,
+                &scope_ids,
+            )?;
+            count += 1;
+        }
+        Ok(count)
+    }
+
+    pub fn rebuild_wiki_links_in_scopes(
+        &self,
+        access: &ScopeAccess,
+    ) -> Result<usize, ItemServiceError> {
+        let scope_ids = Self::scope_ids(access);
+        let item_ids = self
+            .item_repo
+            .get_all_item_ids_in_scopes(&scope_ids)
+            .map_err(ItemServiceError::Repo)?;
+        let mut count = 0;
+        for item_id in item_ids {
+            let Some((item, _)) = self
+                .item_repo
+                .get_item_by_id_in_scopes(&item_id, &scope_ids)
+                .map_err(ItemServiceError::Repo)?
+            else {
+                continue;
+            };
+            self.sync_wiki_links_from_content_in_scopes(&item_id, &item.content, &scope_ids)?;
+            count += 1;
+        }
+        Ok(count)
+    }
 
     pub fn add_item(
         &self,
@@ -470,6 +1327,7 @@ impl ItemService {
                     tracing::info!(account_id = ?account.account_id, item_id = ?created.item_id, title = %created.title, "item created");
                     self.event_port.emit(ZealotEvent::ItemCreated {
                         account_id: account.account_id,
+                        scope_id: self.required_item_scope_id(&created.item_id)?,
                         item: created.clone(),
                     });
                 }
@@ -563,6 +1421,7 @@ impl ItemService {
                     tracing::info!(account_id = ?account.account_id, item_id = ?updated.item_id, "item updated");
                     self.event_port.emit(ZealotEvent::ItemUpdated {
                         account_id: account.account_id,
+                        scope_id: self.required_item_scope_id(&updated.item_id)?,
                         item: updated.clone(),
                     });
                 }
@@ -573,12 +1432,14 @@ impl ItemService {
     }
 
     pub fn delete_item(&self, item_id: &Id, account: &Account) -> Result<(), ItemServiceError> {
+        let scope_id = self.required_item_scope_id(item_id)?;
         self.item_repo
             .delete_item(item_id, account)
             .map_err(ItemServiceError::Repo)?;
         tracing::info!(account_id = ?account.account_id, ?item_id, "item deleted");
         self.event_port.emit(ZealotEvent::ItemDeleted {
             account_id: account.account_id,
+            scope_id,
             item_id: *item_id,
         });
         Ok(())
@@ -620,6 +1481,7 @@ impl ItemService {
             for key in raw.keys() {
                 self.event_port.emit(ZealotEvent::AttributeSet {
                     account_id: account.account_id,
+                    scope_id: self.required_item_scope_id(&item.item_id)?,
                     item: item.clone(),
                     attribute_key: key.clone(),
                 });
@@ -731,6 +1593,7 @@ impl ItemService {
         if let Ok(Some(item)) = self.get_item_by_id(item_id, account) {
             self.event_port.emit(ZealotEvent::TypeAssigned {
                 account_id: account.account_id,
+                scope_id: self.required_item_scope_id(&item.item_id)?,
                 item,
                 type_name: type_name.to_string(),
             });
@@ -751,6 +1614,7 @@ impl ItemService {
         if let Ok(Some(item)) = self.get_item_by_id(item_id, account) {
             self.event_port.emit(ZealotEvent::TypeUnassigned {
                 account_id: account.account_id,
+                scope_id: self.required_item_scope_id(&item.item_id)?,
                 item,
                 type_name: type_name.to_string(),
             });
@@ -814,6 +1678,51 @@ impl ItemService {
                 })
             })
             .collect()
+    }
+
+    fn scope_ids(access: &ScopeAccess) -> Vec<Uuid> {
+        access.scopes.iter().map(|scope| scope.scope_id).collect()
+    }
+
+    pub fn get_item_scope_id(&self, item_id: &Id) -> Result<Option<Uuid>, ItemServiceError> {
+        self.item_repo
+            .get_item_scope_id(item_id)
+            .map_err(ItemServiceError::Repo)
+    }
+
+    fn required_item_scope_id(&self, item_id: &Id) -> Result<Uuid, ItemServiceError> {
+        self.get_item_scope_id(item_id)?
+            .ok_or(ItemServiceError::NotFound)
+    }
+
+    fn owner_account(&self, owner_account_id: &Id) -> Result<Account, ItemServiceError> {
+        self.account_repo
+            .get_account_by_id(owner_account_id)
+            .map_err(ItemServiceError::Repo)?
+            .ok_or(ItemServiceError::NotFound)
+    }
+
+    fn scoped_item_and_owner(
+        &self,
+        item_id: &Id,
+        access: &ScopeAccess,
+    ) -> Result<Option<(Item, Account)>, ItemServiceError> {
+        let scope_ids = Self::scope_ids(access);
+        let Some((item_core, owner_account_id)) = self
+            .item_repo
+            .get_item_by_id_in_scopes(item_id, &scope_ids)
+            .map_err(ItemServiceError::Repo)?
+        else {
+            return Ok(None);
+        };
+        let Some(item) = self
+            .hydrate_scoped_items(vec![(item_core, owner_account_id)], &scope_ids)?
+            .into_iter()
+            .next()
+        else {
+            return Ok(None);
+        };
+        Ok(Some((item, self.owner_account(&owner_account_id)?)))
     }
 
     fn hydrate_items(
@@ -983,6 +1892,55 @@ impl ItemService {
         Ok(())
     }
 
+    fn sync_item_links_from_attributes_in_scopes(
+        &self,
+        item_id: &Id,
+        parsed: &HashMap<String, Attribute>,
+        owner_account: &Account,
+        scope_ids: &[Uuid],
+    ) -> Result<(), ItemServiceError> {
+        let kinds = self
+            .attribute_repo
+            .get_attribute_kinds_for_user(&owner_account.account_id)
+            .map_err(ItemServiceError::Repo)?;
+
+        for (key, attr) in parsed {
+            let is_item_typed = kinds
+                .get(key.as_str())
+                .map(|kind| {
+                    matches!(
+                        &kind.base_type,
+                        AttributeBaseType::Scalar(AttributeBaseScalarType::Item)
+                            | AttributeBaseType::List(AttributeBaseScalarType::Item)
+                    )
+                })
+                .unwrap_or(false);
+            if !is_item_typed {
+                continue;
+            }
+            let item_ids: Vec<Id> = match attr {
+                Attribute::Scalar(AttributeScalar::Item(id)) => vec![*id],
+                Attribute::List(scalars) => scalars
+                    .iter()
+                    .filter_map(|scalar| match scalar {
+                        AttributeScalar::Item(id) => Some(*id),
+                        _ => None,
+                    })
+                    .collect(),
+                _ => Vec::new(),
+            };
+            self.item_link_repo
+                .replace_links_by_relationship_in_scopes(
+                    item_id,
+                    &key.to_lowercase(),
+                    &item_ids,
+                    scope_ids,
+                )
+                .map_err(ItemServiceError::Repo)?;
+        }
+        Ok(())
+    }
+
     /// Extracts all `[[Title]]` and `[[type:Title]]` wiki link titles from content.
     fn extract_wiki_link_titles(content: &str) -> Vec<String> {
         let mut titles = Vec::new();
@@ -1035,6 +1993,30 @@ impl ItemService {
         }
         self.item_link_repo
             .replace_links_by_relationship(item_id, "wikilink", &resolved_ids, account)
+            .map_err(ItemServiceError::Repo)
+    }
+
+    fn sync_wiki_links_from_content_in_scopes(
+        &self,
+        item_id: &Id,
+        content: &str,
+        scope_ids: &[Uuid],
+    ) -> Result<(), ItemServiceError> {
+        let titles = Self::extract_wiki_link_titles(content);
+        let mut resolved_ids = Vec::new();
+        for title in &titles {
+            let items = self
+                .item_repo
+                .get_items_by_title_in_scopes(title, scope_ids)
+                .map_err(ItemServiceError::Repo)?;
+            for (item, _) in items {
+                if item.item_id != *item_id && !resolved_ids.contains(&item.item_id) {
+                    resolved_ids.push(item.item_id);
+                }
+            }
+        }
+        self.item_link_repo
+            .replace_links_by_relationship_in_scopes(item_id, "wikilink", &resolved_ids, scope_ids)
             .map_err(ItemServiceError::Repo)
     }
 
@@ -1208,6 +2190,36 @@ impl ItemService {
             )));
         }
 
+        Ok(())
+    }
+
+    fn ensure_links_exist_in_scopes(
+        &self,
+        item_id: Option<Id>,
+        links: &Vec<ItemLink>,
+        scope_ids: &[Uuid],
+    ) -> Result<(), ItemServiceError> {
+        let mut unique_ids: HashSet<Id> = HashSet::new();
+        for link in links {
+            if Some(link.other_item_id) == item_id {
+                return Err(ItemServiceError::InvalidFilter(String::from(
+                    "items cannot link to themselves",
+                )));
+            }
+            unique_ids.insert(link.other_item_id);
+        }
+        for linked_id in unique_ids {
+            if self
+                .item_repo
+                .get_item_by_id_in_scopes(&linked_id, scope_ids)
+                .map_err(ItemServiceError::Repo)?
+                .is_none()
+            {
+                return Err(ItemServiceError::InvalidFilter(String::from(
+                    "one or more linked items do not exist",
+                )));
+            }
+        }
         Ok(())
     }
 }

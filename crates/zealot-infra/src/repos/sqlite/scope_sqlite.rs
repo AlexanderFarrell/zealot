@@ -98,8 +98,9 @@ fn member(r: MemberRow) -> Result<ScopeMember, RepoError> {
     })
 }
 const P: &str = "principal_id, server_id, kind, account_id, display_name, status, default_scope_id, created_at, retired_at";
+const P_JOINED: &str = "p.principal_id, p.server_id, p.kind, p.account_id, p.display_name, p.status, p.default_scope_id, p.created_at, p.retired_at";
 const S: &str =
-    "scope_id, server_id, title, description, status, owner_principal_id, created_at, updated_at";
+    "sc.scope_id, sc.server_id, sc.title, sc.description, sc.status, sc.owner_principal_id, sc.created_at, sc.updated_at";
 const M: &str = "scope_id, principal_id, role, status, created_at, updated_at";
 impl ScopeRepo for ScopeSqliteRepo {
     fn server_metadata(&self) -> Result<ServerMetadata, RepoError> {
@@ -143,9 +144,24 @@ impl ScopeRepo for ScopeSqliteRepo {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
                 sqlx::query_as::<_, PrincipalRow>(&format!(
-                    "SELECT {P} FROM server_principal p JOIN api_key k ON k.principal_id=p.principal_id WHERE k.key_hash=? AND p.status='active'"
+                    "SELECT {P_JOINED} FROM server_principal p JOIN api_key k ON k.principal_id=p.principal_id WHERE k.key_hash=? AND p.status='active'"
                 ))
                 .bind(key_hash)
+                .fetch_optional(&p)
+                .await?
+                .map(principal)
+                .transpose()
+            })
+        })
+    }
+    fn principal_by_id(&self, id: Uuid) -> Result<Option<ServerPrincipal>, RepoError> {
+        let p = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                sqlx::query_as::<_, PrincipalRow>(&format!(
+                    "SELECT {P} FROM server_principal WHERE principal_id=?"
+                ))
+                .bind(id.to_string())
                 .fetch_optional(&p)
                 .await?
                 .map(principal)
@@ -166,6 +182,21 @@ impl ScopeRepo for ScopeSqliteRepo {
             sqlx::query_as::<_, ScopeRow>(&format!("SELECT {S} FROM scope sc JOIN server_principal p ON p.default_scope_id=sc.scope_id WHERE p.principal_id=?"))
                 .bind(id.to_string()).fetch_optional(&p).await?.map(scope).transpose()
         })
+        })
+    }
+    fn scope_by_id(&self, id: Uuid) -> Result<Option<Scope>, RepoError> {
+        let p = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                sqlx::query_as::<_, ScopeRow>(&format!(
+                    "SELECT {S} FROM scope sc WHERE sc.scope_id=?"
+                ))
+                .bind(id.to_string())
+                .fetch_optional(&p)
+                .await?
+                .map(scope)
+                .transpose()
+            })
         })
     }
     fn active_scopes_for_principal(&self, id: Uuid) -> Result<Vec<Scope>, RepoError> {

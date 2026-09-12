@@ -1,25 +1,28 @@
 use std::collections::HashMap;
 
 use axum::{
-    Extension, Json, Router,
     body::Body,
     extract::{Path, Query, State},
-    http::{StatusCode, header},
+    http::{header, StatusCode},
     middleware,
     response::Response,
     routing::{delete, get, patch, post},
+    Extension, Json, Router,
 };
 use serde::Deserialize;
 use serde_json::Value;
+use uuid::Uuid;
 use zealot_app::{
     app::AppState,
     services::item::{ItemServiceError, SearchResult},
+    services::scope::{ScopeAccess, ScopeAccessError},
 };
 use zealot_domain::{
     attribute::AttributeFilterDto,
     auth::Actor,
     common::id::Id,
     item::{AddItemDto, Item, ItemDto, SearchResultDto, SearchScope, UpdateItemDto},
+    scope::ScopePermission,
 };
 
 use crate::http::{
@@ -68,15 +71,6 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .with_state(state)
 }
 
-// ─── Auth helper ─────────────────────────────────────────────────────────────
-
-fn require_account(actor: &Actor) -> Result<zealot_domain::account::Account, HttpError> {
-    if !actor.is_authenticated() {
-        return Err(HttpError::Unauthorized);
-    }
-    actor.account.clone().ok_or(HttpError::Unauthorized)
-}
-
 fn item_service_err(err: ItemServiceError) -> HttpError {
     match err {
         ItemServiceError::NotFound => HttpError::NotFound,
@@ -102,6 +96,9 @@ fn parse_item_id(raw: i64) -> Result<Id, HttpError> {
 struct RootItemsParams {
     #[serde(rename = "type", default)]
     item_type: Option<String>,
+    scope_id: Option<Uuid>,
+    #[serde(default)]
+    all_scopes: bool,
 }
 
 const MAX_SEARCH_LIMIT: i64 = 100;
@@ -119,6 +116,9 @@ struct SearchParams {
     scope: Option<String>,
     #[serde(default)]
     regex: bool,
+    scope_id: Option<Uuid>,
+    #[serde(default)]
+    all_scopes: bool,
 }
 
 fn default_search_limit() -> i64 {
@@ -131,10 +131,122 @@ struct RecentParams {
     limit: i64,
     #[serde(default)]
     offset: i64,
+    scope_id: Option<Uuid>,
+    #[serde(default)]
+    all_scopes: bool,
+}
+
+#[derive(Deserialize, Default)]
+struct ItemScopeParams {
+    scope_id: Option<Uuid>,
+    #[serde(default)]
+    all_scopes: bool,
 }
 
 fn default_recent_limit() -> i64 {
     30
+}
+
+fn resolve_item_read_access(
+    state: &AppState,
+    actor: &Actor,
+    params: &ItemScopeParams,
+) -> Result<ScopeAccess, HttpError> {
+    if !actor.is_authenticated() {
+        return Err(HttpError::Unauthorized);
+    }
+    state
+        .services
+        .scope
+        .resolve_access(
+            actor.principal_id,
+            params.scope_id,
+            params.all_scopes,
+            ScopePermission::ViewItems,
+            true,
+        )
+        .map_err(|error| match error {
+            ScopeAccessError::MissingPrincipal | ScopeAccessError::DefaultUnavailable => {
+                HttpError::Unauthorized
+            }
+            ScopeAccessError::NotFound => HttpError::NotFound,
+            ScopeAccessError::Forbidden => HttpError::Forbidden,
+            ScopeAccessError::AllScopesMutation => HttpError::Forbidden,
+            ScopeAccessError::Unauthenticated => HttpError::Unauthorized,
+            ScopeAccessError::Repo(error) => {
+                tracing::error!(%error, "Scope access resolution failed");
+                HttpError::Internal
+            }
+        })
+}
+
+fn resolve_item_write_access(
+    state: &AppState,
+    actor: &Actor,
+    params: &ItemScopeParams,
+    permission: ScopePermission,
+) -> Result<ScopeAccess, HttpError> {
+    if !actor.is_authenticated() {
+        return Err(HttpError::Unauthorized);
+    }
+    state
+        .services
+        .scope
+        .resolve_access(
+            actor.principal_id,
+            params.scope_id,
+            params.all_scopes,
+            permission,
+            false,
+        )
+        .map_err(|error| match error {
+            ScopeAccessError::MissingPrincipal | ScopeAccessError::DefaultUnavailable => {
+                HttpError::Unauthorized
+            }
+            ScopeAccessError::NotFound => HttpError::NotFound,
+            ScopeAccessError::Forbidden | ScopeAccessError::AllScopesMutation => {
+                HttpError::Forbidden
+            }
+            ScopeAccessError::Unauthenticated => HttpError::Unauthorized,
+            ScopeAccessError::Repo(error) => {
+                tracing::error!(%error, "Scope access resolution failed");
+                HttpError::Internal
+            }
+        })
+}
+
+fn resolve_item_owner_account(
+    state: &AppState,
+    actor: &Actor,
+    access: &ScopeAccess,
+) -> Result<zealot_domain::account::Account, HttpError> {
+    if let Some(account) = actor.account.clone() {
+        return Ok(account);
+    }
+    let scope = access.scopes.first().ok_or(HttpError::Forbidden)?;
+    let principal = state
+        .services
+        .scope
+        .principal_by_id(scope.owner_principal_id)
+        .map_err(|error| {
+            tracing::error!(%error, "Failed to resolve scope owner principal");
+            HttpError::Internal
+        })?
+        .ok_or(HttpError::Forbidden)?;
+    let account_id = principal.account_id.ok_or(HttpError::Forbidden)?;
+    let account_id = Id::try_from(account_id).map_err(|error| {
+        tracing::error!(%error, "Scope owner has an invalid account id");
+        HttpError::Internal
+    })?;
+    state
+        .services
+        .account
+        .get_account_by_id(&account_id)
+        .map_err(|error| {
+            tracing::error!(%error, "Failed to resolve scope owner account");
+            HttpError::Internal
+        })?
+        .ok_or(HttpError::Forbidden)
 }
 
 #[derive(Deserialize)]
@@ -144,6 +256,9 @@ struct FilterBody {
     limit: i64,
     #[serde(default)]
     offset: i64,
+    scope_id: Option<Uuid>,
+    #[serde(default)]
+    all_scopes: bool,
 }
 
 fn default_filter_limit() -> i64 {
@@ -163,11 +278,21 @@ async fn get_root_items(
     Extension(actor): Extension<Actor>,
     Query(params): Query<RootItemsParams>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_read_access(
+        &state,
+        &actor,
+        &ItemScopeParams {
+            scope_id: params.scope_id,
+            all_scopes: params.all_scopes,
+        },
+    )?;
     let items = if let Some(type_name) = params.item_type {
-        state.services.item.get_items_by_type(&type_name, &account)
+        state
+            .services
+            .item
+            .get_items_by_type_in_scopes(&type_name, &access)
     } else {
-        state.services.item.get_root_items(&account)
+        state.services.item.get_root_items_in_scopes(&access)
     }
     .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
@@ -178,11 +303,18 @@ async fn get_recent_items(
     Extension(actor): Extension<Actor>,
     Query(params): Query<RecentParams>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_read_access(
+        &state,
+        &actor,
+        &ItemScopeParams {
+            scope_id: params.scope_id,
+            all_scopes: params.all_scopes,
+        },
+    )?;
     let items = state
         .services
         .item
-        .get_recent_items(params.limit, params.offset, &account)
+        .get_recent_items_in_scopes(params.limit, params.offset, &access)
         .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -193,6 +325,9 @@ const MAX_RANDOM_COUNT: usize = 50;
 struct RandomParams {
     #[serde(default = "default_random_count")]
     count: usize,
+    scope_id: Option<Uuid>,
+    #[serde(default)]
+    all_scopes: bool,
 }
 
 fn default_random_count() -> usize {
@@ -204,12 +339,19 @@ async fn get_random_item(
     Extension(actor): Extension<Actor>,
     Query(params): Query<RandomParams>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_read_access(
+        &state,
+        &actor,
+        &ItemScopeParams {
+            scope_id: params.scope_id,
+            all_scopes: params.all_scopes,
+        },
+    )?;
     let count = params.count.min(MAX_RANDOM_COUNT);
     let items = state
         .services
         .item
-        .get_random_items(count, &account)
+        .get_random_items_in_scopes(count, &access)
         .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -218,12 +360,13 @@ async fn get_by_title(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(title): Path<String>,
+    Query(params): Query<ItemScopeParams>,
 ) -> Result<Json<ItemDto>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_read_access(&state, &actor, &params)?;
     let items = state
         .services
         .item
-        .get_items_by_title(&title, &account)
+        .get_items_by_title_in_scopes(&title, &access)
         .map_err(item_service_err)?;
     items
         .into_iter()
@@ -236,13 +379,14 @@ async fn get_by_id(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(item_id): Path<i64>,
+    Query(params): Query<ItemScopeParams>,
 ) -> Result<Json<ItemDto>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_read_access(&state, &actor, &params)?;
     let id = parse_item_id(item_id)?;
     match state
         .services
         .item
-        .get_item_by_id(&id, &account)
+        .get_item_by_id_in_scopes(&id, &access)
         .map_err(item_service_err)?
     {
         Some(item) => {
@@ -260,7 +404,14 @@ async fn search_items(
     Extension(actor): Extension<Actor>,
     Query(params): Query<SearchParams>,
 ) -> Result<Json<Vec<SearchResultDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_read_access(
+        &state,
+        &actor,
+        &ItemScopeParams {
+            scope_id: params.scope_id,
+            all_scopes: params.all_scopes,
+        },
+    )?;
     let limit = params.limit.clamp(1, MAX_SEARCH_LIMIT);
     let scope = match params.scope.as_deref() {
         None | Some("title") => SearchScope::Title,
@@ -275,13 +426,13 @@ async fn search_items(
     let results = state
         .services
         .item
-        .search_items(
+        .search_items_in_scopes(
             &params.term,
             scope,
             params.regex,
             limit,
             params.offset,
-            &account,
+            &access,
         )
         .map_err(item_service_err)?;
     Ok(Json(
@@ -301,13 +452,14 @@ async fn get_children(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(item_id): Path<i64>,
+    Query(params): Query<ItemScopeParams>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_read_access(&state, &actor, &params)?;
     let id = parse_item_id(item_id)?;
     let items = state
         .services
         .item
-        .get_children(&id, &account)
+        .get_children_in_scopes(&id, &access)
         .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -316,13 +468,14 @@ async fn get_related(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(item_id): Path<i64>,
+    Query(params): Query<ItemScopeParams>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_read_access(&state, &actor, &params)?;
     let id = parse_item_id(item_id)?;
     let items = state
         .services
         .item
-        .get_related_items(&id, &account)
+        .get_related_items_in_scopes(&id, &access)
         .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -331,13 +484,14 @@ async fn get_backlinks(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(item_id): Path<i64>,
+    Query(params): Query<ItemScopeParams>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_read_access(&state, &actor, &params)?;
     let id = parse_item_id(item_id)?;
     let items = state
         .services
         .item
-        .get_backlinks(&id, &account)
+        .get_backlinks_in_scopes(&id, &access)
         .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -347,13 +501,20 @@ async fn filter_items(
     Extension(actor): Extension<Actor>,
     Json(body): Json<FilterBody>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
-    let account = require_account(&actor)?;
     let limit = body.limit.clamp(1, MAX_FILTER_LIMIT);
     let offset = body.offset.max(0);
+    let access = resolve_item_read_access(
+        &state,
+        &actor,
+        &ItemScopeParams {
+            scope_id: body.scope_id,
+            all_scopes: body.all_scopes,
+        },
+    )?;
     let items = state
         .services
         .item
-        .filter_items_paginated(&body.filters, limit, offset, &account)
+        .filter_items_paginated_in_scopes(&body.filters, limit, offset, &access)
         .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -361,17 +522,18 @@ async fn filter_items(
 async fn rebuild_links(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
+    Query(params): Query<ItemScopeParams>,
 ) -> Result<Json<serde_json::Value>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_write_access(&state, &actor, &params, ScopePermission::UpdateItems)?;
     let attribute_count = state
         .services
         .item
-        .rebuild_links_for_account(&account)
+        .rebuild_links_in_scopes(&access)
         .map_err(item_service_err)?;
     let wiki_count = state
         .services
         .item
-        .rebuild_wiki_links_for_account(&account)
+        .rebuild_wiki_links_in_scopes(&access)
         .map_err(item_service_err)?;
     Ok(Json(
         serde_json::json!({ "rebuilt": attribute_count, "wiki_rebuilt": wiki_count }),
@@ -381,13 +543,15 @@ async fn rebuild_links(
 async fn add_item(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
+    Query(params): Query<ItemScopeParams>,
     Json(dto): Json<AddItemDto>,
 ) -> Result<Json<ItemDto>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_write_access(&state, &actor, &params, ScopePermission::CreateItems)?;
+    let owner_account = resolve_item_owner_account(&state, &actor, &access)?;
     match state
         .services
         .item
-        .add_item(&dto, &account)
+        .add_item_in_scope(&dto, &access, &owner_account)
         .map_err(item_service_err)?
     {
         Some(item) => Ok(Json(ItemDto::from(&item))),
@@ -399,14 +563,15 @@ async fn update_item(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(item_id): Path<i64>,
+    Query(params): Query<ItemScopeParams>,
     Json(dto): Json<UpdateItemDto>,
 ) -> Result<Json<ItemDto>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_write_access(&state, &actor, &params, ScopePermission::UpdateItems)?;
     let id = parse_item_id(item_id)?;
     match state
         .services
         .item
-        .update_item(&id, &dto, &account)
+        .update_item_in_scopes(&id, &dto, &access)
         .map_err(item_service_err)?
     {
         Some(item) => Ok(Json(ItemDto::from(&item))),
@@ -418,13 +583,14 @@ async fn delete_item(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(item_id): Path<i64>,
+    Query(params): Query<ItemScopeParams>,
 ) -> Result<StatusCode, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_write_access(&state, &actor, &params, ScopePermission::DeleteItems)?;
     let id = parse_item_id(item_id)?;
     state
         .services
         .item
-        .delete_item(&id, &account)
+        .delete_item_in_scopes(&id, &access)
         .map(|_| StatusCode::OK)
         .map_err(item_service_err)
 }
@@ -433,14 +599,15 @@ async fn set_attributes(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(item_id): Path<i64>,
+    Query(params): Query<ItemScopeParams>,
     Json(attrs): Json<HashMap<String, Value>>,
 ) -> Result<StatusCode, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_write_access(&state, &actor, &params, ScopePermission::UpdateItems)?;
     let id = parse_item_id(item_id)?;
     state
         .services
         .item
-        .set_attributes(&id, &attrs, &account)
+        .set_attributes_in_scopes(&id, &attrs, &access)
         .map(|_| StatusCode::OK)
         .map_err(item_service_err)
 }
@@ -449,14 +616,15 @@ async fn rename_attribute(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(item_id): Path<i64>,
+    Query(params): Query<ItemScopeParams>,
     Json(dto): Json<RenameAttributeDto>,
 ) -> Result<StatusCode, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_write_access(&state, &actor, &params, ScopePermission::UpdateItems)?;
     let id = parse_item_id(item_id)?;
     state
         .services
         .item
-        .rename_attribute(&id, &dto.old_key, &dto.new_key, &account)
+        .rename_attribute_in_scopes(&id, &dto.old_key, &dto.new_key, &access)
         .map(|_| StatusCode::OK)
         .map_err(item_service_err)
 }
@@ -465,13 +633,14 @@ async fn delete_attribute(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path((item_id, key)): Path<(i64, String)>,
+    Query(params): Query<ItemScopeParams>,
 ) -> Result<StatusCode, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_write_access(&state, &actor, &params, ScopePermission::UpdateItems)?;
     let id = parse_item_id(item_id)?;
     state
         .services
         .item
-        .delete_attribute(&id, &key, &account)
+        .delete_attribute_in_scopes(&id, &key, &access)
         .map(|_| StatusCode::OK)
         .map_err(item_service_err)
 }
@@ -480,13 +649,14 @@ async fn assign_type(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path((item_id, type_name)): Path<(i64, String)>,
+    Query(params): Query<ItemScopeParams>,
 ) -> Result<StatusCode, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_write_access(&state, &actor, &params, ScopePermission::UpdateItems)?;
     let id = parse_item_id(item_id)?;
     state
         .services
         .item
-        .assign_type(&type_name, &id, &account)
+        .assign_type_in_scopes(&type_name, &id, &access)
         .map(|_| StatusCode::OK)
         .map_err(item_service_err)
 }
@@ -495,13 +665,14 @@ async fn unassign_type(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path((item_id, type_name)): Path<(i64, String)>,
+    Query(params): Query<ItemScopeParams>,
 ) -> Result<StatusCode, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_write_access(&state, &actor, &params, ScopePermission::UpdateItems)?;
     let id = parse_item_id(item_id)?;
     state
         .services
         .item
-        .unassign_type(&type_name, &id, &account)
+        .unassign_type_in_scopes(&type_name, &id, &access)
         .map(|_| StatusCode::OK)
         .map_err(item_service_err)
 }
@@ -512,13 +683,14 @@ async fn export_pdf(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(item_id): Path<i64>,
+    Query(params): Query<ItemScopeParams>,
 ) -> Result<Response, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_read_access(&state, &actor, &params)?;
     let id = parse_item_id(item_id)?;
     let item = state
         .services
         .item
-        .get_item_by_id(&id, &account)
+        .get_item_by_id_in_scopes(&id, &access)
         .map_err(item_service_err)?
         .ok_or(HttpError::NotFound)?;
 
@@ -535,13 +707,14 @@ async fn export_docx(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(item_id): Path<i64>,
+    Query(params): Query<ItemScopeParams>,
 ) -> Result<Response, HttpError> {
-    let account = require_account(&actor)?;
+    let access = resolve_item_read_access(&state, &actor, &params)?;
     let id = parse_item_id(item_id)?;
     let item = state
         .services
         .item
-        .get_item_by_id(&id, &account)
+        .get_item_by_id_in_scopes(&id, &access)
         .map_err(item_service_err)?
         .ok_or(HttpError::NotFound)?;
 
@@ -654,7 +827,7 @@ fn strip_zealotscript(content: &str) -> String {
 }
 
 fn generate_pdf(item: &Item) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    use genpdf::{Document, SimplePageDecorator, elements, fonts, style};
+    use genpdf::{elements, fonts, style, Document, SimplePageDecorator};
 
     let font_family = fonts::FontFamily {
         regular: fonts::FontData::new(FONT_REGULAR.to_vec(), None)?,

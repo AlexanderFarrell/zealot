@@ -1,15 +1,14 @@
 use axum::{
-    Extension, Json, Router,
     extract::{Path, Query, State},
     http::StatusCode,
     middleware,
     routing::get,
+    Extension, Json, Router,
 };
 use serde::Deserialize;
 use sqlx::types::chrono::{DateTime, Utc};
 use zealot_app::{app::AppState, services::statistic::StatisticServiceError};
 use zealot_domain::{
-    account::Account,
     auth::Actor,
     common::id::Id,
     item::ItemDto,
@@ -22,6 +21,10 @@ use zealot_domain::{
 use crate::http::{
     common::HttpError,
     middleware::{auth_middleware, csrf_middleware},
+    scope::{
+        create_scope_access, delete_scope_access, read_scope_access, resolve_scope_owner_account,
+        update_scope_access, ScopeQuery,
+    },
 };
 
 pub fn routes(state: AppState) -> Router<AppState> {
@@ -48,6 +51,8 @@ pub fn routes(state: AppState) -> Router<AppState> {
 #[derive(Deserialize)]
 struct ItemParams {
     parent_id: Option<i64>,
+    #[serde(flatten)]
+    scope: ScopeQuery,
 }
 
 #[derive(Deserialize)]
@@ -58,23 +63,20 @@ struct EntryParams {
     limit: i64,
     #[serde(default)]
     offset: i64,
+    #[serde(flatten)]
+    scope: ScopeQuery,
 }
 
 #[derive(Deserialize)]
 struct RangeParams {
     start: Option<String>,
     end: Option<String>,
+    #[serde(flatten)]
+    scope: ScopeQuery,
 }
 
 fn default_limit() -> i64 {
     50
-}
-
-fn require_account(actor: &Actor) -> Result<Account, HttpError> {
-    if !actor.is_authenticated() {
-        return Err(HttpError::Unauthorized);
-    }
-    actor.account.clone().ok_or(HttpError::Unauthorized)
 }
 
 fn id(value: i64, name: &str) -> Result<Id, HttpError> {
@@ -111,7 +113,7 @@ async fn list_items(
     Extension(actor): Extension<Actor>,
     Query(params): Query<ItemParams>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = read_scope_access(&state, &actor, &params.scope)?;
     let parent_id = params
         .parent_id
         .map(|value| id(value, "parent_id"))
@@ -119,7 +121,7 @@ async fn list_items(
     let items = state
         .services
         .statistic
-        .list_items(parent_id, &account)
+        .list_items_in_scopes(parent_id, &access)
         .map_err(service_error)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -135,17 +137,17 @@ async fn list_entries(
             err: "limit must be between 1 and 100 and offset must be non-negative".into(),
         });
     }
-    let account = require_account(&actor)?;
+    let access = read_scope_access(&state, &actor, &params.scope)?;
     let page = state
         .services
         .statistic
-        .list_entries(
+        .list_entries_in_scopes(
             id(item_id, "item_id")?,
             timestamp(params.start, "start")?,
             timestamp(params.end, "end")?,
             params.limit,
             params.offset,
-            &account,
+            &access,
         )
         .map_err(service_error)?;
     Ok(Json(page))
@@ -157,15 +159,15 @@ async fn daily(
     Path(item_id): Path<i64>,
     Query(params): Query<RangeParams>,
 ) -> Result<Json<Vec<StatisticDailyPointDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = read_scope_access(&state, &actor, &params.scope)?;
     let points = state
         .services
         .statistic
-        .daily(
+        .daily_in_scopes(
             id(item_id, "item_id")?,
             timestamp(params.start, "start")?,
             timestamp(params.end, "end")?,
-            &account,
+            &access,
         )
         .map_err(service_error)?;
     Ok(Json(points))
@@ -177,15 +179,15 @@ async fn summary(
     Path(item_id): Path<i64>,
     Query(params): Query<RangeParams>,
 ) -> Result<Json<StatisticSummaryDto>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = read_scope_access(&state, &actor, &params.scope)?;
     let result = state
         .services
         .statistic
-        .summary(
+        .summary_in_scopes(
             id(item_id, "item_id")?,
             timestamp(params.start, "start")?,
             timestamp(params.end, "end")?,
-            &account,
+            &access,
         )
         .map_err(service_error)?;
     Ok(Json(result))
@@ -195,13 +197,15 @@ async fn create_entry(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(item_id): Path<i64>,
+    Query(query): Query<ScopeQuery>,
     Json(dto): Json<CreateStatisticEntryDto>,
 ) -> Result<(StatusCode, Json<StatisticEntryDto>), HttpError> {
-    let account = require_account(&actor)?;
+    let access = create_scope_access(&state, &actor, &query)?;
+    let owner_account = resolve_scope_owner_account(&state, &actor, &access)?;
     let entry = state
         .services
         .statistic
-        .create(id(item_id, "item_id")?, &dto, &account)
+        .create_in_scopes(id(item_id, "item_id")?, &dto, &owner_account, &access)
         .map_err(service_error)?;
     Ok((StatusCode::CREATED, Json(StatisticEntryDto::from(&entry))))
 }
@@ -210,17 +214,14 @@ async fn update_entry(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(statistic_entry_id): Path<i64>,
+    Query(query): Query<ScopeQuery>,
     Json(dto): Json<UpdateStatisticEntryDto>,
 ) -> Result<Json<StatisticEntryDto>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = update_scope_access(&state, &actor, &query)?;
     let entry = state
         .services
         .statistic
-        .update(
-            id(statistic_entry_id, "statistic_entry_id")?,
-            &dto,
-            &account,
-        )
+        .update_in_scopes(id(statistic_entry_id, "statistic_entry_id")?, &dto, &access)
         .map_err(service_error)?;
     Ok(Json(StatisticEntryDto::from(&entry)))
 }
@@ -229,12 +230,13 @@ async fn delete_entry(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(statistic_entry_id): Path<i64>,
+    Query(query): Query<ScopeQuery>,
 ) -> Result<StatusCode, HttpError> {
-    let account = require_account(&actor)?;
+    let access = delete_scope_access(&state, &actor, &query)?;
     state
         .services
         .statistic
-        .delete(id(statistic_entry_id, "statistic_entry_id")?, &account)
+        .delete_in_scopes(id(statistic_entry_id, "statistic_entry_id")?, &access)
         .map_err(service_error)?;
     Ok(StatusCode::NO_CONTENT)
 }

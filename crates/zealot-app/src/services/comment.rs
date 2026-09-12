@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use uuid::Uuid;
 use zealot_domain::{
     account::Account,
     comment::{AddCommentDto, Comment, CommentCore, UpdateCommentDto},
@@ -16,6 +17,7 @@ use crate::{
 };
 
 use super::item::ItemService;
+use super::scope::ScopeAccess;
 
 #[derive(Debug)]
 pub struct CommentService {
@@ -107,9 +109,15 @@ impl CommentService {
         match self.repo.add_comment(dto, &account.account_id)? {
             Some(core) => {
                 let comment = self.hydrate(core, account)?;
+                let scope_id = self
+                    .item_service
+                    .get_item_scope_id(&comment.item.item_id)
+                    .map_err(|_| CommentServiceError::NotFound)?
+                    .ok_or(CommentServiceError::NotFound)?;
                 tracing::info!(account_id = ?account.account_id, comment_id = ?comment.comment_id, item_id = ?comment.item.item_id, "comment added");
                 self.event_port.emit(ZealotEvent::CommentAdded {
                     account_id: account.account_id,
+                    scope_id,
                     item_id: comment.item.item_id,
                     comment: comment.clone(),
                 });
@@ -141,6 +149,125 @@ impl CommentService {
     ) -> Result<(), CommentServiceError> {
         self.repo.delete_comment(comment_id, &account.account_id)?;
         tracing::info!(account_id = ?account.account_id, ?comment_id, "comment deleted");
+        Ok(())
+    }
+
+    fn scope_ids(access: &ScopeAccess) -> Vec<Uuid> {
+        access.scopes.iter().map(|scope| scope.scope_id).collect()
+    }
+
+    fn hydrate_scoped(
+        &self,
+        core: CommentCore,
+        access: &ScopeAccess,
+    ) -> Result<Comment, CommentServiceError> {
+        let item = self
+            .item_service
+            .get_item_by_id_in_scopes(&core.item_id, access)
+            .map_err(|_| CommentServiceError::NotFound)?
+            .ok_or(CommentServiceError::NotFound)?;
+        Ok(Comment {
+            comment_id: core.comment_id,
+            item,
+            timestamp: core.timestamp,
+            content: core.content,
+        })
+    }
+
+    pub async fn get_for_day_in_scopes(
+        &self,
+        day: &chrono::NaiveDate,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Comment>, CommentServiceError> {
+        let cores = self
+            .repo
+            .get_for_day_in_scopes(day, &Self::scope_ids(access))?;
+        cores
+            .into_iter()
+            .map(|core| self.hydrate_scoped(core, access))
+            .collect()
+    }
+
+    pub async fn get_for_item_in_scopes(
+        &self,
+        item_id: &Id,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Comment>, CommentServiceError> {
+        let item = self
+            .item_service
+            .get_item_by_id_in_scopes(item_id, access)
+            .map_err(|_| CommentServiceError::NotFound)?
+            .ok_or(CommentServiceError::NotFound)?;
+        let cores = self
+            .repo
+            .get_for_item_in_scopes(item_id, &Self::scope_ids(access))?;
+        cores
+            .into_iter()
+            .map(|core| {
+                Ok(Comment {
+                    comment_id: core.comment_id,
+                    item: item.clone(),
+                    timestamp: core.timestamp,
+                    content: core.content,
+                })
+            })
+            .collect()
+    }
+
+    pub async fn add_comment_in_scopes(
+        &self,
+        dto: &AddCommentDto,
+        access: &ScopeAccess,
+    ) -> Result<Option<Comment>, CommentServiceError> {
+        match self
+            .repo
+            .add_comment_in_scopes(dto, &Self::scope_ids(access))?
+        {
+            Some(core) => {
+                let comment = self.hydrate_scoped(core, access)?;
+                let account_id = self
+                    .item_service
+                    .get_item_owner_account_id_in_scopes(&comment.item.item_id, access)
+                    .map_err(|_| CommentServiceError::NotFound)?
+                    .ok_or(CommentServiceError::NotFound)?;
+                let scope_id = access
+                    .scopes
+                    .first()
+                    .map(|scope| scope.scope_id)
+                    .ok_or(CommentServiceError::NotFound)?;
+                self.event_port.emit(ZealotEvent::CommentAdded {
+                    account_id,
+                    scope_id,
+                    item_id: comment.item.item_id,
+                    comment: comment.clone(),
+                });
+                Ok(Some(comment))
+            }
+            None => Ok(None),
+        }
+    }
+
+    pub async fn update_comment_in_scopes(
+        &self,
+        dto: &UpdateCommentDto,
+        access: &ScopeAccess,
+    ) -> Result<Option<Comment>, CommentServiceError> {
+        match self
+            .repo
+            .update_comment_in_scopes(dto, &Self::scope_ids(access))?
+        {
+            Some(core) => Ok(Some(self.hydrate_scoped(core, access)?)),
+            None => Ok(None),
+        }
+    }
+
+    pub async fn delete_comment_in_scopes(
+        &self,
+        comment_id: &Id,
+        access: &ScopeAccess,
+    ) -> Result<(), CommentServiceError> {
+        self.repo
+            .delete_comment_in_scopes(comment_id, &Self::scope_ids(access))?;
         Ok(())
     }
 }

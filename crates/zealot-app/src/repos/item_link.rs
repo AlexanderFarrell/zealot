@@ -1,10 +1,46 @@
 use std::{collections::HashMap, fmt::Debug};
 
+use uuid::Uuid;
 use zealot_domain::{account::Account, common::id::Id, item::ItemLink};
 
 use crate::repos::common::RepoError;
 
 pub trait ItemLinkRepo: Debug + Send + Sync {
+    fn get_source_item_ids_in_scopes(
+        &self,
+        target_item_id: &Id,
+        relationship: &str,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<(Id, Id)>, RepoError> {
+        let _ = (target_item_id, relationship, scope_ids);
+        Err(RepoError::DatabaseError {
+            err: "scope-qualified source item lookup is not implemented by this repository"
+                .to_string(),
+        })
+    }
+
+    fn get_related_item_ids_in_scopes(
+        &self,
+        item_id: &Id,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<(Id, Id)>, RepoError> {
+        let _ = (item_id, scope_ids);
+        Err(RepoError::DatabaseError {
+            err: "scope-qualified related item lookup is not implemented by this repository"
+                .to_string(),
+        })
+    }
+
+    fn get_links_for_items_in_scopes(
+        &self,
+        item_ids: &Vec<Id>,
+        scope_ids: &[Uuid],
+    ) -> Result<HashMap<Id, Vec<ItemLink>>, RepoError> {
+        let _ = (item_ids, scope_ids);
+        Err(RepoError::DatabaseError {
+            err: "scope-qualified link lookup is not implemented by this repository".to_string(),
+        })
+    }
     fn get_links_for_items(
         &self,
         item_ids: &Vec<Id>,
@@ -30,6 +66,19 @@ pub trait ItemLinkRepo: Debug + Send + Sync {
         account: &Account,
     ) -> Result<(), RepoError>;
 
+    fn replace_links_for_item_in_scopes(
+        &self,
+        item_id: &Id,
+        links: &Vec<ItemLink>,
+        scope_ids: &[Uuid],
+    ) -> Result<(), RepoError> {
+        let _ = (item_id, links, scope_ids);
+        Err(RepoError::DatabaseError {
+            err: "scope-qualified link replacement is not implemented by this repository"
+                .to_string(),
+        })
+    }
+
     /// Replaces all outgoing links from `item_id` that have the given
     /// `relationship` label with a new set pointing to `linked_ids`.
     /// Links with other relationship labels are left untouched.
@@ -40,4 +89,18 @@ pub trait ItemLinkRepo: Debug + Send + Sync {
         linked_ids: &[Id],
         account: &Account,
     ) -> Result<(), RepoError>;
+
+    fn replace_links_by_relationship_in_scopes(
+        &self,
+        item_id: &Id,
+        relationship: &str,
+        linked_ids: &[Id],
+        scope_ids: &[Uuid],
+    ) -> Result<(), RepoError> {
+        let _ = (item_id, relationship, linked_ids, scope_ids);
+        Err(RepoError::DatabaseError {
+            err: "scope-qualified relationship replacement is not implemented by this repository"
+                .to_string(),
+        })
+    }
 }

@@ -2,6 +2,8 @@ use std::fmt::Debug;
 
 use std::collections::HashMap;
 
+use uuid::Uuid;
+
 use zealot_domain::{
     common::id::Id,
     item_type::{AddItemTypeDto, ItemType, ItemTypeRef, ItemTypeSummary, UpdateItemTypeDto},
@@ -29,6 +31,17 @@ pub trait ItemTypeRepo: Debug + Send + Sync {
     ) -> Result<HashMap<Id, Vec<ItemTypeRef>>, RepoError>;
     fn get_item_ids_for_type_name(&self, name: &str, account_id: &Id)
     -> Result<Vec<Id>, RepoError>;
+    fn get_item_ids_for_type_name_in_scopes(
+        &self,
+        name: &str,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<(Id, Id)>, RepoError> {
+        let _ = (name, scope_ids);
+        Err(RepoError::DatabaseError {
+            err: "scope-qualified item type lookup is not implemented by this repository"
+                .to_string(),
+        })
+    }
     fn add_item_type(
         &self,
         dto: &AddItemTypeDto,
