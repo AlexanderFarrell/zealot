@@ -9,6 +9,7 @@ use zealot_domain::{
 };
 
 use crate::repos::{common::RepoError, repeat::RepeatRepo};
+use crate::services::scope::ScopeAccess;
 
 use super::item::ItemService;
 
@@ -68,9 +69,55 @@ impl RepeatService {
         Ok(entries)
     }
 
+    pub async fn get_for_day_in_scopes(
+        &self,
+        day: &NaiveDate,
+        access: &ScopeAccess,
+    ) -> Result<Vec<RepeatEntry>, RepeatServiceError> {
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let cores = self.repo.get_for_day_in_scopes(day, &scope_ids)?;
+        if cores.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let item_ids: Vec<Id> = cores.iter().map(|core| core.item_id).collect();
+        let items: Vec<Item> = item_ids
+            .iter()
+            .filter_map(|item_id| {
+                self.item_service
+                    .get_item_by_id_in_scopes(item_id, access)
+                    .transpose()
+            })
+            .collect::<Result<_, _>>()
+            .map_err(|_| RepeatServiceError::NotFound)?;
+        let mut items_map: HashMap<Id, _> =
+            items.into_iter().map(|item| (item.item_id, item)).collect();
+
+        Ok(cores
+            .into_iter()
+            .filter_map(|core| {
+                items_map.remove(&core.item_id).map(|item| RepeatEntry {
+                    status: core.status,
+                    item,
+                    date: core.date,
+                    comment: core.comment,
+                })
+            })
+            .collect())
+    }
+
     pub fn get_all_repeat_items(&self, account: &Account) -> Result<Vec<Item>, RepeatServiceError> {
         self.item_service
             .get_items_by_type("Repeat", account)
+            .map_err(|_| RepeatServiceError::NotFound)
+    }
+
+    pub fn get_all_repeat_items_in_scopes(
+        &self,
+        access: &ScopeAccess,
+    ) -> Result<Vec<Item>, RepeatServiceError> {
+        self.item_service
+            .get_items_by_type_in_scopes("Repeat", access)
             .map_err(|_| RepeatServiceError::NotFound)
     }
 
@@ -114,6 +161,49 @@ impl RepeatService {
         Ok(entries)
     }
 
+    pub async fn get_for_range_in_scopes(
+        &self,
+        start: &NaiveDate,
+        end: &NaiveDate,
+        access: &ScopeAccess,
+    ) -> Result<Vec<RepeatEntry>, RepeatServiceError> {
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        let cores = self.repo.get_for_range_in_scopes(start, end, &scope_ids)?;
+        if cores.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut seen = std::collections::HashSet::new();
+        let item_ids: Vec<Id> = cores
+            .iter()
+            .map(|core| core.item_id)
+            .filter(|item_id| seen.insert(*item_id))
+            .collect();
+        let items: Vec<Item> = item_ids
+            .iter()
+            .filter_map(|item_id| {
+                self.item_service
+                    .get_item_by_id_in_scopes(item_id, access)
+                    .transpose()
+            })
+            .collect::<Result<_, _>>()
+            .map_err(|_| RepeatServiceError::NotFound)?;
+        let items_map: HashMap<Id, _> =
+            items.into_iter().map(|item| (item.item_id, item)).collect();
+
+        Ok(cores
+            .into_iter()
+            .filter_map(|core| {
+                items_map.get(&core.item_id).map(|item| RepeatEntry {
+                    status: core.status,
+                    item: item.clone(),
+                    date: core.date,
+                    comment: core.comment,
+                })
+            })
+            .collect())
+    }
+
     pub async fn set_status(
         &self,
         dto: &UpdateRepeatEntryDto,
@@ -121,6 +211,23 @@ impl RepeatService {
     ) -> Result<(), RepeatServiceError> {
         self.repo.set_status(dto, account)?;
         tracing::info!(account_id = ?account.account_id, item_id = ?dto.item_id, date = %dto.date, status = ?dto.status, "repeat status set");
+        Ok(())
+    }
+
+    pub async fn set_status_in_scopes(
+        &self,
+        dto: &UpdateRepeatEntryDto,
+        access: &ScopeAccess,
+    ) -> Result<(), RepeatServiceError> {
+        let scope_ids: Vec<_> = access.scopes.iter().map(|scope| scope.scope_id).collect();
+        self.repo.set_status_in_scopes(dto, &scope_ids)?;
+        tracing::info!(
+            principal_id = %access.principal_id,
+            item_id = ?dto.item_id,
+            date = %dto.date,
+            status = ?dto.status,
+            "repeat status set"
+        );
         Ok(())
     }
 }

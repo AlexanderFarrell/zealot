@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use chrono::{Datelike, Duration, NaiveDate};
 use sqlx::SqlitePool;
+use uuid::Uuid;
 use zealot_app::repos::{common::RepoError, repeat::RepeatRepo};
 use zealot_domain::{
     account::Account,
@@ -17,6 +18,306 @@ pub struct RepeatSqliteRepo {
 impl RepeatSqliteRepo {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
+    }
+
+    fn get_for_day_scoped(
+        &self,
+        day: &NaiveDate,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<RepeatEntryCore>, RepoError> {
+        if scope_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let day = *day;
+        let scope_ids: Vec<String> = scope_ids.iter().map(Uuid::to_string).collect();
+        let scope_placeholders = scope_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let pool = self.pool.clone();
+
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let weekday_pos = day.weekday().number_from_sunday() as i64;
+                let date_str = day.format("%Y-%m-%d").to_string();
+                let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
+                let today_unix_secs = day.signed_duration_since(epoch).num_days() * 86400;
+                let item_sql = format!(
+                    "SELECT DISTINCT i.item_id
+                     FROM item i
+                     JOIN item_item_type_link lnk ON lnk.item_id = i.item_id
+                     JOIN item_type it ON it.type_id = lnk.type_id
+                     JOIN attribute sched ON sched.item_id = i.item_id
+                         AND sched.key = 'Schedule'
+                     WHERE i.scope_id IN ({scope_placeholders})
+                       AND it.name = 'Repeat'
+                       AND SUBSTR(sched.value_text, ?, 1) = '1'
+                       AND NOT EXISTS (
+                           SELECT 1 FROM attribute ed
+                           WHERE ed.item_id = i.item_id
+                             AND ed.key = 'End Date'
+                             AND ed.value_date < ?
+                       )"
+                );
+                let mut item_query = sqlx::query_as::<_, RepeatItemRow>(&item_sql);
+                for scope_id in &scope_ids {
+                    item_query = item_query.bind(scope_id);
+                }
+                let item_rows = item_query
+                    .bind(weekday_pos)
+                    .bind(today_unix_secs)
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
+
+                if item_rows.is_empty() {
+                    return Ok(Vec::new());
+                }
+
+                let item_ids: Vec<i64> = item_rows.iter().map(|r| r.item_id).collect();
+                let item_placeholders = item_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+                let entry_sql = format!(
+                    "SELECT re.item_id, re.status, re.comment
+                     FROM repeat_entry re
+                     JOIN item i ON i.item_id = re.item_id
+                     WHERE re.date = ?
+                       AND i.scope_id IN ({scope_placeholders})
+                       AND re.item_id IN ({item_placeholders})"
+                );
+                let mut entry_query =
+                    sqlx::query_as::<_, RepeatEntryRow>(&entry_sql).bind(&date_str);
+                for scope_id in &scope_ids {
+                    entry_query = entry_query.bind(scope_id);
+                }
+                for id in &item_ids {
+                    entry_query = entry_query.bind(*id);
+                }
+                let entry_rows = entry_query
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
+                let mut entry_map: HashMap<i64, RepeatEntryRow> =
+                    entry_rows.into_iter().map(|r| (r.item_id, r)).collect();
+
+                item_ids
+                    .into_iter()
+                    .map(|item_id_val| {
+                        let item_id = Id::try_from(item_id_val)
+                            .map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
+                        let (status, comment) = match entry_map.remove(&item_id_val) {
+                            Some(entry) => {
+                                let status = RepeatStatus::try_from(entry.status.as_str())
+                                    .map_err(|e| RepoError::DatabaseError { err: e })?;
+                                (status, entry.comment.unwrap_or_default())
+                            }
+                            None => (RepeatStatus::NotComplete, String::new()),
+                        };
+                        Ok(RepeatEntryCore {
+                            item_id,
+                            status,
+                            date: day,
+                            comment,
+                        })
+                    })
+                    .collect()
+            })
+        })
+    }
+
+    fn get_for_range_scoped(
+        &self,
+        start: &NaiveDate,
+        end: &NaiveDate,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<RepeatEntryCore>, RepoError> {
+        if scope_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let start = *start;
+        let end = *end;
+        let scope_ids: Vec<String> = scope_ids.iter().map(Uuid::to_string).collect();
+        let scope_placeholders = scope_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let pool = self.pool.clone();
+
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
+                let start_unix_secs = start.signed_duration_since(epoch).num_days() * 86400;
+                let start_str = start.format("%Y-%m-%d").to_string();
+                let end_str = end.format("%Y-%m-%d").to_string();
+                let item_sql = format!(
+                    "SELECT DISTINCT i.item_id, sched.value_text AS schedule,
+                            ed.value_date AS end_date
+                     FROM item i
+                     JOIN item_item_type_link lnk ON lnk.item_id = i.item_id
+                     JOIN item_type it ON it.type_id = lnk.type_id
+                     JOIN attribute sched ON sched.item_id = i.item_id
+                         AND sched.key = 'Schedule'
+                     LEFT JOIN attribute ed ON ed.item_id = i.item_id
+                         AND ed.key = 'End Date'
+                     WHERE i.scope_id IN ({scope_placeholders})
+                       AND it.name = 'Repeat'
+                       AND (ed.value_date IS NULL OR ed.value_date >= ?)"
+                );
+                let mut item_query = sqlx::query_as::<_, RepeatItemScheduleRow>(&item_sql);
+                for scope_id in &scope_ids {
+                    item_query = item_query.bind(scope_id);
+                }
+                let item_rows = item_query
+                    .bind(start_unix_secs)
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
+
+                if item_rows.is_empty() {
+                    return Ok(Vec::new());
+                }
+
+                let item_schedule: Vec<(i64, String, Option<NaiveDate>)> = item_rows
+                    .iter()
+                    .map(|row| {
+                        let end_date = row
+                            .end_date
+                            .map(|secs| epoch + Duration::days(secs / 86400));
+                        (row.item_id, row.schedule.clone(), end_date)
+                    })
+                    .collect();
+                let item_ids: Vec<i64> = item_rows.iter().map(|r| r.item_id).collect();
+                let item_placeholders = item_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+                let entry_sql = format!(
+                    "SELECT re.item_id, re.date, re.status, re.comment
+                     FROM repeat_entry re
+                     JOIN item i ON i.item_id = re.item_id
+                     WHERE re.date >= ? AND re.date <= ?
+                       AND i.scope_id IN ({scope_placeholders})
+                       AND re.item_id IN ({item_placeholders})"
+                );
+                let mut entry_query = sqlx::query_as::<_, RepeatEntryWithDateRow>(&entry_sql)
+                    .bind(&start_str)
+                    .bind(&end_str);
+                for scope_id in &scope_ids {
+                    entry_query = entry_query.bind(scope_id);
+                }
+                for id in &item_ids {
+                    entry_query = entry_query.bind(*id);
+                }
+                let entry_rows = entry_query
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
+                let mut entry_map: HashMap<(i64, NaiveDate), RepeatEntryWithDateRow> = {
+                    let mut map = HashMap::new();
+                    for row in entry_rows {
+                        let date =
+                            NaiveDate::parse_from_str(&row.date, "%Y-%m-%d").map_err(|e| {
+                                RepoError::DatabaseError {
+                                    err: format!("invalid date '{}': {}", row.date, e),
+                                }
+                            })?;
+                        map.insert((row.item_id, date), row);
+                    }
+                    map
+                };
+
+                let mut result = Vec::new();
+                let mut current = start;
+                loop {
+                    let weekday_pos = current.weekday().number_from_sunday() as usize;
+                    for (item_id_val, schedule, item_end_date) in &item_schedule {
+                        let scheduled = schedule
+                            .as_bytes()
+                            .get(weekday_pos - 1)
+                            .map(|&byte| byte == b'1')
+                            .unwrap_or(false);
+                        if !scheduled || item_end_date.is_some_and(|date| date < current) {
+                            continue;
+                        }
+                        let item_id = Id::try_from(*item_id_val)
+                            .map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
+                        let key = (*item_id_val, current);
+                        let (status, comment) = match entry_map.remove(&key) {
+                            Some(entry) => {
+                                let status = RepeatStatus::try_from(entry.status.as_str())
+                                    .map_err(|e| RepoError::DatabaseError { err: e })?;
+                                (status, entry.comment.unwrap_or_default())
+                            }
+                            None => (RepeatStatus::NotComplete, String::new()),
+                        };
+                        result.push(RepeatEntryCore {
+                            item_id,
+                            status,
+                            date: current,
+                            comment,
+                        });
+                    }
+                    if current >= end {
+                        break;
+                    }
+                    current = current.succ_opt().unwrap_or(end);
+                }
+                Ok(result)
+            })
+        })
+    }
+
+    fn set_status_scoped(
+        &self,
+        dto: &UpdateRepeatEntryDto,
+        scope_ids: &[Uuid],
+    ) -> Result<(), RepoError> {
+        if scope_ids.is_empty() {
+            return Err(RepoError::NotFound);
+        }
+        let item_id_val = dto.item_id;
+        let date_str = dto.date.clone();
+        let status = dto.status.clone();
+        let comment = dto.comment.clone();
+        let scope_ids: Vec<String> = scope_ids.iter().map(Uuid::to_string).collect();
+        let scope_placeholders = scope_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let pool = self.pool.clone();
+
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let exists_sql = format!(
+                    "SELECT item_id FROM item WHERE item_id = ? AND scope_id IN ({scope_placeholders})"
+                );
+                let mut exists_query = sqlx::query_scalar::<_, i64>(&exists_sql).bind(item_id_val);
+                for scope_id in &scope_ids {
+                    exists_query = exists_query.bind(scope_id);
+                }
+                if exists_query
+                    .fetch_optional(&pool)
+                    .await
+                    .map_err(RepoError::from)?
+                    .is_none()
+                {
+                    return Err(RepoError::NotFound);
+                }
+
+                let mut tx = pool.begin().await.map_err(RepoError::from)?;
+                sqlx::query("DELETE FROM repeat_entry WHERE item_id = ? AND date = ?")
+                    .bind(item_id_val)
+                    .bind(&date_str)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(RepoError::from)?;
+
+                let status_str = status.as_deref().unwrap_or("Not Complete");
+                let repeat_status = RepeatStatus::try_from(status_str)
+                    .map_err(|e| RepoError::DatabaseError { err: e })?;
+                if repeat_status != RepeatStatus::NotComplete {
+                    sqlx::query(
+                        "INSERT INTO repeat_entry (item_id, date, status, comment)
+                         VALUES (?, ?, ?, ?)",
+                    )
+                    .bind(item_id_val)
+                    .bind(&date_str)
+                    .bind(repeat_status.to_string())
+                    .bind(comment.unwrap_or_default())
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(RepoError::from)?;
+                }
+                tx.commit().await.map_err(RepoError::from)
+            })
+        })
     }
 }
 
@@ -48,6 +349,14 @@ struct RepeatEntryWithDateRow {
 }
 
 impl RepeatRepo for RepeatSqliteRepo {
+    fn get_for_day_in_scopes(
+        &self,
+        day: &NaiveDate,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<RepeatEntryCore>, RepoError> {
+        self.get_for_day_scoped(day, scope_ids)
+    }
+
     fn get_for_day(
         &self,
         day: &NaiveDate,
@@ -292,6 +601,15 @@ impl RepeatRepo for RepeatSqliteRepo {
         })
     }
 
+    fn get_for_range_in_scopes(
+        &self,
+        start: &NaiveDate,
+        end: &NaiveDate,
+        scope_ids: &[Uuid],
+    ) -> Result<Vec<RepeatEntryCore>, RepoError> {
+        self.get_for_range_scoped(start, end, scope_ids)
+    }
+
     fn set_status(&self, dto: &UpdateRepeatEntryDto, account: &Account) -> Result<(), RepoError> {
         let item_id_val = dto.item_id;
         let date_str = dto.date.clone();
@@ -348,5 +666,13 @@ impl RepeatRepo for RepeatSqliteRepo {
                 tx.commit().await.map_err(RepoError::from)
             })
         })
+    }
+
+    fn set_status_in_scopes(
+        &self,
+        dto: &UpdateRepeatEntryDto,
+        scope_ids: &[Uuid],
+    ) -> Result<(), RepoError> {
+        self.set_status_scoped(dto, scope_ids)
     }
 }
