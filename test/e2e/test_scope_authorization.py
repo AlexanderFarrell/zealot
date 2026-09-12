@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import os
 import sqlite3
 import uuid
@@ -119,51 +118,23 @@ def _set_membership(
 
 
 def _create_service_key(
-    conn,
+    session: requests.Session,
+    stack_urls: dict[str, str],
     scope_id: str,
-    postgres: bool,
 ) -> tuple[str, str]:
-    service_principal_id = str(uuid.uuid4())
-    raw_key = f"scope-service-{uuid.uuid4().hex}"
-    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
-    server_row = conn.execute("select server_id from server limit 1").fetchone()
-    assert server_row is not None
-    server_id = server_row["server_id"]
-    if postgres:
-        conn.execute(
-            """
-            insert into server_principal
-                (principal_id, server_id, kind, account_id, display_name, status)
-            values (%s, %s, 'service', null, %s, 'active')
-            """,
-            (uuid.UUID(service_principal_id), server_id, "E2E scope service"),
-        )
-        conn.execute(
-            """
-            insert into api_key (account_id, principal_id, key_hash, label)
-            values (null, %s, %s, 'E2E scope service key')
-            """,
-            (uuid.UUID(service_principal_id), key_hash),
-        )
-    else:
-        conn.execute(
-            """
-            insert into server_principal
-                (principal_id, server_id, kind, account_id, display_name, status)
-            values (?, ?, 'service', null, ?, 'active')
-            """,
-            (service_principal_id, server_id, "E2E scope service"),
-        )
-        conn.execute(
-            """
-            insert into api_key (account_id, principal_id, key_hash, label)
-            values (null, ?, ?, 'E2E scope service key')
-            """,
-            (service_principal_id, key_hash),
-        )
-    conn.commit()
-    _set_membership(conn, scope_id, service_principal_id, "viewer", "active", postgres)
-    return service_principal_id, raw_key
+    response = session.post(
+        f"{stack_urls['server_url']}/account/scopes/{scope_id}/service-keys",
+        json={
+            "display_name": "E2E scope service",
+            "label": "E2E scope service key",
+            "role": "viewer",
+        },
+        headers=csrf_headers(session),
+        timeout=5,
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    return str(payload["principal_id"]), payload["key"]
 
 
 def _create_item(
@@ -268,7 +239,7 @@ def test_two_scope_roles_service_and_revocation(
     )
     assert all_scope_write.status_code == 403, all_scope_write.text
 
-    service_principal, service_key = _create_service_key(conn, alice_scope, postgres)
+    service_principal, service_key = _create_service_key(alice, stack_urls, alice_scope)
     service_headers = {"x-api-key": service_key}
     service_default = requests.get(f"{base}/item/search", params={"term": "scope-"}, headers=service_headers, timeout=5)
     assert service_default.status_code == 401, service_default.text

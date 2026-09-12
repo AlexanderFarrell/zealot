@@ -120,7 +120,7 @@ impl StatisticPostgresRepo {
         let scope_ids = scope_ids.to_vec();
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
-                let exists: Option<i64> = sqlx::query_scalar(
+                let exists: Option<i32> = sqlx::query_scalar(
                     "SELECT item_id FROM item WHERE item_id = $1 AND scope_id = ANY($2)",
                 )
                 .bind(item_id_val)
