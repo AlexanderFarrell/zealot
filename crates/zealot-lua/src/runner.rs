@@ -69,25 +69,31 @@ impl LuaRuleRunner {
         use crate::bindings::setup_zealot_globals;
         use crate::sandbox::{execute_script, new_sandbox};
 
+        let access = self
+            .services
+            .scope
+            .rule_access(rule.scope_id)
+            .map_err(|error| mlua::Error::RuntimeError(error.to_string()))?
+            .ok_or_else(|| mlua::Error::RuntimeError("rule scope is not active".to_string()))?;
         let lua = new_sandbox()?;
         setup_zealot_globals(
             &lua,
             context,
             self.services.clone(),
             rule.account_id,
+            access,
             output_buf,
         )?;
         execute_script(lua, rule.script.clone()).await
     }
 
     async fn run_event_rules_inner(&self, event: ZealotEvent) -> Vec<RuleRunResult> {
-        let account_id = *event.account_id();
         let trigger_kind = event.trigger_kind();
 
         let rules = match self
             .repos
             .rule
-            .get_enabled_event_rules(trigger_kind, &account_id)
+            .get_enabled_event_rules_in_scope(trigger_kind, event.scope_id())
         {
             Ok(r) => r,
             Err(e) => {

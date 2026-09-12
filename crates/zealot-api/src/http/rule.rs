@@ -3,7 +3,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     middleware,
-    routing::{delete, get, patch, post},
+    routing::{get, post},
 };
 use zealot_app::{
     app::AppState, ports::rule_runner::RuleRunResult, services::rule::RuleServiceError,
@@ -17,6 +17,10 @@ use zealot_domain::{
 use crate::http::{
     common::HttpError,
     middleware::{auth_middleware, csrf_middleware},
+    scope::{
+        ScopeQuery, create_scope_access, delete_scope_access, read_scope_access,
+        resolve_scope_owner_account, update_scope_access,
+    },
 };
 
 pub fn routes(state: AppState) -> Router<AppState> {
@@ -38,13 +42,6 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .with_state(state)
 }
 
-fn require_account(actor: &Actor) -> Result<zealot_domain::account::Account, HttpError> {
-    if !actor.is_authenticated() {
-        return Err(HttpError::Unauthorized);
-    }
-    actor.account.clone().ok_or(HttpError::Unauthorized)
-}
-
 fn rule_service_err(err: RuleServiceError) -> HttpError {
     match err {
         RuleServiceError::NotFound => HttpError::NotFound,
@@ -63,12 +60,13 @@ fn parse_rule_id(raw: i64) -> Result<Id, HttpError> {
 async fn list_rules(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
+    axum::extract::Query(query): axum::extract::Query<ScopeQuery>,
 ) -> Result<Json<Vec<RuleDto>>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = read_scope_access(&state, &actor, &query)?;
     let rules = state
         .services
         .rule
-        .get_rules(&account)
+        .get_rules_in_scopes(&access)
         .map_err(rule_service_err)?;
     Ok(Json(rules.iter().map(RuleDto::from).collect()))
 }
@@ -76,13 +74,15 @@ async fn list_rules(
 async fn create_rule(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
+    axum::extract::Query(query): axum::extract::Query<ScopeQuery>,
     Json(dto): Json<AddRuleDto>,
 ) -> Result<(StatusCode, Json<RuleDto>), HttpError> {
-    let account = require_account(&actor)?;
+    let access = create_scope_access(&state, &actor, &query)?;
+    let account = resolve_scope_owner_account(&state, &actor, &access)?;
     let rule = state
         .services
         .rule
-        .add_rule(dto, &account)
+        .add_rule_in_scope(dto, &account, &access)
         .map_err(rule_service_err)?;
     Ok((StatusCode::CREATED, Json(RuleDto::from(&rule))))
 }
@@ -91,13 +91,14 @@ async fn get_rule(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(id): Path<i64>,
+    axum::extract::Query(query): axum::extract::Query<ScopeQuery>,
 ) -> Result<Json<RuleDto>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = read_scope_access(&state, &actor, &query)?;
     let rule_id = parse_rule_id(id)?;
     let rule = state
         .services
         .rule
-        .get_rule(&rule_id, &account)
+        .get_rule_in_scopes(&rule_id, &access)
         .map_err(rule_service_err)?;
     Ok(Json(RuleDto::from(&rule)))
 }
@@ -106,14 +107,15 @@ async fn update_rule(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(id): Path<i64>,
+    axum::extract::Query(query): axum::extract::Query<ScopeQuery>,
     Json(dto): Json<UpdateRuleDto>,
 ) -> Result<Json<RuleDto>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = update_scope_access(&state, &actor, &query)?;
     let rule_id = parse_rule_id(id)?;
     let rule = state
         .services
         .rule
-        .update_rule(&rule_id, dto, &account)
+        .update_rule_in_scopes(&rule_id, dto, &access)
         .map_err(rule_service_err)?;
     Ok(Json(RuleDto::from(&rule)))
 }
@@ -122,13 +124,14 @@ async fn delete_rule(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(id): Path<i64>,
+    axum::extract::Query(query): axum::extract::Query<ScopeQuery>,
 ) -> Result<StatusCode, HttpError> {
-    let account = require_account(&actor)?;
+    let access = delete_scope_access(&state, &actor, &query)?;
     let rule_id = parse_rule_id(id)?;
     state
         .services
         .rule
-        .delete_rule(&rule_id, &account)
+        .delete_rule_in_scopes(&rule_id, &access)
         .map_err(rule_service_err)?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -137,13 +140,14 @@ async fn run_rule(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(id): Path<i64>,
+    axum::extract::Query(query): axum::extract::Query<ScopeQuery>,
 ) -> Result<Json<RuleRunResult>, HttpError> {
-    let account = require_account(&actor)?;
+    let access = update_scope_access(&state, &actor, &query)?;
     let rule_id = parse_rule_id(id)?;
     let result = state
         .services
         .rule
-        .run_rule_now(&rule_id, &account)
+        .run_rule_now_in_scopes(&rule_id, &access)
         .await
         .map_err(rule_service_err)?;
     Ok(Json(result))

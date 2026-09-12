@@ -91,6 +91,30 @@ async fn fetch_items_by_ids(
 }
 
 impl ItemRepo for ItemSqliteRepo {
+    fn get_item_scope_id(&self, item_id: &Id) -> Result<Option<Uuid>, RepoError> {
+        let item_id = i64::from(*item_id);
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let value = sqlx::query_scalar::<_, Option<String>>(
+                    "SELECT scope_id FROM item WHERE item_id = ?",
+                )
+                .bind(item_id)
+                .fetch_optional(&pool)
+                .await
+                .map_err(RepoError::from)?
+                .flatten();
+                value
+                    .map(|value| {
+                        Uuid::parse_str(&value).map_err(|error| RepoError::DatabaseError {
+                            err: format!("invalid item scope_id: {error}"),
+                        })
+                    })
+                    .transpose()
+            })
+        })
+    }
+
     fn get_items_by_title_in_scopes(
         &self,
         title: &str,

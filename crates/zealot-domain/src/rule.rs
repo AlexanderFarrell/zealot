@@ -1,11 +1,13 @@
 use crate::common::id::Id;
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub struct Rule {
     pub rule_id: Id,
     pub account_id: Id,
+    pub scope_id: Uuid,
     pub name: String,
     pub description: String,
     pub trigger: TriggerKind,
@@ -71,6 +73,8 @@ impl TriggerKind {
 pub struct RuleDto {
     pub rule_id: i64,
     pub account_id: i64,
+    #[serde(default)]
+    pub scope_id: Uuid,
     pub name: String,
     pub description: String,
     pub trigger: TriggerKind,
@@ -87,6 +91,7 @@ impl From<&Rule> for RuleDto {
         Self {
             rule_id: r.rule_id.into(),
             account_id: r.account_id.into(),
+            scope_id: r.scope_id,
             name: r.name.clone(),
             description: r.description.clone(),
             trigger: r.trigger.clone(),

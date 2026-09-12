@@ -109,9 +109,15 @@ impl CommentService {
         match self.repo.add_comment(dto, &account.account_id)? {
             Some(core) => {
                 let comment = self.hydrate(core, account)?;
+                let scope_id = self
+                    .item_service
+                    .get_item_scope_id(&comment.item.item_id)
+                    .map_err(|_| CommentServiceError::NotFound)?
+                    .ok_or(CommentServiceError::NotFound)?;
                 tracing::info!(account_id = ?account.account_id, comment_id = ?comment.comment_id, item_id = ?comment.item.item_id, "comment added");
                 self.event_port.emit(ZealotEvent::CommentAdded {
                     account_id: account.account_id,
+                    scope_id,
                     item_id: comment.item.item_id,
                     comment: comment.clone(),
                 });
@@ -224,8 +230,14 @@ impl CommentService {
                     .get_item_owner_account_id_in_scopes(&comment.item.item_id, access)
                     .map_err(|_| CommentServiceError::NotFound)?
                     .ok_or(CommentServiceError::NotFound)?;
+                let scope_id = access
+                    .scopes
+                    .first()
+                    .map(|scope| scope.scope_id)
+                    .ok_or(CommentServiceError::NotFound)?;
                 self.event_port.emit(ZealotEvent::CommentAdded {
                     account_id,
+                    scope_id,
                     item_id: comment.item.item_id,
                     comment: comment.clone(),
                 });

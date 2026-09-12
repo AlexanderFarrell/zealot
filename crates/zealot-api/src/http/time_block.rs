@@ -1,9 +1,9 @@
 use axum::{
+    Extension, Json, Router,
     extract::{Path, Query, State},
     http::StatusCode,
     middleware,
     routing::{delete, get, patch, post},
-    Extension, Json, Router,
 };
 use serde::Deserialize;
 use sqlx::types::chrono::NaiveDate;
@@ -18,8 +18,8 @@ use crate::http::{
     common::HttpError,
     middleware::{auth_middleware, csrf_middleware},
     scope::{
-        create_scope_access, delete_scope_access, read_scope_access, resolve_scope_owner_account,
-        update_scope_access, ScopeQuery,
+        ScopeQuery, create_scope_access, delete_scope_access, read_scope_access,
+        resolve_scope_owner_account, update_scope_access,
     },
 };
 
@@ -46,6 +46,8 @@ pub fn routes(state: AppState) -> Router<AppState> {
 struct RangeParams {
     start: String,
     end: String,
+    #[serde(flatten)]
+    scope: ScopeQuery,
 }
 
 fn service_err(err: TimeBlockServiceError) -> HttpError {
@@ -81,9 +83,8 @@ async fn get_for_range(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Query(params): Query<RangeParams>,
-    Query(query): Query<ScopeQuery>,
 ) -> Result<Json<Vec<TimeBlockDto>>, HttpError> {
-    let access = read_scope_access(&state, &actor, &query)?;
+    let access = read_scope_access(&state, &actor, &params.scope)?;
     let start =
         NaiveDate::parse_from_str(&params.start, "%Y-%m-%d").map_err(|e| HttpError::UserError {
             err: format!("invalid start date '{}': {}", params.start, e),

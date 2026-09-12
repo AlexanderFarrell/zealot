@@ -213,6 +213,31 @@ impl ScopeService {
     pub fn scope_by_id(&self, scope_id: Uuid) -> Result<Option<Scope>, RepoError> {
         self.repo.scope_by_id(scope_id)
     }
+
+    /// Resolve the persisted scope owner as the execution identity for an
+    /// automation rule. Rules have no interactive actor, so their scope and
+    /// owner membership are checked at execution time instead of falling back
+    /// to the legacy account boundary.
+    pub fn rule_access(&self, scope_id: Uuid) -> Result<Option<ScopeAccess>, RepoError> {
+        let Some(scope) = self.repo.scope_by_id(scope_id)? else {
+            return Ok(None);
+        };
+        if scope.status != zealot_domain::scope::ScopeStatus::Active
+            || !self.authorize(
+                scope.owner_principal_id,
+                scope_id,
+                ScopePermission::UpdateItems,
+            )?
+        {
+            return Ok(None);
+        }
+        Ok(Some(ScopeAccess {
+            principal_id: scope.owner_principal_id,
+            scopes: vec![scope],
+            permission: ScopePermission::UpdateItems,
+            read_only: false,
+        }))
+    }
     pub fn members_for_scope(&self, scope_id: Uuid) -> Result<Vec<ScopeMember>, RepoError> {
         self.repo.members_for_scope(scope_id)
     }

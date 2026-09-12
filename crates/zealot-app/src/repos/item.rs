@@ -88,6 +88,12 @@ pub trait ItemRepo: Debug + Send + Sync {
             err: "scope-qualified item lookup is not implemented by this repository".to_string(),
         })
     }
+    fn get_item_scope_id(&self, item_id: &Id) -> Result<Option<Uuid>, RepoError> {
+        let _ = item_id;
+        Err(RepoError::DatabaseError {
+            err: "item scope lookup is not implemented by this repository".to_string(),
+        })
+    }
     fn get_item_by_id(
         &self,
         item_id: &Id,

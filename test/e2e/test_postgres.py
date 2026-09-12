@@ -29,6 +29,8 @@ EXPECTED_MIGRATIONS = [
     "core model foundation",
     "default scope invariants",
     "scope authorization",
+    "rule scope",
+    "rule scope invariants",
 ]
 
 
@@ -86,6 +88,7 @@ def test_postgres_scope_foundation_schema_is_present(db) -> None:
         "default_scope_id",
     } <= columns(db, "server_principal")
     assert "scope_id" in columns(db, "item")
+    assert "scope_id" in columns(db, "rule")
 
 
 def test_postgres_scope_foundation_bootstrap_is_consistent(db) -> None:
@@ -112,6 +115,9 @@ def test_postgres_scope_foundation_bootstrap_is_consistent(db) -> None:
 
     assert db.execute(
         "select count(*) as count from item where scope_id is null"
+    ).fetchone()["count"] == 0
+    assert db.execute(
+        "select count(*) as count from rule where scope_id is null"
     ).fetchone()["count"] == 0
 
 

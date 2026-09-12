@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use chrono::NaiveDateTime;
+use uuid::Uuid;
 use zealot_domain::{
     common::id::Id,
     rule::{AddRuleDto, Rule, UpdateRuleDto},
@@ -9,6 +10,34 @@ use zealot_domain::{
 use crate::repos::common::RepoError;
 
 pub trait RuleRepo: Debug + Send + Sync {
+    fn get_all_rules_in_scopes(&self, scope_ids: &[Uuid]) -> Result<Vec<Rule>, RepoError>;
+    fn get_rule_by_id_in_scopes(
+        &self,
+        rule_id: &Id,
+        scope_ids: &[Uuid],
+    ) -> Result<Option<Rule>, RepoError>;
+
+    /// Returns enabled event-triggered rules owned by one authorized scope.
+    fn get_enabled_event_rules_in_scope(
+        &self,
+        trigger_kind: &str,
+        scope_id: Uuid,
+    ) -> Result<Vec<Rule>, RepoError>;
+
+    fn add_rule_in_scope(
+        &self,
+        dto: &AddRuleDto,
+        account_id: &Id,
+        scope_id: Uuid,
+    ) -> Result<Rule, RepoError>;
+    fn update_rule_in_scopes(
+        &self,
+        rule_id: &Id,
+        dto: &UpdateRuleDto,
+        scope_ids: &[Uuid],
+    ) -> Result<Option<Rule>, RepoError>;
+    fn delete_rule_in_scopes(&self, rule_id: &Id, scope_ids: &[Uuid]) -> Result<(), RepoError>;
+
     fn get_all_rules(&self, account_id: &Id) -> Result<Vec<Rule>, RepoError>;
     fn get_rule_by_id(&self, rule_id: &Id, account_id: &Id) -> Result<Option<Rule>, RepoError>;
 

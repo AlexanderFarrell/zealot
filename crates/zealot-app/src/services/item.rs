@@ -14,8 +14,8 @@ use zealot_domain::{
     },
     common::id::Id,
     item::{
-        relationship, AddItemCoreDto, AddItemDto, Item, ItemCore, ItemLink, ItemLinkDto,
-        SearchScope, UpdateItemCoreDto, UpdateItemDto,
+        AddItemCoreDto, AddItemDto, Item, ItemCore, ItemLink, ItemLinkDto, SearchScope,
+        UpdateItemCoreDto, UpdateItemDto, relationship,
     },
     item_type::{ItemType, ItemTypeRef},
 };
@@ -878,6 +878,7 @@ impl ItemService {
                     tracing::info!(account_id = ?owner_account.account_id, item_id = ?created.item_id, title = %created.title, "item created");
                     self.event_port.emit(ZealotEvent::ItemCreated {
                         account_id: owner_account.account_id,
+                        scope_id,
                         item: created.clone(),
                     });
                 }
@@ -894,6 +895,11 @@ impl ItemService {
         access: &ScopeAccess,
     ) -> Result<Option<Item>, ItemServiceError> {
         let scope_ids = Self::scope_ids(access);
+        let scope_id = access
+            .scopes
+            .first()
+            .map(|scope| scope.scope_id)
+            .ok_or(ItemServiceError::Unauthorized)?;
         if matches!(dto.title.as_ref(), Some(title) if title.trim().is_empty()) {
             return Err(ItemServiceError::InvalidFilter(String::from(
                 "title is required",
@@ -973,6 +979,7 @@ impl ItemService {
                     tracing::info!(account_id = ?owner_account.account_id, item_id = ?updated.item_id, "item updated");
                     self.event_port.emit(ZealotEvent::ItemUpdated {
                         account_id: owner_account.account_id,
+                        scope_id,
                         item: updated.clone(),
                     });
                 }
@@ -990,12 +997,14 @@ impl ItemService {
         let Some((_item, owner_account)) = self.scoped_item_and_owner(item_id, access)? else {
             return Err(ItemServiceError::NotFound);
         };
+        let scope_id = self.required_item_scope_id(item_id)?;
         self.item_repo
             .delete_item(item_id, &owner_account)
             .map_err(ItemServiceError::Repo)?;
         tracing::info!(account_id = ?owner_account.account_id, ?item_id, "item deleted");
         self.event_port.emit(ZealotEvent::ItemDeleted {
             account_id: owner_account.account_id,
+            scope_id,
             item_id: *item_id,
         });
         Ok(())
@@ -1017,6 +1026,7 @@ impl ItemService {
         else {
             return Err(ItemServiceError::NotFound);
         };
+        let scope_id = self.required_item_scope_id(item_id)?;
         let item_types =
             self.resolve_assigned_item_types(&current_item.types, &owner_account.account_id)?;
         let parsed = self.parse_attributes_map(raw, &owner_account.account_id)?;
@@ -1038,6 +1048,7 @@ impl ItemService {
             for key in raw.keys() {
                 self.event_port.emit(ZealotEvent::AttributeSet {
                     account_id: owner_account.account_id,
+                    scope_id,
                     item: item.clone(),
                     attribute_key: key.clone(),
                 });
@@ -1138,6 +1149,7 @@ impl ItemService {
         else {
             return Err(ItemServiceError::NotFound);
         };
+        let scope_id = self.required_item_scope_id(item_id)?;
         let item_type = self
             .item_type_repo
             .get_item_type_by_name(type_name, &owner_account.account_id)
@@ -1156,6 +1168,7 @@ impl ItemService {
         if let Ok(Some(item)) = self.get_item_by_id_in_scopes(item_id, access) {
             self.event_port.emit(ZealotEvent::TypeAssigned {
                 account_id: owner_account.account_id,
+                scope_id,
                 item,
                 type_name: type_name.to_string(),
             });
@@ -1173,6 +1186,7 @@ impl ItemService {
         else {
             return Err(ItemServiceError::NotFound);
         };
+        let scope_id = self.required_item_scope_id(item_id)?;
         self.item_type_repo
             .unassign_item_types(
                 &vec![type_name.to_string()],
@@ -1183,6 +1197,7 @@ impl ItemService {
         if let Ok(Some(item)) = self.get_item_by_id_in_scopes(item_id, access) {
             self.event_port.emit(ZealotEvent::TypeUnassigned {
                 account_id: owner_account.account_id,
+                scope_id,
                 item,
                 type_name: type_name.to_string(),
             });
@@ -1312,6 +1327,7 @@ impl ItemService {
                     tracing::info!(account_id = ?account.account_id, item_id = ?created.item_id, title = %created.title, "item created");
                     self.event_port.emit(ZealotEvent::ItemCreated {
                         account_id: account.account_id,
+                        scope_id: self.required_item_scope_id(&created.item_id)?,
                         item: created.clone(),
                     });
                 }
@@ -1405,6 +1421,7 @@ impl ItemService {
                     tracing::info!(account_id = ?account.account_id, item_id = ?updated.item_id, "item updated");
                     self.event_port.emit(ZealotEvent::ItemUpdated {
                         account_id: account.account_id,
+                        scope_id: self.required_item_scope_id(&updated.item_id)?,
                         item: updated.clone(),
                     });
                 }
@@ -1415,12 +1432,14 @@ impl ItemService {
     }
 
     pub fn delete_item(&self, item_id: &Id, account: &Account) -> Result<(), ItemServiceError> {
+        let scope_id = self.required_item_scope_id(item_id)?;
         self.item_repo
             .delete_item(item_id, account)
             .map_err(ItemServiceError::Repo)?;
         tracing::info!(account_id = ?account.account_id, ?item_id, "item deleted");
         self.event_port.emit(ZealotEvent::ItemDeleted {
             account_id: account.account_id,
+            scope_id,
             item_id: *item_id,
         });
         Ok(())
@@ -1462,6 +1481,7 @@ impl ItemService {
             for key in raw.keys() {
                 self.event_port.emit(ZealotEvent::AttributeSet {
                     account_id: account.account_id,
+                    scope_id: self.required_item_scope_id(&item.item_id)?,
                     item: item.clone(),
                     attribute_key: key.clone(),
                 });
@@ -1573,6 +1593,7 @@ impl ItemService {
         if let Ok(Some(item)) = self.get_item_by_id(item_id, account) {
             self.event_port.emit(ZealotEvent::TypeAssigned {
                 account_id: account.account_id,
+                scope_id: self.required_item_scope_id(&item.item_id)?,
                 item,
                 type_name: type_name.to_string(),
             });
@@ -1593,6 +1614,7 @@ impl ItemService {
         if let Ok(Some(item)) = self.get_item_by_id(item_id, account) {
             self.event_port.emit(ZealotEvent::TypeUnassigned {
                 account_id: account.account_id,
+                scope_id: self.required_item_scope_id(&item.item_id)?,
                 item,
                 type_name: type_name.to_string(),
             });
@@ -1660,6 +1682,17 @@ impl ItemService {
 
     fn scope_ids(access: &ScopeAccess) -> Vec<Uuid> {
         access.scopes.iter().map(|scope| scope.scope_id).collect()
+    }
+
+    pub fn get_item_scope_id(&self, item_id: &Id) -> Result<Option<Uuid>, ItemServiceError> {
+        self.item_repo
+            .get_item_scope_id(item_id)
+            .map_err(ItemServiceError::Repo)
+    }
+
+    fn required_item_scope_id(&self, item_id: &Id) -> Result<Uuid, ItemServiceError> {
+        self.get_item_scope_id(item_id)?
+            .ok_or(ItemServiceError::NotFound)
     }
 
     fn owner_account(&self, owner_account_id: &Id) -> Result<Account, ItemServiceError> {

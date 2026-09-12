@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use mlua::{Lua, Table};
-use zealot_app::services::ZealotServices;
+use zealot_app::services::{ZealotServices, scope::ScopeAccess};
 use zealot_domain::{
     common::id::Id,
     statistic::{
@@ -17,21 +17,23 @@ pub fn register(
     lua: &Lua,
     services: Arc<ZealotServices>,
     account_id: Id,
+    access: ScopeAccess,
 ) -> mlua::Result<()> {
     let statistics = lua.create_table()?;
 
     {
         let svc = services.clone();
+        let access = access.clone();
         statistics.set(
             "list",
             lua.create_async_function(move |lua, parent_id: Option<i64>| {
                 let svc = svc.clone();
+                let access = access.clone();
                 async move {
-                    let account = make_account(account_id)?;
                     let parent_id = parent_id.map(Id::try_from).transpose().map_err(runtime)?;
                     let items = svc
                         .statistic
-                        .list_items(parent_id, &account)
+                        .list_items_in_scopes(parent_id, &access)
                         .map_err(runtime)?;
                     let result = lua.create_table()?;
                     for (index, item) in items.iter().enumerate() {
@@ -45,12 +47,13 @@ pub fn register(
 
     {
         let svc = services.clone();
+        let access = access.clone();
         statistics.set(
             "entries",
             lua.create_async_function(move |lua, (item_id, opts): (i64, Option<Table>)| {
                 let svc = svc.clone();
+                let access = access.clone();
                 async move {
-                    let account = make_account(account_id)?;
                     let item_id = Id::try_from(item_id).map_err(runtime)?;
                     let (start, end) = range(&opts)?;
                     let limit = opts
@@ -65,7 +68,7 @@ pub fn register(
                         .max(0);
                     let page = svc
                         .statistic
-                        .list_entries(item_id, start, end, limit, offset, &account)
+                        .list_entries_in_scopes(item_id, start, end, limit, offset, &access)
                         .map_err(runtime)?;
                     let result = lua.create_table()?;
                     result.set("count", page.count)?;
@@ -83,17 +86,18 @@ pub fn register(
 
     {
         let svc = services.clone();
+        let access = access.clone();
         statistics.set(
             "daily",
             lua.create_async_function(move |lua, (item_id, opts): (i64, Option<Table>)| {
                 let svc = svc.clone();
+                let access = access.clone();
                 async move {
-                    let account = make_account(account_id)?;
                     let item_id = Id::try_from(item_id).map_err(runtime)?;
                     let (start, end) = range(&opts)?;
                     let points = svc
                         .statistic
-                        .daily(item_id, start, end, &account)
+                        .daily_in_scopes(item_id, start, end, &access)
                         .map_err(runtime)?;
                     let result = lua.create_table()?;
                     for (index, point) in points.iter().enumerate() {
@@ -111,17 +115,18 @@ pub fn register(
 
     {
         let svc = services.clone();
+        let access = access.clone();
         statistics.set(
             "summary",
             lua.create_async_function(move |lua, (item_id, opts): (i64, Option<Table>)| {
                 let svc = svc.clone();
+                let access = access.clone();
                 async move {
-                    let account = make_account(account_id)?;
                     let item_id = Id::try_from(item_id).map_err(runtime)?;
                     let (start, end) = range(&opts)?;
                     let summary = svc
                         .statistic
-                        .summary(item_id, start, end, &account)
+                        .summary_in_scopes(item_id, start, end, &access)
                         .map_err(runtime)?;
                     summary_to_lua(&lua, &summary)
                 }
@@ -131,11 +136,13 @@ pub fn register(
 
     {
         let svc = services.clone();
+        let access = access.clone();
         statistics.set(
             "record",
             lua.create_async_function(
                 move |lua, (item_id, value, opts): (i64, f64, Option<Table>)| {
                     let svc = svc.clone();
+                    let access = access.clone();
                     async move {
                         let account = make_account(account_id)?;
                         let item_id = Id::try_from(item_id).map_err(runtime)?;
@@ -149,7 +156,7 @@ pub fn register(
                         };
                         let entry = svc
                             .statistic
-                            .create(item_id, &dto, &account)
+                            .create_in_scopes(item_id, &dto, &account, &access)
                             .map_err(runtime)?;
                         entry_to_lua(&lua, &StatisticEntryDto::from(&entry))
                     }
@@ -160,12 +167,13 @@ pub fn register(
 
     {
         let svc = services.clone();
+        let access = access.clone();
         statistics.set(
             "update",
             lua.create_async_function(move |lua, (entry_id, patch): (i64, Table)| {
                 let svc = svc.clone();
+                let access = access.clone();
                 async move {
-                    let account = make_account(account_id)?;
                     let entry_id = Id::try_from(entry_id).map_err(runtime)?;
                     let related_item_id =
                         if patch.get::<bool>("clear_related_item").unwrap_or(false) {
@@ -186,7 +194,7 @@ pub fn register(
                     };
                     let entry = svc
                         .statistic
-                        .update(entry_id, &dto, &account)
+                        .update_in_scopes(entry_id, &dto, &access)
                         .map_err(runtime)?;
                     entry_to_lua(&lua, &StatisticEntryDto::from(&entry))
                 }
@@ -196,14 +204,17 @@ pub fn register(
 
     {
         let svc = services;
+        let access = access.clone();
         statistics.set(
             "delete",
             lua.create_async_function(move |_, entry_id: i64| {
                 let svc = svc.clone();
+                let access = access.clone();
                 async move {
-                    let account = make_account(account_id)?;
                     let entry_id = Id::try_from(entry_id).map_err(runtime)?;
-                    svc.statistic.delete(entry_id, &account).map_err(runtime)?;
+                    svc.statistic
+                        .delete_in_scopes(entry_id, &access)
+                        .map_err(runtime)?;
                     Ok(true)
                 }
             })?,

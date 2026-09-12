@@ -90,6 +90,23 @@ async fn fetch_items_by_ids(
 }
 
 impl ItemRepo for ItemPostgresRepo {
+    fn get_item_scope_id(&self, item_id: &Id) -> Result<Option<Uuid>, RepoError> {
+        let item_id = i64::from(*item_id);
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                sqlx::query_scalar::<_, Option<Uuid>>(
+                    "SELECT scope_id FROM item WHERE item_id = $1",
+                )
+                .bind(item_id)
+                .fetch_optional(&pool)
+                .await
+                .map_err(RepoError::from)
+                .map(|value| value.flatten())
+            })
+        })
+    }
+
     fn get_items_by_title_in_scopes(
         &self,
         title: &str,

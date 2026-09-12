@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import time
 import uuid
 
 import pytest
 import requests
 
-from test_rules_engine import csrf_headers
+from test_rules_engine import create_rule, csrf_headers, wait_for_rule_run
 
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "zealot_data", "zealot.db")
@@ -270,3 +271,82 @@ def test_two_scope_roles_service_and_revocation(
         timeout=5,
     )
     assert revoked.status_code == 403, revoked.text
+
+
+def test_rules_are_bound_to_the_event_scope(
+    stack_urls: dict[str, str],
+    scope_db,
+) -> None:
+    conn, postgres = scope_db
+    base = stack_urls["server_url"]
+
+    alice, alice_account_id = _register(stack_urls, "rule_scope_alice")
+    bob, bob_account_id = _register(stack_urls, "rule_scope_bob")
+    alice_principal, alice_scope = _principal_scope(conn, alice_account_id, postgres)
+    bob_principal, bob_scope = _principal_scope(conn, bob_account_id, postgres)
+
+    rule = create_rule(
+        alice,
+        stack_urls,
+        name=f"scope-rule-{uuid.uuid4().hex[:12]}",
+        trigger={"kind": "on_item_create"},
+        script='zealot.notify("alice-scope-rule-fired")',
+    )
+    rule_id = int(rule["rule_id"])
+    assert rule["scope_id"] == alice_scope
+
+    # Bob's item emits an event for Bob's scope only.  The rule must remain
+    # untouched even though both scopes are active on the same server.
+    bob_item = _create_item(bob, stack_urls, "rule-scope-bob-event")
+    assert bob_item.status_code == 200, bob_item.text
+    time.sleep(0.4)
+    after_bob = alice.get(f"{base}/rule/{rule_id}", timeout=5)
+    assert after_bob.status_code == 200, after_bob.text
+    assert after_bob.json()["last_run_at"] is None
+
+    alice_item = _create_item(alice, stack_urls, "rule-scope-alice-event")
+    assert alice_item.status_code == 200, alice_item.text
+    stored = wait_for_rule_run(alice, stack_urls, rule_id)
+    assert stored["last_output"] == "alice-scope-rule-fired"
+
+    # A member can read the selected scope, but a viewer cannot execute its
+    # rule.  The other scope remains non-addressable by the rule ID.
+    _set_membership(conn, alice_scope, bob_principal, "viewer", "active", postgres)
+    selected = bob.get(
+        f"{base}/rule/{rule_id}",
+        params={"scope_id": alice_scope},
+        timeout=5,
+    )
+    assert selected.status_code == 200, selected.text
+    denied_run = bob.post(
+        f"{base}/rule/{rule_id}/run",
+        params={"scope_id": alice_scope},
+        json={},
+        headers=csrf_headers(bob),
+        timeout=5,
+    )
+    assert denied_run.status_code == 403, denied_run.text
+    hidden = bob.get(f"{base}/rule/{rule_id}", params={"scope_id": bob_scope}, timeout=5)
+    assert hidden.status_code == 404, hidden.text
+
+    service_principal, service_key = _create_service_key(alice, stack_urls, alice_scope)
+    service_headers = {"x-api-key": service_key}
+    service_default = requests.get(f"{base}/rule", headers=service_headers, timeout=5)
+    assert service_default.status_code == 401, service_default.text
+    service_selected = requests.get(
+        f"{base}/rule",
+        params={"scope_id": alice_scope},
+        headers=service_headers,
+        timeout=5,
+    )
+    assert service_selected.status_code == 200, service_selected.text
+    assert any(int(item["rule_id"]) == rule_id for item in service_selected.json())
+    service_run = requests.post(
+        f"{base}/rule/{rule_id}/run",
+        params={"scope_id": alice_scope},
+        json={},
+        headers=service_headers,
+        timeout=5,
+    )
+    assert service_run.status_code == 403, service_run.text
+    assert service_principal
