@@ -32,6 +32,7 @@ EXPECTED_MIGRATIONS = [
     "scope authorization",
     "rule scope",
     "rule scope invariants",
+    "scope invitations membership",
 ]
 
 EXPECTED_SYSTEM_ATTRIBUTE_KINDS = [
@@ -177,6 +178,34 @@ def test_scope_foundation_schema_is_present(db: sqlite3.Connection) -> None:
 
     rule_columns = {row["name"] for row in db.execute("pragma table_info(rule)").fetchall()}
     assert "scope_id" in rule_columns
+
+
+def test_scope_membership_schema_is_present(db: sqlite3.Connection) -> None:
+    tables = {
+        row["name"]
+        for row in db.execute(
+            "select name from sqlite_master where type = 'table'"
+        ).fetchall()
+    }
+    assert {"scope_invitation", "scope_lifecycle_event"} <= tables
+    server_columns = {
+        row["name"] for row in db.execute("pragma table_info(server)").fetchall()
+    }
+    assert {"enrolment_policy", "invitation_signing_key"} <= server_columns
+    invitation_columns = {
+        row["name"]
+        for row in db.execute("pragma table_info(scope_invitation)").fetchall()
+    }
+    assert {
+        "scope_id",
+        "issuer_principal_id",
+        "recipient_principal_id",
+        "token_hash",
+        "token_signature",
+        "status",
+        "expires_at",
+        "correlation_id",
+    } <= invitation_columns
 
 
 def test_scope_foundation_bootstrap_is_consistent(db: sqlite3.Connection) -> None:

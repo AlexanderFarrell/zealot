@@ -26,6 +26,10 @@ services:
       - |
         umask 000
         mkdir -p /data/public
+        if [ "$${DATABASE}" = sqlite ]; then
+          touch /data/zealot.db
+          chmod 666 /data/zealot.db
+        fi
         chmod -R a+rwX /data
         exec /usr/local/bin/zealot-server
     healthcheck:

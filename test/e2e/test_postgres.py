@@ -31,6 +31,7 @@ EXPECTED_MIGRATIONS = [
     "scope authorization",
     "rule scope",
     "rule scope invariants",
+    "scope invitations membership",
 ]
 
 
@@ -89,6 +90,30 @@ def test_postgres_scope_foundation_schema_is_present(db) -> None:
     } <= columns(db, "server_principal")
     assert "scope_id" in columns(db, "item")
     assert "scope_id" in columns(db, "rule")
+
+
+def test_postgres_scope_membership_schema_is_present(db) -> None:
+    rows = db.execute(
+        """
+        select table_name
+        from information_schema.tables
+        where table_schema = 'public'
+        """
+    ).fetchall()
+    assert {"scope_invitation", "scope_lifecycle_event"} <= {
+        row["table_name"] for row in rows
+    }
+    assert {"enrolment_policy", "invitation_signing_key"} <= columns(db, "server")
+    assert {
+        "scope_id",
+        "issuer_principal_id",
+        "recipient_principal_id",
+        "token_hash",
+        "token_signature",
+        "status",
+        "expires_at",
+        "correlation_id",
+    } <= columns(db, "scope_invitation")
 
 
 def test_postgres_scope_foundation_bootstrap_is_consistent(db) -> None:
