@@ -1,0 +1,391 @@
+import { DateTime } from 'luxon';
+import type { AppLocation, LocationListener, Navigator, PlannerView, SettingsSection, TimeBlockView } from '@websoil/engine';
+import { ItemScreen } from '@zealot/ui/src/screens/item_screen';
+import { TimeBlocksScreen } from '@zealot/ui/src/screens/time_blocks_screen';
+import { MediaScreen } from '@zealot/ui/src/screens/media_screen';
+import { DailyPlannerScreen } from '@zealot/ui/src/screens/daily_planner_screen';
+import { WeeklyPlannerScreen } from '@zealot/ui/src/screens/weekly_planner_screen';
+import { MonthlyPlannerScreen } from '@zealot/ui/src/screens/monthly_planner_screen';
+import { AnnualPlannerScreen } from '@zealot/ui/src/screens/annual_planner_screen';
+import { TypesScreen } from '@zealot/ui/src/screens/types_screen';
+import { TypeScreen } from '@zealot/ui/src/screens/type_screen';
+import { AnalysisScreen, SpecifyScreen, WorkingScreen, RecentScreen, BacklogScreen, OverdueScreen, MostViewedScreen } from '@zealot/ui/src/screens/analysis_screen';
+import { RulesScreen } from '@zealot/ui/src/screens/rules_screen';
+import { SettingsScreen } from '@zealot/ui/src/screens/settings_screen';
+import { confirmLeave } from '@zealot/ui/src/common/unsaved_changes';
+
+function todayIso(): string {
+    return DateTime.local().toISODate() ?? DateTime.local().toFormat('yyyy-MM-dd');
+}
+
+function thisWeekIso(): string {
+    return DateTime.local().toFormat("kkkk-'W'WW");
+}
+
+function thisMonthIso(): string {
+    return DateTime.local().toFormat('yyyy-MM');
+}
+
+function thisYear(): string {
+    return DateTime.local().toFormat('yyyy');
+}
+
+interface RouteMatch {
+    screen: HTMLElement;
+    location: AppLocation;
+    redirectTo?: string;
+}
+
+export class WebNavigator implements Navigator {
+    private location: AppLocation = { kind: 'not_found', path: window.location.pathname };
+    private currentPath = window.location.pathname;
+    private readonly listeners = new Set<LocationListener>();
+
+    constructor() {
+        window.addEventListener('popstate', () => { void this.renderAfterPopstate(); });
+    }
+
+    private getContent(): HTMLElement {
+        const el = document.querySelector('center-content');
+        if (!el) throw new Error('No <center-content> element found');
+        return el as HTMLElement;
+    }
+
+    private navigate(path: string, mode: 'push' | 'replace' = 'push'): void {
+        void this.navigateWhenSafe(path, mode);
+    }
+
+    private async navigateWhenSafe(path: string, mode: 'push' | 'replace'): Promise<void> {
+        if (!await confirmLeave()) return;
+        if (mode === 'replace') {
+            history.replaceState(null, '', path);
+        } else {
+            history.pushState(null, '', path);
+        }
+        this.renderCurrent();
+    }
+
+    private async renderAfterPopstate(): Promise<void> {
+        if (await confirmLeave()) {
+            this.renderCurrent();
+            return;
+        }
+        history.pushState(null, '', this.currentPath);
+    }
+
+    private setLocation(location: AppLocation): void {
+        this.location = location;
+        this.listeners.forEach((listener) => listener(location));
+    }
+
+    openHome(): void {
+        this.navigate('/');
+    }
+
+    openItem(title: string): void {
+        this.navigate(`/item/${encodeURIComponent(title)}`);
+    }
+
+    openItemById(id: number): void {
+        this.navigate(`/item_id/${id}`);
+    }
+
+    openMedia(path: string): void {
+        this.navigate(path ? `/media/${path}` : '/media');
+    }
+
+    openPlanner(view: PlannerView, date?: string): void {
+        switch (view) {
+            case 'daily':
+                this.navigate(`/planner/daily/${date ?? todayIso()}`);
+                break;
+            case 'weekly':
+                this.navigate(`/planner/weekly/${date ?? thisWeekIso()}`);
+                break;
+            case 'monthly':
+                this.navigate(`/planner/monthly/${date ?? thisMonthIso()}`);
+                break;
+            case 'annual':
+                this.navigate(`/planner/annual/${date ?? thisYear()}`);
+                break;
+        }
+    }
+
+    openTypes(): void {
+        this.navigate('/types');
+    }
+
+    openType(title: string, mode: 'push' | 'replace' = 'push'): void {
+        this.navigate(`/types/${encodeURIComponent(title)}`, mode);
+    }
+
+    openAnalysis(): void {
+        this.navigate('/analysis');
+    }
+
+    openAnalysisSpecify(): void {
+        this.navigate('/analysis/specify');
+    }
+
+    openAnalysisWorking(): void {
+        this.navigate('/analysis/working');
+    }
+
+    openAnalysisRecent(): void {
+        this.navigate('/analysis/recent');
+    }
+
+    openAnalysisBacklog(): void {
+        this.navigate('/analysis/backlog');
+    }
+
+    openAnalysisOverdue(): void {
+        this.navigate('/analysis/overdue');
+    }
+
+    openAnalysisMostViewed(): void {
+        this.navigate('/analysis/most-viewed');
+    }
+
+    openRules(): void {
+        this.navigate('/rules');
+    }
+
+    openSettings(section?: SettingsSection): void {
+        this.navigate(`/settings/${section ?? 'attributes'}`);
+    }
+
+    openTimeBlocks(view: TimeBlockView = 'day', date?: string): void {
+        const d = date ?? todayIso();
+        this.navigate(`/time_blocks/${view}/${d}`);
+    }
+
+    openTimeBlocksForItem(itemId: number): void {
+        this.navigate(`/time_blocks/item/${itemId}`);
+    }
+
+    getLocation(): AppLocation {
+        return this.location;
+    }
+
+    subscribe(listener: LocationListener): () => void {
+        this.listeners.add(listener);
+        return () => this.listeners.delete(listener);
+    }
+
+    resolve(): void {
+        this.renderCurrent();
+    }
+
+    private renderCurrent(): void {
+        const path = window.location.pathname;
+        const content = this.getContent();
+        const route = this.matchRoute(path);
+        if (route.redirectTo) {
+            this.navigate(route.redirectTo, 'replace');
+            return;
+        }
+        content.innerHTML = '';
+        content.appendChild(route.screen);
+        this.currentPath = path;
+        this.setLocation(route.location);
+    }
+
+    private matchRoute(path: string): RouteMatch {
+        if (path === '/') {
+            const s = new ItemScreen();
+            s.loadItem('Home');
+            return {
+                screen: s,
+                location: { kind: 'home' },
+            };
+        }
+        if (path === '/analysis') {
+            return {
+                screen: new AnalysisScreen(),
+                location: { kind: 'analysis' },
+            };
+        }
+        if (path === '/analysis/specify') {
+            return {
+                screen: new SpecifyScreen(),
+                location: { kind: 'analysis_specify' },
+            };
+        }
+        if (path === '/analysis/working') {
+            return {
+                screen: new WorkingScreen(),
+                location: { kind: 'analysis_working' },
+            };
+        }
+        if (path === '/analysis/recent') {
+            return {
+                screen: new RecentScreen(),
+                location: { kind: 'analysis_recent' },
+            };
+        }
+        if (path === '/analysis/backlog') {
+            return {
+                screen: new BacklogScreen(),
+                location: { kind: 'analysis_backlog' },
+            };
+        }
+        if (path === '/analysis/overdue') {
+            return {
+                screen: new OverdueScreen(),
+                location: { kind: 'analysis_overdue' },
+            };
+        }
+        if (path === '/analysis/most-viewed') {
+            return {
+                screen: new MostViewedScreen(),
+                location: { kind: 'analysis_most_viewed' },
+            };
+        }
+        if (path === '/rules') {
+            return {
+                screen: new RulesScreen(),
+                location: { kind: 'rules' },
+            };
+        }
+        if (path === '/types') {
+            return {
+                screen: new TypesScreen(),
+                location: { kind: 'types' },
+            };
+        }
+
+        const segments = path.split('/').filter(Boolean);
+
+        if (segments[0] === 'item' && segments[1]) {
+            const s = new ItemScreen();
+            const title = decodeURIComponent(segments[1]);
+            s.loadItem(title);
+            return {
+                screen: s,
+                location: { kind: 'item', title },
+            };
+        }
+
+        if (segments[0] === 'item_id' && segments[1]) {
+            const id = parseInt(segments[1], 10);
+            if (Number.isNaN(id)) {
+                return this.notFound(path);
+            }
+            const s = new ItemScreen();
+            s.loadItemById(id);
+            return {
+                screen: s,
+                location: { kind: 'item', itemId: id },
+            };
+        }
+
+        if (segments[0] === 'media') {
+            const mediaPath = path === '/media' ? '' : path.replace(/^\/media\//, '');
+            return {
+                screen: new MediaScreen().init(mediaPath),
+                location: { kind: 'media', path: mediaPath },
+            };
+        }
+
+        if (segments[0] === 'planner') {
+            const view = segments[1];
+            const date = segments[2];
+
+            if (view === 'daily') {
+                if (!date) {
+                    return this.redirect(`/planner/daily/${todayIso()}`);
+                }
+                return {
+                    screen: new DailyPlannerScreen().init(date),
+                    location: { kind: 'planner', view, date },
+                };
+            }
+            if (view === 'weekly') {
+                if (!date) {
+                    return this.redirect(`/planner/weekly/${thisWeekIso()}`);
+                }
+                return {
+                    screen: new WeeklyPlannerScreen().init(date),
+                    location: { kind: 'planner', view, date },
+                };
+            }
+            if (view === 'monthly') {
+                if (!date) {
+                    return this.redirect(`/planner/monthly/${thisMonthIso()}`);
+                }
+                return {
+                    screen: new MonthlyPlannerScreen().init(date),
+                    location: { kind: 'planner', view, date },
+                };
+            }
+            if (view === 'annual') {
+                if (!date) {
+                    return this.redirect(`/planner/annual/${thisYear()}`);
+                }
+                return {
+                    screen: new AnnualPlannerScreen().init(date),
+                    location: { kind: 'planner', view, date },
+                };
+            }
+        }
+
+        if (segments[0] === 'time_blocks') {
+            const view = (segments[1] ?? 'day') as TimeBlockView;
+            const param = segments[2];
+
+            if (view === 'item' && param) {
+                const id = parseInt(param, 10);
+                if (Number.isNaN(id)) return this.notFound(path);
+                return {
+                    screen: new TimeBlocksScreen().initForItem(id),
+                    location: { kind: 'time_blocks', view, date: param },
+                };
+            }
+            if (!param) {
+                return this.redirect(`/time_blocks/${view}/${todayIso()}`);
+            }
+            return {
+                screen: new TimeBlocksScreen().init(view, param),
+                location: { kind: 'time_blocks', view, date: param },
+            };
+        }
+
+        if (segments[0] === 'types' && segments[1]) {
+            const title = decodeURIComponent(segments[1]);
+            return {
+                screen: new TypeScreen().init(title),
+                location: { kind: 'type', title },
+            };
+        }
+
+        if (segments[0] === 'settings') {
+            const s = new SettingsScreen();
+            const section = (segments[1] ?? 'attributes') as SettingsSection;
+            s.switchScreen(section);
+            return {
+                screen: s,
+                location: { kind: 'settings', section },
+            };
+        }
+
+        return this.notFound(path);
+    }
+
+    private redirect(path: string): RouteMatch {
+        return {
+            screen: document.createElement('div'),
+            location: this.location,
+            redirectTo: path,
+        };
+    }
+
+    private notFound(path: string): RouteMatch {
+        const div = document.createElement('div');
+        div.textContent = `404 Not Found: ${path}`;
+        return {
+            screen: div,
+            location: { kind: 'not_found', path },
+        };
+    }
+}

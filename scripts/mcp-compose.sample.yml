@@ -1,0 +1,27 @@
+services:
+  zealot_mcp:
+    # Use a published image in deploy environments.
+    image: registry.alexanderfarrell.net/zealot-mcp:latest
+
+    # For local testing, you can swap to a local build:
+    # build:
+    #   context: ./../apps/mcp
+    #   dockerfile: Dockerfile
+
+    container_name: zealot-mcp
+    restart: unless-stopped
+
+    ports:
+      - "3100:3100"
+
+    environment:
+      ZEALOT_URL: "https://zealot.example.com"
+      ZEALOT_API_KEY: "replace_with_real_token"
+      MCP_MODE: "http"
+      MCP_PORT: "3100"
+
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3100/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5

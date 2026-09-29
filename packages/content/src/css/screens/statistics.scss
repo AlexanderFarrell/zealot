@@ -1,0 +1,53 @@
+.statistics-view {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.statistics-view-composer,
+.statistics-view-editor {
+  display: grid;
+  grid-template-columns: minmax(7rem, 1fr) minmax(12rem, 1fr) minmax(10rem, 1fr) minmax(10rem, 2fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.statistics-view-delta {
+  color: var(--text-1);
+  margin: 0;
+}
+
+.statistics-view-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.statistics-view-entry {
+  border: 1px solid var(--border-0, var(--border-1));
+  border-radius: 0.4rem;
+  padding: 0.65rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.statistics-view-entry time {
+  color: var(--text-1);
+  margin-left: 0.75rem;
+}
+
+.statistics-view-entry p {
+  margin: 0.35rem 0 0;
+}
+
+.statistics-view-entry > div:last-child {
+  display: flex;
+  gap: 0.4rem;
+}
+
+@media (max-width: 800px) {
+  .statistics-view-composer,
+  .statistics-view-editor {
+    grid-template-columns: 1fr;
+  }
+}
+

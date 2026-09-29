@@ -1,0 +1,45 @@
+{
+    "name": "zealot",
+    "private": true,
+    "workspaces": [
+        "apps/*",
+        "packages/*"
+    ],
+    "scripts": {
+        "dev:web": "npm run dev -w @zealot/web",
+        "build:web": "npm run build -w @zealot/web",
+        "dev:mobile": "npm run dev -w @zealot/mobile",
+        "build:mobile": "npm run build -w @zealot/mobile",
+        "dev:desktop": "npm run dev -w @zealot/desktop",
+        "build:desktop": "npm run build -w @zealot/desktop",
+        "tauri:desktop": "npm run tauri:desktop -w @zealot/desktop",
+        "package:desktop": "npm run tauri:desktop:build -w @zealot/desktop && ./scripts/package-desktop.sh",
+        "build:desktop:appimage": "./scripts/build-desktop-appimage",
+        "install:desktop": "./scripts/linux-install.sh",
+        "tauri:ios": "npm run tauri:ios -w @zealot/mobile",
+        "tauri:android": "npm run tauri:android -w @zealot/mobile",
+        "tauri:ios:build": "npm run tauri:ios:build -w @zealot/mobile",
+        "tauri:android:build": "npm run tauri:android:build -w @zealot/mobile",
+        "generate:icon-catalog": "node ./scripts/generate-icon-catalog.mjs",
+        "check:icon-catalog": "node ./scripts/generate-icon-catalog.mjs --check",
+        "build:docker": "docker compose build",
+        "docker": "docker compose up --build",
+        "analyze:rust:coupling": "node ./scripts/analysis/rust-coupling.mjs",
+        "analyze:rust:metrics": "node ./scripts/analysis/rust-metrics.mjs",
+        "analyze:ts:deps": "node ./scripts/analysis/ts-deps.mjs",
+        "analyze:report": "node ./scripts/analysis/report.mjs",
+        "analyze:all": "npm run analyze:rust:coupling && npm run analyze:rust:metrics && npm run analyze:ts:deps && npm run analyze:report",
+        "test:e2e": "./test/e2e/run.sh",
+        "test:playwright": "./test/playwright/run.sh",
+        "typecheck": "npm run typecheck --workspaces --if-present",
+        "lint": "npm run lint --workspaces --if-present",
+        "test": "npm run test --workspaces --if-present"
+    },
+    "devDependencies": {
+        "dependency-cruiser": "^17.3.10",
+        "plato": "^1.7.0"
+    },
+    "dependencies": {
+        "mermaid": "^11.15.0"
+    }
+}

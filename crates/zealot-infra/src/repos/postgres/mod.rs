@@ -1,0 +1,58 @@
+use std::sync::Arc;
+
+use sqlx::PgPool;
+use zealot_app::repos::ZealotRepos;
+
+use crate::repos::postgres::{
+    account_postgres::AccountPostgresRepo, attribute_postgres::AttributePostgresRepo,
+    comment_postgres::CommentPostgresRepo,
+    item_attribute_value_postgres::ItemAttributeValuePostgresRepo,
+    item_external_link_postgres::ItemExternalLinkPostgresRepo,
+    item_heading_postgres::ItemHeadingPostgresRepo, item_link_postgres::ItemLinkPostgresRepo,
+    item_postgres::ItemPostgresRepo, item_type_postgres::ItemTypePostgresRepo,
+    item_view_postgres::ItemViewPostgresRepo, meta_postgres::MetaPostgresRepo,
+    repeat_postgres::RepeatPostgresRepo, rule_postgres::RulePostgresRepo,
+    scope_postgres::ScopePostgresRepo, session_postgres::SessionPostgresRepo,
+    statistic_postgres::StatisticPostgresRepo,
+    time_block_postgres::TimeBlockPostgresRepo,
+};
+
+pub mod account_postgres;
+pub mod attribute_postgres;
+pub mod comment_postgres;
+pub mod item_attribute_value_postgres;
+pub mod item_external_link_postgres;
+pub mod item_heading_postgres;
+pub mod item_link_postgres;
+pub mod item_postgres;
+pub mod item_type_postgres;
+pub mod item_view_postgres;
+pub mod meta_postgres;
+pub mod repeat_postgres;
+pub mod rule_postgres;
+pub mod scope_postgres;
+pub mod session_postgres;
+pub mod statistic_postgres;
+pub mod time_block_postgres;
+
+pub fn get_postgres_repos(db: PgPool) -> ZealotRepos {
+    ZealotRepos {
+        account: Arc::new(AccountPostgresRepo::new(db.clone())),
+        attribute: Arc::new(AttributePostgresRepo::new(db.clone())),
+        comment: Arc::new(CommentPostgresRepo::new(db.clone())),
+        item: Arc::new(ItemPostgresRepo::new(db.clone())),
+        item_attribute_value: Arc::new(ItemAttributeValuePostgresRepo::new(db.clone())),
+        item_external_link: Arc::new(ItemExternalLinkPostgresRepo::new(db.clone())),
+        item_heading: Arc::new(ItemHeadingPostgresRepo::new(db.clone())),
+        item_link: Arc::new(ItemLinkPostgresRepo::new(db.clone())),
+        item_type: Arc::new(ItemTypePostgresRepo::new(db.clone())),
+        item_view: Arc::new(ItemViewPostgresRepo::new(db.clone())),
+        meta: Arc::new(MetaPostgresRepo::new(db.clone())),
+        repeat: Arc::new(RepeatPostgresRepo::new(db.clone())),
+        rule: Arc::new(RulePostgresRepo::new(db.clone())),
+        scope: Arc::new(ScopePostgresRepo::new(db.clone())),
+        session: Arc::new(SessionPostgresRepo::new(db.clone())),
+        statistic: Arc::new(StatisticPostgresRepo::new(db.clone())),
+        time_block: Arc::new(TimeBlockPostgresRepo::new(db.clone())),
+    }
+}

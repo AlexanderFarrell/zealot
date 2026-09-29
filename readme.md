@@ -1,89 +1,67 @@
 # Zealot
 
-![Zealot Logo](./client/public/zealot.webp)
+Zealot is a self-hosted personal wiki and planner. Everything — notes, tasks, goals, projects, habits — is an **item**: a titled document with a freeform body, user-defined attributes, and a place on the planner. Your data lives in a database on your own machine or server. No cloud subscription, no vendor lock-in.
 
-Zealot is a personal planning and knowledge system with:
+## Why Zealot?
 
-- Hierarchical items and notes
-- Planner views (daily, weekly, monthly, yearly)
-- Repeat tracking
-- Item comments and timeline logging
-- Item types and custom/system attributes
-- Media/file management
+Most personal productivity tools make you choose: a task manager *or* a note-taking app *or* a journal *or* a habit tracker. Zealot unifies them. A task and a wiki page are the same kind of thing. A goal can have a body with your strategy, child tasks with due dates, and a habit to track daily progress — all linked together and all appearing on the same planner.
 
-The repository is a monorepo containing:
+Because Zealot is self-hosted and API-first, it is also programmable. You can automate workflows with server-side Lua scripts, query and update your data over HTTP from any language, or connect an AI agent (Claude, Codex CLI, LibreChat) to your wiki and planner via the built-in MCP server.
 
-- `client/`: TypeScript + Vite web frontend
-- `zealotd/`: Go (Fiber) backend API server
-- `database/`: PostgreSQL schema and seed SQL
-- `cli/`: Go CLI (currently scaffold-level)
-- `dev/`: Docker Compose deployment files
+**Good fit if you:**
+- Want one place for notes, tasks, and planning — not three separate apps
+- Care about data ownership and want nothing in someone else's cloud
+- Are comfortable with Git and Docker, and want a system you can extend
+- Want automation that runs on a schedule or reacts to your data changing
+
+**Not a good fit if you:**
+- Need polished mobile apps or zero-setup cloud access
+- Share a workspace with a team (Zealot is single-user first)
+- Want drag-and-drop building without any configuration
+
+See [how Zealot compares to Notion, Obsidian, Todoist, and Org Mode](./docs/overview.md#how-zealot-compares).
+
+## Getting Started
+
+Zealot builds and runs via Docker Compose. The first build takes a few minutes; subsequent starts are fast.
+
+```bash
+git clone https://github.com/your-org/zealot.git
+cd zealot
+npm run docker
+```
+
+The web UI will be available at `http://localhost:8085`. The API runs on port 8456.
+
+For a step-by-step walkthrough — creating your first types, attributes, and planner items — see the [Quickstart](./docs/quickstart.md).
+
+## Use Cases
+
+- [Planning and task tracking](./docs/overview.md#1-planning) — daily, weekly, monthly planner with scheduled items
+- [Personal wiki](./docs/overview.md#2-personal-wiki) — linked documents with wiki links, callout blocks, and math
+- [Goals and habit tracking](./docs/overview.md#4-recurring-work) — repeat tracker, cron automation, and goal cascades
+- [Automation](./docs/overview.md#6-automation) — Lua rules engine for cron and event-driven workflows
+- [AI agent integration](./docs/mcp.md) — connect Claude Desktop or any MCP client to your wiki and planner
+- [Terminal power tools](./docs/cli.md) — the `zealot` CLI and [`zealot-tui`](./docs/tui.md) full-screen client for operating everything from a shell
+- [Creative use cases](./docs/overview.md#creative-use-cases) — reading tracker, weekly reviews, research base, AI journaling
 
 ## Documentation
 
-High-level project documentation is in `doc/`:
+Full documentation is at [docs/readme.md](./docs/readme.md).
 
-- `doc/index.md`
-- `doc/architecture.md`
-- `doc/backend.md`
-- `doc/frontend.md`
-- `doc/database.md`
-- `doc/development.md`
+Key starting points:
 
-Additional focused docs already in this repository:
+| | |
+|---|---|
+| [Overview](./docs/overview.md) | What Zealot is and how it compares to alternatives |
+| [Quickstart](./docs/quickstart.md) | Install, configure, and use Zealot in ~10 minutes |
+| [Data Model](./docs/data-model.md) | Items, types, attributes, links, rules — the full reference |
+| [Rules Engine](./docs/rules-engine.md) | Lua automation: triggers, API, and a cookbook of examples |
+| [MCP Guide](./docs/mcp.md) | Connect an AI agent to Zealot |
+| [CLI](./docs/cli.md) | The `zealot` terminal client: commands, scripting cookbook, config |
+| [TUI](./docs/tui.md) | The `zealot-tui` full-screen terminal workstation |
+| [HTTP API](./docs/http-api.md) | REST API reference for scripts and integrations |
 
-- `docs/zealotscript_spec.md`
-- `docs/todo.md`
+## License
 
-## Quick Start
-
-### Docker (recommended)
-
-1. Configure environment files:
-   - `dev/.db.env` (database container settings)
-   - `dev/.zealot.env` (backend settings)
-   - Example templates are in:
-     - `dev/.db.example.env`
-     - `dev/.zealot.example.env`
-2. Build and start:
-
-```sh
-cd dev
-docker compose -f zealot-compose.yml up --build
-```
-
-Default ports:
-
-- Frontend: `http://localhost:8080`
-- Backend API: `http://localhost:8082`
-- Postgres: `localhost:5434`
-- Redis: `localhost:6379`
-
-### Local development
-
-Use the helper script:
-
-```sh
-# Build server, client, cli, and generated DB init script
-./zdev build all
-
-# Run backend directly from source
-./zdev run server
-
-# Run frontend dev server (Vite)
-./zdev run client_dev
-```
-
-## Build, Format, and Vet
-
-```sh
-# Build components
-./zdev build [cli|server|client|database|native|all]
-
-# Formatting
-./zdev fmt [cli|server|client|all]
-
-# Go security/static analysis checks
-go install honnef.co/go/tools/cmd/staticcheck@latest
-./zdev vet [cli|server|all]
-```
+TODO

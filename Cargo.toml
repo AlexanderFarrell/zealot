@@ -1,0 +1,68 @@
+[workspace]
+members = [
+    "apps/server",
+    "apps/cli",
+    "apps/tui",
+    "apps/mcp",
+    "apps/mobile/src-tauri",
+    "apps/desktop/src-tauri",
+    "crates/zealot-domain",
+    "crates/zealot-app",
+    "crates/zealot-infra",
+    "crates/zealot-api",
+    "crates/zealot-lua",
+    "crates/zealot-client",
+    "crates/zealot-zscript"
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+
+[workspace.dependencies]
+# Core async + web
+tokio = {version = "*", features = ["full"]}
+axum = {version = "0.8", features = ["multipart"]}
+axum-extra = {version = "0.12", features = ["cookie"]}
+tower = "0.4"
+tower-http = {version = "*", features = ["trace", "cors"]}
+
+# Serialization
+serde = {version = "1", features = ["derive"]}
+serde_json = "1"
+size = "0.5"
+toml = "0.8"
+
+# HTTP client (terminal clients + MCP)
+reqwest = {version = "0.12", features = ["json", "multipart"]}
+
+# CLI / TUI
+clap = {version = "4", features = ["derive", "env"]}
+ratatui = "0.29"
+crossterm = "0.28"
+
+# Database
+sqlx = {version = "*", features = ["runtime-tokio", "postgres", "sqlite", "mysql", "uuid", "chrono", "migrate"]}
+
+# Utilities
+thiserror = "1"
+anyhow = "1"
+uuid = {version = "1", features = ["serde", "v4"]}
+chrono = {version = "0.4", features = ["serde"]}
+sha2 = "0.10"
+hex = "0.4"
+time = "0.3"
+bcrypt = "0.15"
+
+mongodb = "3"
+
+# Lua rules engine
+mlua   = { version = "0.10", features = ["lua54", "async", "send", "vendored"] }
+croner = "2"
+
+mime_guess = "2"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = {version = "0.3", features = ["env-filter"]}

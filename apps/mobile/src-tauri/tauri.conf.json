@@ -1,0 +1,32 @@
+{
+  "productName": "Zealot",
+  "identifier": "com.zealot.app",
+  "version": "0.1.0",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5174",
+    "beforeDevCommand": "npm run dev -w @zealot/mobile",
+    "beforeBuildCommand": "npm run build -w @zealot/mobile"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Zealot",
+        "width": 390,
+        "height": 844
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "plugins": {
+    "store": {}
+  },
+  "bundle": {
+    "active": true,
+    "icon": [
+      "icons/icon.png"
+    ]
+  }
+}

@@ -9,3 +9,15 @@
 /bin/
 /mcp/zealot-mcp
 .DS_Store
+/node_modules/
+/apps/web/dist/
+/artifacts/
+.pytest_cache/
+.venv/
+__pycache__/
+**/tsconfig.tsbuildinfo
+.codex
+**/node_modules/
+/apps/mobile/dist/
+/apps/mobile/src-tauri/gen/
+/apps/desktop/dist/

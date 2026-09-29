@@ -1,0 +1,151 @@
+import { BaseElementEmpty, getNavigator, unregisterDropZonesIn } from '@websoil/engine';
+import { AttributeAPI } from '@zealot/api/src/attribute';
+import { PlannerAPI } from '@zealot/api/src/planner';
+import { icons } from '@zealot/content';
+import { LoadingSpinner } from '../common/loading_spinner';
+import {
+    createPlannerErrorCard,
+    createPlannerHeader,
+    createPlannerSection,
+    currentWeek,
+    formatIsoWeek,
+    formatMonthCode,
+    formatWeekTitle,
+    formatYearCode,
+    journalTitleForWeek,
+    mountPlannerCardList,
+    parseIsoWeek,
+    renderPlannerMessage,
+} from './planner_shared';
+
+const attrApi = new AttributeAPI('/api');
+
+const plannerApi = new PlannerAPI('/api');
+
+export class WeeklyPlannerScreen extends BaseElementEmpty {
+    private date: string | null = null;
+    private renderId = 0;
+    private headerEl: HTMLElement | null = null;
+
+    async render() {
+        const renderId = ++this.renderId;
+        const date = this.date ? parseIsoWeek(this.date) : currentWeek();
+
+        this.className = 'planner-screen';
+        this.innerHTML = '';
+
+        if (!date) {
+            this.appendChild(createPlannerErrorCard(
+                'Invalid week. Use YYYY-Www.',
+                'Go to this week',
+                () => getNavigator().openPlanner('weekly'),
+            ));
+            return;
+        }
+
+        if (this.headerEl) {
+            unregisterDropZonesIn(this.headerEl);
+            this.headerEl = null;
+        }
+
+        const header = createPlannerHeader(
+            formatWeekTitle(date),
+            [
+                {
+                    iconURL: icons.back,
+                    label: 'Previous Week',
+                    onClick: () => getNavigator().openPlanner('weekly', formatIsoWeek(date.minus({ weeks: 1 }))),
+                    onDrop: (id) => { void attrApi.set_value(id, 'Week', formatIsoWeek(date.minus({ weeks: 1 }))); },
+                },
+                {
+                    iconURL: icons.week,
+                    label: 'This Week',
+                    onClick: () => getNavigator().openPlanner('weekly'),
+                    onDrop: (id) => { void attrApi.set_value(id, 'Week', formatIsoWeek(currentWeek())); },
+                },
+                {
+                    iconURL: icons.forward,
+                    label: 'Next Week',
+                    onClick: () => getNavigator().openPlanner('weekly', formatIsoWeek(date.plus({ weeks: 1 }))),
+                    onDrop: (id) => { void attrApi.set_value(id, 'Week', formatIsoWeek(date.plus({ weeks: 1 }))); },
+                },
+            ],
+            [
+                {
+                    iconURL: icons.moon,
+                    label: 'This Month',
+                    onClick: () => getNavigator().openPlanner('monthly', formatMonthCode(date)),
+                },
+                {
+                    iconURL: icons.sun,
+                    label: 'This Year',
+                    onClick: () => getNavigator().openPlanner('annual', formatYearCode(date)),
+                },
+                {
+                    iconURL: icons.addNote,
+                    label: 'Journal',
+                    onClick: () => { getNavigator().openItem(journalTitleForWeek(date)); },
+                },
+                {
+                    iconURL: icons.schedule,
+                    label: 'Time Blocks',
+                    onClick: () => getNavigator().openTimeBlocks('week', formatIsoWeek(date)),
+                },
+            ],
+        );
+
+        this.headerEl = header;
+        const items = createPlannerSection('Week Items');
+        items.body.appendChild(new LoadingSpinner());
+        this.append(header, items.section);
+
+        try {
+            const data = await plannerApi.GetForWeek(date);
+            if (renderId !== this.renderId) {
+                return;
+            }
+
+            mountPlannerCardList(items.body, {
+                createRow: {
+                    defaultAttributes: {
+                        Priority: 3,
+                        Status: 'To Do',
+                        Week: formatIsoWeek(date),
+                    },
+                    enabled: true,
+                    submitLabel: 'Add Item',
+                },
+                emptyMessage: 'No items scheduled for this week.',
+                items: data,
+            });
+        } catch (error) {
+            if (renderId !== this.renderId) {
+                return;
+            }
+            renderPlannerMessage(items.body, this._messageForError(error, 'Failed to load items.'), 'error');
+        }
+    }
+
+    disconnectedCallback(): void {
+        if (this.headerEl) {
+            unregisterDropZonesIn(this.headerEl);
+            this.headerEl = null;
+        }
+    }
+
+    init(date: string): this {
+        this.date = date;
+        if (this.isConnected) {
+            void this.render();
+        }
+        return this;
+    }
+
+    private _messageForError(error: unknown, fallback: string): string {
+        return error instanceof Error && error.message ? error.message : fallback;
+    }
+}
+
+if (!customElements.get('weekly-planner-screen')) {
+    customElements.define('weekly-planner-screen', WeeklyPlannerScreen);
+}

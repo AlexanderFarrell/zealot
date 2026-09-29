@@ -1,0 +1,49 @@
+[package]
+name = "zealot-mcp"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+# MCP protocol
+rmcp = { version = "1.7", features = [
+    "server",
+    "macros",
+    "transport-io",
+    "transport-streamable-http-server",
+    "schemars",
+] }
+schemars = "1"
+
+# HTTP client for Zealot API (shared with CLI/TUI)
+zealot-client = { path = "../../crates/zealot-client" }
+zealot-domain = { path = "../../crates/zealot-domain" }
+reqwest.workspace = true
+
+# Web framework (HTTP mode)
+axum.workspace = true
+tower-http.workspace = true
+
+# Async runtime
+tokio.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# CLI argument parsing
+clap.workspace = true
+
+# Base64 encode/decode for binary media tool payloads
+base64 = "0.22"
+
+# Date math for prompts
+chrono.workspace = true
+
+# Error handling + logging
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+[dev-dependencies]
+wiremock = "0.6"

@@ -1,0 +1,209 @@
+use serde::{Deserialize, Serialize};
+
+use crate::common::email::{Email, EmailError};
+use crate::common::id::{Id, IdError};
+
+// Domain
+
+#[derive(Debug, Clone)]
+pub struct Account {
+    pub account_id: Id,
+    pub username: String,
+    pub email: Email,
+    pub given_name: String,
+    pub surname: String,
+    pub settings: serde_json::Value,
+    pub has_api_key: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct ApiKeyRecord {
+    pub api_key_id: Id,
+    pub label: String,
+    pub created_at: String,
+}
+
+pub struct APIKey(String);
+
+// Send DTOs
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccountDto {
+    pub account_id: i64,
+    pub username: String,
+    pub email: String,
+    pub given_name: String,
+    pub surname: String,
+    pub settings: serde_json::Value,
+    pub has_api_key: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApiKeyRecordDto {
+    pub api_key_id: i64,
+    pub label: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateApiKeyResponseDto {
+    pub key: String,
+    pub api_key_id: i64,
+    pub label: String,
+    pub created_at: String,
+}
+
+// Receive DTOs
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateApiKeyWithCredentialsDto {
+    pub username: String,
+    pub password: String,
+    pub label: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoginBasicDto {
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegisterBasicDto {
+    pub username: String,
+    pub password: String,
+    pub email: String,
+    pub given_name: String,
+    pub surname: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateAccountDto {
+    pub username: String,
+    pub password_hash: String,
+    pub email: String,
+    pub given_name: String,
+    pub surname: String,
+}
+
+// Errors
+
+#[derive(Debug, thiserror::Error)]
+pub enum AccountError {
+    #[error("invalid account id: {err:?}")]
+    InvalidId { err: IdError },
+
+    #[error("invalid username")]
+    InvalidUsername,
+
+    #[error("invalid email")]
+    InvalidEmail { err: EmailError },
+
+    #[error("error generating api key")]
+    APIKeyGenError { err: String },
+
+    #[error("not found")]
+    NotFound,
+
+    #[error("username already taken")]
+    UsernameAlreadyTaken,
+}
+
+// Impls
+
+impl Account {
+    pub fn full_name_eng(&self) -> String {
+        return format!("{} {}", self.given_name, self.surname);
+    }
+
+    pub fn full_name_formal_eng(&self) -> String {
+        return format!("{}, {}", self.surname, self.given_name);
+    }
+}
+
+impl TryFrom<AccountDto> for Account {
+    type Error = AccountError;
+
+    fn try_from(dto: AccountDto) -> Result<Self, Self::Error> {
+        Ok(Self {
+            account_id: Id::try_from(dto.account_id)
+                .map_err(|err| AccountError::InvalidId { err })?,
+            username: dto.username,
+            email: Email::try_from(dto.email).map_err(|err| AccountError::InvalidEmail { err })?,
+            given_name: dto.given_name,
+            surname: dto.surname,
+            settings: dto.settings,
+            has_api_key: dto.has_api_key,
+        })
+    }
+}
+
+impl From<Account> for AccountDto {
+    fn from(value: Account) -> Self {
+        Self {
+            account_id: value.account_id.into(),
+            username: value.username.clone(),
+            email: value.email.to_string(),
+            given_name: value.given_name.clone(),
+            surname: value.surname.clone(),
+            settings: value.settings,
+            has_api_key: value.has_api_key,
+        }
+    }
+}
+
+impl From<ApiKeyRecord> for ApiKeyRecordDto {
+    fn from(r: ApiKeyRecord) -> Self {
+        Self {
+            api_key_id: r.api_key_id.into(),
+            label: r.label,
+            created_at: r.created_at,
+        }
+    }
+}
+
+impl From<APIKey> for String {
+    fn from(value: APIKey) -> Self {
+        String::from(&value)
+    }
+}
+
+impl From<&APIKey> for String {
+    fn from(value: &APIKey) -> Self {
+        value.0.clone()
+    }
+}
+
+// Tests
+
+#[cfg(test)]
+mod account_tests {
+    use super::*;
+
+    fn get_test_account() -> Account {
+        Account {
+            account_id: Id::try_from(5).unwrap(),
+            username: String::from("Albert"),
+            email: Email::try_from(String::from("a@a.com")).unwrap(),
+            given_name: String::from("Albert"),
+            surname: String::from("Smith"),
+            settings: serde_json::Value::Object(Default::default()),
+            has_api_key: false,
+        }
+    }
+
+    #[test]
+    fn full_name_test() {
+        let account = get_test_account();
+        assert_eq!(account.full_name_eng(), String::from("Albert Smith"));
+    }
+
+    #[test]
+    fn full_name_formal_test() {
+        let account = get_test_account();
+        assert_eq!(
+            account.full_name_formal_eng(),
+            String::from("Smith, Albert")
+        );
+    }
+}

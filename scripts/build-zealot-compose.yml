@@ -1,0 +1,17 @@
+services:
+  server:
+    image: registry.alexanderfarrell.net/zealotd:v0.1.0
+    build:
+      context: ..
+      dockerfile: apps/server/Dockerfile
+
+  web:
+    image: registry.alexanderfarrell.net/zealot-web:v0.1.0
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+  mcp:
+    image: registry.alexanderfarrell.net/zealot-mcp:latest
+    build:
+      context: ..
+      dockerfile: apps/mcp/Dockerfile

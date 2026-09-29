@@ -1,0 +1,13 @@
+{
+  "identifier": "default",
+  "description": "Zealot Mobile default capabilities",
+  "platforms": ["iOS", "android"],
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://**" }, { "url": "http://**" }]
+    }
+  ]
+}
