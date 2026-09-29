@@ -32,6 +32,7 @@ Prefer browse-then-read. Multi-item tools return compact summary JSON by default
 `browse_items`, `search_items`, `filter_items`, `get_linked_items`, and `get_plan` \
 support `detail:\"meta\"`, `detail:\"summary\"`, or `detail:\"full\"`. Use \
 `get_item` for one full item, or `get_item_outline` before reading long content. \
+List every item of a type with `browse_items` mode `root` plus `type_filter`. \
 Paged list envelopes are `{count,next_offset,items}`; pass `offset:next_offset` \
 until it is absent.
 

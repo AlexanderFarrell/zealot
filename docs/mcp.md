@@ -138,9 +138,10 @@ At a high level, the server covers these workflows:
 - Media: list, read, upload, create folder, rename, and delete.
 - Analysis: wiki stats, orphan samples, attribute usage, and habit statistics.
 - Automation: list, inspect, create, update, delete, and run Lua rules.
+- Statistics: list series, record, edit, and delete entries, and read raw entries, daily series, and summaries.
 - Schema: item types and attribute kinds.
 
-When checking a live server, prefer your MCP client's tool list over this human guide. If the client exposes an older tool surface, use the closest legacy tool names but keep the same operating rules: browse before deep reads, page until complete, verify schema before unfamiliar writes, and read before overwriting content.
+`apps/mcp/tests/docs_tests.rs` fails when either MCP doc names a tool the server does not register, or when the system prompt omits a registered tool. When checking a live server, prefer your MCP client's tool list over this human guide; a live server missing tools listed here is running an older build. If the client exposes an older tool surface, use the closest legacy tool names but keep the same operating rules: browse before deep reads, page until complete, verify schema before unfamiliar writes, and read before overwriting content.
 
 ---
 
@@ -195,10 +196,11 @@ Expected strategy:
 
 ### 5. Recording And Reviewing Statistics
 
-Use list_statistics to discover series, record_statistic_entry to add a value, and
-get_statistic_entries for raw history. get_statistic_daily_series applies the configured UTC
-daily rollup. get_statistic_summary returns count, first, latest, minimum, maximum, average, sum,
-and latest-minus-first delta. Edit and delete operations use the stable Statistic Entry ID.
+Use `list_statistics` to discover series, `record_statistic_entry` to add a value, and
+`get_statistic_entries` for raw history. `get_statistic_daily_series` applies the configured UTC
+daily rollup. `get_statistic_summary` returns count, first, latest, minimum, maximum, average, sum,
+and latest-minus-first delta. `edit_statistic_entry` and `delete_statistic_entry` use the stable
+Statistic Entry ID.
 
 ---
 

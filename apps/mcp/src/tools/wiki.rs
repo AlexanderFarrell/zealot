@@ -41,7 +41,7 @@ pub struct ItemOutlineParams {
 #[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum BrowseMode {
-    /// Root-level items (optionally filtered by type_filter)
+    /// Root-level items; with `type_filter`, every item of that type at any depth
     Root,
     /// Most recently modified items
     Recent,
@@ -55,7 +55,8 @@ pub enum BrowseMode {
 pub struct BrowseItemsParams {
     /// Which set of items to browse
     pub mode: BrowseMode,
-    /// Filter by item type name — only used when mode is "root"
+    /// Item type name. Only used when mode is "root": lists every item of this
+    /// type, whether or not it has a parent
     pub type_filter: Option<String>,
     /// Max results (default 50, max 100)
     pub limit: Option<i64>,
@@ -87,11 +88,15 @@ pub struct SearchItemsParams {
 pub struct AttributeFilterParam {
     /// Attribute key/name to filter on
     pub key: String,
-    /// Operator: eq, ne, gt, lt, gte, lte, or ilike
+    /// Operator: eq, ne, gt, lt, gte, lte, or ilike. `ilike` is a
+    /// case-insensitive substring match (`%value%`) on text values only
     pub op: String,
-    /// JSON value to compare against
+    /// JSON value, or an array of values, to compare against. Item-valued
+    /// attributes (such as Parent) compare by numeric item ID, not title
     pub value: serde_json::Value,
-    /// List matching mode: any (default), all, or none
+    /// How an array `value` combines: any (default, at least one matches), all
+    /// (every value matches), or none (no value matches). List attributes match
+    /// when any of their elements matches
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub list_mode: Option<String>,
 }
@@ -161,14 +166,14 @@ pub struct CreateItemParams {
     pub title: String,
     /// Content body (ZealotScript / markdown)
     pub content: Option<String>,
-    /// Attributes as a JSON object (e.g. {"priority": "high", "due": "2025-06-01"})
+    /// Attributes as a JSON object (e.g. {"Status": "To Do", "Date": "2026-07-03"})
     pub attributes: Option<HashMap<String, serde_json::Value>>,
     /// Type names to assign at creation
     pub types: Option<Vec<String>>,
     /// Relationship links to other items
     pub links: Option<Vec<LinkParam>>,
-    /// Parent item (ID or title) — sets the "Parent" attribute, same as the
-    /// wiki's parent/child hierarchy
+    /// Parent item (ID or title). Added to the "Parent" list attribute (the
+    /// wiki's parent/child hierarchy), merged with any "Parent" in `attributes`
     pub parent: Option<String>,
 }
 
@@ -281,7 +286,7 @@ impl ZealotServer {
     }
 
     #[rmcp::tool(
-        description = "Browse items without a search term. mode: \"root\" (root-level items, optionally filtered by type_filter), \"recent\" (most recently modified), \"random\" (random sample), or \"most_viewed\" (most-viewed items — rows are {item_id, title, view_count} regardless of detail). Returns compact summaries by default; pass detail:\"full\" for complete content."
+        description = "Browse items without a search term. mode: \"root\" (root-level items without a parent; with `type_filter`, instead every item of that type at any depth, which is how to list all Projects, Tickets, etc.), \"recent\" (most recently modified), \"random\" (random sample), or \"most_viewed\" (most-viewed items — rows are {item_id, title, view_count} regardless of detail). Returns compact summaries by default; pass detail:\"full\" for complete content."
     )]
     pub async fn browse_items(
         &self,
@@ -348,7 +353,7 @@ impl ZealotServer {
     }
 
     #[rmcp::tool(
-        description = "Filter items by attribute values. Pass `filters` as an array of {key, op, value, list_mode?}; supported ops are eq, ne, gt, lt, gte, lte, and ilike. All filters are ANDed. Returns compact summaries by default; pass detail:\"full\" for complete content."
+        description = "Filter items by attribute values. Pass `filters` as an array of {key, op, value, list_mode?}; supported ops are eq, ne, gt, lt, gte, lte, and ilike. `ilike` is a case-insensitive substring match on text values (the server wraps the value in `%...%`). `value` may be one value or an array; `list_mode` says whether any (default), all, or none of the array values must match. List attributes match when any element matches. Item-valued attributes such as `Parent` compare by numeric item ID (`{\"key\":\"Parent\",\"op\":\"eq\",\"value\":11}`). All filters are ANDed. Returns compact summaries by default; pass detail:\"full\" for complete content."
     )]
     pub async fn filter_items(
         &self,
@@ -385,7 +390,7 @@ impl ZealotServer {
     }
 
     #[rmcp::tool(
-        description = "Create a new wiki item. `content` is ZealotScript/markdown. `attributes` is a JSON object of key→value pairs. `types` assigns item types at creation. `links` sets relationships to other items by ID. `parent` (ID or title) sets the item's Parent attribute, placing it in the wiki hierarchy."
+        description = "Create a new wiki item. `content` is ZealotScript/markdown. `attributes` is a JSON object of key→value pairs. `types` assigns item types at creation. `links` sets relationships to other items by ID. `parent` (ID or title) adds that item to the `Parent` list attribute, placing the new item in the wiki hierarchy; it merges with any `Parent` given in `attributes`."
     )]
     pub async fn create_item(
         &self,
@@ -394,7 +399,7 @@ impl ZealotServer {
         let mut attributes = p.attributes.unwrap_or_default();
         if let Some(parent) = &p.parent {
             let parent = self.resolve_item(parent).await?;
-            attributes.insert("Parent".to_string(), json!(parent.item_id));
+            merge_parent(&mut attributes, parent.item_id);
         }
         let dto = AddItemDto {
             title: p.title,
@@ -564,6 +569,22 @@ impl ZealotServer {
             .map_err(|e| err_ctx("rebuild-links", e))?;
         Ok(output::json_result(&result))
     }
+}
+
+/// Add `parent_id` to the `Parent` attribute, which is `list(item)` on the
+/// server. Any `Parent` already in `attributes` (a single value or an array) is
+/// kept, in order, and the resolved parent is appended unless already present.
+fn merge_parent(attributes: &mut HashMap<String, serde_json::Value>, parent_id: i64) {
+    let mut parents = match attributes.remove("Parent") {
+        Some(serde_json::Value::Array(values)) => values,
+        Some(serde_json::Value::Null) | None => Vec::new(),
+        Some(value) => vec![value],
+    };
+    let parent = json!(parent_id);
+    if !parents.contains(&parent) {
+        parents.push(parent);
+    }
+    attributes.insert("Parent".to_string(), serde_json::Value::Array(parents));
 }
 
 /// `list_items` (root/type-filtered) is unbounded server-side; slice + project client-side.
