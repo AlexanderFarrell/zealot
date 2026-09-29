@@ -249,7 +249,7 @@ Item export to PDF or DOCX is not exposed through MCP tools. Use the HTTP API di
 
 ### No batch operations
 
-Each tool call is a single API round-trip. There is no bulk create/update/delete. For large operations, the agent must make multiple sequential calls.
+Each tool call is one item's worth of work, with one exception: `set_status` changes Status on up to 50 items and comments on each in one call. There is no other bulk create/update/delete and no batch item read by id list; for large operations the agent must make multiple sequential calls. `filter_items` (with `types`, `under`, `sort`, and `fields`) covers most scans in one call.
 
 ### Event rules do not chain
 

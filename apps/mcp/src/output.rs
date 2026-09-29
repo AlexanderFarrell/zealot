@@ -3,7 +3,10 @@
 
 use rmcp::model::{CallToolResult, Content};
 use serde::{Deserialize, Serialize};
-use zealot_domain::item::{ItemDto, SearchResultDto};
+use zealot_domain::{
+    comment::CommentDto,
+    item::{ItemDto, ItemQueryPageDto, SearchResultDto},
+};
 
 pub const PREVIEW_CHARS: usize = 120;
 pub const DEFAULT_LIMIT: i64 = 50;
@@ -19,6 +22,61 @@ pub enum Detail {
     Summary,
     /// the complete item, including full content and links
     Full,
+}
+
+/// How list tools shape each item: a detail level, or only the named attributes (`fields`).
+#[derive(Debug, Clone)]
+pub enum Shape {
+    Detail(Detail),
+    Fields(Vec<String>),
+}
+
+impl Shape {
+    /// `fields`, when given, takes precedence over `detail`.
+    pub fn new(detail: Detail, fields: Option<Vec<String>>) -> Self {
+        match fields {
+            Some(fields) => Shape::Fields(fields),
+            None => Shape::Detail(detail),
+        }
+    }
+}
+
+impl From<Detail> for Shape {
+    fn from(detail: Detail) -> Self {
+        Shape::Detail(detail)
+    }
+}
+
+/// `item_id`, `title`, `types`, and only the requested attributes.
+#[derive(Debug, Serialize)]
+pub struct FieldRow {
+    pub item_id: i64,
+    pub title: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub types: Vec<String>,
+    #[serde(skip_serializing_if = "serde_json::Map::is_empty")]
+    pub attributes: serde_json::Map<String, serde_json::Value>,
+}
+
+impl FieldRow {
+    pub fn project(item: &ItemDto, fields: &[String]) -> Self {
+        let attributes = item
+            .attributes
+            .as_object()
+            .map(|all| {
+                fields
+                    .iter()
+                    .filter_map(|f| all.get(f).map(|v| (f.clone(), v.clone())))
+                    .collect()
+            })
+            .unwrap_or_default();
+        Self {
+            item_id: item.item_id,
+            title: item.title.clone(),
+            types: item.types.iter().map(|t| t.name.clone()).collect(),
+            attributes,
+        }
+    }
 }
 
 /// Whitespace-collapse and truncate `content` to at most `max` chars (char-safe).
@@ -84,6 +142,15 @@ impl SearchHitSummary {
     }
 }
 
+#[derive(Debug, Serialize)]
+pub struct SearchFieldHit {
+    #[serde(flatten)]
+    pub row: FieldRow,
+    pub match_scope: zealot_domain::item::SearchScope,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snippet: Option<String>,
+}
+
 /// Compact JSON in a single text content block.
 pub fn json_result<T: Serialize>(value: &T) -> CallToolResult {
     CallToolResult::success(vec![Content::text(
@@ -91,9 +158,38 @@ pub fn json_result<T: Serialize>(value: &T) -> CallToolResult {
     )])
 }
 
+/// Result of a create/update: compact by default, the full item when `full` is set.
+pub fn write_item_result(item: &ItemDto, full: bool) -> CallToolResult {
+    if full {
+        return json_result(item);
+    }
+    json_result(&serde_json::json!({
+        "item_id": item.item_id,
+        "title": item.title,
+        "types": item.types.iter().map(|t| t.name.as_str()).collect::<Vec<_>>(),
+        "attributes": item.attributes,
+        "content_chars": item.content.chars().count(),
+    }))
+}
+
+/// Result of adding a comment: compact by default (no parent item body), the full comment when `full` is set.
+pub fn write_comment_result(comment: &CommentDto, full: bool) -> CallToolResult {
+    if full {
+        return json_result(comment);
+    }
+    json_result(&serde_json::json!({
+        "comment_id": comment.comment_id,
+        "item_id": comment.item.item_id,
+        "timestamp": comment.timestamp,
+    }))
+}
+
 #[derive(Debug, Serialize)]
 pub struct Page<T: Serialize> {
     pub count: usize,
+    /// Number of all matching items, when the backing query reports it
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next_offset: Option<i64>,
     pub items: Vec<T>,
@@ -105,41 +201,98 @@ impl<T: Serialize> Page<T> {
         let next_offset = (count as i64 == limit).then_some(offset + limit);
         Self {
             count,
+            total: None,
+            next_offset,
+            items,
+        }
+    }
+
+    /// A page whose `total` is known: more remain while `offset + count < total`.
+    pub fn with_total(items: Vec<T>, offset: i64, total: i64) -> Self {
+        let count = items.len();
+        let next_offset = (offset + (count as i64) < total).then_some(offset + count as i64);
+        Self {
+            count,
+            total: Some(total),
             next_offset,
             items,
         }
     }
 }
 
-/// Render a page of items at the requested detail. `Full` serializes the raw DTOs.
-pub fn item_page(items: Vec<ItemDto>, detail: Detail, offset: i64, limit: i64) -> CallToolResult {
-    match detail {
-        Detail::Full => json_result(&Page::new(items, offset, limit)),
-        _ => {
+/// Render one page of a server-side query with its total match count.
+pub fn query_page(page: ItemQueryPageDto, shape: impl Into<Shape>, offset: i64) -> CallToolResult {
+    let total = page.total;
+    match shape.into() {
+        Shape::Detail(Detail::Full) => json_result(&Page::with_total(page.items, offset, total)),
+        Shape::Detail(detail) => {
+            let projected: Vec<ItemSummary> = page
+                .items
+                .iter()
+                .map(|i| ItemSummary::project(i, detail))
+                .collect();
+            json_result(&Page::with_total(projected, offset, total))
+        }
+        Shape::Fields(fields) => {
+            let rows: Vec<FieldRow> = page
+                .items
+                .iter()
+                .map(|i| FieldRow::project(i, &fields))
+                .collect();
+            json_result(&Page::with_total(rows, offset, total))
+        }
+    }
+}
+
+/// Render a page of items in the requested shape. `Full` serializes the raw DTOs.
+pub fn item_page(
+    items: Vec<ItemDto>,
+    shape: impl Into<Shape>,
+    offset: i64,
+    limit: i64,
+) -> CallToolResult {
+    match shape.into() {
+        Shape::Detail(Detail::Full) => json_result(&Page::new(items, offset, limit)),
+        Shape::Detail(detail) => {
             let projected: Vec<ItemSummary> = items
                 .iter()
                 .map(|i| ItemSummary::project(i, detail))
                 .collect();
             json_result(&Page::new(projected, offset, limit))
         }
+        Shape::Fields(fields) => {
+            let rows: Vec<FieldRow> = items.iter().map(|i| FieldRow::project(i, &fields)).collect();
+            json_result(&Page::new(rows, offset, limit))
+        }
     }
 }
 
-/// Render a page of search hits at the requested detail.
+/// Render a page of search hits in the requested shape.
 pub fn search_page(
     hits: Vec<SearchResultDto>,
-    detail: Detail,
+    shape: impl Into<Shape>,
     offset: i64,
     limit: i64,
 ) -> CallToolResult {
-    match detail {
-        Detail::Full => json_result(&Page::new(hits, offset, limit)),
-        _ => {
+    match shape.into() {
+        Shape::Detail(Detail::Full) => json_result(&Page::new(hits, offset, limit)),
+        Shape::Detail(detail) => {
             let projected: Vec<SearchHitSummary> = hits
                 .iter()
                 .map(|h| SearchHitSummary::project(h, detail))
                 .collect();
             json_result(&Page::new(projected, offset, limit))
+        }
+        Shape::Fields(fields) => {
+            let rows: Vec<SearchFieldHit> = hits
+                .iter()
+                .map(|h| SearchFieldHit {
+                    row: FieldRow::project(&h.item, &fields),
+                    match_scope: h.match_scope.clone(),
+                    snippet: h.snippet.clone(),
+                })
+                .collect();
+            json_result(&Page::new(rows, offset, limit))
         }
     }
 }
