@@ -11,6 +11,9 @@ pub mod mysql;
 pub mod postgres;
 pub mod sqlite;
 
+#[cfg(test)]
+mod regex_search_tests;
+
 pub async fn get_repo_from_config(config: &ZealotConfig) -> Result<ZealotRepos, String> {
     match config.database.as_str() {
         "postgres" => {
