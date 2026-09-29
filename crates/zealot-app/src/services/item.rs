@@ -161,28 +161,21 @@ impl ItemService {
 
         match scope {
             SearchScope::Title => {
-                let fetch_limit = if use_regex { 500 } else { limit };
-                let fetch_offset = if use_regex { 0 } else { offset };
-                let items = self
-                    .item_repo
-                    .search_items_by_title(term, fetch_limit, fetch_offset, account)
-                    .map_err(ItemServiceError::Repo)?;
-                let filtered = if let Some(re) = &compiled_regex {
-                    items
-                        .into_iter()
-                        .filter(|i| re.is_match(&i.title))
-                        .collect()
+                let paged = if let Some(re) = &compiled_regex {
+                    scan_regex_matches(
+                        limit,
+                        offset,
+                        |scan_offset| {
+                            self.item_repo
+                                .search_items_by_title("", REGEX_SCAN_BATCH, scan_offset, account)
+                                .map_err(ItemServiceError::Repo)
+                        },
+                        |i| re.is_match(&i.title),
+                    )?
                 } else {
-                    items
-                };
-                let paged = if use_regex {
-                    filtered
-                        .into_iter()
-                        .skip(offset as usize)
-                        .take(limit as usize)
-                        .collect()
-                } else {
-                    filtered
+                    self.item_repo
+                        .search_items_by_title(term, limit, offset, account)
+                        .map_err(ItemServiceError::Repo)?
                 };
                 let hydrated = self.hydrate_items(paged, &account.account_id)?;
                 Ok(hydrated
@@ -195,28 +188,21 @@ impl ItemService {
                     .collect())
             }
             SearchScope::Content => {
-                let fetch_limit = if use_regex { 500 } else { limit };
-                let fetch_offset = if use_regex { 0 } else { offset };
-                let items = self
-                    .item_repo
-                    .search_items_by_content(term, fetch_limit, fetch_offset, account)
-                    .map_err(ItemServiceError::Repo)?;
-                let filtered: Vec<ItemCore> = if let Some(re) = &compiled_regex {
-                    items
-                        .into_iter()
-                        .filter(|i| re.is_match(&i.content))
-                        .collect()
+                let paged: Vec<ItemCore> = if let Some(re) = &compiled_regex {
+                    scan_regex_matches(
+                        limit,
+                        offset,
+                        |scan_offset| {
+                            self.item_repo
+                                .search_items_by_content("", REGEX_SCAN_BATCH, scan_offset, account)
+                                .map_err(ItemServiceError::Repo)
+                        },
+                        |i| re.is_match(&i.content),
+                    )?
                 } else {
-                    items
-                };
-                let paged: Vec<ItemCore> = if use_regex {
-                    filtered
-                        .into_iter()
-                        .skip(offset as usize)
-                        .take(limit as usize)
-                        .collect()
-                } else {
-                    filtered
+                    self.item_repo
+                        .search_items_by_content(term, limit, offset, account)
+                        .map_err(ItemServiceError::Repo)?
                 };
                 let snippets: Vec<Option<String>> = paged
                     .iter()
@@ -234,25 +220,21 @@ impl ItemService {
                     .collect())
             }
             SearchScope::Heading => {
-                let fetch_limit = if use_regex { 500 } else { limit };
-                let fetch_offset = if use_regex { 0 } else { offset };
-                let pairs = self
-                    .item_repo
-                    .search_items_by_heading(term, fetch_limit, fetch_offset, account)
-                    .map_err(ItemServiceError::Repo)?;
-                let filtered: Vec<(ItemCore, String)> = if let Some(re) = &compiled_regex {
-                    pairs.into_iter().filter(|(_, h)| re.is_match(h)).collect()
+                let paged: Vec<(ItemCore, String)> = if let Some(re) = &compiled_regex {
+                    scan_regex_matches(
+                        limit,
+                        offset,
+                        |scan_offset| {
+                            self.item_repo
+                                .search_items_by_heading("", REGEX_SCAN_BATCH, scan_offset, account)
+                                .map_err(ItemServiceError::Repo)
+                        },
+                        |(_, h)| re.is_match(h),
+                    )?
                 } else {
-                    pairs
-                };
-                let paged: Vec<(ItemCore, String)> = if use_regex {
-                    filtered
-                        .into_iter()
-                        .skip(offset as usize)
-                        .take(limit as usize)
-                        .collect()
-                } else {
-                    filtered
+                    self.item_repo
+                        .search_items_by_heading(term, limit, offset, account)
+                        .map_err(ItemServiceError::Repo)?
                 };
                 let heading_texts: Vec<String> = paged.iter().map(|(_, h)| h.clone()).collect();
                 let cores: Vec<ItemCore> = paged.into_iter().map(|(c, _)| c).collect();
@@ -1233,9 +1215,45 @@ pub fn extract_snippet(text: &str, term: &str, compiled: Option<&Regex>) -> Opti
     Some(text[start..end].to_string())
 }
 
+/// Rows fetched per repository call while scanning for regex matches.
+pub const REGEX_SCAN_BATCH: i64 = 500;
+
+/// Pages through every candidate row in `fetch` (called with a scan offset) and returns the
+/// `limit` matches after skipping `offset` matches. Stops early once the page is full.
+pub fn scan_regex_matches<T>(
+    limit: i64,
+    offset: i64,
+    mut fetch: impl FnMut(i64) -> Result<Vec<T>, ItemServiceError>,
+    is_match: impl Fn(&T) -> bool,
+) -> Result<Vec<T>, ItemServiceError> {
+    let (limit, offset) = (limit.max(0) as usize, offset.max(0) as usize);
+    let mut page = Vec::new();
+    let mut skipped = 0;
+    let mut scan_offset = 0;
+    while page.len() < limit {
+        let rows = fetch(scan_offset)?;
+        let fetched = rows.len() as i64;
+        for row in rows {
+            if !is_match(&row) {
+                continue;
+            }
+            if skipped < offset {
+                skipped += 1;
+            } else if page.len() < limit {
+                page.push(row);
+            }
+        }
+        if fetched < REGEX_SCAN_BATCH {
+            break;
+        }
+        scan_offset += fetched;
+    }
+    Ok(page)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::ItemService;
+    use super::{ItemService, ItemServiceError, REGEX_SCAN_BATCH, scan_regex_matches};
 
     #[test]
     fn extract_wiki_link_titles_basic() {
@@ -1365,5 +1383,114 @@ mod tests {
             }
             Ok(_) => panic!("expected regex error"),
         }
+    }
+
+    fn regex_of(pattern: &str) -> regex::Regex {
+        regex::Regex::new(&format!("(?i){pattern}")).unwrap()
+    }
+
+    /// Serves `rows` in `REGEX_SCAN_BATCH` pages, like a repository listing with an empty term.
+    fn scan(rows: &[String], pattern: &str, limit: i64, offset: i64) -> (Vec<String>, usize) {
+        let re = regex_of(pattern);
+        let mut calls = 0;
+        let page = scan_regex_matches(
+            limit,
+            offset,
+            |scan_offset| {
+                calls += 1;
+                Ok(rows
+                    .iter()
+                    .skip(scan_offset as usize)
+                    .take(REGEX_SCAN_BATCH as usize)
+                    .cloned()
+                    .collect())
+            },
+            |row| re.is_match(row),
+        )
+        .unwrap();
+        (page, calls)
+    }
+
+    fn titles() -> Vec<String> {
+        [
+            "AIW001 Alpha",
+            "Zeal note",
+            "AIW002 Beta",
+            "Notes on AIW",
+            "aiw003 lower",
+            "AIW010 Ten",
+        ]
+        .iter()
+        .map(|t| t.to_string())
+        .collect()
+    }
+
+    #[test]
+    fn regex_scan_matches_anchor_without_literal_prefilter() {
+        let (page, _) = scan(&titles(), "^AIW", 10, 0);
+        assert_eq!(
+            page,
+            ["AIW001 Alpha", "AIW002 Beta", "aiw003 lower", "AIW010 Ten"]
+        );
+    }
+
+    #[test]
+    fn regex_scan_matches_character_class() {
+        let (page, _) = scan(&titles(), "AIW00[0-9]", 10, 0);
+        assert_eq!(page, ["AIW001 Alpha", "AIW002 Beta", "aiw003 lower"]);
+    }
+
+    #[test]
+    fn regex_scan_matches_alternation() {
+        let (page, _) = scan(&titles(), "^(Zeal|Notes)", 10, 0);
+        assert_eq!(page, ["Zeal note", "Notes on AIW"]);
+    }
+
+    #[test]
+    fn regex_scan_is_case_insensitive() {
+        let (page, _) = scan(&titles(), "^aiw00[13]", 10, 0);
+        assert_eq!(page, ["AIW001 Alpha", "aiw003 lower"]);
+    }
+
+    #[test]
+    fn regex_scan_pages_over_matches_not_rows() {
+        let (first, _) = scan(&titles(), "^AIW", 2, 0);
+        let (second, _) = scan(&titles(), "^AIW", 2, 2);
+        let (past_end, _) = scan(&titles(), "^AIW", 2, 4);
+        assert_eq!(first, ["AIW001 Alpha", "AIW002 Beta"]);
+        assert_eq!(second, ["aiw003 lower", "AIW010 Ten"]);
+        assert!(past_end.is_empty());
+    }
+
+    #[test]
+    fn regex_scan_is_not_truncated_at_one_batch() {
+        let mut rows: Vec<String> = (0..REGEX_SCAN_BATCH * 2 + 7)
+            .map(|i| format!("row {i}"))
+            .collect();
+        rows.push("AIW-late".to_string());
+        let (page, calls) = scan(&rows, "^AIW", 10, 0);
+        assert_eq!(page, ["AIW-late"]);
+        assert_eq!(calls, 3);
+    }
+
+    #[test]
+    fn regex_scan_stops_once_page_is_full() {
+        let rows: Vec<String> = (0..REGEX_SCAN_BATCH * 3)
+            .map(|i| format!("AIW{i}"))
+            .collect();
+        let (page, calls) = scan(&rows, "^AIW", 5, 0);
+        assert_eq!(page.len(), 5);
+        assert_eq!(calls, 1);
+    }
+
+    #[test]
+    fn regex_scan_propagates_fetch_errors() {
+        let result: Result<Vec<String>, _> = scan_regex_matches(
+            5,
+            0,
+            |_| Err(ItemServiceError::InvalidRegex("boom".to_string())),
+            |_: &String| true,
+        );
+        assert!(result.is_err());
     }
 }

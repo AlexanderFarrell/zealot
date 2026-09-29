@@ -17,3 +17,7 @@ hex.workspace = true
 
 zealot-domain = {"path" = "../zealot-domain"}
 zealot-app = {"path" = "../zealot-app"}
+
+[dev-dependencies]
+regex = "1"
+testcontainers-modules = { version = "0.15.0", features = ["postgres"] }
