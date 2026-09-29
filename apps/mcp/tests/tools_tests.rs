@@ -282,7 +282,7 @@ async fn create_item_resolves_parent_and_posts_full_create_body() {
         .and(body_json(json!({
             "title": "Child",
             "content": "Body",
-            "attributes": {"Parent": 9, "priority": "high"},
+            "attributes": {"Parent": [9], "Priority": "high"},
             "types": ["Task"],
             "links": [{"other_item_id": 1, "relationship": "blocks"}]
         })))
@@ -295,13 +295,81 @@ async fn create_item_resolves_parent_and_posts_full_create_body() {
         .create_item(Parameters(CreateItemParams {
             title: "Child".to_string(),
             content: Some("Body".to_string()),
-            attributes: Some(HashMap::from([("priority".to_string(), json!("high"))])),
+            attributes: Some(HashMap::from([("Priority".to_string(), json!("high"))])),
             types: Some(vec!["Task".to_string()]),
             links: Some(vec![LinkParam {
                 other_item_id: 1,
                 relationship: "blocks".to_string(),
             }]),
             parent: Some("Parent Title".to_string()),
+        }))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn create_item_merges_parent_with_parents_in_attributes() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("GET"))
+        .and(path("/item/id/11"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(item(11, "Zealot", "")))
+        .expect(1)
+        .mount(&mock)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/item"))
+        .and(body_json(json!({
+            "title": "Child",
+            "content": "",
+            "attributes": {"Parent": [4, 11]}
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(item(12, "Child", "")))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    server
+        .create_item(Parameters(CreateItemParams {
+            title: "Child".to_string(),
+            content: None,
+            attributes: Some(HashMap::from([("Parent".to_string(), json!([4, 11]))])),
+            types: None,
+            links: None,
+            parent: Some("#11".to_string()),
+        }))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn create_item_wraps_scalar_parent_attribute_before_adding_parent() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("GET"))
+        .and(path("/item/id/11"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(item(11, "Zealot", "")))
+        .expect(1)
+        .mount(&mock)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/item"))
+        .and(body_json(json!({
+            "title": "Child",
+            "content": "",
+            "attributes": {"Parent": [4, 11]}
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(item(12, "Child", "")))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    server
+        .create_item(Parameters(CreateItemParams {
+            title: "Child".to_string(),
+            content: None,
+            attributes: Some(HashMap::from([("Parent".to_string(), json!(4))])),
+            types: None,
+            links: None,
+            parent: Some("11".to_string()),
         }))
         .await
         .unwrap();

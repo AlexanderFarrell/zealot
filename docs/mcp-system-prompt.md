@@ -33,11 +33,11 @@ Use browse-then-read.
 
 - `get_item(item, detail?)`
 - `get_item_outline(item)`
-- `browse_items(mode, type_filter?, limit?, offset?, detail?)` where mode is `root`, `recent`, `random`, or `most_viewed`
+- `browse_items(mode, type_filter?, limit?, offset?, detail?)` where mode is `root`, `recent`, `random`, or `most_viewed`. `root` alone returns items without a parent; `root` with `type_filter` returns every item of that type at any depth, which is how to list all Projects, Tickets, and so on.
 - `search_items(term, scope?, regex?, limit?, offset?, detail?)` where scope is `title`, `content`, or `heading`
 - `filter_items(filters, limit?, offset?, detail?)`
 - `get_linked_items(item, direction, detail?, limit?, offset?)` where direction is `children`, `related`, or `backlinks`
-- `create_item(title, content?, attributes?, types?, links?, parent?)`
+- `create_item(title, content?, attributes?, types?, links?, parent?)`. `parent` (id or title) is added to the `Parent` list attribute, merged with any `Parent` in `attributes`.
 - `update_item(item, title?, content?)`
 - `append_to_item(item, text)`
 - `delete_item(item)`
@@ -63,7 +63,23 @@ Attributes are typed. Common wire formats:
 | item | numeric item id | `123` |
 | list | array | `["a", "b"]` |
 
-Use `list_item_types` and `list_attribute_kinds` before assuming schema names. Use `filter_items` for attribute queries with filters shaped as `{key, op, value, list_mode?}`. Supported ops are `eq`, `ne`, `gt`, `lt`, `gte`, `lte`, and `ilike`.
+Use `list_item_types` and `list_attribute_kinds` before assuming schema names. Attribute keys are Title Case with spaces (`Strategic Score`, `End Date`). `Parent` is a list of item ids (`"Parent": [11]`).
+
+Use `filter_items` for attribute queries with filters shaped as `{key, op, value, list_mode?}`. All filters are ANDed.
+
+- Ops are `eq`, `ne`, `gt`, `lt`, `gte`, `lte`, and `ilike`. `ilike` is a case-insensitive substring match on text values (`"TCK"` matches `"ATCK012"`).
+- `value` is one value or an array. `list_mode` says how an array combines: `any` (default), `all`, or `none` must match.
+- List attributes match when any element matches.
+- Item-valued attributes compare by numeric id, not title: `{"key": "Parent", "op": "eq", "value": 11}`.
+
+## Schema
+
+- `list_item_types()`, `get_item_type(name)`
+- `create_item_type(name, description?, required_attributes?)`, `update_item_type(type_id, name?, description?, required_attributes?)`, `delete_item_type(type_id, force?)`
+- `list_attribute_kinds()`, `get_attribute_kind(key)`
+- `create_attribute_kind(key, base_type, description?, config?)`, `update_attribute_kind(kind_id, key?, description?, base_type?, config?)`, `delete_attribute_kind(key, force?)`
+
+Schema changes affect every item using that type or attribute. Confirm intent first.
 
 ## Planner, Habits, Comments
 
@@ -84,6 +100,18 @@ Dates are always `YYYY-MM-DD`. ISO weeks are `YYYY-Wnn`. Times for time blocks a
 - `delete_time_block(block_id)`
 
 Pass `item` to read all blocks for one item, or pass `start_date` and optional `end_date` to read a date range.
+
+## Statistics
+
+Statistics are items with the `Statistic` type. Entries are numeric values with RFC 3339 timestamps.
+
+- `list_statistics(parent?)`
+- `get_statistic_entries(statistic, start?, end?, limit?, offset?)` for raw history. `start` is inclusive and `end` is exclusive.
+- `get_statistic_daily_series(statistic, start?, end?, limit?, offset?)` for the UTC daily rollup.
+- `get_statistic_summary(statistic, start?, end?, limit?, offset?)` for count, first, latest, minimum, maximum, average, sum, and delta.
+- `record_statistic_entry(statistic, value, occurred_at?, related_item?, comment?)`. `occurred_at` defaults to now.
+- `edit_statistic_entry(statistic_entry_id, value?, occurred_at?, related_item?, clear_related_item?, comment?, clear_comment?)`
+- `delete_statistic_entry(statistic_entry_id)`
 
 ## Media
 

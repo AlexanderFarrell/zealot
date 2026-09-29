@@ -110,7 +110,8 @@ pub struct AttributeKeyParam {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct CreateAttributeKindParams {
-    /// Unique key (slug) for the attribute (e.g. "due_date", "priority")
+    /// Unique attribute key, used verbatim as the attribute name. Existing keys
+    /// are Title Case with spaces (e.g. "Strategic Score", "End Date")
     pub key: String,
     pub description: Option<String>,
     /// Base type: text, integer, decimal, date, week, boolean, dropdown, item, list
@@ -354,7 +355,7 @@ impl ZealotServer {
         Ok(output::json_result(&kinds))
     }
 
-    #[rmcp::tool(description = "Get a specific attribute kind by its key (slug).")]
+    #[rmcp::tool(description = "Get a specific attribute kind by its key (e.g. \"End Date\").")]
     pub async fn get_attribute_kind(
         &self,
         Parameters(p): Parameters<AttributeKeyParam>,
@@ -368,7 +369,7 @@ impl ZealotServer {
     }
 
     #[rmcp::tool(
-        description = "Create a new attribute kind (custom field schema). base_type: text, integer, decimal, date, week, boolean, dropdown, item, list. For dropdown, config: {\"values\":[\"opt1\",\"opt2\"]}."
+        description = "Create a new attribute kind (custom field schema). `key` is the attribute name used on items; follow the existing Title Case convention (e.g. \"Strategic Score\", \"End Date\"). base_type: text, integer, decimal, date, week, boolean, dropdown, item, list. For dropdown, config: {\"values\":[\"opt1\",\"opt2\"]}."
     )]
     pub async fn create_attribute_kind(
         &self,

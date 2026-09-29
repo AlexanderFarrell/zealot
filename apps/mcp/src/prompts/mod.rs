@@ -178,7 +178,7 @@ pub struct SearchAndConnectArgs {
 pub struct AutomateWorkflowArgs {
     /// Describe what should trigger the rule (e.g. "when a new item is created with type Goal")
     pub trigger_description: String,
-    /// Describe what the rule should do (e.g. "send me a notification and add a due_date attribute 30 days out")
+    /// Describe what the rule should do (e.g. "send me a notification and add a Due Date attribute 30 days out")
     pub action_description: String,
 }
 
