@@ -15,6 +15,12 @@ use crate::{
 const FETCH_PAGE_SIZE: i64 = 100;
 const FETCH_CAP: usize = 1000;
 
+#[derive(Debug, Default, Deserialize, JsonSchema)]
+pub struct WikiStatsParams {
+    /// Include the per-type counts (default false; `list_item_types` returns the same data)
+    pub include_types: Option<bool>,
+}
+
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct LimitParams {
     /// Max items to return (default 50, max 1000)
@@ -85,9 +91,12 @@ fn parse_entry_date(entry: &RepeatEntryDto) -> Result<NaiveDate, McpError> {
 #[rmcp::tool_router(router = analysis_tool_router, vis = "pub")]
 impl ZealotServer {
     #[rmcp::tool(
-        description = "High-level wiki statistics: item type counts, attribute-kind count, and recently modified items. Returns summaries, not full item content."
+        description = "High-level wiki statistics: totals for item types and attribute kinds, and recently modified items. Per-type counts are omitted unless `include_types: true` (they duplicate `list_item_types`). Returns summaries, not full item content."
     )]
-    pub async fn wiki_stats(&self) -> Result<CallToolResult, McpError> {
+    pub async fn wiki_stats(
+        &self,
+        Parameters(p): Parameters<WikiStatsParams>,
+    ) -> Result<CallToolResult, McpError> {
         let (types, attribute_kinds, recent) = tokio::join!(
             self.client.item_type_summaries(),
             self.client.list_attribute_kinds(),
@@ -103,15 +112,18 @@ impl ZealotServer {
             .map(|item| output::ItemSummary::project(item, Detail::Meta))
             .collect();
 
-        Ok(output::json_result(&json!({
+        let mut stats = json!({
             "totals": {
                 "item_types": types.len(),
                 "type_assignment_count": type_assignment_count,
                 "attribute_kinds": attribute_kinds.len(),
             },
-            "per_type": types,
             "recently_modified": recently_modified,
-        })))
+        });
+        if p.include_types.unwrap_or(false) {
+            stats["per_type"] = json!(types);
+        }
+        Ok(output::json_result(&stats))
     }
 
     #[rmcp::tool(

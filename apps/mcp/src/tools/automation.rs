@@ -71,6 +71,17 @@ pub struct ListItemTypesParams {}
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ItemTypeNameParam {
     pub name: String,
+    /// Also return each required attribute's kind: `attributes: [{key, base_type, config}]`
+    /// (base type, dropdown values, min/max), saving a `get_attribute_kind` call per key
+    pub include_attributes: Option<bool>,
+}
+
+#[derive(Debug, Default, Deserialize, JsonSchema)]
+pub struct ListAttributeKindsParams {
+    /// Only these attribute keys
+    pub keys: Option<Vec<String>>,
+    /// Only the attributes required by this item type
+    pub item_type: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -272,7 +283,7 @@ impl ZealotServer {
     }
 
     #[rmcp::tool(
-        description = "Get a specific item type by its name. Returns the type definition including required attributes."
+        description = "Get a specific item type by its name. Returns the type definition including required attribute keys; pass `include_attributes: true` to also get each required attribute's base type and config (dropdown values, min/max)."
     )]
     pub async fn get_item_type(
         &self,
@@ -283,7 +294,25 @@ impl ZealotServer {
             .get_item_type_by_name(&p.name)
             .await
             .map_err(|e| err_ctx(&format!("item type '{}'", p.name), e))?;
-        Ok(output::json_result(&t))
+        if !p.include_attributes.unwrap_or(false) {
+            return Ok(output::json_result(&t));
+        }
+        let kinds = self
+            .client
+            .list_attribute_kinds()
+            .await
+            .map_err(|e| err_ctx("attribute kinds", e))?;
+        let attributes: Vec<_> = t
+            .required_attributes
+            .iter()
+            .map(|key| match kinds.iter().find(|k| &k.key == key) {
+                Some(k) => json!({"key": k.key, "base_type": k.base_type, "config": k.config}),
+                None => json!({"key": key}),
+            })
+            .collect();
+        let mut value = json!(t);
+        value["attributes"] = json!(attributes);
+        Ok(output::json_result(&value))
     }
 
     #[rmcp::tool(
@@ -344,14 +373,28 @@ impl ZealotServer {
     // Attribute Kinds
 
     #[rmcp::tool(
-        description = "List all attribute kind definitions (the schema for custom item attributes)."
+        description = "List attribute kind definitions (the schema for custom item attributes). Pass `keys` for specific attributes, or `item_type` for those required by an item type; with neither, all kinds are returned."
     )]
-    pub async fn list_attribute_kinds(&self) -> Result<CallToolResult, McpError> {
-        let kinds = self
+    pub async fn list_attribute_kinds(
+        &self,
+        Parameters(p): Parameters<ListAttributeKindsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let mut kinds = self
             .client
             .list_attribute_kinds()
             .await
             .map_err(|e| err_ctx("attribute kinds", e))?;
+        if let Some(type_name) = &p.item_type {
+            let t = self
+                .client
+                .get_item_type_by_name(type_name)
+                .await
+                .map_err(|e| err_ctx(&format!("item type '{type_name}'"), e))?;
+            kinds.retain(|k| t.required_attributes.contains(&k.key));
+        }
+        if let Some(keys) = &p.keys {
+            kinds.retain(|k| keys.contains(&k.key));
+        }
         Ok(output::json_result(&kinds))
     }
 

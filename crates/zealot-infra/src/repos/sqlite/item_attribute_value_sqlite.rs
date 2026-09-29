@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use chrono::NaiveDate;
 use serde_json::Value;
 use sqlx::SqlitePool;
-use zealot_app::repos::{common::RepoError, item_attribute_value::ItemAttributeValueRepo};
+use zealot_app::repos::{
+    common::RepoError,
+    item_attribute_value::{ItemAttributeValueRepo, ItemQuery},
+};
 use zealot_domain::{
     account::Account,
     attribute::{
@@ -11,6 +14,7 @@ use zealot_domain::{
         AttributeScalar,
     },
     common::id::Id,
+    item::relationship,
 };
 
 #[derive(Debug)]
@@ -410,6 +414,17 @@ fn attr_filter_col_and_values(
     Ok((column.unwrap(), parsed))
 }
 
+fn bind_sql_value<'q>(
+    query: sqlx::query::QueryScalar<'q, sqlx::Sqlite, i64, sqlx::sqlite::SqliteArguments<'q>>,
+    value: &SqlValue,
+) -> sqlx::query::QueryScalar<'q, sqlx::Sqlite, i64, sqlx::sqlite::SqliteArguments<'q>> {
+    match value {
+        SqlValue::Str(v) => query.bind(v.clone()),
+        SqlValue::Int(v) => query.bind(*v),
+        SqlValue::Float(v) => query.bind(*v),
+    }
+}
+
 fn build_attr_filter_clause(
     filter: &AttributeFilter,
     kind_map: &HashMap<String, AttributeBaseScalarType>,
@@ -475,6 +490,122 @@ fn build_attr_filter_clause(
     };
 
     Ok((clause, clause_values))
+}
+
+/// Scalar column that stores values of this attribute type, for sorting.
+fn sort_column(base_type: &AttributeBaseScalarType) -> &'static str {
+    match base_type {
+        AttributeBaseScalarType::Text
+        | AttributeBaseScalarType::Dropdown
+        | AttributeBaseScalarType::Week => "value_text",
+        AttributeBaseScalarType::Integer | AttributeBaseScalarType::Boolean => "value_int",
+        AttributeBaseScalarType::Decimal => "value_num",
+        AttributeBaseScalarType::Date => "value_date",
+        AttributeBaseScalarType::Item => "value_item_id",
+    }
+}
+
+/// WHERE clause (after `i.account_id = ?`), its bind values, and the ORDER BY with its bind values.
+struct QuerySql {
+    where_sql: String,
+    where_values: Vec<SqlValue>,
+    order_sql: String,
+    order_values: Vec<SqlValue>,
+}
+
+fn build_query_sql(
+    query: &ItemQuery,
+    kind_map: &HashMap<String, AttributeBaseScalarType>,
+) -> Result<QuerySql, RepoError> {
+    let mut parts: Vec<String> = Vec::new();
+    let mut values: Vec<SqlValue> = Vec::new();
+
+    if !query.types.is_empty() {
+        let type_exists = |placeholders: &str| {
+            format!(
+                "EXISTS (SELECT 1 FROM item_item_type_link l JOIN item_type t ON t.type_id = l.type_id
+                 WHERE l.item_id = i.item_id AND t.name IN ({placeholders}))"
+            )
+        };
+        if query.all_types {
+            for name in &query.types {
+                parts.push(type_exists("?"));
+                values.push(SqlValue::Str(name.clone()));
+            }
+        } else {
+            let placeholders = query
+                .types
+                .iter()
+                .map(|_| "?")
+                .collect::<Vec<_>>()
+                .join(", ");
+            parts.push(type_exists(&placeholders));
+            values.extend(query.types.iter().map(|n| SqlValue::Str(n.clone())));
+        }
+    }
+
+    if let Some(root) = query.under {
+        let root = i64::from(root);
+        // UNION (not UNION ALL) drops repeats, so a cycle in Parent links terminates.
+        parts.push(String::from(
+            "(i.item_id IN (WITH RECURSIVE d(id) AS (
+                 SELECT first_item_id FROM item_item_link WHERE second_item_id = ? AND relationship = ?
+                 UNION
+                 SELECT l.first_item_id FROM item_item_link l JOIN d ON l.second_item_id = d.id
+                 WHERE l.relationship = ?
+             ) SELECT id FROM d) AND i.item_id <> ?)",
+        ));
+        values.push(SqlValue::Int(root));
+        values.push(SqlValue::Str(relationship::PARENT.to_string()));
+        values.push(SqlValue::Str(relationship::PARENT.to_string()));
+        values.push(SqlValue::Int(root));
+    }
+
+    for filter in &query.filters {
+        let (clause, clause_values) = build_attr_filter_clause(filter, kind_map)?;
+        parts.push(format!("({clause})"));
+        values.extend(clause_values);
+    }
+
+    let mut order_values = Vec::new();
+    let order_sql = match &query.sort {
+        None => String::from("i.item_id"),
+        Some(sort) => {
+            let dir = if sort.descending { "DESC" } else { "ASC" };
+            match sort.key.to_lowercase().as_str() {
+                "title" => format!("LOWER(i.title) {dir}, i.item_id"),
+                "created" => format!("i.created_at {dir}, i.item_id"),
+                "updated" => format!("i.updated_at {dir}, i.item_id"),
+                _ => {
+                    let base_type = kind_map.get(&sort.key).ok_or_else(|| RepoError::DatabaseError {
+                        err: format!(
+                            "cannot sort by '{}': not title, created, updated, or a scalar attribute",
+                            sort.key
+                        ),
+                    })?;
+                    let expr = format!(
+                        "(SELECT a.{} FROM attribute a WHERE a.item_id = i.item_id AND a.key = ?)",
+                        sort_column(base_type)
+                    );
+                    // Items without the attribute sort last in either direction.
+                    order_values.push(SqlValue::Str(sort.key.clone()));
+                    order_values.push(SqlValue::Str(sort.key.clone()));
+                    format!("{expr} IS NULL, {expr} {dir}, i.item_id")
+                }
+            }
+        }
+    };
+    let where_sql = if parts.is_empty() {
+        String::from("1 = 1")
+    } else {
+        parts.join(" AND ")
+    };
+    Ok(QuerySql {
+        where_sql,
+        where_values: values,
+        order_sql,
+        order_values,
+    })
 }
 
 impl ItemAttributeValueRepo for ItemAttributeValueSqliteRepo {
@@ -568,6 +699,61 @@ impl ItemAttributeValueRepo for ItemAttributeValueSqliteRepo {
                 }
 
                 Ok(attributes_by_item)
+            })
+        })
+    }
+
+    fn query_item_ids(
+        &self,
+        query: &ItemQuery,
+        account_id: &Id,
+    ) -> Result<(Vec<Id>, i64), RepoError> {
+        let account_id_val = i64::from(*account_id);
+        let pool = self.pool.clone();
+        let query = query.clone();
+
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let kind_map = get_kind_scalar_map(account_id_val, &pool).await?;
+                let built = build_query_sql(&query, &kind_map)?;
+
+                let count_sql = format!(
+                    "SELECT COUNT(*) FROM item i WHERE i.account_id = ? AND {}",
+                    built.where_sql
+                );
+                let mut count_query = sqlx::query_scalar::<_, i64>(&count_sql).bind(account_id_val);
+                for value in &built.where_values {
+                    count_query = bind_sql_value(count_query, value);
+                }
+                let total = count_query
+                    .fetch_one(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
+
+                let page_sql = format!(
+                    "SELECT i.item_id FROM item i WHERE i.account_id = ? AND {}
+                     ORDER BY {} LIMIT ? OFFSET ?",
+                    built.where_sql, built.order_sql
+                );
+                let mut page_query = sqlx::query_scalar::<_, i64>(&page_sql).bind(account_id_val);
+                for value in built.where_values.iter().chain(&built.order_values) {
+                    page_query = bind_sql_value(page_query, value);
+                }
+                let ids = page_query
+                    .bind(query.limit)
+                    .bind(query.offset)
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
+                let ids = ids
+                    .into_iter()
+                    .map(|item_id| {
+                        Id::try_from(item_id).map_err(|err| RepoError::DatabaseError {
+                            err: err.to_string(),
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok((ids, total))
             })
         })
     }

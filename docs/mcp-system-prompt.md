@@ -26,22 +26,25 @@ Use browse-then-read.
 - Multi-item tools return summaries by default. Use `detail: "meta"`, `"summary"`, or `"full"` where available.
 - `get_item` defaults to full content for a single item.
 - Use `get_item_outline` before reading a long item; it returns headings, attribute keys, and content length.
-- Paged tools return `{"count": N, "next_offset": 50, "items": [...]}`. Continue with `offset: next_offset` until `next_offset` is absent.
+- Paged tools return `{"count": N, "next_offset": 50, "items": [...]}`. Continue with `offset: next_offset` until `next_offset` is absent. Query-backed tools (`filter_items`, `browse_items` with `type_filter`, `get_plan`) also return `total`, the number of all matching items, so "how many?" needs no paging.
+- List tools accept `fields: ["TicketID", "Status"]` to return only `item_id`, `title`, `types`, and those attributes per item, overriding `detail`. Prefer it for scans.
+- `create_item`, `update_item`, and `add_comment` reply compactly (ids, title, types, attributes, `content_chars`; comments: `comment_id`, `item_id`, `timestamp`). Pass `full: true` only when you need the complete item back.
 - Outputs are compact JSON, not pretty JSON. Preserve ids and exact strings when writing follow-up calls.
 
 ## Wiki Tools
 
 - `get_item(item, detail?)`
 - `get_item_outline(item)`
-- `browse_items(mode, type_filter?, limit?, offset?, detail?)` where mode is `root`, `recent`, `random`, or `most_viewed`. `root` alone returns items without a parent; `root` with `type_filter` returns every item of that type at any depth, which is how to list all Projects, Tickets, and so on.
-- `search_items(term, scope?, regex?, limit?, offset?, detail?)` where scope is `title`, `content`, or `heading`
-- `filter_items(filters, limit?, offset?, detail?)`
-- `get_linked_items(item, direction, detail?, limit?, offset?)` where direction is `children`, `related`, or `backlinks`
-- `create_item(title, content?, attributes?, types?, links?, parent?)`. `parent` (id or title) is added to the `Parent` list attribute, merged with any `Parent` in `attributes`.
-- `update_item(item, title?, content?)`
+- `browse_items(mode, type_filter?, sort?, limit?, offset?, detail?, fields?)` where mode is `root`, `recent`, `random`, or `most_viewed`. `root` alone returns items without a parent; `root` with `type_filter` returns every item of that type at any depth, sorted by `sort` and with `total`, which is how to list all Projects, Tickets, and so on.
+- `search_items(term, scope?, regex?, limit?, offset?, detail?, fields?)` where scope is `title`, `content`, or `heading`
+- `filter_items(filters?, types?, type_mode?, under?, sort?, limit?, offset?, detail?, fields?)` combines type, subtree, and attribute conditions in one call (details below)
+- `get_linked_items(item, direction, detail?, limit?, offset?, fields?)` where direction is `children`, `related`, or `backlinks`
+- `create_item(title, content?, attributes?, types?, links?, parent?, full?)`. `parent` (id or title) is added to the `Parent` list attribute, merged with any `Parent` in `attributes`.
+- `update_item(item, title?, content?, full?)`
 - `append_to_item(item, text)`
 - `delete_item(item)`
 - `update_item_attributes(item, set?, remove?, rename?)`
+- `set_status(items, status, comment?)` sets Status on up to 50 items and adds the same comment to each in one call. `comment` is required for `Hold`, `Blocked`, and `Rejected`. Items are independent: the reply lists `{item_id, title, status, comment_id?}` or `{item, error}` per item, with `updated` and `failed` counts.
 - `assign_item_type(item, type_name)` / `unassign_item_type(item, type_name)`
 - `rebuild_links()`
 
@@ -65,7 +68,14 @@ Attributes are typed. Common wire formats:
 
 Use `list_item_types` and `list_attribute_kinds` before assuming schema names. Attribute keys are Title Case with spaces (`Strategic Score`, `End Date`). `Parent` is a list of item ids (`"Parent": [11]`).
 
-Use `filter_items` for attribute queries with filters shaped as `{key, op, value, list_mode?}`. All filters are ANDed.
+Use `filter_items` for queries; every part is optional but at least one of `types`, `under`, or `filters` is required, and all parts are ANDed:
+
+- `types` is a list of item type names and `type_mode` is `any` (default) or `all`. `{"types": ["Ticket"]}` returns Tickets only, never Books or Epics.
+- `under` (id or exact title) keeps only descendants of that item at any depth, following `Parent` links (including items with several parents). It excludes the item itself. `{"types": ["Ticket"], "under": "Zealot", "filters": [{"key": "Status", "op": "eq", "value": "Working"}]}` answers "Working Tickets under Zealot" in one call.
+- `sort` is `{key, direction?}` (`asc` default, `desc`) over `title`, `created`, `updated`, or a scalar attribute such as `TicketID` or `Priority`; items without the attribute sort last. The next free TicketID is `{"types": ["Ticket"], "filters": [{"key": "TicketID", "op": "ilike", "value": "Z"}], "sort": {"key": "TicketID", "direction": "desc"}, "limit": 1, "fields": ["TicketID"]}`.
+- The reply includes `total`.
+
+Attribute filters are shaped as `{key, op, value, list_mode?}`.
 
 - Ops are `eq`, `ne`, `gt`, `lt`, `gte`, `lte`, and `ilike`. `ilike` is a case-insensitive substring match on text values (`"TCK"` matches `"ATCK012"`).
 - `value` is one value or an array. `list_mode` says how an array combines: `any` (default), `all`, or `none` must match.
@@ -74,9 +84,9 @@ Use `filter_items` for attribute queries with filters shaped as `{key, op, value
 
 ## Schema
 
-- `list_item_types()`, `get_item_type(name)`
+- `list_item_types()`, `get_item_type(name, include_attributes?)`; `include_attributes: true` adds each required attribute's `base_type` and `config` (dropdown values, min/max) so one call shows what a type requires
 - `create_item_type(name, description?, required_attributes?)`, `update_item_type(type_id, name?, description?, required_attributes?)`, `delete_item_type(type_id, force?)`
-- `list_attribute_kinds()`, `get_attribute_kind(key)`
+- `list_attribute_kinds(keys?, item_type?)`, `get_attribute_kind(key)`; `keys` and `item_type` narrow the list to those attributes or to the ones an item type requires
 - `create_attribute_kind(key, base_type, description?, config?)`, `update_attribute_kind(kind_id, key?, description?, base_type?, config?)`, `delete_attribute_kind(key, force?)`
 
 Schema changes affect every item using that type or attribute. Confirm intent first.
@@ -86,7 +96,7 @@ Schema changes affect every item using that type or attribute. Confirm intent fi
 Dates are always `YYYY-MM-DD`. ISO weeks are `YYYY-Wnn`. Times for time blocks are `HH:MM`.
 
 - Start daily planning with `day_dashboard(date?)`; it returns plan items, habit entries, time blocks, and journal comments.
-- Use `get_plan(period, detail?, limit?, offset?)`; period can be a day (`YYYY-MM-DD`), week (`YYYY-Wnn`), month (`YYYY-MM`), or year (`YYYY`).
+- Use `get_plan(period, detail?, limit?, offset?, fields?)` (paged, with `total`); period can be a day (`YYYY-MM-DD`), week (`YYYY-Wnn`), month (`YYYY-MM`), or year (`YYYY`).
 - Use `list_habits(detail?)`, `get_habit_entries(start_date, end_date?)`, and `set_habit_status(item, date, status?, comment?)`.
 - Habit statuses are `Complete`, `Skip`, `Alternate`, and `Not Complete`.
 - Use `get_comments(item? XOR date?)`, `add_comment(item, content, timestamp?)`, `update_comment(comment_id, content)`, and `delete_comment(comment_id)`.
@@ -124,7 +134,7 @@ Statistics are items with the `Statistic` type. Entries are numeric values with 
 
 ## Analysis
 
-- `wiki_stats()` for high-level type counts, attribute-kind count, and recent items.
+- `wiki_stats(include_types?)` for total type and attribute-kind counts and recent items; per-type counts come with `include_types: true` or from `list_item_types`.
 - `orphaned_items(limit?)` for sampled graph orphans.
 - `attribute_usage()` for used, unused, and undefined attribute keys.
 - `habit_stats(start_date, end_date)` for completion rates and streaks over a range up to 366 days.

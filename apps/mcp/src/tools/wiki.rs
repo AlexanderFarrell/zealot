@@ -6,12 +6,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use zealot_domain::{
     attribute::AttributeFilterDto,
-    item::{AddItemDto, ItemDto, ItemLinkDto, SearchScope, UpdateItemDto},
+    comment::AddCommentDto,
+    item::{
+        AddItemDto, ItemDto, ItemLinkDto, ItemQueryDto, ItemSortDto, SearchScope, UpdateItemDto,
+    },
 };
 
 use crate::{
-    output::{self, DEFAULT_LIMIT, Detail},
-    tools::{ZealotServer, err_ctx},
+    output::{self, DEFAULT_LIMIT, Detail, Shape},
+    tools::{ZealotServer, err_ctx, planner::now_timestamp},
 };
 
 const SEARCH_DEFAULT_LIMIT: i64 = 20;
@@ -58,6 +61,8 @@ pub struct BrowseItemsParams {
     /// Item type name. Only used when mode is "root": lists every item of this
     /// type, whether or not it has a parent
     pub type_filter: Option<String>,
+    /// Sort order. Only used when mode is "root" with `type_filter`
+    pub sort: Option<SortParam>,
     /// Max results (default 50, max 100)
     pub limit: Option<i64>,
     /// Offset for pagination (ignored for "random")
@@ -65,6 +70,9 @@ pub struct BrowseItemsParams {
     /// Output detail: "meta", "summary" (default), or "full"
     #[serde(default)]
     pub detail: Detail,
+    /// Return only these attributes per item (plus `item_id`, `title`, `types`),
+    /// overriding `detail`. For example ["TicketID", "Status"]
+    pub fields: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -82,6 +90,9 @@ pub struct SearchItemsParams {
     /// Output detail: "meta", "summary" (default), or "full"
     #[serde(default)]
     pub detail: Detail,
+    /// Return only these attributes per item (plus `item_id`, `title`, `types`),
+    /// overriding `detail`. For example ["TicketID", "Status"]
+    pub fields: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
@@ -112,10 +123,39 @@ impl From<AttributeFilterParam> for AttributeFilterDto {
     }
 }
 
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+pub struct SortParam {
+    /// `title`, `created`, `updated`, or the key of a scalar attribute (for example
+    /// `TicketID`, `Priority`). Items without the attribute sort last.
+    pub key: String,
+    /// `asc` (default) or `desc`
+    pub direction: Option<String>,
+}
+
+impl From<SortParam> for ItemSortDto {
+    fn from(p: SortParam) -> Self {
+        ItemSortDto {
+            key: p.key,
+            direction: p.direction.unwrap_or_default(),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct FilterItemsParams {
-    /// Attribute filters. All filters are ANDed together.
+    /// Attribute filters. All filters are ANDed together. May be empty when `types`
+    /// or `under` is given.
+    #[serde(default)]
     pub filters: Vec<AttributeFilterParam>,
+    /// Item type names the item must have (for example ["Ticket"])
+    pub types: Option<Vec<String>>,
+    /// `any` (default): has at least one of `types`; `all`: has every one
+    pub type_mode: Option<String>,
+    /// Item ID or exact title. Only return descendants of this item, following
+    /// `Parent` links through any depth
+    pub under: Option<String>,
+    /// Sort order (default: item id)
+    pub sort: Option<SortParam>,
     /// Max results (default 50, max 100)
     pub limit: Option<i64>,
     /// Offset for pagination (default 0)
@@ -123,6 +163,9 @@ pub struct FilterItemsParams {
     /// Output detail: "meta", "summary" (default), or "full"
     #[serde(default)]
     pub detail: Detail,
+    /// Return only these attributes per item (plus `item_id`, `title`, `types`),
+    /// overriding `detail`. For example ["TicketID", "Status"]
+    pub fields: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
@@ -145,6 +188,9 @@ pub struct LinkedItemsParams {
     /// Output detail: "meta", "summary" (default), or "full"
     #[serde(default)]
     pub detail: Detail,
+    /// Return only these attributes per item (plus `item_id`, `title`, `types`),
+    /// overriding `detail`. For example ["TicketID", "Status"]
+    pub fields: Option<Vec<String>>,
     /// Max results (default 50, max 100)
     pub limit: Option<i64>,
     /// Offset for pagination (default 0)
@@ -175,6 +221,8 @@ pub struct CreateItemParams {
     /// Parent item (ID or title). Added to the "Parent" list attribute (the
     /// wiki's parent/child hierarchy), merged with any "Parent" in `attributes`
     pub parent: Option<String>,
+    /// Return the complete created item instead of the compact result (default false)
+    pub full: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -185,6 +233,25 @@ pub struct UpdateItemParams {
     pub title: Option<String>,
     /// New content body (optional)
     pub content: Option<String>,
+    /// Return the complete updated item instead of the compact result (default false)
+    pub full: Option<bool>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SetStatusParams {
+    /// Item IDs or exact titles (max 50)
+    pub items: Vec<String>,
+    /// New Status value, e.g. "Working", "Complete", "Hold"
+    pub status: String,
+    /// Comment added to every item. Required when status is Hold, Blocked, or Rejected
+    pub comment: Option<String>,
+}
+
+const MAX_STATUS_BATCH: usize = 50;
+
+/// Statuses the Status Funnel requires a recorded reason for.
+fn status_needs_comment(status: &str) -> bool {
+    ["hold", "blocked", "rejected"].contains(&status.trim().to_lowercase().as_str())
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -286,30 +353,48 @@ impl ZealotServer {
     }
 
     #[rmcp::tool(
-        description = "Browse items without a search term. mode: \"root\" (root-level items without a parent; with `type_filter`, instead every item of that type at any depth, which is how to list all Projects, Tickets, etc.), \"recent\" (most recently modified), \"random\" (random sample), or \"most_viewed\" (most-viewed items — rows are {item_id, title, view_count} regardless of detail). Returns compact summaries by default; pass detail:\"full\" for complete content."
+        description = "Browse items without a search term. mode: \"root\" (root-level items without a parent; with `type_filter`, instead every item of that type at any depth, which is how to list all Projects, Tickets, etc.; that listing takes `sort` and reports `total`), \"recent\" (most recently modified), \"random\" (random sample), or \"most_viewed\" (most-viewed items — rows are {item_id, title, view_count} regardless of detail). Returns compact summaries by default; pass detail:\"full\" for complete content."
     )]
     pub async fn browse_items(
         &self,
         Parameters(p): Parameters<BrowseItemsParams>,
     ) -> Result<CallToolResult, McpError> {
+        let shape = Shape::new(p.detail, p.fields.clone());
         let limit = clamp_limit(p.limit, DEFAULT_LIMIT);
         let offset = p.offset.unwrap_or(0).max(0);
         match p.mode {
-            BrowseMode::Root => {
-                let items = self
-                    .client
-                    .list_items(p.type_filter.as_deref())
-                    .await
-                    .map_err(|e| err_ctx("items", e))?;
-                Ok(slice_item_page(items, p.detail, offset, limit))
-            }
+            BrowseMode::Root => match p.type_filter {
+                Some(type_name) => {
+                    let query = ItemQueryDto {
+                        types: vec![type_name],
+                        sort: p.sort.map(Into::into),
+                        limit: Some(limit),
+                        offset,
+                        ..Default::default()
+                    };
+                    let page = self
+                        .client
+                        .query_items(&query)
+                        .await
+                        .map_err(|e| err_ctx("items", e))?;
+                    Ok(output::query_page(page, shape.clone(), offset))
+                }
+                None => {
+                    let items = self
+                        .client
+                        .list_items(None)
+                        .await
+                        .map_err(|e| err_ctx("items", e))?;
+                    Ok(slice_item_page(items, shape.clone(), offset, limit))
+                }
+            },
             BrowseMode::Recent => {
                 let items = self
                     .client
                     .recent_items(limit, offset)
                     .await
                     .map_err(|e| err_ctx("recent items", e))?;
-                Ok(output::item_page(items, p.detail, offset, limit))
+                Ok(output::item_page(items, shape.clone(), offset, limit))
             }
             BrowseMode::Random => {
                 let items = self
@@ -317,7 +402,7 @@ impl ZealotServer {
                     .random_items(limit as usize)
                     .await
                     .map_err(|e| err_ctx("random items", e))?;
-                Ok(output::item_page(items, p.detail, 0, limit))
+                Ok(output::item_page(items, shape.clone(), 0, limit))
             }
             BrowseMode::MostViewed => {
                 let rows = self
@@ -337,6 +422,7 @@ impl ZealotServer {
         &self,
         Parameters(p): Parameters<SearchItemsParams>,
     ) -> Result<CallToolResult, McpError> {
+        let shape = Shape::new(p.detail, p.fields.clone());
         let limit = clamp_limit(p.limit, SEARCH_DEFAULT_LIMIT);
         let offset = p.offset.unwrap_or(0).max(0);
         let scope = match p.scope.as_deref() {
@@ -349,25 +435,38 @@ impl ZealotServer {
             .search_items(&p.term, scope, p.regex.unwrap_or(false), limit, offset)
             .await
             .map_err(|e| err_ctx("search", e))?;
-        Ok(output::search_page(hits, p.detail, offset, limit))
+        Ok(output::search_page(hits, shape.clone(), offset, limit))
     }
 
     #[rmcp::tool(
-        description = "Filter items by attribute values. Pass `filters` as an array of {key, op, value, list_mode?}; supported ops are eq, ne, gt, lt, gte, lte, and ilike. `ilike` is a case-insensitive substring match on text values (the server wraps the value in `%...%`). `value` may be one value or an array; `list_mode` says whether any (default), all, or none of the array values must match. List attributes match when any element matches. Item-valued attributes such as `Parent` compare by numeric item ID (`{\"key\":\"Parent\",\"op\":\"eq\",\"value\":11}`). All filters are ANDed. Returns compact summaries by default; pass detail:\"full\" for complete content."
+        description = "Filter items by type, subtree, and attribute values in one call; the reply includes `total` (all matches) and pages with `offset`. `types` (with `type_mode` any/all) limits to item types, e.g. [\"Ticket\"]; `under` (id or title) returns only descendants of that item through any depth of `Parent` links; `sort` is {key, direction?} over `title`, `created`, `updated`, or a scalar attribute (items lacking it sort last). At least one of `types`, `under`, or `filters` is required. Pass `filters` as an array of {key, op, value, list_mode?}; supported ops are eq, ne, gt, lt, gte, lte, and ilike. `ilike` is a case-insensitive substring match on text values (the server wraps the value in `%...%`). `value` may be one value or an array; `list_mode` says whether any (default), all, or none of the array values must match. List attributes match when any element matches. Item-valued attributes such as `Parent` compare by numeric item ID (`{\"key\":\"Parent\",\"op\":\"eq\",\"value\":11}`). All filters are ANDed. Returns compact summaries by default; pass detail:\"full\" for complete content."
     )]
     pub async fn filter_items(
         &self,
         Parameters(p): Parameters<FilterItemsParams>,
     ) -> Result<CallToolResult, McpError> {
+        let shape = Shape::new(p.detail, p.fields.clone());
         let limit = clamp_limit(p.limit, DEFAULT_LIMIT);
         let offset = p.offset.unwrap_or(0).max(0);
-        let filters: Vec<AttributeFilterDto> = p.filters.into_iter().map(Into::into).collect();
-        let items = self
+        let under = match &p.under {
+            Some(under) => Some(self.resolve_item(under).await?.item_id),
+            None => None,
+        };
+        let query = ItemQueryDto {
+            types: p.types.unwrap_or_default(),
+            type_mode: p.type_mode.unwrap_or_default(),
+            under,
+            filters: p.filters.into_iter().map(Into::into).collect(),
+            sort: p.sort.map(Into::into),
+            limit: Some(limit),
+            offset,
+        };
+        let page = self
             .client
-            .filter_items(&filters, limit, offset)
+            .query_items(&query)
             .await
             .map_err(|e| err_ctx("filtered items", e))?;
-        Ok(output::item_page(items, p.detail, offset, limit))
+        Ok(output::query_page(page, shape.clone(), offset))
     }
 
     #[rmcp::tool(
@@ -377,6 +476,7 @@ impl ZealotServer {
         &self,
         Parameters(p): Parameters<LinkedItemsParams>,
     ) -> Result<CallToolResult, McpError> {
+        let shape = Shape::new(p.detail, p.fields.clone());
         let limit = clamp_limit(p.limit, DEFAULT_LIMIT);
         let offset = p.offset.unwrap_or(0).max(0);
         let item = self.resolve_item(&p.item).await?;
@@ -386,11 +486,11 @@ impl ZealotServer {
             LinkDirection::Backlinks => self.client.get_backlinks(item.item_id).await,
         }
         .map_err(|e| err_ctx(&format!("links of item #{}", item.item_id), e))?;
-        Ok(slice_item_page(items, p.detail, offset, limit))
+        Ok(slice_item_page(items, shape.clone(), offset, limit))
     }
 
     #[rmcp::tool(
-        description = "Create a new wiki item. `content` is ZealotScript/markdown. `attributes` is a JSON object of key→value pairs. `types` assigns item types at creation. `links` sets relationships to other items by ID. `parent` (ID or title) adds that item to the `Parent` list attribute, placing the new item in the wiki hierarchy; it merges with any `Parent` given in `attributes`."
+        description = "Create a new wiki item. `content` is ZealotScript/markdown. `attributes` is a JSON object of key→value pairs. `types` assigns item types at creation. `links` sets relationships to other items by ID. `parent` (ID or title) adds that item to the `Parent` list attribute, placing the new item in the wiki hierarchy; it merges with any `Parent` given in `attributes`. Returns a compact result (`item_id`, `title`, `types`, `attributes`, `content_chars`); pass `full: true` for the complete item."
     )]
     pub async fn create_item(
         &self,
@@ -421,11 +521,11 @@ impl ZealotServer {
             .add_item(&dto)
             .await
             .map_err(|e| err_ctx("new item", e))?;
-        Ok(output::json_result(&item))
+        Ok(output::write_item_result(&item, p.full.unwrap_or(false)))
     }
 
     #[rmcp::tool(
-        description = "Update an existing item's title and/or content. Only provided fields are changed."
+        description = "Update an existing item's title and/or content. Only provided fields are changed. Returns a compact result (`item_id`, `title`, `types`, `attributes`, `content_chars`); pass `full: true` for the complete item."
     )]
     pub async fn update_item(
         &self,
@@ -444,7 +544,7 @@ impl ZealotServer {
             .update_item(&dto)
             .await
             .map_err(|e| err_ctx(&format!("item #{}", existing.item_id), e))?;
-        Ok(output::json_result(&item))
+        Ok(output::write_item_result(&item, p.full.unwrap_or(false)))
     }
 
     #[rmcp::tool(
@@ -527,6 +627,45 @@ impl ZealotServer {
     }
 
     #[rmcp::tool(
+        description = "Set Status on several items in one call, optionally adding the same comment to each (a comment is required for Hold, Blocked, and Rejected). Items are processed independently: the reply has one compact row per item ({item_id, title, status, comment_id?} or {item, error}) so partial failures are visible."
+    )]
+    pub async fn set_status(
+        &self,
+        Parameters(p): Parameters<SetStatusParams>,
+    ) -> Result<CallToolResult, McpError> {
+        if p.items.is_empty() || p.items.len() > MAX_STATUS_BATCH {
+            return Err(McpError::invalid_params(
+                format!("items must list 1 to {MAX_STATUS_BATCH} items"),
+                None,
+            ));
+        }
+        let comment = p.comment.as_deref().map(str::trim).filter(|c| !c.is_empty());
+        if comment.is_none() && status_needs_comment(&p.status) {
+            return Err(McpError::invalid_params(
+                format!("a comment giving the reason is required when setting Status to {}", p.status),
+                None,
+            ));
+        }
+
+        let mut rows = Vec::with_capacity(p.items.len());
+        let mut failed = 0;
+        for reference in &p.items {
+            match self.set_one_status(reference, &p.status, comment).await {
+                Ok(row) => rows.push(row),
+                Err(e) => {
+                    failed += 1;
+                    rows.push(json!({"item": reference, "error": e.message}));
+                }
+            }
+        }
+        Ok(output::json_result(&json!({
+            "updated": rows.len() - failed,
+            "failed": failed,
+            "items": rows,
+        })))
+    }
+
+    #[rmcp::tool(
         description = "Assign an item type to an item (e.g. assign 'Goal' type to an item). An item can have multiple types."
     )]
     pub async fn assign_item_type(
@@ -571,6 +710,43 @@ impl ZealotServer {
     }
 }
 
+impl ZealotServer {
+    async fn set_one_status(
+        &self,
+        reference: &str,
+        status: &str,
+        comment: Option<&str>,
+    ) -> Result<serde_json::Value, McpError> {
+        let item = self.resolve_item(reference).await?;
+        let attrs = HashMap::from([("Status".to_string(), json!(status))]);
+        self.client
+            .set_item_attributes(item.item_id, &attrs)
+            .await
+            .map_err(|e| err_ctx(&format!("item #{}", item.item_id), e))?;
+        let mut row = json!({"item_id": item.item_id, "title": item.title, "status": status});
+        if let Some(content) = comment {
+            let dto = AddCommentDto {
+                item_id: item.item_id,
+                timestamp: now_timestamp(),
+                content: content.to_string(),
+            };
+            let added = self
+                .client
+                .add_comment(&dto)
+                .await
+                .map_err(|e| {
+                    let e = err_ctx(&format!("comment on item #{}", item.item_id), e);
+                    McpError::internal_error(
+                        format!("Status was set to {status} but the comment failed: {}", e.message),
+                        None,
+                    )
+                })?;
+            row["comment_id"] = json!(added.comment_id);
+        }
+        Ok(row)
+    }
+}
+
 /// Add `parent_id` to the `Parent` attribute, which is `list(item)` on the
 /// server. Any `Parent` already in `attributes` (a single value or an array) is
 /// kept, in order, and the resolved parent is appended unless already present.
@@ -588,9 +764,14 @@ fn merge_parent(attributes: &mut HashMap<String, serde_json::Value>, parent_id: 
 }
 
 /// `list_items` (root/type-filtered) is unbounded server-side; slice + project client-side.
-fn slice_item_page(items: Vec<ItemDto>, detail: Detail, offset: i64, limit: i64) -> CallToolResult {
+fn slice_item_page(
+    items: Vec<ItemDto>,
+    shape: Shape,
+    offset: i64,
+    limit: i64,
+) -> CallToolResult {
     let start = offset.max(0) as usize;
     let end = start.saturating_add(limit.max(0) as usize);
     let sliced: Vec<ItemDto> = items.into_iter().skip(start).take(end - start).collect();
-    output::item_page(sliced, detail, offset, limit)
+    output::item_page(sliced, shape, offset, limit)
 }

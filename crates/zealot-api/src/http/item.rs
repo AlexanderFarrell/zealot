@@ -19,7 +19,10 @@ use zealot_domain::{
     attribute::AttributeFilterDto,
     auth::Actor,
     common::id::Id,
-    item::{AddItemDto, Item, ItemDto, SearchResultDto, SearchScope, UpdateItemDto},
+    item::{
+        AddItemDto, Item, ItemDto, ItemQueryDto, ItemQueryPageDto, SearchResultDto, SearchScope,
+        UpdateItemDto,
+    },
 };
 
 use crate::http::{
@@ -48,6 +51,7 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .route("/related/{item_id}", get(get_related))
         .route("/backlinks/{item_id}", get(get_backlinks))
         .route("/filter", post(filter_items))
+        .route("/query", post(query_items))
         .route("/rebuild-links", post(rebuild_links))
         .route("/{item_id}", patch(update_item).delete(delete_item))
         .route("/{item_id}/attr", patch(set_attributes))
@@ -356,6 +360,23 @@ async fn filter_items(
         .filter_items_paginated(&body.filters, limit, offset, &account)
         .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
+}
+
+async fn query_items(
+    State(state): State<AppState>,
+    Extension(actor): Extension<Actor>,
+    Json(body): Json<ItemQueryDto>,
+) -> Result<Json<ItemQueryPageDto>, HttpError> {
+    let account = require_account(&actor)?;
+    let (items, total) = state
+        .services
+        .item
+        .query_items(&body, &account)
+        .map_err(item_service_err)?;
+    Ok(Json(ItemQueryPageDto {
+        items: items.iter().map(ItemDto::from).collect(),
+        total,
+    }))
 }
 
 async fn rebuild_links(

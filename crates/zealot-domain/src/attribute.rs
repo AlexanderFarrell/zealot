@@ -183,6 +183,47 @@ pub enum AttributeError {
 
     #[error("type is not supported: {err_str:?}")]
     NotSupported { err_str: String },
+
+    /// Another error, tagged with the attribute it came from and the shape that attribute expects.
+    #[error("attribute '{key}' (expects {expected}): {source}")]
+    ForAttribute {
+        key: String,
+        expected: String,
+        source: Box<AttributeError>,
+    },
+}
+
+impl AttributeBaseScalarType {
+    fn describe(&self) -> &'static str {
+        match self {
+            Self::Text => "text",
+            Self::Integer => "integer",
+            Self::Decimal => "decimal",
+            Self::Date => "date YYYY-MM-DD",
+            Self::Week => "week YYYY-Wnn",
+            Self::Dropdown => "one of the dropdown values",
+            Self::Boolean => "boolean",
+            Self::Item => "item id",
+        }
+    }
+}
+
+impl AttributeError {
+    /// Name the attribute (and the shape its kind expects, when known) in this error.
+    pub fn for_attribute(self, key: &str, kind: Option<&AttributeKind>) -> Self {
+        let expected = match kind.map(|kind| &kind.base_type) {
+            Some(AttributeBaseType::Scalar(scalar)) => scalar.describe().to_string(),
+            Some(AttributeBaseType::List(scalar)) => {
+                format!("a JSON array of {}", scalar.describe())
+            }
+            None => String::from("an unregistered attribute kind"),
+        };
+        Self::ForAttribute {
+            key: key.to_string(),
+            expected,
+            source: Box::new(self),
+        }
+    }
 }
 
 impl Attribute {
@@ -198,18 +239,19 @@ impl Attribute {
         if let Value::Object(obj) = value {
             for (key, value) in obj {
                 if kinds.contains_key(key) {
-                    match Attribute::single_from_json(value, kinds.get(key).unwrap()) {
+                    let kind = kinds.get(key).unwrap();
+                    match Attribute::single_from_json(value, kind) {
                         Ok(v) => {
                             ret.insert(key.clone(), v);
                         }
-                        Err(err) => return Err(err),
+                        Err(err) => return Err(err.for_attribute(key, Some(kind))),
                     }
                 } else {
                     match Attribute::single_from_json_without_kind(value) {
                         Ok(v) => {
                             ret.insert(key.clone(), v);
                         }
-                        Err(err) => return Err(err),
+                        Err(err) => return Err(err.for_attribute(key, None)),
                     }
                 }
             }
@@ -518,6 +560,26 @@ mod attribute_tests {
             base_type,
             spec,
         }
+    }
+
+    #[test]
+    fn errors_name_the_attribute_and_expected_shape() {
+        let kinds = HashMap::from([(
+            String::from("Parent"),
+            kind(
+                AttributeBaseType::List(AttributeBaseScalarType::Item),
+                AttributeKindSpec::Item,
+            ),
+        )]);
+
+        let err = Attribute::from_json(&json!({"Parent": 11}), &kinds).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "attribute 'Parent' (expects a JSON array of item id): value must be a JSON array"
+        );
+
+        let err = Attribute::from_json(&json!({"Mystery": [1]}), &kinds).unwrap_err();
+        assert!(err.to_string().starts_with("attribute 'Mystery'"), "{err}");
     }
 
     #[test]

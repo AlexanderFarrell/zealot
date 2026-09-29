@@ -13,8 +13,8 @@ use zealot_domain::{
     },
     common::id::Id,
     item::{
-        AddItemCoreDto, AddItemDto, Item, ItemCore, ItemLink, ItemLinkDto, SearchScope,
-        UpdateItemCoreDto, UpdateItemDto, relationship,
+        AddItemCoreDto, AddItemDto, Item, ItemCore, ItemLink, ItemLinkDto, ItemQueryDto,
+        SearchScope, UpdateItemCoreDto, UpdateItemDto, relationship,
     },
     item_type::{ItemType, ItemTypeRef},
 };
@@ -22,9 +22,14 @@ use zealot_domain::{
 use crate::{
     ports::events::{EventPort, ZealotEvent},
     repos::{
-        attribute::AttributeRepo, common::RepoError, item::ItemRepo,
-        item_attribute_value::ItemAttributeValueRepo, item_external_link::ItemExternalLinkRepo,
-        item_heading::ItemHeadingRepo, item_link::ItemLinkRepo, item_type::ItemTypeRepo,
+        attribute::AttributeRepo,
+        common::RepoError,
+        item::ItemRepo,
+        item_attribute_value::{ItemAttributeValueRepo, ItemQuery, ItemSort},
+        item_external_link::ItemExternalLinkRepo,
+        item_heading::ItemHeadingRepo,
+        item_link::ItemLinkRepo,
+        item_type::ItemTypeRepo,
     },
 };
 
@@ -360,6 +365,66 @@ impl ItemService {
         account: &Account,
     ) -> Result<Vec<Item>, ItemServiceError> {
         self.filter_items_with_pagination(filter_dtos, Some(limit), offset, account)
+    }
+
+    /// Query items by type, subtree, attribute filters, and sort; returns one page plus the total.
+    pub fn query_items(
+        &self,
+        dto: &ItemQueryDto,
+        account: &Account,
+    ) -> Result<(Vec<Item>, i64), ItemServiceError> {
+        let filters: Vec<AttributeFilter> = dto
+            .filters
+            .iter()
+            .map(|f| AttributeFilter::try_from(f).map_err(ItemServiceError::InvalidFilter))
+            .collect::<Result<Vec<_>, _>>()?;
+        let all_types = match dto.type_mode.as_str() {
+            "" | "any" => false,
+            "all" => true,
+            other => {
+                return Err(ItemServiceError::InvalidFilter(format!(
+                    "type_mode must be 'any' or 'all', got '{other}'"
+                )));
+            }
+        };
+        let sort = match &dto.sort {
+            None => None,
+            Some(sort) => Some(ItemSort {
+                key: sort.key.clone(),
+                descending: match sort.direction.to_lowercase().as_str() {
+                    "" | "asc" => false,
+                    "desc" => true,
+                    other => {
+                        return Err(ItemServiceError::InvalidFilter(format!(
+                            "sort direction must be 'asc' or 'desc', got '{other}'"
+                        )));
+                    }
+                },
+            }),
+        };
+        let under = dto
+            .under
+            .map(|id| Id::try_from(id).map_err(|e| ItemServiceError::InvalidFilter(e.to_string())))
+            .transpose()?;
+        if dto.types.is_empty() && under.is_none() && filters.is_empty() {
+            return Err(ItemServiceError::InvalidFilter(String::from(
+                "query needs at least one of types, under, or filters",
+            )));
+        }
+        let query = ItemQuery {
+            types: dto.types.clone(),
+            all_types,
+            under,
+            filters,
+            sort,
+            limit: dto.limit.unwrap_or(50).clamp(1, 100),
+            offset: dto.offset.max(0),
+        };
+        let (ids, total) = self
+            .item_attribute_value_repo
+            .query_item_ids(&query, &account.account_id)
+            .map_err(ItemServiceError::Repo)?;
+        Ok((self.hydrate_item_ids(&ids, account)?, total))
     }
 
     fn filter_items_with_pagination(
@@ -771,10 +836,11 @@ impl ItemService {
         let mut result = HashMap::new();
         for (key, value) in raw {
             let attr = if let Some(kind) = kinds.get(key.as_str()) {
-                Attribute::single_from_json(value, kind).map_err(ItemServiceError::Attribute)?
+                Attribute::single_from_json(value, kind)
+                    .map_err(|e| ItemServiceError::Attribute(e.for_attribute(key, Some(kind))))?
             } else {
                 Attribute::single_from_json_without_kind(value)
-                    .map_err(ItemServiceError::Attribute)?
+                    .map_err(|e| ItemServiceError::Attribute(e.for_attribute(key, None)))?
             };
             result.insert(key.clone(), attr);
         }

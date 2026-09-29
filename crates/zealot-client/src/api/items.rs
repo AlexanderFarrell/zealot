@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use serde_json::{Value, json};
 use zealot_domain::{
     attribute::AttributeFilterDto,
-    item::{AddItemDto, ItemDto, SearchResultDto, SearchScope, UpdateItemDto},
+    item::{
+        AddItemDto, ItemDto, ItemQueryDto, ItemQueryPageDto, SearchResultDto, SearchScope,
+        UpdateItemDto,
+    },
 };
 
 use crate::{
@@ -83,6 +86,11 @@ impl ZealotClient {
             &json!({ "filters": filters, "limit": limit, "offset": offset }),
         )
         .await
+    }
+
+    /// Query items by type, subtree, filters, and sort; returns one page and the total count.
+    pub async fn query_items(&self, query: &ItemQueryDto) -> Result<ItemQueryPageDto, ApiError> {
+        self.post("/item/query", query).await
     }
 
     pub async fn add_item(&self, dto: &AddItemDto) -> Result<ItemDto, ApiError> {

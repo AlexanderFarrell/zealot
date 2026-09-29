@@ -2,10 +2,13 @@ use rmcp::{ErrorData as McpError, handler::server::wrapper::Parameters, model::C
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::json;
-use zealot_domain::{comment::AddCommentDto, repeat::UpdateRepeatEntryDto};
+use zealot_domain::{
+    attribute::AttributeFilterDto, comment::AddCommentDto, item::ItemQueryDto,
+    repeat::UpdateRepeatEntryDto,
+};
 
 use crate::{
-    output::{self, DEFAULT_LIMIT, Detail},
+    output::{self, DEFAULT_LIMIT, Detail, Shape},
     tools::{ZealotServer, err_ctx, parse_date},
 };
 
@@ -22,9 +25,12 @@ pub struct GetPlanParams {
     /// Output detail: "meta", "summary" (default), or "full"
     #[serde(default)]
     pub detail: Detail,
-    /// Max results (default 50) — only applied client-side for month/year periods
+    /// Return only these attributes per item (plus `item_id`, `title`, `types`),
+    /// overriding `detail`. For example ["TicketID", "Status"]
+    pub fields: Option<Vec<String>>,
+    /// Max results (default 50, max 100)
     pub limit: Option<i64>,
-    /// Offset for pagination — only applied client-side for month/year periods
+    /// Offset for pagination (default 0)
     pub offset: Option<i64>,
 }
 
@@ -71,6 +77,8 @@ pub struct AddCommentParams {
     pub content: String,
     /// Timestamp in YYYY-MM-DD HH:MM:SS format (default: now)
     pub timestamp: Option<String>,
+    /// Return the complete comment, including its parent item, instead of the compact result (default false)
+    pub full: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -97,7 +105,7 @@ fn today_str() -> String {
         .to_string()
 }
 
-fn now_timestamp() -> String {
+pub(crate) fn now_timestamp() -> String {
     chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
@@ -214,42 +222,39 @@ impl ZealotServer {
     }
 
     #[rmcp::tool(
-        description = "Get planned items for a period. `period` shape determines granularity: YYYY-MM-DD for a day, YYYY-Wnn for an ISO week (e.g. \"2026-W27\"), YYYY-MM for a month, or YYYY for a year. Returns compact summaries by default; pass detail:\"full\" for complete content."
+        description = "Get planned items for a period. `period` shape determines granularity: YYYY-MM-DD for a day, YYYY-Wnn for an ISO week (e.g. \"2026-W27\"), YYYY-MM for a month, or YYYY for a year. Paged server-side; the reply includes `total`. Returns compact summaries by default; pass detail:\"full\" for complete content."
     )]
     pub async fn get_plan(
         &self,
         Parameters(p): Parameters<GetPlanParams>,
     ) -> Result<CallToolResult, McpError> {
-        let limit = p.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, 500);
+        let shape = Shape::new(p.detail, p.fields.clone());
+        let limit = p.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, 100);
         let offset = p.offset.unwrap_or(0).max(0);
-        let period = parse_period(&p.period)?;
-        let items = match period {
-            Period::Day(d) => self
-                .client
-                .planner_day(d)
-                .await
-                .map_err(|e| err_ctx("day plan", e))?,
-            Period::Week(w) => self
-                .client
-                .planner_week(&w)
-                .await
-                .map_err(|e| err_ctx("week plan", e))?,
-            Period::Month(m, y) => self
-                .client
-                .planner_month(m, y)
-                .await
-                .map_err(|e| err_ctx("month plan", e))?,
-            Period::Year(y) => self
-                .client
-                .planner_year(y)
-                .await
-                .map_err(|e| err_ctx("year plan", e))?,
+        let eq = |key: &str, value: serde_json::Value| AttributeFilterDto {
+            key: key.to_string(),
+            op: "eq".to_string(),
+            value,
+            list_mode: "any".to_string(),
         };
-        // Planner endpoints are unbounded server-side; slice client-side.
-        let start = offset.max(0) as usize;
-        let end = start.saturating_add(limit.max(0) as usize);
-        let sliced = items.into_iter().skip(start).take(end - start).collect();
-        Ok(output::item_page(sliced, p.detail, offset, limit))
+        let filters = match parse_period(&p.period)? {
+            Period::Day(d) => vec![eq("Date", json!(d.format("%Y-%m-%d").to_string()))],
+            Period::Week(w) => vec![eq("Week", json!(w))],
+            Period::Month(m, y) => vec![eq("Month", json!(m)), eq("Year", json!(y))],
+            Period::Year(y) => vec![eq("Year", json!(y))],
+        };
+        let query = ItemQueryDto {
+            filters,
+            limit: Some(limit),
+            offset,
+            ..Default::default()
+        };
+        let page = self
+            .client
+            .query_items(&query)
+            .await
+            .map_err(|e| err_ctx("plan", e))?;
+        Ok(output::query_page(page, shape.clone(), offset))
     }
 
     #[rmcp::tool(description = "List all items enrolled in the habit/repeat tracker.")]
@@ -369,7 +374,7 @@ impl ZealotServer {
     }
 
     #[rmcp::tool(
-        description = "Add a comment to an item. Timestamp format: YYYY-MM-DD HH:MM:SS (defaults to now)."
+        description = "Add a comment to an item. Timestamp format: YYYY-MM-DD HH:MM:SS (defaults to now). Returns {comment_id, item_id, timestamp}; pass `full: true` for the complete comment with its parent item."
     )]
     pub async fn add_comment(
         &self,
@@ -386,7 +391,10 @@ impl ZealotServer {
             .add_comment(&dto)
             .await
             .map_err(|e| err_ctx(&format!("comment on item #{}", existing.item_id), e))?;
-        Ok(output::json_result(&comment))
+        Ok(output::write_comment_result(
+            &comment,
+            p.full.unwrap_or(false),
+        ))
     }
 
     #[rmcp::tool(
@@ -413,7 +421,7 @@ impl ZealotServer {
             .add_comment(&dto)
             .await
             .map_err(|e| err_ctx("journal entry", e))?;
-        Ok(output::json_result(&comment))
+        Ok(output::write_comment_result(&comment, false))
     }
 
     #[rmcp::tool(description = "Update the body text of an existing comment.")]

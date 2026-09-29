@@ -106,7 +106,45 @@ pub struct SearchResultDto {
     pub snippet: Option<String>,
 }
 
+/// One page of a queried item list, with the count of all matching items.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ItemQueryPageDto {
+    pub items: Vec<ItemDto>,
+    pub total: i64,
+}
+
 // Receive DTOs
+
+/// Sort for an item query: `title`, `created`, `updated`, or a scalar attribute key.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ItemSortDto {
+    pub key: String,
+    /// `asc` (default) or `desc`
+    #[serde(default)]
+    pub direction: String,
+}
+
+/// Body of `POST /item/query`. All parts combine with AND.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ItemQueryDto {
+    /// Item type names the item must have
+    #[serde(default)]
+    pub types: Vec<String>,
+    /// `any` (default) or `all` of `types`
+    #[serde(default)]
+    pub type_mode: String,
+    /// Only descendants of this item (through `Parent` links)
+    #[serde(default)]
+    pub under: Option<i64>,
+    #[serde(default)]
+    pub filters: Vec<crate::attribute::AttributeFilterDto>,
+    #[serde(default)]
+    pub sort: Option<ItemSortDto>,
+    #[serde(default)]
+    pub limit: Option<i64>,
+    #[serde(default)]
+    pub offset: i64,
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct AddItemDto {
