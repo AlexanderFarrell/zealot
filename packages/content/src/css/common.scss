@@ -1318,6 +1318,11 @@ mobile-title-bar {
 
     #main_web_ui {
       grid-template-columns: 1fr;
+      /* Size each stacked row to its content. The desktop minmax(0, 1fr) row
+         collapses once the right sidebar's auto row takes the free height,
+         letting center-content overflow underneath the sidebar (Z195). */
+      grid-template-rows: auto;
+      grid-auto-rows: auto;
       padding-top: 56px; /* height of mobile-title-bar */
     }
 
