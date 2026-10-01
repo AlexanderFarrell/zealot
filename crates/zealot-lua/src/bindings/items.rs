@@ -420,10 +420,7 @@ pub fn item_to_lua(lua: &Lua, item: &Item) -> mlua::Result<Table> {
     for (i, link) in item.links.iter().enumerate() {
         let lt = lua.create_table()?;
         lt.set("id", i64::from(link.other_item_id))?;
-        lt.set(
-            "relationship",
-            format!("{:?}", link.relationship).to_lowercase(),
-        )?;
+        lt.set("relationship", link.relationship.to_lowercase())?;
         links.set(i + 1, lt)?;
     }
     t.set("links", links)?;
@@ -469,7 +466,7 @@ fn lua_value_to_json(value: LuaValue) -> mlua::Result<JsonValue> {
     }
 }
 
-fn json_to_lua(lua: &Lua, v: JsonValue) -> mlua::Result<LuaValue> {
+pub(crate) fn json_to_lua(lua: &Lua, v: JsonValue) -> mlua::Result<LuaValue> {
     match v {
         JsonValue::Null => Ok(LuaValue::Nil),
         JsonValue::Bool(b) => Ok(LuaValue::Boolean(b)),

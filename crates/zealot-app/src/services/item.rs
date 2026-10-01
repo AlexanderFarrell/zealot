@@ -942,6 +942,7 @@ impl ItemService {
         let item_types =
             self.resolve_assigned_item_types(&current_item.types, &account.account_id)?;
         let parsed = self.parse_attributes_map(raw, &account.account_id)?;
+        let previous_attributes = current_item.attributes.clone();
         let mut merged_attributes = current_item.attributes;
         for (key, value) in &parsed {
             merged_attributes.insert(key.clone(), value.clone());
@@ -963,6 +964,8 @@ impl ItemService {
                     account_id: account.account_id,
                     item: item.clone(),
                     attribute_key: key.clone(),
+                    old_value: previous_attributes.get(key).cloned(),
+                    new_value: item.attributes.get(key).cloned(),
                 });
             }
         }
@@ -1020,6 +1023,7 @@ impl ItemService {
             .ok_or(ItemServiceError::NotFound)?;
         let item_types =
             self.resolve_assigned_item_types(&current_item.types, &account.account_id)?;
+        let old_value = current_item.attributes.get(key).cloned();
         let mut merged_attributes = current_item.attributes;
         merged_attributes.remove(key);
         self.ensure_valid_for_types(&item_types, &merged_attributes)?;
@@ -1052,6 +1056,8 @@ impl ItemService {
                 account_id: account.account_id,
                 item,
                 attribute_key: key.to_string(),
+                old_value,
+                new_value: None,
             });
         }
         Ok(())
