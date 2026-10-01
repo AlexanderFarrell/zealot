@@ -1324,6 +1324,11 @@ mobile-title-bar {
       grid-template-rows: auto;
       grid-auto-rows: auto;
       padding-top: 56px; /* height of mobile-title-bar */
+      /* Let the document scroll instead of this fixed-height box. Nested
+         scrollers trap touch scrolling on iOS Safari, so the stacked right
+         sidebar never came into view (Z195). */
+      height: auto;
+      overflow: visible;
     }
 
     .panel-resize-handle {
@@ -1341,12 +1346,28 @@ mobile-title-bar {
       height: auto;
     }
 
+    /* Grow with the screen's content so the right sidebar follows it directly
+       rather than sitting a full screen further down. */
     center-content {
       height: auto;
-      min-height: calc(100vh - 56px);
+      min-height: 0;
+      overflow: visible;
 
       item-screen {
-        min-height: 100vh;
+        min-height: 0;
+        /* Keep the single column at screen width; a long unbroken title would
+           otherwise widen it past the phone and clip every row on the right. */
+        grid-template-columns: minmax(0, 1fr);
+
+        .item-title-row > h1 {
+          overflow-wrap: anywhere;
+        }
+
+        /* Toolbar buttons are inline-flex with no whitespace between them, so
+           under the block-level .row above they never wrap and get clipped. */
+        .button_row {
+          display: flex;
+        }
       }
     }
 }
