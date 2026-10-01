@@ -9,7 +9,7 @@ use zealot_domain::{item::ItemDto, repeat::RepeatEntryDto};
 
 use crate::{
     output::{self, Detail},
-    tools::{ZealotServer, err_ctx, parse_date},
+    tools::{ZealotServer, err_ctx, local_today, parse_date},
 };
 
 const FETCH_PAGE_SIZE: i64 = 100;
@@ -195,11 +195,26 @@ impl ZealotServer {
     }
 
     #[rmcp::tool(
-        description = "Summarize habit completion across a date range. Range is capped at 366 inclusive days. Complete extends streaks; Skip and Alternate are neutral; Not Complete breaks streaks."
+        description = "Summarize habit completion across a date range. Range is capped at 366 inclusive days. Complete extends streaks; Skip and Alternate are neutral; Not Complete breaks streaks. Days after today are not counted, and an unlogged today is pending rather than Not Complete; `counted_through` is the last day counted."
     )]
     pub async fn habit_stats(
         &self,
         Parameters(p): Parameters<HabitStatsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.habit_stats_as_of(p, local_today()).await
+    }
+}
+
+impl ZealotServer {
+    /// `habit_stats` evaluated as if the user's local date were `today`.
+    ///
+    /// Only days up to `today` are fetched and counted. Not Complete has no
+    /// stored row, so an unlogged today reads as Not Complete; it is treated
+    /// as pending until the day is over.
+    pub async fn habit_stats_as_of(
+        &self,
+        p: HabitStatsParams,
+        today: NaiveDate,
     ) -> Result<CallToolResult, McpError> {
         let start = parse_date(&p.start_date)?;
         let end = parse_date(&p.end_date)?;
@@ -216,73 +231,95 @@ impl ZealotServer {
             ));
         }
 
-        let entries = self
-            .client
-            .repeats_for_range(start, end)
-            .await
-            .map_err(|e| err_ctx("habit entries", e))?;
-
-        let mut by_item: BTreeMap<i64, Vec<(NaiveDate, RepeatEntryDto)>> = BTreeMap::new();
-        for entry in entries {
-            let date = parse_entry_date(&entry)?;
-            by_item
-                .entry(entry.item.item_id)
-                .or_default()
-                .push((date, entry));
-        }
-
-        let mut rows = Vec::new();
-        for (item_id, mut entries) in by_item {
-            entries.sort_by_key(|(date, _)| *date);
-            let title = entries
-                .first()
-                .map(|(_, entry)| entry.item.title.clone())
-                .unwrap_or_default();
-            let mut counts: HashMap<&'static str, usize> = HashMap::from([
-                ("complete", 0),
-                ("skip", 0),
-                ("alternate", 0),
-                ("not_complete", 0),
-                ("other", 0),
-            ]);
-            let mut current_streak = 0_usize;
-            let mut longest_streak = 0_usize;
-
-            for (_, entry) in &entries {
-                let key = status_key(&entry.status);
-                *counts.entry(key).or_default() += 1;
-                match key {
-                    "complete" => {
-                        current_streak += 1;
-                        longest_streak = longest_streak.max(current_streak);
-                    }
-                    "skip" | "alternate" => {}
-                    _ => current_streak = 0,
-                }
-            }
-
-            rows.push(json!({
-                "item_id": item_id,
-                "title": title,
-                "entries": entries.len(),
-                "counts": {
-                    "complete": counts["complete"],
-                    "skip": counts["skip"],
-                    "alternate": counts["alternate"],
-                    "not_complete": counts["not_complete"],
-                    "other": counts["other"],
-                },
-                "completion_rate": completion_rate(counts["complete"], counts["not_complete"]),
-                "current_streak": current_streak,
-                "longest_streak": longest_streak,
-            }));
-        }
+        let counted_end = end.min(today);
+        let entries = if counted_end < start {
+            Vec::new()
+        } else {
+            self.client
+                .repeats_for_range(start, counted_end)
+                .await
+                .map_err(|e| err_ctx("habit entries", e))?
+        };
+        let rows = habit_rows(entries, today)?;
 
         Ok(output::json_result(&json!({
             "start_date": p.start_date,
             "end_date": p.end_date,
+            "counted_through": (counted_end >= start).then(|| counted_end.to_string()),
             "habit_count": rows.len(),
             "habits": rows,
         })))
     }
+}
+
+/// Whether an entry counts toward stats on `today`: past days always count,
+/// today counts once it has a logged status, and future days never count.
+fn counts_toward_stats(date: NaiveDate, status: &str, today: NaiveDate) -> bool {
+    date < today || (date == today && status_key(status) != "not_complete")
+}
+
+/// Per-habit counts, completion rate, and streaks for the counted entries.
+fn habit_rows(
+    entries: Vec<RepeatEntryDto>,
+    today: NaiveDate,
+) -> Result<Vec<serde_json::Value>, McpError> {
+    let mut by_item: BTreeMap<i64, Vec<(NaiveDate, RepeatEntryDto)>> = BTreeMap::new();
+    for entry in entries {
+        let date = parse_entry_date(&entry)?;
+        if !counts_toward_stats(date, &entry.status, today) {
+            continue;
+        }
+        by_item
+            .entry(entry.item.item_id)
+            .or_default()
+            .push((date, entry));
+    }
+
+    let mut rows = Vec::new();
+    for (item_id, mut entries) in by_item {
+        entries.sort_by_key(|(date, _)| *date);
+        let title = entries
+            .first()
+            .map(|(_, entry)| entry.item.title.clone())
+            .unwrap_or_default();
+        let mut counts: HashMap<&'static str, usize> = HashMap::from([
+            ("complete", 0),
+            ("skip", 0),
+            ("alternate", 0),
+            ("not_complete", 0),
+            ("other", 0),
+        ]);
+        let mut current_streak = 0_usize;
+        let mut longest_streak = 0_usize;
+
+        for (_, entry) in &entries {
+            let key = status_key(&entry.status);
+            *counts.entry(key).or_default() += 1;
+            match key {
+                "complete" => {
+                    current_streak += 1;
+                    longest_streak = longest_streak.max(current_streak);
+                }
+                "skip" | "alternate" => {}
+                _ => current_streak = 0,
+            }
+        }
+
+        rows.push(json!({
+            "item_id": item_id,
+            "title": title,
+            "entries": entries.len(),
+            "counts": {
+                "complete": counts["complete"],
+                "skip": counts["skip"],
+                "alternate": counts["alternate"],
+                "not_complete": counts["not_complete"],
+                "other": counts["other"],
+            },
+            "completion_rate": completion_rate(counts["complete"], counts["not_complete"]),
+            "current_streak": current_streak,
+            "longest_streak": longest_streak,
+        }));
+    }
+    Ok(rows)
 }

@@ -137,7 +137,7 @@ Statistics are items with the `Statistic` type. Entries are numeric values with 
 - `wiki_stats(include_types?)` for total type and attribute-kind counts and recent items; per-type counts come with `include_types: true` or from `list_item_types`.
 - `orphaned_items(limit?)` for sampled graph orphans.
 - `attribute_usage()` for used, unused, and undefined attribute keys.
-- `habit_stats(start_date, end_date)` for completion rates and streaks over a range up to 366 days.
+- `habit_stats(start_date, end_date)` for completion rates and streaks over a range up to 366 days. It counts only up to today (local date); an unlogged today is pending, not Not Complete.
 
 Analysis tools may scan up to 1000 recent items and return `truncated: true` when the sample may not cover the full wiki.
 
