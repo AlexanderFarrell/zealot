@@ -337,6 +337,10 @@ fn attr_filter_value_col_and_val(
                 }),
             },
             AttributeBaseScalarType::Item => match value {
+                Value::String(text) if text.trim().parse::<i64>().is_ok() => Ok((
+                    "value_item_id",
+                    SqlValue::Int(text.trim().parse::<i64>().unwrap()),
+                )),
                 Value::Number(value) => value
                     .as_i64()
                     .map(|v| ("value_item_id", SqlValue::Int(v)))

@@ -15,6 +15,7 @@ The rules engine lets you automate Zealot using **Lua scripts**. Scripts can res
    - [zealot.comments](#zealotcomments)
    - [Utilities](#utilities)
    - [zealot.event](#zealothevent)
+   - [Reporting API](#reporting-api)
 6. [Item table structure](#item-table-structure)
 7. [Writing safe rules](#writing-safe-rules)
 8. [Building content with ZealotScript](#building-content-with-zealotscript)
@@ -138,7 +139,7 @@ All Zealot functionality is available through the `zealot` global table. Every f
 **`zealot.items.get(id)`**  
 Returns the item with the given ID, or `nil` if not found.
 ```lua
-local item = zealot.items.get("abc123")
+local item = zealot.items.get(4765)
 if item then
     zealot.notify(item.title)
 end
@@ -159,19 +160,20 @@ for _, task in ipairs(tasks) do
 end
 ```
 
-**`zealot.items.search(term)`**  
-Returns items whose titles match the search term (same as the search sidebar).
+**`zealot.items.search(term, opts?)`**  
+Returns items whose titles match the search term (same as the search sidebar). Without `opts` it returns every match, paging internally, so a result is never silently cut off. Pass `{ limit = n, offset = m }` to read one page yourself.
 ```lua
 local results = zealot.items.search("meeting")
+local page2 = zealot.items.search("meeting", { limit = 20, offset = 20 })
 ```
 
-**`zealot.items.filter(filters)`**  
-Returns items matching a set of attribute filters. Each filter is a table with `key`, `op`, and `value`.
+**`zealot.items.filter(filters, opts?)`**  
+Returns items matching a set of attribute filters. Each filter is a table with `key`, `op`, and `value`. Item-valued attributes such as `Parent` accept the id as a number or a numeric string. An empty filter list `{}` matches every item. `opts` is `{ limit = n, offset = m }`; without a limit every match is returned.
 
 ```lua
 local items = zealot.items.filter({
-    { key = "Status",   op = "eq",  value = "In Progress" },
-    { key = "Priority", op = "eq",  value = "High" },
+    { key = "Status",   op = "eq",  value = "Working" },
+    { key = "Priority", op = "eq",  value = 5 },
 })
 ```
 
@@ -186,6 +188,14 @@ Supported `op` values:
 | `gte` | Greater than or equal |
 | `lte` | Less than or equal |
 | `ilike` | Case-insensitive substring match |
+
+**`zealot.items.list(opts?)`**  
+Returns every item, same as `filter({}, opts)`. Use `{ limit, offset }` to page.
+```lua
+local first_page = zealot.items.list({ limit = 100 })
+```
+
+**ID arguments.** Every function that takes an item id (`get`, `update`, `set_attribute`, `remove_attribute`, `assign_type`, `delete`, `comments.add`, `comments.list`, `time_blocks.for_item`, and `Parent`-style filter values) accepts a number or a numeric string such as `"4765"`. Anything else raises an error.
 
 #### Write operations
 
@@ -218,8 +228,16 @@ Sets a single attribute on an item. Returns `true` on success.
 
 ```lua
 zealot.items.set_attribute(item.id, "Status", "Complete")
-zealot.items.set_attribute(item.id, "Priority", "High")
+zealot.items.set_attribute(item.id, "Priority", 5)
 zealot.items.set_attribute(item.id, "Date", "2026-05-15")
+```
+
+**`zealot.items.remove_attribute(id, key)`**  
+Removes an attribute from an item, for example to clear `Completed At` when an item is reopened. Returns `true`. Fires the same `on_attribute_set` event as `set_attribute`, with `attribute_key` set to the removed key. Fails if the item's types require the attribute.
+
+```lua
+zealot.items.set_attribute(item.id, "Status", "Working")
+zealot.items.remove_attribute(item.id, "Completed At")
 ```
 
 **`zealot.items.assign_type(id, type_name)`**  
@@ -247,6 +265,17 @@ Adds a comment to an item. Returns the created comment table.
 zealot.comments.add(item.id, "Reminder: due tomorrow.")
 ```
 
+**`zealot.comments.list(item_id)`**  
+Returns every comment on one item, like MCP `get_comments`. Each row is `{ comment_id, item_id, title, timestamp, content }`. `timestamp` is stored UTC as `YYYY-MM-DD HH:MM:SS`; pass it to `zealot.local_date` for the local day.
+
+**`zealot.comments.for_date(date)`**  
+Returns the comments on every item for one `YYYY-MM-DD` day (stored UTC day), same row shape.
+```lua
+for _, c in ipairs(zealot.comments.list(4804)) do
+    zealot.notify(c.timestamp .. " " .. c.content)
+end
+```
+
 ---
 
 ### Utilities
@@ -270,7 +299,7 @@ zealot.notify("Running at: " .. zealot.now)
 ```
 
 **`zealot.date`**  
-Today's date as a `YYYY-MM-DD` string.
+Today's date as a `YYYY-MM-DD` string in the user's time zone (see [Time zone](#time-zone)).
 ```lua
 -- e.g. "2026-05-11"
 zealot.items.set_attribute(item.id, "Date", zealot.date)
@@ -364,6 +393,125 @@ local has_meeting = false
 for _, t in ipairs(item.types) do
     if t == "Meeting" then has_meeting = true end
 end
+```
+
+---
+
+## Reporting API
+
+Reads and helpers that let a scheduled rule compute a weekly scorecard or review without an agent. They return the same data as the MCP tools of the same name.
+
+### Time zone
+
+`zealot.date`, `zealot.local_now`, `zealot.week_start` and `zealot.local_date` use the user's time zone, resolved in this order:
+
+1. The account setting `timezone`, an IANA name such as `Europe/London`.
+2. The `ZEALOT_TIMEZONE` environment variable on the server.
+3. UTC.
+
+`zealot.now` is always the UTC instant. `zealot.timezone` is the zone name in use.
+
+| Function | Returns |
+|---|---|
+| `zealot.timezone` | Zone name, e.g. `"Europe/London"`. |
+| `zealot.local_now` | RFC 3339 time in that zone, e.g. `"2026-07-02T00:30:00+01:00"`. |
+| `zealot.local_date(timestamp)` | Local `YYYY-MM-DD` for an RFC 3339 instant or a stored UTC `YYYY-MM-DD HH:MM:SS` timestamp; `nil` if unparseable. |
+| `zealot.date_add(date, days)` | A date shifted by `days` (negative allowed). |
+| `zealot.week_start(date?)` | The Monday of the week containing `date` (default today). |
+
+The server clock is not used. In the UK summer a comment stamped `2026-07-01 23:30:00` UTC belongs to `2026-07-02`, and `zealot.local_date` says so.
+
+### `zealot.habits`
+
+**`zealot.habits.list()`** returns every Repeat item.
+
+**`zealot.habits.entries(start_date, end_date?)`** returns one row per scheduled habit per day, `{ item_id, title, date, status, comment }`, like `get_habit_entries`. `end_date` defaults to `start_date`. Status is `Complete`, `Skip`, `Alternate` or `Not Complete`.
+
+**`zealot.habits.stats(start_date, end_date?)`** summarises per habit, like `habit_stats`. The range is at most 366 days. Days after today are not counted, and an unlogged today is pending rather than Not Complete. Returns:
+
+```lua
+{
+  start_date = "2026-09-28", end_date = "2026-10-04",
+  counted_through = "2026-10-01",       -- last day counted
+  habit_count = 1,
+  habits = {
+    { item_id = 12, title = "Run", entries = 3,
+      counts = { complete = 2, skip = 1, alternate = 0, not_complete = 0 },
+      completion_rate = 1.0,            -- complete / (complete + not_complete); absent if neither
+      current_streak = 2, longest_streak = 2 },
+  },
+}
+```
+
+### `zealot.time_blocks`
+
+**`zealot.time_blocks.for_range(start_date, end_date?)`** and **`zealot.time_blocks.for_item(item_id)`** return arrays of `{ block_id, item_id, title, date, start, ["end"], start_min, end_min, minutes, note }`, like `get_time_blocks`. `start` and `end` are `H:MM`. `end` is a Lua keyword, so read it as `block["end"]`; use `minutes` for durations.
+
+### Worked example: weekly scorecard
+
+Counts what shipped, the evidence comments, Craft hours with receipts, and habit completion for the current week (Monday to Sunday). Set `anchor` to any date to score a past week. The script is also at `docs/examples/weekly-scorecard.lua` and runs in `crates/zealot-lua/tests/weekly_scorecard.rs` against an in-memory test database.
+
+**Trigger:** Cron, `0 20 * * 0` (Sunday 8 PM), or Manual.
+
+```lua
+-- Weekly scorecard: runs entirely inside Zealot, no agent needed.
+-- Week = Monday..Sunday in the user's time zone. Pass any date in the week
+-- to score a past week, e.g. local anchor = "2026-09-30".
+local anchor = nil
+local week_start = zealot.week_start(anchor)
+local week_end = zealot.date_add(week_start, 6)
+
+-- Shipped: Tickets whose Status is Complete and whose Completed At falls in the week.
+local shipped, craft_minutes, receipts = 0, 0, 0
+for _, ticket in ipairs(zealot.items.find_by_type("Ticket")) do
+    local attrs = ticket.attributes
+    if attrs["Status"] == "Complete" and attrs["Completed At"] then
+        local day = zealot.local_date(attrs["Completed At"]) or string.sub(attrs["Completed At"], 1, 10)
+        if day >= week_start and day <= week_end then
+            shipped = shipped + 1
+        end
+    end
+end
+
+-- Evidence: comments written each day of the week, by local day.
+local comments = 0
+for offset = 0, 6 do
+    local day = zealot.date_add(week_start, offset)
+    for _, c in ipairs(zealot.comments.for_date(day)) do
+        if zealot.local_date(c.timestamp) == day then
+            comments = comments + 1
+        end
+    end
+end
+
+-- Craft hours: time blocks on items titled "Craft ...".
+for _, block in ipairs(zealot.time_blocks.for_range(week_start, week_end)) do
+    if string.find(block.title, "^Craft") then
+        craft_minutes = craft_minutes + block.minutes
+        if block.note ~= "" then receipts = receipts + 1 end
+    end
+end
+
+-- Habits: completion across the week (days after today are not counted).
+local habits = zealot.habits.stats(week_start, week_end)
+
+zealot.notify("Scorecard " .. week_start .. " to " .. week_end .. " (" .. zealot.timezone .. ")")
+zealot.notify("Shipped: " .. shipped)
+zealot.notify("Evidence comments: " .. comments)
+zealot.notify(string.format("Craft: %.1f h (%d blocks with receipts)", craft_minutes / 60, receipts))
+for _, h in ipairs(habits.habits) do
+    zealot.notify(string.format("Habit %s: %d complete, streak %d", h.title, h.counts.complete, h.current_streak))
+end
+```
+
+Sample output:
+
+```
+Scorecard 2026-09-28 to 2026-10-04 (UTC)
+Shipped: 2
+Evidence comments: 2
+Craft: 2.5 h (1 blocks with receipts)
+Habit Run: 1 complete, streak 0
 ```
 
 ---

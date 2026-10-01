@@ -1045,6 +1045,15 @@ impl ItemService {
             }
         }
 
+        tracing::info!(account_id = ?account.account_id, ?item_id, %key, "item attribute deleted");
+
+        if let Ok(Some(item)) = self.get_item_by_id(item_id, account) {
+            self.event_port.emit(ZealotEvent::AttributeSet {
+                account_id: account.account_id,
+                item,
+                attribute_key: key.to_string(),
+            });
+        }
         Ok(())
     }
 
