@@ -43,6 +43,11 @@ fn parse_scalar_type(s: &str) -> Option<AttributeBaseScalarType> {
         "dropdown" => Some(AttributeBaseScalarType::Dropdown),
         "boolean" => Some(AttributeBaseScalarType::Boolean),
         "item" => Some(AttributeBaseScalarType::Item),
+        "email" => Some(AttributeBaseScalarType::Email),
+        "telephone" => Some(AttributeBaseScalarType::Telephone),
+        "url" => Some(AttributeBaseScalarType::Url),
+        "media" => Some(AttributeBaseScalarType::Media),
+        "place" => Some(AttributeBaseScalarType::Place),
         _ => None,
     }
 }
@@ -57,6 +62,11 @@ fn scalar_type_to_str(t: &AttributeBaseScalarType) -> &'static str {
         AttributeBaseScalarType::Dropdown => "dropdown",
         AttributeBaseScalarType::Boolean => "boolean",
         AttributeBaseScalarType::Item => "item",
+        AttributeBaseScalarType::Email => "email",
+        AttributeBaseScalarType::Telephone => "telephone",
+        AttributeBaseScalarType::Url => "url",
+        AttributeBaseScalarType::Media => "media",
+        AttributeBaseScalarType::Place => "place",
     }
 }
 
@@ -134,18 +144,44 @@ fn row_to_attribute_kind(row: AttributeKindRow) -> Result<AttributeKind, RepoErr
             AttributeBaseType::Scalar(AttributeBaseScalarType::Item),
             AttributeKindSpec::Item,
         ),
+        "email" => (
+            AttributeBaseType::Scalar(AttributeBaseScalarType::Email),
+            AttributeKindSpec::Email,
+        ),
+        "telephone" => (
+            AttributeBaseType::Scalar(AttributeBaseScalarType::Telephone),
+            AttributeKindSpec::Telephone,
+        ),
+        "url" => (
+            AttributeBaseType::Scalar(AttributeBaseScalarType::Url),
+            AttributeKindSpec::Url,
+        ),
+        "media" => (
+            AttributeBaseType::Scalar(AttributeBaseScalarType::Media),
+            AttributeKindSpec::Media,
+        ),
+        "place" => (
+            AttributeBaseType::Scalar(AttributeBaseScalarType::Place),
+            AttributeKindSpec::Place,
+        ),
         "list" => {
             let inner_type_str = config
                 .get("list_type")
                 .and_then(|v| v.as_str())
                 .unwrap_or("text");
             let inner = parse_scalar_type(inner_type_str).unwrap_or(AttributeBaseScalarType::Text);
-            (
-                AttributeBaseType::List(inner.clone()),
-                AttributeKindSpec::List {
-                    list_type: AttributeBaseType::List(inner),
-                },
-            )
+            // Elements are validated with the inner type's own spec (dropdown values, min/max, ...),
+            // so build it from the same config; this is what makes a list of dropdowns a multi-select.
+            let inner_kind = row_to_attribute_kind(AttributeKindRow {
+                kind_id: row.kind_id,
+                account_id: row.account_id,
+                key: String::new(),
+                description: String::new(),
+                base_type: scalar_type_to_str(&inner).to_string(),
+                config: row.config.clone(),
+                is_system: row.is_system,
+            })?;
+            (AttributeBaseType::List(inner), inner_kind.spec)
         }
         other => {
             return Err(RepoError::DatabaseError {

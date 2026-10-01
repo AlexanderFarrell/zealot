@@ -27,6 +27,16 @@ pub enum AttributeBaseScalarType {
     Dropdown,
     Boolean,
     Item,
+    /// Email address, validated and stored as text.
+    Email,
+    /// Telephone number (digits with optional `+`, spaces, `-`, `.`, parentheses), stored as text.
+    Telephone,
+    /// Absolute `http`/`https` URL, stored as text.
+    Url,
+    /// Link to a media file: an absolute `http`/`https` URL or a path into the media store, stored as text.
+    Media,
+    /// Address text, or coordinates written `lat,lon`, stored as text.
+    Place,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -46,6 +56,11 @@ pub enum AttributeScalar {
     Dropdown(String),
     Boolean(bool),
     Item(Id),
+    Email(String),
+    Telephone(String),
+    Url(String),
+    Media(String),
+    Place(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -99,6 +114,11 @@ pub enum AttributeKindSpec {
     },
     Boolean,
     Item,
+    Email,
+    Telephone,
+    Url,
+    Media,
+    Place,
     List {
         list_type: AttributeBaseType,
     },
@@ -204,6 +224,11 @@ impl AttributeBaseScalarType {
             Self::Dropdown => "one of the dropdown values",
             Self::Boolean => "boolean",
             Self::Item => "item id",
+            Self::Email => "email address",
+            Self::Telephone => "telephone number",
+            Self::Url => "http(s) URL",
+            Self::Media => "media link (http(s) URL or /media path)",
+            Self::Place => "address or 'lat,lon' coordinates",
         }
     }
 }
@@ -328,6 +353,50 @@ impl Attribute {
             AttributeBaseScalarType::Dropdown => Self::parse_dropdown(value, spec),
             AttributeBaseScalarType::Boolean => Self::parse_boolean(value),
             AttributeBaseScalarType::Item => Self::parse_item(value),
+            AttributeBaseScalarType::Email => {
+                Self::parse_formatted(value, validate_email, "email address", AttributeScalar::Email)
+            }
+            AttributeBaseScalarType::Telephone => Self::parse_formatted(
+                value,
+                validate_telephone,
+                "telephone number",
+                AttributeScalar::Telephone,
+            ),
+            AttributeBaseScalarType::Url => {
+                Self::parse_formatted(value, validate_url, "http(s) URL", AttributeScalar::Url)
+            }
+            AttributeBaseScalarType::Media => Self::parse_formatted(
+                value,
+                validate_media,
+                "media link (http(s) URL or /media path)",
+                AttributeScalar::Media,
+            ),
+            AttributeBaseScalarType::Place => Self::parse_formatted(
+                value,
+                validate_place,
+                "address or 'lat,lon' coordinates",
+                AttributeScalar::Place,
+            ),
+        }
+    }
+
+    /// Parse a string value that must satisfy `validate`, wrapping the trimmed text with `wrap`.
+    fn parse_formatted(
+        value: &Value,
+        validate: fn(&str) -> bool,
+        expected: &str,
+        wrap: fn(String) -> AttributeScalar,
+    ) -> Result<AttributeScalar, AttributeError> {
+        let text = value.as_str().ok_or_else(|| AttributeError::InvalidValue {
+            err_str: format!("must be a string containing a {expected}"),
+        })?;
+        let text = text.trim();
+        if validate(text) {
+            Ok(wrap(text.to_string()))
+        } else {
+            Err(AttributeError::InvalidValue {
+                err_str: format!("'{text}' is not a valid {expected}"),
+            })
         }
     }
 
@@ -456,6 +525,64 @@ impl Attribute {
 
         Ok(AttributeScalar::Item(id))
     }
+}
+
+/// True for `local@domain.tld` with no whitespace, a single `@`, and a dotted domain.
+fn validate_email(text: &str) -> bool {
+    let Some((local, domain)) = text.split_once('@') else {
+        return false;
+    };
+    !local.is_empty()
+        && !text.chars().any(char::is_whitespace)
+        && !domain.contains('@')
+        && domain.contains('.')
+        && domain
+            .split('.')
+            .all(|label| !label.is_empty() && !label.starts_with('-') && !label.ends_with('-'))
+}
+
+/// True for 7-15 digits, optionally with a leading `+` and spaces, `-`, `.`, `(`, `)` separators.
+fn validate_telephone(text: &str) -> bool {
+    let body = text.strip_prefix('+').unwrap_or(text);
+    let digits = body.chars().filter(char::is_ascii_digit).count();
+    (7..=15).contains(&digits)
+        && body
+            .chars()
+            .all(|c| c.is_ascii_digit() || matches!(c, ' ' | '-' | '.' | '(' | ')'))
+}
+
+/// True for an absolute `http://` or `https://` URL with a host and no whitespace.
+fn validate_url(text: &str) -> bool {
+    let rest = text
+        .strip_prefix("https://")
+        .or_else(|| text.strip_prefix("http://"));
+    rest.is_some_and(|rest| {
+        !rest.is_empty()
+            && !rest.starts_with('/')
+            && !text.chars().any(char::is_whitespace)
+    })
+}
+
+/// True for an http(s) URL or a path into the media store (`/api/media/...` or `/media/...`).
+fn validate_media(text: &str) -> bool {
+    validate_url(text)
+        || (["/api/media/", "/media/"].iter().any(|prefix| {
+            text.strip_prefix(prefix)
+                .is_some_and(|rest| !rest.is_empty())
+        }) && !text.chars().any(char::is_whitespace))
+}
+
+/// True for `lat,lon` coordinates in range, or any non-empty address text.
+fn validate_place(text: &str) -> bool {
+    if text.is_empty() {
+        return false;
+    }
+    if let Some((lat, lon)) = text.split_once(',') {
+        if let (Ok(lat), Ok(lon)) = (lat.trim().parse::<f64>(), lon.trim().parse::<f64>()) {
+            return (-90.0..=90.0).contains(&lat) && (-180.0..=180.0).contains(&lon);
+        }
+    }
+    true
 }
 
 impl TryFrom<&str> for Week {
@@ -666,6 +793,50 @@ mod attribute_tests {
 
         assert!(matches!(op, AttributeFilterOp::LikeCaseInsensitive));
     }
+
+    #[test]
+    fn validates_formatted_kinds() {
+        let cases = [
+            (AttributeBaseScalarType::Email, json!("a@b.co"), true),
+            (AttributeBaseScalarType::Email, json!("a@b"), false),
+            (AttributeBaseScalarType::Email, json!("a b@c.com"), false),
+            (AttributeBaseScalarType::Telephone, json!("+1 (555) 123-4567"), true),
+            (AttributeBaseScalarType::Telephone, json!("12"), false),
+            (AttributeBaseScalarType::Telephone, json!("555-abc-1234"), false),
+            (AttributeBaseScalarType::Url, json!("https://example.com/x?y=1"), true),
+            (AttributeBaseScalarType::Url, json!("example.com"), false),
+            (AttributeBaseScalarType::Url, json!("javascript:alert(1)"), false),
+            (AttributeBaseScalarType::Media, json!("/media/photo.png"), true),
+            (AttributeBaseScalarType::Media, json!("/media/"), false),
+            (AttributeBaseScalarType::Media, json!("/api/media/paste/x.png"), true),
+            (AttributeBaseScalarType::Place, json!("10 Downing St, London"), true),
+            (AttributeBaseScalarType::Place, json!("51.5, -0.12"), true),
+            (AttributeBaseScalarType::Place, json!("95.0, 0"), false),
+            (AttributeBaseScalarType::Place, json!(""), false),
+            (AttributeBaseScalarType::Email, json!(5), false),
+        ];
+        for (scalar, value, ok) in cases {
+            let k = kind(AttributeBaseType::Scalar(scalar.clone()), AttributeKindSpec::Email);
+            assert_eq!(
+                Attribute::single_from_json(&value, &k).is_ok(),
+                ok,
+                "{scalar:?} {value}"
+            );
+        }
+    }
+
+    #[test]
+    fn multi_select_is_a_list_of_dropdown_values() {
+        let k = kind(
+            AttributeBaseType::List(AttributeBaseScalarType::Dropdown),
+            AttributeKindSpec::Dropdown {
+                values: vec!["a".into(), "b".into()],
+            },
+        );
+        assert!(Attribute::single_from_json(&json!(["a", "b"]), &k).is_ok());
+        assert!(Attribute::single_from_json(&json!(["a", "c"]), &k).is_err());
+    }
+
 }
 
 impl Serialize for Attribute {
@@ -688,6 +859,11 @@ impl Serialize for Attribute {
                 }
                 AttributeScalar::Dropdown(selected) => serializer.serialize_str(selected),
                 AttributeScalar::Boolean(boolean) => serializer.serialize_bool(*boolean),
+                AttributeScalar::Email(text)
+                | AttributeScalar::Telephone(text)
+                | AttributeScalar::Url(text)
+                | AttributeScalar::Media(text)
+                | AttributeScalar::Place(text) => serializer.serialize_str(text),
                 AttributeScalar::Item(id) => serializer.serialize_i64((*id).into()),
             },
             Attribute::List(values) => {
@@ -709,6 +885,11 @@ impl Serialize for Attribute {
                         }
                         AttributeScalar::Dropdown(selected) => seq.serialize_element(selected)?,
                         AttributeScalar::Boolean(boolean) => seq.serialize_element(boolean)?,
+                        AttributeScalar::Email(text)
+                        | AttributeScalar::Telephone(text)
+                        | AttributeScalar::Url(text)
+                        | AttributeScalar::Media(text)
+                        | AttributeScalar::Place(text) => seq.serialize_element(text)?,
                         AttributeScalar::Item(id) => {
                             let item_id: i64 = (*id).into();
                             seq.serialize_element(&item_id)?;

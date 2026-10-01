@@ -82,6 +82,7 @@ Attributes are typed. Common wire formats:
 | boolean | bool | `true` |
 | dropdown | string | `"High"` |
 | item | numeric item id | `123` |
+| email, telephone, url, media, place | string (validated; `url` is http(s), `place` is an address or `"lat,lon"`) | `"me@example.com"` |
 | list | array | `["a", "b"]` |
 
 Use `list_item_types` and `list_attribute_kinds` before assuming schema names. Attribute keys are Title Case with spaces (`Strategic Score`, `End Date`). `Parent` is a list of item ids (`"Parent": [11]`).

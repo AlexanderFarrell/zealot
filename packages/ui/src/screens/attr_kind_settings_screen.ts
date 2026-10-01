@@ -387,6 +387,10 @@ function buildListConfigFields(
     });
     label.append(span, select);
     container.appendChild(label);
+    if ((config.list_type ?? 'text') === 'dropdown') {
+        // A list of dropdown values is a multi-select; it needs the allowed values.
+        container.appendChild(buildDropdownConfigFields(config, onChange));
+    }
     return container;
 }
 
@@ -516,7 +520,9 @@ function buildTextConfigFields(
 function describeConfig(baseType: AttributeBaseType, config: AttributeConfig): string {
     switch (baseType) {
         case 'list':
-            return `inner: ${config.list_type ?? 'text'}`;
+            return config.list_type === 'dropdown'
+                ? `multi-select: ${config.values?.join(', ') ?? '—'}`
+                : `inner: ${config.list_type ?? 'text'}`;
         case 'dropdown':
             return config.values?.join(', ') ?? '—';
         case 'integer':

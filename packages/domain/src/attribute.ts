@@ -28,7 +28,12 @@ export const AttributeBaseTypesArray = [
     'dropdown',
     'boolean',
     'list',
-    'item'
+    'item',
+    'email',
+    'telephone',
+    'url',
+    'media',
+    'place'
 ]
 
 export const AttributeOpsArray = [
