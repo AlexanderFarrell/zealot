@@ -44,6 +44,16 @@ impl ItemTypeService {
             .map_err(ItemTypeServiceError::Repo)
     }
 
+    pub fn get_item_type_summaries_with_archived(
+        &self,
+        account_id: &Id,
+        include_archived: bool,
+    ) -> Result<Vec<ItemTypeSummary>, ItemTypeServiceError> {
+        self.repo
+            .get_item_type_summaries_with_archived(account_id, include_archived)
+            .map_err(ItemTypeServiceError::Repo)
+    }
+
     pub fn get_item_type(
         &self,
         type_id: &Id,

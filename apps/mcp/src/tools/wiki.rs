@@ -72,6 +72,9 @@ pub enum BrowseMode {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct BrowseItemsParams {
+    /// Include archived items (default false).
+    #[serde(default)]
+    pub include_archived: bool,
     /// Which set of items to browse
     pub mode: BrowseMode,
     /// Item type name. Only used when mode is "root": lists every item of this
@@ -93,6 +96,9 @@ pub struct BrowseItemsParams {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct SearchItemsParams {
+    /// Include archived items (default false).
+    #[serde(default)]
+    pub include_archived: bool,
     /// Search term to match against item titles, body content, or headings
     pub term: String,
     /// Max results (default 20, max 100)
@@ -159,6 +165,9 @@ impl From<SortParam> for ItemSortDto {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct FilterItemsParams {
+    /// Include archived items (default false).
+    #[serde(default)]
+    pub include_archived: bool,
     /// Attribute filters. All filters are ANDed together. May be empty when `types`
     /// or `under` is given.
     #[serde(default)]
@@ -197,6 +206,9 @@ pub enum LinkDirection {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct LinkedItemsParams {
+    /// Include archived items (default false).
+    #[serde(default)]
+    pub include_archived: bool,
     /// Item ID or exact title
     pub item: String,
     /// Which set of linked items to return
@@ -286,6 +298,9 @@ pub struct AppendToItemParams {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct GrepItemsParams {
+    /// Include archived items (default false).
+    #[serde(default)]
+    pub include_archived: bool,
     /// Text to find in item content, case-insensitive. Literal unless `regex` is true
     pub pattern: String,
     /// Treat `pattern` as a case-insensitive regular expression (default false)
@@ -482,6 +497,7 @@ impl ZealotServer {
                 Some(type_name) => {
                     let query = ItemQueryDto {
                         types: vec![type_name],
+                        include_archived: p.include_archived,
                         sort: p.sort.map(Into::into),
                         limit: Some(limit),
                         offset,
@@ -497,7 +513,7 @@ impl ZealotServer {
                 None => {
                     let items = self
                         .client
-                        .list_items(None)
+                        .list_items_with_archived(None, p.include_archived)
                         .await
                         .map_err(|e| err_ctx("items", e))?;
                     Ok(slice_item_page(items, shape.clone(), offset, limit))
@@ -506,7 +522,7 @@ impl ZealotServer {
             BrowseMode::Recent => {
                 let items = self
                     .client
-                    .recent_items(limit, offset)
+                    .recent_items_with_archived(limit, offset, p.include_archived)
                     .await
                     .map_err(|e| err_ctx("recent items", e))?;
                 Ok(output::item_page(items, shape.clone(), offset, limit))
@@ -514,7 +530,7 @@ impl ZealotServer {
             BrowseMode::Random => {
                 let items = self
                     .client
-                    .random_items(limit as usize)
+                    .random_items_with_archived(limit as usize, p.include_archived)
                     .await
                     .map_err(|e| err_ctx("random items", e))?;
                 Ok(output::item_page(items, shape.clone(), 0, limit))
@@ -522,7 +538,7 @@ impl ZealotServer {
             BrowseMode::MostViewed => {
                 let rows = self
                     .client
-                    .most_viewed(limit)
+                    .most_viewed_with_archived(limit, p.include_archived)
                     .await
                     .map_err(|e| err_ctx("most-viewed items", e))?;
                 Ok(output::json_result(&rows))
@@ -547,7 +563,14 @@ impl ZealotServer {
         };
         let hits = self
             .client
-            .search_items(&p.term, scope, p.regex.unwrap_or(false), limit, offset)
+            .search_items_with_archived(
+                &p.term,
+                scope,
+                p.regex.unwrap_or(false),
+                limit,
+                offset,
+                p.include_archived,
+            )
             .await
             .map_err(|e| err_ctx("search", e))?;
         Ok(output::search_page(hits, shape.clone(), offset, limit))
@@ -565,6 +588,7 @@ impl ZealotServer {
             None => None,
         };
         let query = GrepQueryDto {
+            include_archived: p.include_archived,
             pattern: p.pattern,
             regex: p.regex.unwrap_or(false),
             under,
@@ -596,6 +620,7 @@ impl ZealotServer {
             None => None,
         };
         let query = ItemQueryDto {
+            include_archived: p.include_archived,
             types: p.types.unwrap_or_default(),
             type_mode: p.type_mode.unwrap_or_default(),
             under,
@@ -624,12 +649,40 @@ impl ZealotServer {
         let offset = p.offset.unwrap_or(0).max(0);
         let item = self.resolve_item(&p.item).await?;
         let items = match p.direction {
-            LinkDirection::Children => self.client.get_children(item.item_id).await,
-            LinkDirection::Related => self.client.get_related(item.item_id).await,
-            LinkDirection::Backlinks => self.client.get_backlinks(item.item_id).await,
+            LinkDirection::Children => {
+                self.client
+                    .get_children_with_archived(item.item_id, p.include_archived)
+                    .await
+            }
+            LinkDirection::Related => {
+                self.client
+                    .get_related_with_archived(item.item_id, p.include_archived)
+                    .await
+            }
+            LinkDirection::Backlinks => {
+                self.client
+                    .get_backlinks_with_archived(item.item_id, p.include_archived)
+                    .await
+            }
         }
         .map_err(|e| err_ctx(&format!("links of item #{}", item.item_id), e))?;
         Ok(slice_item_page(items, shape.clone(), offset, limit))
+    }
+
+    #[rmcp::tool(
+        description = "Archive or unarchive an item without deleting or stripping any history. Set archived true/false; subtree true includes all descendants through Parent links in one atomic action. Direct reads and wikilinks keep working. Read the target first; obtain explicit authority before archiving real items."
+    )]
+    pub async fn set_archived(
+        &self,
+        Parameters(p): Parameters<ArchiveItemParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let id = self.resolve_item_id(&p.item).await?;
+        let result = self
+            .client
+            .set_archived(id, p.archived, p.subtree)
+            .await
+            .map_err(|e| err_ctx("archive item", e))?;
+        Ok(output::json_result(&result))
     }
 
     #[rmcp::tool(
@@ -799,10 +852,17 @@ impl ZealotServer {
                 None,
             ));
         }
-        let comment = p.comment.as_deref().map(str::trim).filter(|c| !c.is_empty());
+        let comment = p
+            .comment
+            .as_deref()
+            .map(str::trim)
+            .filter(|c| !c.is_empty());
         if comment.is_none() && status_needs_comment(&p.status) {
             return Err(McpError::invalid_params(
-                format!("a comment giving the reason is required when setting Status to {}", p.status),
+                format!(
+                    "a comment giving the reason is required when setting Status to {}",
+                    p.status
+                ),
                 None,
             ));
         }
@@ -910,17 +970,16 @@ impl ZealotServer {
                 timestamp: now_timestamp(),
                 content: content.to_string(),
             };
-            let added = self
-                .client
-                .add_comment(&dto)
-                .await
-                .map_err(|e| {
-                    let e = err_ctx(&format!("comment on item #{}", item.item_id), e);
-                    McpError::internal_error(
-                        format!("Status was set to {status} but the comment failed: {}", e.message),
-                        None,
-                    )
-                })?;
+            let added = self.client.add_comment(&dto).await.map_err(|e| {
+                let e = err_ctx(&format!("comment on item #{}", item.item_id), e);
+                McpError::internal_error(
+                    format!(
+                        "Status was set to {status} but the comment failed: {}",
+                        e.message
+                    ),
+                    None,
+                )
+            })?;
             row["comment_id"] = json!(added.comment_id);
         }
         Ok(row)
@@ -944,14 +1003,20 @@ fn merge_parent(attributes: &mut HashMap<String, serde_json::Value>, parent_id: 
 }
 
 /// `list_items` (root/type-filtered) is unbounded server-side; slice + project client-side.
-fn slice_item_page(
-    items: Vec<ItemDto>,
-    shape: Shape,
-    offset: i64,
-    limit: i64,
-) -> CallToolResult {
+fn slice_item_page(items: Vec<ItemDto>, shape: Shape, offset: i64, limit: i64) -> CallToolResult {
     let start = offset.max(0) as usize;
     let end = start.saturating_add(limit.max(0) as usize);
     let sliced: Vec<ItemDto> = items.into_iter().skip(start).take(end - start).collect();
     output::item_page(sliced, shape, offset, limit)
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ArchiveItemParams {
+    /// Item ID or exact title
+    pub item: String,
+    /// true archives; false unarchives
+    pub archived: bool,
+    /// Apply to this item and all descendants (default false)
+    #[serde(default)]
+    pub subtree: bool,
 }

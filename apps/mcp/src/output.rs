@@ -50,6 +50,7 @@ impl From<Detail> for Shape {
 /// `item_id`, `title`, `types`, and only the requested attributes.
 #[derive(Debug, Serialize)]
 pub struct FieldRow {
+    pub archived: bool,
     pub item_id: i64,
     pub title: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -71,6 +72,7 @@ impl FieldRow {
             })
             .unwrap_or_default();
         Self {
+            archived: item.archived,
             item_id: item.item_id,
             title: item.title.clone(),
             types: item.types.iter().map(|t| t.name.clone()).collect(),
@@ -97,6 +99,7 @@ pub fn preview(content: &str, max: usize) -> Option<String> {
 
 #[derive(Debug, Serialize)]
 pub struct ItemSummary {
+    pub archived: bool,
     pub item_id: i64,
     pub title: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -111,6 +114,7 @@ pub struct ItemSummary {
 impl ItemSummary {
     pub fn project(item: &ItemDto, detail: Detail) -> Self {
         Self {
+            archived: item.archived,
             item_id: item.item_id,
             title: item.title.clone(),
             types: item.types.iter().map(|t| t.name.clone()).collect(),
@@ -271,7 +275,10 @@ pub fn item_page(
             json_result(&Page::new(projected, offset, limit))
         }
         Shape::Fields(fields) => {
-            let rows: Vec<FieldRow> = items.iter().map(|i| FieldRow::project(i, &fields)).collect();
+            let rows: Vec<FieldRow> = items
+                .iter()
+                .map(|i| FieldRow::project(i, &fields))
+                .collect();
             json_result(&Page::new(rows, offset, limit))
         }
     }
@@ -313,6 +320,7 @@ mod tests {
 
     fn item(content: &str) -> ItemDto {
         ItemDto {
+            archived: false,
             item_id: 1,
             title: "Test".into(),
             content: content.into(),

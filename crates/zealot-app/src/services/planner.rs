@@ -33,6 +33,15 @@ impl PlannerService {
         day: &NaiveDate,
         account: &Account,
     ) -> Result<Vec<Item>, PlannerServiceError> {
+        self.get_for_day_with_archived(day, false, account)
+    }
+
+    pub fn get_for_day_with_archived(
+        &self,
+        day: &NaiveDate,
+        include_archived: bool,
+        account: &Account,
+    ) -> Result<Vec<Item>, PlannerServiceError> {
         self.filter_items(
             vec![AttributeFilterDto {
                 key: String::from("Date"),
@@ -40,6 +49,7 @@ impl PlannerService {
                 value: json!(day.format("%Y-%m-%d").to_string()),
                 list_mode: String::from("any"),
             }],
+            include_archived,
             account,
         )
     }
@@ -49,6 +59,15 @@ impl PlannerService {
         week: &Week,
         account: &Account,
     ) -> Result<Vec<Item>, PlannerServiceError> {
+        self.get_for_week_with_archived(week, false, account)
+    }
+
+    pub fn get_for_week_with_archived(
+        &self,
+        week: &Week,
+        include_archived: bool,
+        account: &Account,
+    ) -> Result<Vec<Item>, PlannerServiceError> {
         self.filter_items(
             vec![AttributeFilterDto {
                 key: String::from("Week"),
@@ -56,6 +75,7 @@ impl PlannerService {
                 value: json!(week.to_string()),
                 list_mode: String::from("any"),
             }],
+            include_archived,
             account,
         )
     }
@@ -64,6 +84,16 @@ impl PlannerService {
         &self,
         month: i64,
         year: i64,
+        account: &Account,
+    ) -> Result<Vec<Item>, PlannerServiceError> {
+        self.get_for_month_with_archived(month, year, false, account)
+    }
+
+    pub fn get_for_month_with_archived(
+        &self,
+        month: i64,
+        year: i64,
+        include_archived: bool,
         account: &Account,
     ) -> Result<Vec<Item>, PlannerServiceError> {
         self.filter_items(
@@ -81,6 +111,7 @@ impl PlannerService {
                     list_mode: String::from("any"),
                 },
             ],
+            include_archived,
             account,
         )
     }
@@ -90,6 +121,15 @@ impl PlannerService {
         year: i64,
         account: &Account,
     ) -> Result<Vec<Item>, PlannerServiceError> {
+        self.get_for_year_with_archived(year, false, account)
+    }
+
+    pub fn get_for_year_with_archived(
+        &self,
+        year: i64,
+        include_archived: bool,
+        account: &Account,
+    ) -> Result<Vec<Item>, PlannerServiceError> {
         self.filter_items(
             vec![AttributeFilterDto {
                 key: String::from("Year"),
@@ -97,6 +137,7 @@ impl PlannerService {
                 value: json!(year),
                 list_mode: String::from("any"),
             }],
+            include_archived,
             account,
         )
     }
@@ -104,10 +145,11 @@ impl PlannerService {
     fn filter_items(
         &self,
         filters: Vec<AttributeFilterDto>,
+        include_archived: bool,
         account: &Account,
     ) -> Result<Vec<Item>, PlannerServiceError> {
         self.item_service
-            .filter_items(&filters, account)
+            .filter_items_with_pagination(&filters, None, 0, include_archived, account)
             .map_err(|e| {
                 tracing::error!(account_id = ?account.account_id, %e, "planner filter failed");
                 PlannerServiceError::from(e)

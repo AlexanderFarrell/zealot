@@ -14,12 +14,18 @@ use crate::{
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct DayDashboardParams {
+    /// Include archived items (default false).
+    #[serde(default)]
+    pub include_archived: bool,
     /// Date in YYYY-MM-DD format (default: today)
     pub date: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct GetPlanParams {
+    /// Include archived items (default false).
+    #[serde(default)]
+    pub include_archived: bool,
     /// A day (YYYY-MM-DD), ISO week (YYYY-Wnn), month (YYYY-MM), or year (YYYY)
     pub period: String,
     /// Output detail: "meta", "summary" (default), or "full"
@@ -158,16 +164,22 @@ impl ZealotServer {
         let date = parse_date(&date_str)?;
 
         let (plan, habits, blocks, comments) = tokio::join!(
-            self.client.planner_day(date),
+            self.client
+                .planner_day_with_archived(date, p.include_archived),
             self.client.repeats_for_day(date),
             self.client.time_blocks_for_day(date),
             self.client.comments_for_day(date),
         );
         let plan = plan.map_err(|e| err_ctx("day plan", e))?;
-        let habits = habits.map_err(|e| err_ctx("habit entries", e))?;
-        let blocks = blocks.map_err(|e| err_ctx("time blocks", e))?;
-        let comments = comments.map_err(|e| err_ctx("comments", e))?;
+        let mut habits = habits.map_err(|e| err_ctx("habit entries", e))?;
+        let mut blocks = blocks.map_err(|e| err_ctx("time blocks", e))?;
+        let mut comments = comments.map_err(|e| err_ctx("comments", e))?;
 
+        if !p.include_archived {
+            habits.retain(|h| !h.item.archived);
+            blocks.retain(|b| !b.item.archived);
+            comments.retain(|c| !c.item.archived);
+        }
         let plan_summaries: Vec<_> = plan
             .iter()
             .map(|i| output::ItemSummary::project(i, Detail::Summary))
@@ -241,6 +253,7 @@ impl ZealotServer {
             Period::Year(y) => vec![eq("Year", json!(y))],
         };
         let query = ItemQueryDto {
+            include_archived: p.include_archived,
             filters,
             limit: Some(limit),
             offset,

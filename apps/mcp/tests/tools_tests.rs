@@ -185,6 +185,7 @@ async fn browse_items_recent_returns_summary_page() {
 
     let result = server
         .browse_items(Parameters(BrowseItemsParams {
+            include_archived: false,
             mode: BrowseMode::Recent,
             type_filter: None,
             sort: None,
@@ -228,6 +229,7 @@ async fn search_items_passes_scope_regex_and_pagination() {
 
     let result = server
         .search_items(Parameters(SearchItemsParams {
+            include_archived: false,
             term: "hello world".to_string(),
             limit: Some(5),
             offset: Some(10),
@@ -261,6 +263,7 @@ async fn get_linked_items_supports_backlinks_after_title_resolution() {
 
     let result = server
         .get_linked_items(Parameters(LinkedItemsParams {
+            include_archived: false,
             item: "Target".to_string(),
             direction: LinkDirection::Backlinks,
             detail: Detail::Meta,
@@ -451,6 +454,7 @@ async fn day_dashboard_hits_plan_habits_blocks_and_comments_once() {
 
     let result = server
         .day_dashboard(Parameters(DayDashboardParams {
+            include_archived: false,
             date: Some("2026-07-03".to_string()),
         }))
         .await
@@ -468,7 +472,7 @@ async fn get_plan_supports_year_period() {
     Mock::given(method("POST"))
         .and(path("/item/query"))
         .and(body_json(json!({
-            "types": [], "type_mode": "", "under": null,
+            "include_archived": false, "types": [], "type_mode": "", "under": null,
             "filters": [{"key": "Year", "op": "eq", "value": 2026, "list_mode": "any"}],
             "sort": null, "limit": 50, "offset": 0
         })))
@@ -481,6 +485,7 @@ async fn get_plan_supports_year_period() {
 
     let result = server
         .get_plan(Parameters(GetPlanParams {
+            include_archived: false,
             period: "2026".to_string(),
             detail: Detail::Meta,
             fields: None,
@@ -501,7 +506,7 @@ async fn get_plan_month_pages_server_side() {
     Mock::given(method("POST"))
         .and(path("/item/query"))
         .and(body_json(json!({
-            "types": [], "type_mode": "", "under": null,
+            "include_archived": false, "types": [], "type_mode": "", "under": null,
             "filters": [
                 {"key": "Month", "op": "eq", "value": 10, "list_mode": "any"},
                 {"key": "Year", "op": "eq", "value": 2026, "list_mode": "any"}
@@ -517,6 +522,7 @@ async fn get_plan_month_pages_server_side() {
 
     let result = server
         .get_plan(Parameters(GetPlanParams {
+            include_archived: false,
             period: "2026-10".to_string(),
             detail: Detail::Meta,
             fields: None,
@@ -1017,7 +1023,10 @@ async fn update_item_compact_by_default_and_full_on_request() {
     assert_eq!(value["title"], "T2");
     assert_eq!(value["content_chars"], 8);
     assert!(value.get("content").is_none());
-    assert_eq!(value["version"], zealot_domain::item_content::content_version("new body"));
+    assert_eq!(
+        value["version"],
+        zealot_domain::item_content::content_version("new body")
+    );
     assert!(value.get("changed_lines").is_some());
 
     let value: Value = serde_json::from_str(&text_of(
@@ -1081,7 +1090,7 @@ async fn filter_items_sends_types_under_and_sort_and_reports_total() {
     Mock::given(method("POST"))
         .and(path("/item/query"))
         .and(body_json(json!({
-            "types": ["Ticket"], "type_mode": "all", "under": 11,
+            "include_archived": false, "types": ["Ticket"], "type_mode": "all", "under": 11,
             "filters": [{"key": "Status", "op": "eq", "value": "Working", "list_mode": "any"}],
             "sort": {"key": "TicketID", "direction": "desc"}, "limit": 2, "offset": 0
         })))
@@ -1094,6 +1103,7 @@ async fn filter_items_sends_types_under_and_sort_and_reports_total() {
 
     let result = server
         .filter_items(Parameters(FilterItemsParams {
+            include_archived: false,
             filters: vec![AttributeFilterParam {
                 key: "Status".to_string(),
                 op: "eq".to_string(),
@@ -1133,6 +1143,7 @@ async fn filter_items_last_page_has_no_next_offset() {
 
     let result = server
         .filter_items(Parameters(FilterItemsParams {
+            include_archived: false,
             filters: vec![],
             types: Some(vec!["Ticket".to_string()]),
             type_mode: None,
@@ -1156,7 +1167,7 @@ async fn browse_items_root_with_type_uses_server_side_query() {
     Mock::given(method("POST"))
         .and(path("/item/query"))
         .and(body_json(json!({
-            "types": ["Book"], "type_mode": "", "under": null, "filters": [],
+            "include_archived": false, "types": ["Book"], "type_mode": "", "under": null, "filters": [],
             "sort": {"key": "title", "direction": ""}, "limit": 2, "offset": 4
         })))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
@@ -1168,6 +1179,7 @@ async fn browse_items_root_with_type_uses_server_side_query() {
 
     let result = server
         .browse_items(Parameters(BrowseItemsParams {
+            include_archived: false,
             mode: BrowseMode::Root,
             type_filter: Some("Book".to_string()),
             sort: Some(SortParam {
@@ -1198,6 +1210,7 @@ async fn filter_items_fields_projects_named_attributes_only() {
 
     let result = server
         .filter_items(Parameters(FilterItemsParams {
+            include_archived: false,
             filters: vec![],
             types: Some(vec!["Ticket".to_string()]),
             type_mode: None,
@@ -1214,7 +1227,7 @@ async fn filter_items_fields_projects_named_attributes_only() {
     assert_eq!(
         value["items"][0],
         json!({
-            "item_id": 3, "title": "Z001 Thing", "types": ["Ticket"],
+            "archived": false, "item_id": 3, "title": "Z001 Thing", "types": ["Ticket"],
             "attributes": {"TicketID": "Z001", "Status": "Working"}
         })
     );
@@ -1234,6 +1247,7 @@ async fn search_items_fields_keeps_match_info() {
 
     let result = server
         .search_items(Parameters(SearchItemsParams {
+            include_archived: false,
             term: "Z001".to_string(),
             limit: None,
             offset: None,
@@ -1497,4 +1511,58 @@ async fn get_item_type_can_include_required_attribute_kinds() {
         json!(["To Do", "Working"])
     );
     assert_eq!(rich["attributes"][1]["config"]["max"], 10);
+}
+
+#[tokio::test]
+async fn archive_action_forwards_reversible_subtree_request() {
+    let (server, mock) = make_server().await;
+    for archived in [true, false] {
+        Mock::given(method("POST"))
+            .and(path("/item/42/archive"))
+            .and(body_json(json!({"archived": archived, "subtree": true})))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"item_ids": [42,43], "archived": archived})),
+            )
+            .expect(1)
+            .mount(&mock)
+            .await;
+        let result = server
+            .set_archived(Parameters(zealot_mcp::tools::wiki::ArchiveItemParams {
+                item: "#42".into(),
+                archived,
+                subtree: true,
+            }))
+            .await
+            .unwrap();
+        let value: Value = serde_json::from_str(&text_of(result)).unwrap();
+        assert_eq!(value["archived"], archived);
+        assert_eq!(value["item_ids"], json!([42, 43]));
+    }
+}
+
+#[tokio::test]
+async fn archived_linked_items_opt_in_is_forwarded() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("GET"))
+        .and(path("/item/id/42"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(item(42, "Root", "")))
+        .mount(&mock)
+        .await;
+    Mock::given(method("GET")).and(path("/item/children/42")).and(query_param("include_archived", "true"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([{"item_id":43,"title":"Child","content":"", "attributes":{"Archived":true},"types":[],"links":[],"archived":true}])))
+        .expect(1).mount(&mock).await;
+    let result = server
+        .get_linked_items(Parameters(LinkedItemsParams {
+            item: "#42".into(),
+            direction: LinkDirection::Children,
+            include_archived: true,
+            detail: Detail::Meta,
+            fields: None,
+            limit: None,
+            offset: None,
+        }))
+        .await
+        .unwrap();
+    assert!(text_of(result).contains("\"archived\":true"));
 }

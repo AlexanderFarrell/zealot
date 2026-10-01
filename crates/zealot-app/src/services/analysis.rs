@@ -46,9 +46,18 @@ impl AnalysisService {
         limit: i64,
         account: &Account,
     ) -> Result<Vec<MostViewedItem>, AnalysisServiceError> {
+        self.get_most_viewed_items_with_archived(limit, false, account)
+    }
+
+    pub fn get_most_viewed_items_with_archived(
+        &self,
+        limit: i64,
+        include_archived: bool,
+        account: &Account,
+    ) -> Result<Vec<MostViewedItem>, AnalysisServiceError> {
         let ranked = self
             .item_view_repo
-            .get_most_viewed(limit, &account.account_id)
+            .get_most_viewed_with_archived(limit, &account.account_id, include_archived)
             .map_err(AnalysisServiceError::Repo)?;
 
         if ranked.is_empty() {

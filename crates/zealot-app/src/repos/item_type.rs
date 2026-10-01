@@ -11,6 +11,13 @@ use crate::repos::common::RepoError;
 
 pub trait ItemTypeRepo: Debug + Send + Sync {
     fn get_item_types(&self, account_id: &Id) -> Result<Vec<ItemType>, RepoError>;
+    fn get_item_type_summaries_with_archived(
+        &self,
+        account_id: &Id,
+        _include_archived: bool,
+    ) -> Result<Vec<ItemTypeSummary>, RepoError> {
+        self.get_item_type_summaries(account_id)
+    }
     fn get_item_type_summaries(&self, account_id: &Id) -> Result<Vec<ItemTypeSummary>, RepoError>;
     fn get_item_type(
         &self,

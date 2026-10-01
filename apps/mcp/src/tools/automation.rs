@@ -66,7 +66,11 @@ pub struct UpdateRuleParams {
 // ── Item Types ────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize, JsonSchema)]
-pub struct ListItemTypesParams {}
+pub struct ListItemTypesParams {
+    /// Include archived items in counts (default false).
+    #[serde(default)]
+    pub include_archived: bool,
+}
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ItemTypeNameParam {
@@ -272,11 +276,11 @@ impl ZealotServer {
     )]
     pub async fn list_item_types(
         &self,
-        Parameters(_p): Parameters<ListItemTypesParams>,
+        Parameters(p): Parameters<ListItemTypesParams>,
     ) -> Result<CallToolResult, McpError> {
         let types = self
             .client
-            .item_type_summaries()
+            .item_type_summaries_with_archived(p.include_archived)
             .await
             .map_err(|e| err_ctx("item types", e))?;
         Ok(output::json_result(&types))

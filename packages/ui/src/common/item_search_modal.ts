@@ -48,6 +48,15 @@ export class ItemSearchModal extends HTMLElement {
         };
         searchHost?.appendChild(search);
         this.searchEl = search;
+        const label = document.createElement('label');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.addEventListener('change', () => {
+            search.IncludeArchived = checkbox.checked;
+            search.refresh();
+        });
+        label.append(checkbox, ' Include archived');
+        this.querySelector('.tool-panel-header')?.appendChild(label);
 
         this.addEventListener('click', (event) => {
             if (event.target === this) {

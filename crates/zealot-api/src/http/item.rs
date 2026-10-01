@@ -56,6 +56,7 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .route("/grep", post(grep_items))
         .route("/rebuild-links", post(rebuild_links))
         .route("/{item_id}", patch(update_item).delete(delete_item))
+        .route("/{item_id}/archive", post(set_archived))
         .route("/{item_id}/content", post(edit_content))
         .route("/{item_id}/attr", patch(set_attributes))
         .route("/{item_id}/attr/rename", patch(rename_attribute))
@@ -111,6 +112,8 @@ fn parse_item_id(raw: i64) -> Result<Id, HttpError> {
 struct RootItemsParams {
     #[serde(rename = "type", default)]
     item_type: Option<String>,
+    #[serde(default)]
+    include_archived: bool,
 }
 
 const MAX_SEARCH_LIMIT: i64 = 100;
@@ -125,6 +128,8 @@ struct SearchParams {
     limit: i64,
     #[serde(default)]
     offset: i64,
+    #[serde(default)]
+    include_archived: bool,
     scope: Option<String>,
     #[serde(default)]
     regex: bool,
@@ -140,6 +145,8 @@ struct RecentParams {
     limit: i64,
     #[serde(default)]
     offset: i64,
+    #[serde(default)]
+    include_archived: bool,
 }
 
 fn default_recent_limit() -> i64 {
@@ -153,6 +160,8 @@ struct FilterBody {
     limit: i64,
     #[serde(default)]
     offset: i64,
+    #[serde(default)]
+    include_archived: bool,
 }
 
 fn default_filter_limit() -> i64 {
@@ -174,9 +183,16 @@ async fn get_root_items(
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
     let account = require_account(&actor)?;
     let items = if let Some(type_name) = params.item_type {
-        state.services.item.get_items_by_type(&type_name, &account)
+        state.services.item.get_items_by_type_with_archived(
+            &type_name,
+            params.include_archived,
+            &account,
+        )
     } else {
-        state.services.item.get_root_items(&account)
+        state
+            .services
+            .item
+            .get_root_items_with_archived(params.include_archived, &account)
     }
     .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
@@ -191,7 +207,12 @@ async fn get_recent_items(
     let items = state
         .services
         .item
-        .get_recent_items(params.limit, params.offset, &account)
+        .get_recent_items_with_archived(
+            params.limit,
+            params.offset,
+            params.include_archived,
+            &account,
+        )
         .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -202,6 +223,8 @@ const MAX_RANDOM_COUNT: usize = 50;
 struct RandomParams {
     #[serde(default = "default_random_count")]
     count: usize,
+    #[serde(default)]
+    include_archived: bool,
 }
 
 fn default_random_count() -> usize {
@@ -218,7 +241,7 @@ async fn get_random_item(
     let items = state
         .services
         .item
-        .get_random_items(count, &account)
+        .get_random_items_with_archived(count, params.include_archived, &account)
         .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -284,12 +307,13 @@ async fn search_items(
     let results = state
         .services
         .item
-        .search_items(
+        .search_items_with_archived(
             &params.term,
             scope,
             params.regex,
             limit,
             params.offset,
+            params.include_archived,
             &account,
         )
         .map_err(item_service_err)?;
@@ -310,13 +334,14 @@ async fn get_children(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(item_id): Path<i64>,
+    Query(params): Query<ArchiveVisibility>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
     let account = require_account(&actor)?;
     let id = parse_item_id(item_id)?;
     let items = state
         .services
         .item
-        .get_children(&id, &account)
+        .get_children_with_archived(&id, params.include_archived, &account)
         .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -325,13 +350,14 @@ async fn get_related(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(item_id): Path<i64>,
+    Query(params): Query<ArchiveVisibility>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
     let account = require_account(&actor)?;
     let id = parse_item_id(item_id)?;
     let items = state
         .services
         .item
-        .get_related_items(&id, &account)
+        .get_related_items_with_archived(&id, params.include_archived, &account)
         .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -340,13 +366,14 @@ async fn get_backlinks(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(item_id): Path<i64>,
+    Query(params): Query<ArchiveVisibility>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
     let account = require_account(&actor)?;
     let id = parse_item_id(item_id)?;
     let items = state
         .services
         .item
-        .get_backlinks(&id, &account)
+        .get_backlinks_with_archived(&id, params.include_archived, &account)
         .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -362,7 +389,13 @@ async fn filter_items(
     let items = state
         .services
         .item
-        .filter_items_paginated(&body.filters, limit, offset, &account)
+        .filter_items_with_pagination(
+            &body.filters,
+            Some(limit),
+            offset,
+            body.include_archived,
+            &account,
+        )
         .map_err(item_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -818,4 +851,41 @@ fn generate_docx(item: &Item) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let mut buf = Vec::new();
     doc.build().pack(std::io::Cursor::new(&mut buf))?;
     Ok(buf)
+}
+
+/// Discovery excludes archived items unless explicitly requested.
+#[derive(Deserialize, Default)]
+pub(super) struct ArchiveVisibility {
+    #[serde(default)]
+    pub include_archived: bool,
+}
+
+#[derive(Deserialize)]
+struct ArchiveBody {
+    archived: bool,
+    #[serde(default)]
+    subtree: bool,
+}
+
+/// Archive/unarchive is one atomic, account-bounded attribute mutation.
+async fn set_archived(
+    State(state): State<AppState>,
+    Extension(actor): Extension<Actor>,
+    Path(item_id): Path<i64>,
+    Json(body): Json<ArchiveBody>,
+) -> Result<Json<Value>, HttpError> {
+    let account = require_account(&actor)?;
+    let ids = state
+        .services
+        .item
+        .set_archived(
+            &parse_item_id(item_id)?,
+            body.archived,
+            body.subtree,
+            &account,
+        )
+        .map_err(item_service_err)?;
+    Ok(Json(
+        serde_json::json!({ "item_ids": ids.iter().map(|id| i64::from(*id)).collect::<Vec<_>>(), "archived": body.archived }),
+    ))
 }

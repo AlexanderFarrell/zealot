@@ -31,6 +31,15 @@ impl ItemViewRepo for ItemViewPostgresRepo {
     }
 
     fn get_most_viewed(&self, limit: i64, account_id: &Id) -> Result<Vec<(Id, i64)>, RepoError> {
+        self.get_most_viewed_with_archived(limit, account_id, false)
+    }
+
+    fn get_most_viewed_with_archived(
+        &self,
+        limit: i64,
+        account_id: &Id,
+        include_archived: bool,
+    ) -> Result<Vec<(Id, i64)>, RepoError> {
         let account_id_val = i64::from(*account_id);
         let pool = self.pool.clone();
 
@@ -40,12 +49,13 @@ impl ItemViewRepo for ItemViewPostgresRepo {
                     "SELECT iv.item_id, COUNT(*) as cnt
                      FROM item_view iv
                      INNER JOIN item i ON i.item_id = iv.item_id
-                     WHERE i.account_id = $1
+                     WHERE i.account_id = $1 AND ($2 OR NOT EXISTS (SELECT 1 FROM attribute a WHERE a.item_id = i.item_id AND a.key = 'Archived' AND a.value_int = 1))
                      GROUP BY iv.item_id
                      ORDER BY cnt DESC
-                     LIMIT $2",
+                     LIMIT $3",
                 )
                 .bind(account_id_val)
+                .bind(include_archived)
                 .bind(limit)
                 .fetch_all(&pool)
                 .await

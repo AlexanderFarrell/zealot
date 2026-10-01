@@ -73,12 +73,13 @@ fn item_type_service_err(err: ItemTypeServiceError) -> HttpError {
 async fn get_item_type_summaries(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
+    Query(visibility): Query<super::item::ArchiveVisibility>,
 ) -> Result<Json<Vec<ItemTypeSummaryDto>>, HttpError> {
     let account = require_account(&actor)?;
     state
         .services
         .item_type
-        .get_item_type_summaries(&account.account_id)
+        .get_item_type_summaries_with_archived(&account.account_id, visibility.include_archived)
         .map(|types| Json(types.iter().map(ItemTypeSummaryDto::from).collect()))
         .map_err(item_type_service_err)
 }

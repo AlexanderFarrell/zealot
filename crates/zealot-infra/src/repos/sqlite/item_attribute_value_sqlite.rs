@@ -518,6 +518,9 @@ fn build_query_sql(
     kind_map: &HashMap<String, AttributeBaseScalarType>,
 ) -> Result<QuerySql, RepoError> {
     let mut parts: Vec<String> = Vec::new();
+    if !query.include_archived {
+        parts.push("NOT EXISTS (SELECT 1 FROM attribute archived WHERE archived.item_id = i.item_id AND archived.key = 'Archived' AND archived.value_int = 1)".into());
+    }
     let mut values: Vec<SqlValue> = Vec::new();
 
     if !query.types.is_empty() {
@@ -609,6 +612,39 @@ fn build_query_sql(
 }
 
 impl ItemAttributeValueRepo for ItemAttributeValueSqliteRepo {
+    fn set_archived(
+        &self,
+        root: &Id,
+        archived: bool,
+        subtree: bool,
+        account: &Account,
+    ) -> Result<Vec<Id>, RepoError> {
+        let root = i64::from(*root);
+        let account_id = i64::from(account.account_id);
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+            let mut tx = self.pool.begin().await.map_err(RepoError::from)?;
+            // UNION terminates cycles and deduplicates descendants with multiple parents.
+            let ids: Vec<i64> = sqlx::query_scalar("WITH RECURSIVE d(id) AS (
+                SELECT item_id FROM item WHERE item_id = ?1 AND account_id = ?2
+                UNION
+                SELECT l.first_item_id FROM item_item_link l JOIN d ON l.second_item_id = d.id
+                JOIN item child ON child.item_id = l.first_item_id
+                WHERE l.relationship = 'parent' AND child.account_id = ?2 AND ?3
+            ) SELECT id FROM d ORDER BY id")
+                .bind(root).bind(account_id).bind(subtree).fetch_all(&mut *tx).await.map_err(RepoError::from)?;
+            for id in &ids {
+                sqlx::query("INSERT INTO attribute (item_id, key, value_int) VALUES (?1, 'Archived', ?2)
+                    ON CONFLICT (item_id, key) DO UPDATE SET value_int = excluded.value_int")
+                    .bind(*id).bind(if archived { 1i64 } else { 0i64 })
+                    .execute(&mut *tx).await.map_err(RepoError::from)?;
+            }
+            tx.commit().await.map_err(RepoError::from)?;
+            ids.into_iter().map(|id| Id::try_from(id).map_err(|e| RepoError::DatabaseError { err: e.to_string() })).collect()
+        })
+        })
+    }
+
     fn get_attributes_for_items(
         &self,
         item_ids: &Vec<Id>,

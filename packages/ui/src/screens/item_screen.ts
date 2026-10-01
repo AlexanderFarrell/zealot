@@ -142,6 +142,24 @@ export class ItemScreen extends BaseElementEmpty {
         this.renderItem();
     }
 
+    /** Flush queued user edits without reserializing untouched editor content. */
+    private async changeArchive(item: Item, subtree: boolean): Promise<void> {
+        const archived = !item.Archived;
+        const action = archived ? 'Archive' : 'Unarchive';
+        const message = subtree
+            ? `${action} "${item.Title}" and all descendants? This changes their archive flag only; all history stays intact.`
+            : `${action} "${item.Title}"? All history stays intact and this can be reversed.`;
+        if (!await ConfirmDialog.show(message)) return;
+        try {
+            if (this._saveQueue?.dirty && !await this._saveQueue.flush()) return;
+            const result = await itemApi.SetArchived(item.ItemID, archived, subtree);
+            Popups.add(`${archived ? 'Archived' : 'Unarchived'} ${result.item_ids.length} item(s)`);
+            this.loadItemById(item.ItemID);
+        } catch (e) {
+            Popups.add_error((e as Error).message ?? 'Could not change archive state.');
+        }
+    }
+
     private renderNotFound(): void {
         const msg = document.createElement('p');
         msg.textContent = "That item doesn't exist.";
@@ -225,6 +243,8 @@ export class ItemScreen extends BaseElementEmpty {
                 });
             }},
             { separator: true },
+            { label: item.Archived ? 'Unarchive Item' : 'Archive Item', onClick: () => { void this.changeArchive(item, false); } },
+            { label: item.Archived ? 'Unarchive Subtree' : 'Archive Subtree', onClick: () => { void this.changeArchive(item, true); } },
             { label: 'Delete Item', danger: true, onClick: () => {
                 void (async () => {
                     const confirmed = await ConfirmDialog.show('Are you sure you want to delete this item?');
@@ -240,6 +260,13 @@ export class ItemScreen extends BaseElementEmpty {
                 })();
             }},
         ]);
+
+        if (item.Archived) {
+            const banner = document.createElement('p');
+            banner.className = 'item-archive-banner';
+            banner.textContent = 'Archived — hidden from default lists. All item history is preserved.';
+            this.appendChild(banner);
+        }
 
         // Action buttons
         this.appendChild(this.buildActions(item, () => onTypesDone()));
@@ -382,6 +409,17 @@ export class ItemScreen extends BaseElementEmpty {
             const section = this.querySelector('.item-content') as HTMLElement | null;
             if (section) section.style.display = content_visible ? 'block' : 'none';
         }));
+
+        for (const subtree of [false, true]) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'item-action-btn';
+            const label = `${item.Archived ? 'Unarchive' : 'Archive'} ${subtree ? 'Subtree' : 'Item'}`;
+            button.title = label;
+            button.textContent = label;
+            button.addEventListener('click', () => { void this.changeArchive(item, subtree); });
+            row.appendChild(button);
+        }
 
         row.appendChild(makeBtn(icons.delete, 'Delete Item', () => {
             void (async () => {

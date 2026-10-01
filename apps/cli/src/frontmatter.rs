@@ -120,6 +120,7 @@ mod tests {
     #[test]
     fn round_trips_an_item() {
         let item = ItemDto {
+            archived: false,
             item_id: 1,
             title: "Note".into(),
             content: "# Hello\nBody".into(),

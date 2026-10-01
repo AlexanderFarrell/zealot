@@ -31,6 +31,10 @@ export class Item {
         }) || [];
     }
 
+    public get Archived(): boolean {
+        return this.Attributes['Archived'] === true;
+    }
+
     public get RawIcon(): string {
         return (this.Attributes['Icon'] as string | undefined) ?? '';
     }

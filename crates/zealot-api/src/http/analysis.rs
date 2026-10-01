@@ -47,6 +47,8 @@ fn analysis_service_err(err: AnalysisServiceError) -> HttpError {
 struct MostViewedParams {
     #[serde(default = "default_limit")]
     limit: i64,
+    #[serde(default)]
+    include_archived: bool,
 }
 
 fn default_limit() -> i64 {
@@ -69,7 +71,7 @@ async fn get_most_viewed(
     let results = state
         .services
         .analysis
-        .get_most_viewed_items(params.limit, &account)
+        .get_most_viewed_items_with_archived(params.limit, params.include_archived, &account)
         .map_err(analysis_service_err)?;
 
     let dtos = results

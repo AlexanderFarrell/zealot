@@ -446,6 +446,7 @@ async fn grep_items_resolves_under_and_returns_line_hits() {
         .and(path("/item/grep"))
         .and(body_json(json!({
             "pattern": "Z190",
+            "include_archived": false,
             "regex": false,
             "under": 11,
             "types": ["Ticket"],
@@ -461,6 +462,7 @@ async fn grep_items_resolves_under_and_returns_line_hits() {
     let value = parse(
         server
             .grep_items(Parameters(GrepItemsParams {
+                include_archived: false,
                 pattern: "Z190".to_string(),
                 regex: None,
                 under: Some("Zealot".to_string()),

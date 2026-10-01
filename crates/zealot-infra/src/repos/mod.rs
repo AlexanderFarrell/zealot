@@ -12,6 +12,8 @@ pub mod postgres;
 pub mod sqlite;
 
 #[cfg(test)]
+mod archive_tests;
+#[cfg(test)]
 mod content_edit_tests;
 #[cfg(test)]
 mod query_tests;

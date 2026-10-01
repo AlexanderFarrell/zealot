@@ -64,6 +64,7 @@ fn query() -> ItemQuery {
     ItemQuery {
         types: vec![],
         all_types: false,
+        include_archived: false,
         under: None,
         filters: vec![],
         sort: None,
