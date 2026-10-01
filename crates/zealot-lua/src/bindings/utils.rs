@@ -20,7 +20,6 @@ pub fn register(
     zealot.set("log", notify)?;
 
     zealot.set("now", chrono::Utc::now().to_rfc3339())?;
-    zealot.set("date", chrono::Local::now().format("%Y-%m-%d").to_string())?;
 
     match context {
         RuleContext::Event(event) => {
