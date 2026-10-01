@@ -110,6 +110,14 @@ impl ItemTypeRepo for ItemTypeSqliteRepo {
     }
 
     fn get_item_type_summaries(&self, account_id: &Id) -> Result<Vec<ItemTypeSummary>, RepoError> {
+        self.get_item_type_summaries_with_archived(account_id, false)
+    }
+
+    fn get_item_type_summaries_with_archived(
+        &self,
+        account_id: &Id,
+        include_archived: bool,
+    ) -> Result<Vec<ItemTypeSummary>, RepoError> {
         let account_id_val = i64::from(*account_id);
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
@@ -123,12 +131,13 @@ impl ItemTypeRepo for ItemTypeSqliteRepo {
                      FROM item_type it
                      LEFT JOIN item_type_attribute_kind_link lnk ON it.type_id = lnk.item_type_id
                      LEFT JOIN item_item_type_link item_lnk ON it.type_id = item_lnk.type_id
-                     LEFT JOIN item i ON i.item_id = item_lnk.item_id AND i.account_id = ?
+                     LEFT JOIN item i ON i.item_id = item_lnk.item_id AND i.account_id = ? AND (? OR NOT EXISTS (SELECT 1 FROM attribute a WHERE a.item_id = i.item_id AND a.key = 'Archived' AND a.value_int = 1))
                      WHERE (it.account_id = ? OR it.account_id IS NULL)
                      GROUP BY it.type_id, it.name, it.account_id
                      ORDER BY LOWER(it.name), it.type_id",
                 )
                 .bind(account_id_val)
+                .bind(include_archived)
                 .bind(account_id_val)
                 .fetch_all(&self.pool)
                 .await

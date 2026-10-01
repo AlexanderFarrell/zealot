@@ -68,9 +68,10 @@ export class ItemAPI extends BaseAPI {
         return dtos.map(d => new Item(d));
     }
 
-    async Search(term: string, options?: { scope?: SearchScope; regex?: boolean; limit?: number; offset?: number }): Promise<SearchResult[]> {
+    async Search(term: string, options?: { scope?: SearchScope; regex?: boolean; limit?: number; offset?: number; includeArchived?: boolean }): Promise<SearchResult[]> {
         const scope = options?.scope ?? 'title';
         let url = `${this.baseUrl}/item/search?term=${encodeURIComponent(term)}&scope=${scope}`;
+        if (options?.includeArchived) url += `&include_archived=true`;
         if (options?.regex) url += `&regex=true`;
         if (options?.limit != null) url += `&limit=${options.limit}`;
         if (options?.offset != null) url += `&offset=${options.offset}`;
@@ -107,6 +108,11 @@ export class ItemAPI extends BaseAPI {
         const data = await patch_req(`${this.baseUrl}/item/${item_id}`, dto);
         const json = await (data as Response).json() as ItemDto;
         return new Item(json);
+    }
+
+    /** Archive state is reversible; the subtree action changes only this flag. */
+    async SetArchived(item_id: number, archived: boolean, subtree = false): Promise<{ item_ids: number[]; archived: boolean }> {
+        return await post_json(`${this.baseUrl}/item/${item_id}/archive`, { archived, subtree }) as { item_ids: number[]; archived: boolean };
     }
 
     async Delete(item_id: number) {

@@ -10,7 +10,17 @@ impl ZealotClient {
     }
 
     pub async fn item_type_summaries(&self) -> Result<Vec<ItemTypeSummaryDto>, ApiError> {
-        self.get("/item_type/summary").await
+        self.item_type_summaries_with_archived(false).await
+    }
+
+    pub async fn item_type_summaries_with_archived(
+        &self,
+        include_archived: bool,
+    ) -> Result<Vec<ItemTypeSummaryDto>, ApiError> {
+        self.get(&format!(
+            "/item_type/summary?include_archived={include_archived}"
+        ))
+        .await
     }
 
     pub async fn get_item_type_by_name(&self, name: &str) -> Result<ItemTypeDto, ApiError> {
@@ -22,7 +32,8 @@ impl ZealotClient {
     }
 
     pub async fn update_item_type(&self, dto: &UpdateItemTypeDto) -> Result<ItemTypeDto, ApiError> {
-        self.patch(&format!("/item_type/{}", dto.type_id), dto).await
+        self.patch(&format!("/item_type/{}", dto.type_id), dto)
+            .await
     }
 
     pub async fn delete_item_type(&self, type_id: i64, force: bool) -> Result<(), ApiError> {

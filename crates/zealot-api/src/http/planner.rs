@@ -1,6 +1,6 @@
 use axum::{
     Extension, Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     middleware,
     routing::get,
 };
@@ -66,6 +66,7 @@ fn planner_service_err(err: PlannerServiceError) -> HttpError {
 async fn get_for_day(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
+    Query(visibility): Query<super::item::ArchiveVisibility>,
     Path(date): Path<String>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
     let account = require_account(&actor)?;
@@ -76,7 +77,7 @@ async fn get_for_day(
     let items = state
         .services
         .planner
-        .get_for_day(&parsed, &account)
+        .get_for_day_with_archived(&parsed, visibility.include_archived, &account)
         .map_err(planner_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -84,6 +85,7 @@ async fn get_for_day(
 async fn get_for_week(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
+    Query(visibility): Query<super::item::ArchiveVisibility>,
     Path(week): Path<String>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
     let account = require_account(&actor)?;
@@ -92,7 +94,7 @@ async fn get_for_week(
     let items = state
         .services
         .planner
-        .get_for_week(&parsed, &account)
+        .get_for_week_with_archived(&parsed, visibility.include_archived, &account)
         .map_err(planner_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -100,6 +102,7 @@ async fn get_for_week(
 async fn get_for_month(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
+    Query(visibility): Query<super::item::ArchiveVisibility>,
     Path((month, year)): Path<(i64, i64)>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
     let account = require_account(&actor)?;
@@ -112,7 +115,7 @@ async fn get_for_month(
     let items = state
         .services
         .planner
-        .get_for_month(month, year, &account)
+        .get_for_month_with_archived(month, year, visibility.include_archived, &account)
         .map_err(planner_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }
@@ -120,13 +123,14 @@ async fn get_for_month(
 async fn get_for_year(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
+    Query(visibility): Query<super::item::ArchiveVisibility>,
     Path(year): Path<i64>,
 ) -> Result<Json<Vec<ItemDto>>, HttpError> {
     let account = require_account(&actor)?;
     let items = state
         .services
         .planner
-        .get_for_year(year, &account)
+        .get_for_year_with_archived(year, visibility.include_archived, &account)
         .map_err(planner_service_err)?;
     Ok(Json(items.iter().map(ItemDto::from).collect()))
 }

@@ -82,6 +82,9 @@ pub struct ItemDto {
     /// changed since it was read. Empty from servers that predate it.
     #[serde(default)]
     pub version: String,
+    /// True when the Archived boolean attribute is set.
+    #[serde(default)]
+    pub archived: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -135,6 +138,9 @@ pub struct ItemQueryDto {
     /// Item type names the item must have
     #[serde(default)]
     pub types: Vec<String>,
+    /// Include archived items in this query (default false).
+    #[serde(default)]
+    pub include_archived: bool,
     /// `any` (default) or `all` of `types`
     #[serde(default)]
     pub type_mode: String,
@@ -250,6 +256,13 @@ impl Item {
     //     })
     // }
 
+    pub fn is_archived(&self) -> bool {
+        matches!(
+            self.attributes.get("Archived"),
+            Some(Attribute::Scalar(AttributeScalar::Boolean(true)))
+        )
+    }
+
     pub fn display_title(&self) -> String {
         if let Some(icon) = self.attributes.get("Icon") {
             if let Attribute::Scalar(AttributeScalar::Text(icon)) = icon {
@@ -293,6 +306,7 @@ impl From<&Item> for ItemDto {
             attributes: serde_json::to_value(&value.attributes).unwrap(), // Serde JSON serialization failure is not expected.
             types: value.types.iter().map(ItemTypeRefDto::from).collect(),
             links: value.links.iter().map(ItemLinkDto::from).collect(),
+            archived: value.is_archived(),
             version: crate::item_content::content_version(&value.content),
         }
     }

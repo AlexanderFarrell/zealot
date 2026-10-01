@@ -24,6 +24,11 @@ export class ItemSearchInline extends HTMLElement {
     private results: SearchResult[] = [];
     private selectedItem: Item | null = null;
 
+    public IncludeArchived = false;
+
+    /** Refresh discovery after a visibility change. */
+    public refresh(): void { this.handleInput(); }
+
     public OnSelect: ((item: Item) => void) | null = null;
     public ResultsFilter: ((items: Item[]) => Item[]) | null = null;
 
@@ -261,7 +266,7 @@ export class ItemSearchInline extends HTMLElement {
             const term = isHeading ? rawTerm.slice(1).trim() : rawTerm.trim();
             const scope = isHeading ? 'heading' as const : 'title' as const;
 
-            let results = await itemApi.Search(term, { scope });
+            let results = await itemApi.Search(term, { scope, includeArchived: this.IncludeArchived });
             if (requestId !== this.requestId) {
                 return;
             }
@@ -330,6 +335,13 @@ export class ItemSearchInline extends HTMLElement {
                 snippet.className = 'item-search-inline-row-snippet';
                 snippet.textContent = result.snippet;
                 row.appendChild(snippet);
+            }
+
+            if (item.Archived) {
+                const badge = document.createElement('span');
+                badge.className = 'tool-badge';
+                badge.textContent = 'Archived';
+                row.appendChild(badge);
             }
 
             if (item.Types.length > 0) {

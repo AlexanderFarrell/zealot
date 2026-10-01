@@ -169,11 +169,11 @@ impl ItemService {
         offset: i64,
         account: &Account,
     ) -> Result<Vec<Item>, ItemServiceError> {
-        let items = self
-            .item_repo
-            .search_items_by_title(term, limit, offset, account)
-            .map_err(ItemServiceError::Repo)?;
-        self.hydrate_items(items, &account.account_id)
+        Ok(self
+            .search_items(term, SearchScope::Title, false, limit, offset, account)?
+            .into_iter()
+            .map(|hit| hit.item)
+            .collect())
     }
 
     pub fn search_items(
@@ -185,111 +185,95 @@ impl ItemService {
         offset: i64,
         account: &Account,
     ) -> Result<Vec<SearchResult>, ItemServiceError> {
+        self.search_items_with_archived(term, scope, use_regex, limit, offset, false, account)
+    }
+
+    pub fn search_items_with_archived(
+        &self,
+        term: &str,
+        scope: SearchScope,
+        use_regex: bool,
+        limit: i64,
+        offset: i64,
+        include_archived: bool,
+        account: &Account,
+    ) -> Result<Vec<SearchResult>, ItemServiceError> {
         let compiled_regex = if use_regex {
-            let re = Regex::new(&format!("(?i){}", term))
-                .map_err(|e| ItemServiceError::InvalidRegex(e.to_string()))?;
-            Some(re)
+            Some(
+                Regex::new(&format!("(?i){}", term))
+                    .map_err(|e| ItemServiceError::InvalidRegex(e.to_string()))?,
+            )
         } else {
             None
         };
-
-        match scope {
-            SearchScope::Title => {
-                let paged = if let Some(re) = &compiled_regex {
-                    scan_regex_matches(
-                        limit,
-                        offset,
-                        |scan_offset| {
-                            self.item_repo
-                                .search_items_by_title("", REGEX_SCAN_BATCH, scan_offset, account)
-                                .map_err(ItemServiceError::Repo)
-                        },
-                        |i| re.is_match(&i.title),
-                    )?
-                } else {
-                    self.item_repo
-                        .search_items_by_title(term, limit, offset, account)
-                        .map_err(ItemServiceError::Repo)?
+        scan_regex_matches(
+            limit,
+            offset,
+            |scan_offset| {
+                let fetch_term = if use_regex { "" } else { term };
+                let (cores, headings): (Vec<ItemCore>, Vec<String>) = match scope {
+                    SearchScope::Title => (
+                        self.item_repo.search_items_by_title(
+                            fetch_term,
+                            REGEX_SCAN_BATCH,
+                            scan_offset,
+                            account,
+                        )?,
+                        vec![],
+                    ),
+                    SearchScope::Content => (
+                        self.item_repo.search_items_by_content(
+                            fetch_term,
+                            REGEX_SCAN_BATCH,
+                            scan_offset,
+                            account,
+                        )?,
+                        vec![],
+                    ),
+                    SearchScope::Heading => self
+                        .item_repo
+                        .search_items_by_heading(
+                            fetch_term,
+                            REGEX_SCAN_BATCH,
+                            scan_offset,
+                            account,
+                        )?
+                        .into_iter()
+                        .unzip(),
                 };
-                let hydrated = self.hydrate_items(paged, &account.account_id)?;
-                Ok(hydrated
+                let items = self.hydrate_items(cores, &account.account_id)?;
+                Ok(items
                     .into_iter()
-                    .map(|item| SearchResult {
-                        item,
-                        match_scope: SearchScope::Title,
-                        snippet: None,
+                    .enumerate()
+                    .map(|(n, item)| {
+                        let snippet = match scope {
+                            SearchScope::Title => None,
+                            SearchScope::Content => {
+                                extract_snippet(&item.content, term, compiled_regex.as_ref())
+                            }
+                            SearchScope::Heading => headings.get(n).cloned(),
+                        };
+                        SearchResult {
+                            item,
+                            snippet,
+                            match_scope: scope.clone(),
+                        }
                     })
                     .collect())
-            }
-            SearchScope::Content => {
-                let paged: Vec<ItemCore> = if let Some(re) = &compiled_regex {
-                    scan_regex_matches(
-                        limit,
-                        offset,
-                        |scan_offset| {
-                            self.item_repo
-                                .search_items_by_content("", REGEX_SCAN_BATCH, scan_offset, account)
-                                .map_err(ItemServiceError::Repo)
-                        },
-                        |i| re.is_match(&i.content),
-                    )?
-                } else {
-                    self.item_repo
-                        .search_items_by_content(term, limit, offset, account)
-                        .map_err(ItemServiceError::Repo)?
-                };
-                let snippets: Vec<Option<String>> = paged
-                    .iter()
-                    .map(|i| extract_snippet(&i.content, term, compiled_regex.as_ref()))
-                    .collect();
-                let hydrated = self.hydrate_items(paged, &account.account_id)?;
-                Ok(hydrated
-                    .into_iter()
-                    .zip(snippets)
-                    .map(|(item, snippet)| SearchResult {
-                        item,
-                        match_scope: SearchScope::Content,
-                        snippet,
+            },
+            |hit| {
+                (include_archived || !hit.item.is_archived())
+                    && compiled_regex.as_ref().is_none_or(|re| {
+                        re.is_match(match scope {
+                            SearchScope::Title => &hit.item.title,
+                            SearchScope::Content => &hit.item.content,
+                            SearchScope::Heading => hit.snippet.as_deref().unwrap_or(""),
+                        })
                     })
-                    .collect())
-            }
-            SearchScope::Heading => {
-                let paged: Vec<(ItemCore, String)> = if let Some(re) = &compiled_regex {
-                    scan_regex_matches(
-                        limit,
-                        offset,
-                        |scan_offset| {
-                            self.item_repo
-                                .search_items_by_heading("", REGEX_SCAN_BATCH, scan_offset, account)
-                                .map_err(ItemServiceError::Repo)
-                        },
-                        |(_, h)| re.is_match(h),
-                    )?
-                } else {
-                    self.item_repo
-                        .search_items_by_heading(term, limit, offset, account)
-                        .map_err(ItemServiceError::Repo)?
-                };
-                let heading_texts: Vec<String> = paged.iter().map(|(_, h)| h.clone()).collect();
-                let cores: Vec<ItemCore> = paged.into_iter().map(|(c, _)| c).collect();
-                let hydrated = self.hydrate_items(cores, &account.account_id)?;
-                Ok(hydrated
-                    .into_iter()
-                    .zip(heading_texts)
-                    .map(|(item, heading)| SearchResult {
-                        item,
-                        match_scope: SearchScope::Heading,
-                        snippet: Some(heading),
-                    })
-                    .collect())
-            }
-        }
+            },
+        )
     }
 
-    /// Line-level search across item content, optionally limited to the
-    /// descendants of `under` and to items with one of `types`. Matching runs
-    /// here, over batches of item bodies, so callers never fetch every item.
-    /// Pages over matching items in id order.
     pub fn grep_items(
         &self,
         query: &GrepQueryDto,
@@ -307,7 +291,10 @@ impl ItemService {
         };
         let re = Regex::new(&format!("(?i){pattern}"))
             .map_err(|e| ItemServiceError::InvalidRegex(e.to_string()))?;
-        let limit = query.limit.unwrap_or(GREP_DEFAULT_LIMIT).clamp(1, GREP_MAX_LIMIT) as usize;
+        let limit = query
+            .limit
+            .unwrap_or(GREP_DEFAULT_LIMIT)
+            .clamp(1, GREP_MAX_LIMIT) as usize;
         let offset = query.offset.max(0) as usize;
 
         let mut ids = if query.under.is_some() || !query.types.is_empty() {
@@ -318,6 +305,7 @@ impl ItemService {
             let scope = ItemQuery {
                 types: query.types.clone(),
                 all_types: false,
+                include_archived: query.include_archived,
                 under,
                 filters: Vec::new(),
                 sort: None,
@@ -339,13 +327,12 @@ impl ItemService {
         let mut skipped = 0;
         let mut hits = Vec::new();
         'scan: for batch in ids.chunks(REGEX_SCAN_BATCH as usize) {
-            let items = self
-                .item_repo
-                .get_items_by_ids(&batch.to_vec(), account)
-                .map_err(ItemServiceError::Repo)?;
+            let items = self.visible_item_ids(&batch.to_vec(), query.include_archived, account)?;
             for item in items {
                 let Some((lines, match_count, truncated)) =
-                    item_content::grep_lines(&item.content, query.context_lines, |l| re.is_match(l))
+                    item_content::grep_lines(&item.content, query.context_lines, |l| {
+                        re.is_match(l)
+                    })
                 else {
                     continue;
                 };
@@ -380,14 +367,44 @@ impl ItemService {
         offset: i64,
         account: &Account,
     ) -> Result<Vec<Item>, ItemServiceError> {
-        let items = self
-            .item_repo
-            .get_recent_items(limit, offset, account)
-            .map_err(ItemServiceError::Repo)?;
-        self.hydrate_items(items, &account.account_id)
+        self.get_recent_items_with_archived(limit, offset, false, account)
     }
 
-    pub fn get_random_items(&self, count: usize, account: &Account) -> Result<Vec<Item>, ItemServiceError> {
+    pub fn get_recent_items_with_archived(
+        &self,
+        limit: i64,
+        offset: i64,
+        include_archived: bool,
+        account: &Account,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        scan_regex_matches(
+            limit,
+            offset,
+            |scan_offset| {
+                let cores =
+                    self.item_repo
+                        .get_recent_items(REGEX_SCAN_BATCH, scan_offset, account)?;
+                // Keep the raw batch length for scanning, then test visibility before paging.
+                self.hydrate_items(cores, &account.account_id)
+            },
+            |item| include_archived || !item.is_archived(),
+        )
+    }
+
+    pub fn get_random_items(
+        &self,
+        count: usize,
+        account: &Account,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        self.get_random_items_with_archived(count, false, account)
+    }
+
+    pub fn get_random_items_with_archived(
+        &self,
+        count: usize,
+        include_archived: bool,
+        account: &Account,
+    ) -> Result<Vec<Item>, ItemServiceError> {
         use rand::seq::SliceRandom;
         let mut ids = self
             .item_repo
@@ -395,12 +412,25 @@ impl ItemService {
             .map_err(ItemServiceError::Repo)?;
         let mut rng = rand::thread_rng();
         ids.shuffle(&mut rng);
+        ids = self
+            .visible_item_ids(&ids, include_archived, account)?
+            .iter()
+            .map(|i| i.item_id)
+            .collect();
         ids.truncate(count);
-        self.hydrate_item_ids(&ids, account)
+        self.visible_item_ids(&ids, include_archived, account)
     }
 
     /// Returns items where the "Root" attribute is boolean `true`.
     pub fn get_root_items(&self, account: &Account) -> Result<Vec<Item>, ItemServiceError> {
+        self.get_root_items_with_archived(false, account)
+    }
+
+    pub fn get_root_items_with_archived(
+        &self,
+        include_archived: bool,
+        account: &Account,
+    ) -> Result<Vec<Item>, ItemServiceError> {
         let ids = self
             .item_attribute_value_repo
             .find_item_ids_by_filters(
@@ -415,7 +445,7 @@ impl ItemService {
                 0,
             )
             .map_err(ItemServiceError::Repo)?;
-        self.hydrate_item_ids(&ids, account)
+        self.visible_item_ids(&ids, include_archived, account)
     }
 
     pub fn get_items_by_type(
@@ -423,11 +453,20 @@ impl ItemService {
         type_name: &str,
         account: &Account,
     ) -> Result<Vec<Item>, ItemServiceError> {
+        self.get_items_by_type_with_archived(type_name, false, account)
+    }
+
+    pub fn get_items_by_type_with_archived(
+        &self,
+        type_name: &str,
+        include_archived: bool,
+        account: &Account,
+    ) -> Result<Vec<Item>, ItemServiceError> {
         let ids = self
             .item_type_repo
             .get_item_ids_for_type_name(type_name, &account.account_id)
             .map_err(ItemServiceError::Repo)?;
-        self.hydrate_item_ids(&ids, account)
+        self.visible_item_ids(&ids, include_archived, account)
     }
 
     pub fn get_children(
@@ -435,11 +474,20 @@ impl ItemService {
         item_id: &Id,
         account: &Account,
     ) -> Result<Vec<Item>, ItemServiceError> {
+        self.get_children_with_archived(item_id, false, account)
+    }
+
+    pub fn get_children_with_archived(
+        &self,
+        item_id: &Id,
+        include_archived: bool,
+        account: &Account,
+    ) -> Result<Vec<Item>, ItemServiceError> {
         let ids = self
             .item_link_repo
             .get_source_item_ids(item_id, relationship::PARENT, &account.account_id)
             .map_err(ItemServiceError::Repo)?;
-        self.hydrate_item_ids(&ids, account)
+        self.visible_item_ids(&ids, include_archived, account)
     }
 
     pub fn get_related_items(
@@ -447,11 +495,20 @@ impl ItemService {
         item_id: &Id,
         account: &Account,
     ) -> Result<Vec<Item>, ItemServiceError> {
+        self.get_related_items_with_archived(item_id, false, account)
+    }
+
+    pub fn get_related_items_with_archived(
+        &self,
+        item_id: &Id,
+        include_archived: bool,
+        account: &Account,
+    ) -> Result<Vec<Item>, ItemServiceError> {
         let ids = self
             .item_link_repo
             .get_related_item_ids(item_id, &account.account_id)
             .map_err(ItemServiceError::Repo)?;
-        self.hydrate_item_ids(&ids, account)
+        self.visible_item_ids(&ids, include_archived, account)
     }
 
     pub fn get_backlinks(
@@ -459,11 +516,20 @@ impl ItemService {
         item_id: &Id,
         account: &Account,
     ) -> Result<Vec<Item>, ItemServiceError> {
+        self.get_backlinks_with_archived(item_id, false, account)
+    }
+
+    pub fn get_backlinks_with_archived(
+        &self,
+        item_id: &Id,
+        include_archived: bool,
+        account: &Account,
+    ) -> Result<Vec<Item>, ItemServiceError> {
         let ids = self
             .item_link_repo
             .get_source_item_ids(item_id, "wikilink", &account.account_id)
             .map_err(ItemServiceError::Repo)?;
-        self.hydrate_item_ids(&ids, account)
+        self.visible_item_ids(&ids, include_archived, account)
     }
 
     pub fn filter_items(
@@ -471,7 +537,7 @@ impl ItemService {
         filter_dtos: &Vec<AttributeFilterDto>,
         account: &Account,
     ) -> Result<Vec<Item>, ItemServiceError> {
-        self.filter_items_with_pagination(filter_dtos, None, 0, account)
+        self.filter_items_with_pagination(filter_dtos, None, 0, false, account)
     }
 
     pub fn filter_items_paginated(
@@ -481,7 +547,7 @@ impl ItemService {
         offset: i64,
         account: &Account,
     ) -> Result<Vec<Item>, ItemServiceError> {
-        self.filter_items_with_pagination(filter_dtos, Some(limit), offset, account)
+        self.filter_items_with_pagination(filter_dtos, Some(limit), offset, false, account)
     }
 
     /// Query items by type, subtree, attribute filters, and sort; returns one page plus the total.
@@ -531,6 +597,7 @@ impl ItemService {
         let query = ItemQuery {
             types: dto.types.clone(),
             all_types,
+            include_archived: dto.include_archived,
             under,
             filters,
             sort,
@@ -544,11 +611,12 @@ impl ItemService {
         Ok((self.hydrate_item_ids(&ids, account)?, total))
     }
 
-    fn filter_items_with_pagination(
+    pub fn filter_items_with_pagination(
         &self,
         filter_dtos: &Vec<AttributeFilterDto>,
         limit: Option<i64>,
         offset: i64,
+        include_archived: bool,
         account: &Account,
     ) -> Result<Vec<Item>, ItemServiceError> {
         let filters: Vec<AttributeFilter> = filter_dtos
@@ -556,11 +624,51 @@ impl ItemService {
             .map(|dto| AttributeFilter::try_from(dto).map_err(ItemServiceError::InvalidFilter))
             .collect::<Result<Vec<_>, _>>()?;
 
+        let query = ItemQuery {
+            types: vec![],
+            all_types: false,
+            under: None,
+            filters,
+            sort: None,
+            include_archived,
+            limit: limit.unwrap_or(i64::MAX),
+            offset: offset.max(0),
+        };
+        let (ids, _) = self
+            .item_attribute_value_repo
+            .query_item_ids(&query, &account.account_id)?;
+        self.hydrate_item_ids(&ids, account)
+    }
+
+    /// Visibility affects discovery only, never direct reads or link storage.
+    fn visible_item_ids(
+        &self,
+        ids: &Vec<Id>,
+        include_archived: bool,
+        account: &Account,
+    ) -> Result<Vec<Item>, ItemServiceError> {
+        Ok(self
+            .hydrate_item_ids(ids, account)?
+            .into_iter()
+            .filter(|i| include_archived || !i.is_archived())
+            .collect())
+    }
+
+    /// Toggle an item's archive flag, optionally with all account-owned descendants.
+    pub fn set_archived(
+        &self,
+        root: &Id,
+        archived: bool,
+        subtree: bool,
+        account: &Account,
+    ) -> Result<Vec<Id>, ItemServiceError> {
         let ids = self
             .item_attribute_value_repo
-            .find_item_ids_by_filters(&filters, &account.account_id, limit, offset)
-            .map_err(ItemServiceError::Repo)?;
-        self.hydrate_item_ids(&ids, account)
+            .set_archived(root, archived, subtree, account)?;
+        if ids.is_empty() {
+            return Err(ItemServiceError::NotFound);
+        }
+        Ok(ids)
     }
 
     // --- Mutations ---

@@ -434,6 +434,9 @@ pub const MAX_GREP_MATCHES_PER_ITEM: usize = 50;
 /// Body of `POST /item/grep`: line-level search across item content.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GrepQueryDto {
+    /// Include archived items (default false).
+    #[serde(default)]
+    pub include_archived: bool,
     /// Text to find, case-insensitive. A literal unless `regex` is true
     pub pattern: String,
     /// Treat `pattern` as a case-insensitive regular expression

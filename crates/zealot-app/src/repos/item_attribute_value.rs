@@ -20,6 +20,7 @@ pub struct ItemSort {
 #[derive(Debug, Clone)]
 pub struct ItemQuery {
     pub types: Vec<String>,
+    pub include_archived: bool,
     /// Require every type in `types` instead of any
     pub all_types: bool,
     pub under: Option<Id>,
@@ -30,6 +31,19 @@ pub struct ItemQuery {
 }
 
 pub trait ItemAttributeValueRepo: Debug + Send + Sync {
+    /// Atomically toggle only the archive attribute on a root and optionally its descendants.
+    /// Returns all affected ids; an inaccessible root yields no ids. Traversal is account bounded.
+    fn set_archived(
+        &self,
+        _root: &Id,
+        _archived: bool,
+        _subtree: bool,
+        _account: &Account,
+    ) -> Result<Vec<Id>, RepoError> {
+        Err(RepoError::DatabaseError {
+            err: "archive mutation is unsupported by this repository".into(),
+        })
+    }
     fn get_attributes_for_items(
         &self,
         item_ids: &Vec<Id>,

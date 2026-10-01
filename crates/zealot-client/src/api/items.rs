@@ -28,20 +28,54 @@ impl ZealotClient {
 
     /// Root items, or all items of a type when `item_type` is given.
     pub async fn list_items(&self, item_type: Option<&str>) -> Result<Vec<ItemDto>, ApiError> {
+        self.list_items_with_archived(item_type, false).await
+    }
+
+    pub async fn list_items_with_archived(
+        &self,
+        item_type: Option<&str>,
+        include_archived: bool,
+    ) -> Result<Vec<ItemDto>, ApiError> {
         let path = match item_type {
             Some(t) => format!("/item?type={}", seg(t)),
             None => "/item".to_string(),
         };
-        self.get(&path).await
+        let separator = if path.contains('?') { '&' } else { '?' };
+        self.get(&format!(
+            "{path}{separator}include_archived={include_archived}"
+        ))
+        .await
     }
 
     pub async fn recent_items(&self, limit: i64, offset: i64) -> Result<Vec<ItemDto>, ApiError> {
-        self.get(&format!("/item/recent?limit={limit}&offset={offset}"))
-            .await
+        self.recent_items_with_archived(limit, offset, false).await
+    }
+
+    pub async fn recent_items_with_archived(
+        &self,
+        limit: i64,
+        offset: i64,
+        include_archived: bool,
+    ) -> Result<Vec<ItemDto>, ApiError> {
+        self.get(&format!(
+            "/item/recent?limit={limit}&offset={offset}&include_archived={include_archived}"
+        ))
+        .await
     }
 
     pub async fn random_items(&self, count: usize) -> Result<Vec<ItemDto>, ApiError> {
-        self.get(&format!("/item/random?count={count}")).await
+        self.random_items_with_archived(count, false).await
+    }
+
+    pub async fn random_items_with_archived(
+        &self,
+        count: usize,
+        include_archived: bool,
+    ) -> Result<Vec<ItemDto>, ApiError> {
+        self.get(&format!(
+            "/item/random?count={count}&include_archived={include_archived}"
+        ))
+        .await
     }
 
     pub async fn search_items(
@@ -52,28 +86,74 @@ impl ZealotClient {
         limit: i64,
         offset: i64,
     ) -> Result<Vec<SearchResultDto>, ApiError> {
+        self.search_items_with_archived(term, scope, regex, limit, offset, false)
+            .await
+    }
+
+    pub async fn search_items_with_archived(
+        &self,
+        term: &str,
+        scope: SearchScope,
+        regex: bool,
+        limit: i64,
+        offset: i64,
+        include_archived: bool,
+    ) -> Result<Vec<SearchResultDto>, ApiError> {
         let scope = match scope {
             SearchScope::Title => "title",
             SearchScope::Content => "content",
             SearchScope::Heading => "heading",
         };
         self.get(&format!(
-            "/item/search?term={}&scope={scope}&regex={regex}&limit={limit}&offset={offset}",
+            "/item/search?term={}&scope={scope}&regex={regex}&limit={limit}&offset={offset}&include_archived={include_archived}",
             seg(term)
         ))
         .await
     }
 
     pub async fn get_children(&self, item_id: i64) -> Result<Vec<ItemDto>, ApiError> {
-        self.get(&format!("/item/children/{item_id}")).await
+        self.get_children_with_archived(item_id, false).await
+    }
+
+    pub async fn get_children_with_archived(
+        &self,
+        item_id: i64,
+        include_archived: bool,
+    ) -> Result<Vec<ItemDto>, ApiError> {
+        self.get(&format!(
+            "/item/children/{item_id}?include_archived={include_archived}"
+        ))
+        .await
     }
 
     pub async fn get_related(&self, item_id: i64) -> Result<Vec<ItemDto>, ApiError> {
-        self.get(&format!("/item/related/{item_id}")).await
+        self.get_related_with_archived(item_id, false).await
+    }
+
+    pub async fn get_related_with_archived(
+        &self,
+        item_id: i64,
+        include_archived: bool,
+    ) -> Result<Vec<ItemDto>, ApiError> {
+        self.get(&format!(
+            "/item/related/{item_id}?include_archived={include_archived}"
+        ))
+        .await
     }
 
     pub async fn get_backlinks(&self, item_id: i64) -> Result<Vec<ItemDto>, ApiError> {
-        self.get(&format!("/item/backlinks/{item_id}")).await
+        self.get_backlinks_with_archived(item_id, false).await
+    }
+
+    pub async fn get_backlinks_with_archived(
+        &self,
+        item_id: i64,
+        include_archived: bool,
+    ) -> Result<Vec<ItemDto>, ApiError> {
+        self.get(&format!(
+            "/item/backlinks/{item_id}?include_archived={include_archived}"
+        ))
+        .await
     }
 
     pub async fn filter_items(
@@ -97,6 +177,20 @@ impl ZealotClient {
     /// Line-level search across item content, matched on the server.
     pub async fn grep_items(&self, query: &GrepQueryDto) -> Result<GrepPageDto, ApiError> {
         self.post("/item/grep", query).await
+    }
+
+    /// Atomically change the archive flag on an item and optionally its subtree.
+    pub async fn set_archived(
+        &self,
+        item_id: i64,
+        archived: bool,
+        subtree: bool,
+    ) -> Result<Value, ApiError> {
+        self.post(
+            &format!("/item/{item_id}/archive"),
+            &json!({"archived": archived, "subtree": subtree}),
+        )
+        .await
     }
 
     pub async fn add_item(&self, dto: &AddItemDto) -> Result<ItemDto, ApiError> {
@@ -175,7 +269,17 @@ impl ZealotClient {
     }
 
     pub async fn most_viewed(&self, limit: i64) -> Result<Vec<MostViewedItemDto>, ApiError> {
-        self.get(&format!("/analysis/most-viewed?limit={limit}"))
-            .await
+        self.most_viewed_with_archived(limit, false).await
+    }
+
+    pub async fn most_viewed_with_archived(
+        &self,
+        limit: i64,
+        include_archived: bool,
+    ) -> Result<Vec<MostViewedItemDto>, ApiError> {
+        self.get(&format!(
+            "/analysis/most-viewed?limit={limit}&include_archived={include_archived}"
+        ))
+        .await
     }
 }

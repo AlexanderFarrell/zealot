@@ -264,3 +264,39 @@ The server defines 10 structured prompts (`daily_briefing`, `plan_my_week`, `cap
 ### HTTP mode compatibility
 
 The HTTP server includes a compatibility layer that converts Server-Sent Events responses to plain JSON for clients that don't handle streaming. This is transparent to the agent but means some clients receive responses slightly later than native SSE clients.
+
+
+## Reversible item archiving
+
+`set_archived` takes `{item: "#123", archived: true, subtree: false}`. Use
+`archived: false` to unarchive. Read the target first and obtain authority for the
+items affected. `subtree: true` toggles this item and every descendant through
+Parent links, including descendants with other parents, in one atomic,
+account-bounded action. Cycles are safe. It does not change parents, types,
+Status, content, comments, or any other attribute. Unarchiving a subtree clears
+its archive flags, including flags set before the original subtree action.
+New children do not inherit an ancestor's archive state.
+
+State uses the existing boolean attribute primitive: `Archived: true` hides an
+item; missing/false means visible. The API reports `archived` on full item reads
+and MCP summaries. The existing Status remains independent. No items are
+archived by migration, and no history is deleted or stripped.
+
+`browse_items` (all modes), `filter_items`, `search_items`, `grep_items`,
+`get_linked_items`, `get_plan`, and `day_dashboard` accept
+`include_archived: true`; the default excludes archived discovery results.
+`list_item_types` accepts the same flag for its item counts. Counts and paging
+apply to the selected visible set. Direct `get_item`, exact-title reads,
+content reads, and wikilinks continue to resolve archived items.
+
+In the UI, use **Archive Item** / **Unarchive Item** on the item screen, or
+**Archive Subtree** / **Unarchive Subtree** for descendants. The confirmation
+states the effect. Search (Ctrl+O) has **Include archived** for discovery and
+restoration; archived results and item screens show an archive label.
+
+HTTP: `POST /item/{id}/archive` with `{archived: true|false, subtree: true|false}`
+returns `{item_ids: [...], archived: ...}`. Item discovery, planner, and
+`/item_type/summary` GET endpoints accept `?include_archived=true`;
+`POST /item/query`, `/item/filter`, and `/item/grep` accept the boolean in their
+body. Omitting the opt-in excludes archived items. Backup and direct history
+reads preserve archived items.
