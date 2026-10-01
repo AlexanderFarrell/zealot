@@ -129,7 +129,7 @@ pub struct CreateAttributeKindParams {
     /// are Title Case with spaces (e.g. "Strategic Score", "End Date")
     pub key: String,
     pub description: Option<String>,
-    /// Base type: text, integer, decimal, date, week, boolean, dropdown, item, list
+    /// Base type: text, integer, decimal, date, week, boolean, dropdown, item, email, telephone, url, media, place, list
     pub base_type: String,
     /// Type-specific config (e.g. {"values":["low","medium","high"]} for dropdown)
     pub config: Option<JsonObject>,

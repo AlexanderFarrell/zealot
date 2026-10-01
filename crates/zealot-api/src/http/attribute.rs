@@ -178,13 +178,23 @@ async fn delete_attribute_kind(
 }
 
 fn kind_to_json(kind: &AttributeKind) -> serde_json::Value {
+    let mut config = spec_to_config_json(&kind.spec);
+    // A list kind carries its inner type's spec (dropdown values, min/max, ...); name the inner type too.
+    if let zealot_domain::attribute::AttributeBaseType::List(inner) = &kind.base_type {
+        let inner = base_type_str(&zealot_domain::attribute::AttributeBaseType::Scalar(
+            inner.clone(),
+        ));
+        if let Some(map) = config.as_object_mut() {
+            map.insert("list_type".into(), inner.into());
+        }
+    }
     serde_json::json!({
         "kind_id": i64::from(kind.kind_id),
         "key": kind.key,
         "description": kind.description,
         "is_system": kind.is_system,
         "base_type": base_type_str(&kind.base_type),
-        "config": spec_to_config_json(&kind.spec),
+        "config": config,
     })
 }
 
@@ -201,6 +211,11 @@ fn base_type_str(bt: &zealot_domain::attribute::AttributeBaseType) -> &'static s
             AttributeBaseScalarType::Dropdown => "dropdown",
             AttributeBaseScalarType::Boolean => "boolean",
             AttributeBaseScalarType::Item => "item",
+            AttributeBaseScalarType::Email => "email",
+            AttributeBaseScalarType::Telephone => "telephone",
+            AttributeBaseScalarType::Url => "url",
+            AttributeBaseScalarType::Media => "media",
+            AttributeBaseScalarType::Place => "place",
         },
     }
 }
@@ -266,5 +281,33 @@ fn spec_to_config_json(spec: &zealot_domain::attribute::AttributeKindSpec) -> se
             serde_json::Value::Object(m)
         }
         _ => serde_json::Value::Object(serde_json::Map::new()),
+    }
+}
+
+#[cfg(test)]
+mod kind_json_tests {
+    use super::*;
+    use zealot_domain::{
+        attribute::{AttributeBaseScalarType, AttributeBaseType, AttributeKindSpec},
+        common::id::Id,
+    };
+
+    /// A list of dropdown values (multi-select) reports its inner type and allowed values.
+    #[test]
+    fn list_kind_reports_inner_type_and_values() {
+        let kind = AttributeKind {
+            kind_id: Id::try_from(1).unwrap(),
+            is_system: false,
+            key: "Tags".into(),
+            description: String::new(),
+            base_type: AttributeBaseType::List(AttributeBaseScalarType::Dropdown),
+            spec: AttributeKindSpec::Dropdown {
+                values: vec!["a".into(), "b".into()],
+            },
+        };
+        let json = kind_to_json(&kind);
+        assert_eq!(json["base_type"], "list");
+        assert_eq!(json["config"]["list_type"], "dropdown");
+        assert_eq!(json["config"]["values"], serde_json::json!(["a", "b"]));
     }
 }

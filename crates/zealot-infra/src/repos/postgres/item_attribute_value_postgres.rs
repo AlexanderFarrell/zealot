@@ -68,6 +68,11 @@ fn parse_scalar_type(s: &str) -> Option<AttributeBaseScalarType> {
         "dropdown" => Some(AttributeBaseScalarType::Dropdown),
         "boolean" => Some(AttributeBaseScalarType::Boolean),
         "item" => Some(AttributeBaseScalarType::Item),
+        "email" => Some(AttributeBaseScalarType::Email),
+        "telephone" => Some(AttributeBaseScalarType::Telephone),
+        "url" => Some(AttributeBaseScalarType::Url),
+        "media" => Some(AttributeBaseScalarType::Media),
+        "place" => Some(AttributeBaseScalarType::Place),
         _ => None,
     }
 }
@@ -98,6 +103,21 @@ fn decode_scalar_from_cols(
             }
             AttributeBaseScalarType::Dropdown => {
                 return value_text.map(|s| AttributeScalar::Dropdown(s.to_string()));
+            }
+            AttributeBaseScalarType::Email => {
+                return value_text.map(|s| AttributeScalar::Email(s.to_string()));
+            }
+            AttributeBaseScalarType::Telephone => {
+                return value_text.map(|s| AttributeScalar::Telephone(s.to_string()));
+            }
+            AttributeBaseScalarType::Url => {
+                return value_text.map(|s| AttributeScalar::Url(s.to_string()));
+            }
+            AttributeBaseScalarType::Media => {
+                return value_text.map(|s| AttributeScalar::Media(s.to_string()));
+            }
+            AttributeBaseScalarType::Place => {
+                return value_text.map(|s| AttributeScalar::Place(s.to_string()));
             }
             AttributeBaseScalarType::Week => {
                 if let Some(s) = value_text {
@@ -159,6 +179,11 @@ fn scalar_to_cols(
     match scalar {
         AttributeScalar::Text(s) => (Some(s.clone()), None, None, None, None),
         AttributeScalar::Dropdown(s) => (Some(s.clone()), None, None, None, None),
+        AttributeScalar::Email(s) => (Some(s.clone()), None, None, None, None),
+        AttributeScalar::Telephone(s) => (Some(s.clone()), None, None, None, None),
+        AttributeScalar::Url(s) => (Some(s.clone()), None, None, None, None),
+        AttributeScalar::Media(s) => (Some(s.clone()), None, None, None, None),
+        AttributeScalar::Place(s) => (Some(s.clone()), None, None, None, None),
         AttributeScalar::Week(w) => (Some(w.to_string()), None, None, None, None),
         AttributeScalar::Integer(i) => (None, None, Some(*i as i32), None, None),
         AttributeScalar::Boolean(b) => (None, None, Some(*b as i32), None, None),
@@ -289,7 +314,12 @@ fn attr_filter_value_col_and_val(
         return match base_type {
             AttributeBaseScalarType::Text
             | AttributeBaseScalarType::Dropdown
-            | AttributeBaseScalarType::Week => match value {
+            | AttributeBaseScalarType::Week
+            | AttributeBaseScalarType::Email
+            | AttributeBaseScalarType::Telephone
+            | AttributeBaseScalarType::Url
+            | AttributeBaseScalarType::Media
+            | AttributeBaseScalarType::Place => match value {
                 Value::String(value) => Ok(("value_text", SqlValue::Str(value.clone()))),
                 _ => Err(RepoError::DatabaseError {
                     err: format!("filter '{}' expects a string value", key),
@@ -478,7 +508,12 @@ fn sort_column(base_type: &AttributeBaseScalarType) -> &'static str {
     match base_type {
         AttributeBaseScalarType::Text
         | AttributeBaseScalarType::Dropdown
-        | AttributeBaseScalarType::Week => "value_text",
+        | AttributeBaseScalarType::Week
+        | AttributeBaseScalarType::Email
+        | AttributeBaseScalarType::Telephone
+        | AttributeBaseScalarType::Url
+        | AttributeBaseScalarType::Media
+        | AttributeBaseScalarType::Place => "value_text",
         AttributeBaseScalarType::Integer | AttributeBaseScalarType::Boolean => "value_int",
         AttributeBaseScalarType::Decimal => "value_num",
         AttributeBaseScalarType::Date => "value_date",

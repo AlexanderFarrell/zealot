@@ -161,6 +161,11 @@ Attributes are stored as typed values. The JSON representation on the wire:
 | `dropdown` | string (must be a configured value) | `"High"` |
 | `boolean` | boolean | `true` |
 | `item` | number (item_id i64) | `99` |
+| `email` | string | `"me@example.com"` |
+| `telephone` | string | `"+1 555 123 4567"` |
+| `url` | string (http or https URL) | `"https://example.com"` |
+| `media` | string (http(s) URL or `/api/media/...` path) | `"/api/media/a/b.png"` |
+| `place` | string (address, or `"lat,lon"`) | `"51.5, -0.12"` |
 | `list` | array of any scalar above | `[1, 2, 3]` |
 
 Dates use `YYYY-MM-DD`. Weeks use `YYYY-Www` with a zero-padded two-digit week number (e.g. `2026-W03`).
@@ -582,8 +587,9 @@ The `base_type` string and `config` shape depend on the type:
 | `week` | `{}` |
 | `boolean` | `{}` |
 | `item` | `{}` |
+| `email`, `telephone`, `url`, `media`, `place` | `{}` |
 | `dropdown` | `{ "values": ["Option A", "Option B"] }` |
-| `list` | `{ "list_type": "text" }` (or any other scalar type name) |
+| `list` | `{ "list_type": "text" }` (or any other scalar type name); `{ "list_type": "dropdown", "values": [...] }` is a multi-select |
 
 ```json
 {

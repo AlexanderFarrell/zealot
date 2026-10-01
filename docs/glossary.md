@@ -24,7 +24,7 @@ The schema definition for an attribute: its key name, base type, optional constr
 
 ### base type
 
-The underlying data type of an attribute kind. One of: `text`, `integer`, `decimal`, `date`, `week`, `dropdown`, `boolean`, `item`, `list`. See [Data Model — Base types](./data-model.md#base-types).
+The underlying data type of an attribute kind. One of: `text`, `integer`, `decimal`, `date`, `week`, `dropdown`, `boolean`, `item`, `email`, `telephone`, `url`, `media`, `place`, `list`. See [Data Model — Base types](./data-model.md#base-types).
 
 ### comment
 

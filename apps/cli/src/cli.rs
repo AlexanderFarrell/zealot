@@ -510,7 +510,7 @@ pub enum AttrCmd {
     /// Create an attribute kind
     New {
         key: String,
-        /// text, integer, decimal, date, week, dropdown, boolean, list, item
+        /// text, integer, decimal, date, week, dropdown, boolean, list, item, email, telephone, url, media, place
         #[arg(long, short = 'b')]
         base: String,
         #[arg(long, short = 'd', default_value = "")]

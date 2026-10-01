@@ -109,13 +109,22 @@ Use `GET /attribute/` to retrieve all defined attribute kinds for the instance.
 | `dropdown` | JSON string (must be one of `values`) | `"High"` | `values` (array of allowed strings) |
 | `boolean` | JSON boolean | `true` | — |
 | `item` | JSON integer (item_id) | `7` | — |
-| `list` | JSON array of any scalar type above | `["a", "b"]` | `list_type` (one of the scalar base types above) |
+| `email` | JSON string, `local@domain.tld` | `"me@example.com"` | — |
+| `telephone` | JSON string, 7-15 digits with optional leading `+` and ` `, `-`, `.`, `(`, `)` separators | `"+1 (555) 123-4567"` | — |
+| `url` | JSON string, absolute `http://` or `https://` URL | `"https://example.com/a"` | — |
+| `media` | JSON string, an `http(s)` URL or a media-store path (`/api/media/...`, `/media/...`) | `"/api/media/paste/cat.png"` | — |
+| `place` | JSON string, an address, or `"lat,lon"` coordinates (lat -90..90, lon -180..180) | `"51.5, -0.12"` | — |
+| `list` | JSON array of any scalar type above | `["a", "b"]` | `list_type` (one of the scalar base types above), plus the inner type's own options (for example `values` for a list of `dropdown`) |
 
 **Date format:** `YYYY-MM-DD` (e.g. `"2026-06-10"`). Always pass as a string.
 
 **Week format:** `YYYY-Www` with a two-digit week number (e.g. `"2026-W24"`). Weeks follow ISO 8601 (Monday is the first day). Always pass as a string.
 
 **List type:** A list attribute stores an array of values all of the same scalar type. The scalar validation rules (min, max, etc.) apply to each element.
+
+**Multi-select:** A `list` with `list_type: "dropdown"` and `values` is a multi-select. Each element must be one of `values`, and the web client shows it as a checkbox group.
+
+**Email, telephone, url, media, place:** These are text with built-in validation, stored in the text column, so they sort and filter (`eq`, `ilike`, ...) like `text`. Values are trimmed. The web client renders a native input plus a live link beside it (`mailto:`, `tel:`, the URL or media file, a map for a place); only http(s) and media-store values are ever linked. `media` values also get an Upload button that stores the file in the media store under `attributes/` and sets the link.
 
 ### Attribute config object (per type)
 

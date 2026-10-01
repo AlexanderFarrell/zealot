@@ -4,6 +4,7 @@ import { ShortcodePicker, detectShortcodeTriggerInText, type ShortcodeSuggestion
 import ChipsInput from './chips_input';
 import { ItemChipsInput } from './item_chips_input';
 import { ItemPickerInput } from './item_picker_input';
+import { createMultiSelectInput, createSemanticInput, isSemanticBaseType } from './semantic_attribute_inputs';
 
 const attrKindApi = new AttributeKindAPI('/api');
 
@@ -188,7 +189,14 @@ export function createAttributeValueInput(options: AttributeValueInputOptions): 
         return bindChangeInput(select, options, () => readStringValue(select));
     }
 
+    if (isSemanticBaseType(baseType)) {
+        return createSemanticInput(baseType, options);
+    }
+
     if (baseType === 'list') {
+        if (kind.Config.list_type === 'dropdown') {
+            return createMultiSelectInput(kind, options);
+        }
         return createListInput(options);
     }
 
