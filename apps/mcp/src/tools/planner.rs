@@ -99,10 +99,7 @@ pub struct CommentIdParam {
 }
 
 fn today_str() -> String {
-    chrono::Local::now()
-        .date_naive()
-        .format("%Y-%m-%d")
-        .to_string()
+    super::local_today().format("%Y-%m-%d").to_string()
 }
 
 pub(crate) fn now_timestamp() -> String {

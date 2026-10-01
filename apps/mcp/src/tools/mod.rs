@@ -92,6 +92,12 @@ pub fn parse_date(s: &str) -> Result<chrono::NaiveDate, McpError> {
     })
 }
 
+/// The user's local calendar date. The MCP server runs on the user's machine,
+/// so the process's local time zone is the user's.
+pub fn local_today() -> chrono::NaiveDate {
+    chrono::Local::now().date_naive()
+}
+
 #[rmcp::tool_handler]
 #[rmcp::prompt_handler]
 impl ServerHandler for ZealotServer {

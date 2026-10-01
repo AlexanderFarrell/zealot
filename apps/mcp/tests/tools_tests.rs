@@ -691,6 +691,147 @@ async fn habit_stats_computes_neutral_status_streaks() {
 }
 
 #[tokio::test]
+async fn habit_stats_counts_only_through_today() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("GET"))
+        .and(path("/repeat/range"))
+        .and(query_param("start", "2026-07-01"))
+        .and(query_param("end", "2026-07-04"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+            repeat_entry(1, "Meditate", "2026-07-01", "Complete"),
+            repeat_entry(1, "Meditate", "2026-07-02", "Not Complete"),
+            repeat_entry(1, "Meditate", "2026-07-03", "Complete"),
+            repeat_entry(1, "Meditate", "2026-07-04", "Not Complete"),
+            repeat_entry(2, "Stretch", "2026-07-03", "Complete"),
+            repeat_entry(2, "Stretch", "2026-07-04", "Complete")
+        ])))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    let today = chrono::NaiveDate::from_ymd_opt(2026, 7, 4).unwrap();
+    let result = server
+        .habit_stats_as_of(
+            HabitStatsParams {
+                start_date: "2026-07-01".to_string(),
+                end_date: "2026-07-06".to_string(),
+            },
+            today,
+        )
+        .await
+        .unwrap();
+    let value: Value = serde_json::from_str(&text_of(result)).unwrap();
+    assert_eq!(value["end_date"], "2026-07-06");
+    assert_eq!(value["counted_through"], "2026-07-04");
+
+    // Unlogged past day counts and breaks the streak; unlogged today is pending.
+    let meditate = &value["habits"][0];
+    assert_eq!(meditate["entries"], 3);
+    assert_eq!(meditate["counts"]["complete"], 2);
+    assert_eq!(meditate["counts"]["not_complete"], 1);
+    assert_eq!(meditate["completion_rate"], 0.6667);
+    assert_eq!(meditate["current_streak"], 1);
+    assert_eq!(meditate["longest_streak"], 1);
+
+    // A completed today counts toward the rate and the streak.
+    let stretch = &value["habits"][1];
+    assert_eq!(stretch["counts"]["complete"], 2);
+    assert_eq!(stretch["completion_rate"], 1.0);
+    assert_eq!(stretch["current_streak"], 2);
+}
+
+#[tokio::test]
+async fn habit_stats_counts_unlogged_day_once_it_has_passed() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("GET"))
+        .and(path("/repeat/range"))
+        .and(query_param("start", "2026-07-03"))
+        .and(query_param("end", "2026-07-04"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+            repeat_entry(1, "Meditate", "2026-07-03", "Complete"),
+            repeat_entry(1, "Meditate", "2026-07-04", "Not Complete")
+        ])))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    let tomorrow = chrono::NaiveDate::from_ymd_opt(2026, 7, 5).unwrap();
+    let result = server
+        .habit_stats_as_of(
+            HabitStatsParams {
+                start_date: "2026-07-03".to_string(),
+                end_date: "2026-07-04".to_string(),
+            },
+            tomorrow,
+        )
+        .await
+        .unwrap();
+    let value: Value = serde_json::from_str(&text_of(result)).unwrap();
+    assert_eq!(value["counted_through"], "2026-07-04");
+    let habit = &value["habits"][0];
+    assert_eq!(habit["counts"]["not_complete"], 1);
+    assert_eq!(habit["completion_rate"], 0.5);
+    assert_eq!(habit["current_streak"], 0);
+}
+
+#[tokio::test]
+async fn habit_stats_future_range_counts_nothing() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("GET"))
+        .and(path("/repeat/range"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .expect(0)
+        .mount(&mock)
+        .await;
+
+    let today = chrono::NaiveDate::from_ymd_opt(2026, 7, 4).unwrap();
+    let result = server
+        .habit_stats_as_of(
+            HabitStatsParams {
+                start_date: "2026-07-05".to_string(),
+                end_date: "2026-07-10".to_string(),
+            },
+            today,
+        )
+        .await
+        .unwrap();
+    let value: Value = serde_json::from_str(&text_of(result)).unwrap();
+    assert_eq!(value["counted_through"], Value::Null);
+    assert_eq!(value["habit_count"], 0);
+}
+
+#[tokio::test]
+async fn habit_stats_tool_stops_at_local_today() {
+    let (server, mock) = make_server().await;
+    let today = zealot_mcp::tools::local_today();
+    let start = today - chrono::Duration::days(1);
+    let end = today + chrono::Duration::days(3);
+    Mock::given(method("GET"))
+        .and(path("/repeat/range"))
+        .and(query_param("start", start.to_string()))
+        .and(query_param("end", today.to_string()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+            repeat_entry(1, "Meditate", &start.to_string(), "Complete"),
+            repeat_entry(1, "Meditate", &today.to_string(), "Not Complete")
+        ])))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    let result = server
+        .habit_stats(Parameters(HabitStatsParams {
+            start_date: start.to_string(),
+            end_date: end.to_string(),
+        }))
+        .await
+        .unwrap();
+    let value: Value = serde_json::from_str(&text_of(result)).unwrap();
+    assert_eq!(value["counted_through"], today.to_string());
+    assert_eq!(value["habits"][0]["current_streak"], 1);
+    assert_eq!(value["habits"][0]["completion_rate"], 1.0);
+}
+
+#[tokio::test]
 async fn record_statistic_entry_resolves_item_and_posts_typed_body() {
     let (server, mock) = make_server().await;
     Mock::given(method("GET"))
