@@ -69,9 +69,11 @@ Fire immediately when something happens in Zealot.
 | `on_comment_add` | A comment is added to any item |
 | `on_type_assign` | A type is assigned to an item |
 | `on_type_unassign` | A type is removed from an item |
-| `on_attribute_set` | An attribute value is set on any item |
+| `on_attribute_set` | An attribute is set on an existing item through the attribute-set path (the editor, `zealot.items.set_attribute`, or the MCP `update_item_attributes`) |
 
 For `on_type_assign`, `on_type_unassign`, and `on_attribute_set` you can optionally filter by a specific type name or attribute key. Leave the field blank to match any.
+
+Attributes written as part of creating an item (`on_item_create`) or inside an `update_item` call (`on_item_update`) do **not** fire `on_attribute_set`. Those writes fire only the create or update event, and the item in that event already carries the attributes. A rule that must react to a value however it was written (for example `Status = Complete`) needs both an `on_attribute_set` rule and an `on_item_create` rule; the second can read `zealot.event.item.attributes` directly.
 
 When an event trigger fires, `zealot.event` is populated with details about what happened. See [zealot.event](#zealothevent) below.
 
@@ -320,10 +322,14 @@ end
 
 #### Fields by event kind
 
+Every event that carries an item provides `zealot.event.item`, the full item table (`id`, `title`, `content`, `attributes`, `types`, `links`; see Item table structure below), plus `zealot.event.item_id` (the same integer as `item.id`).
+
 **`on_item_create` and `on_item_update`**
 ```
-zealot.event.kind    -- "on_item_create" or "on_item_update"
-zealot.event.item    -- the full item table (see Item table structure below)
+zealot.event.kind      -- "on_item_create" or "on_item_update"
+zealot.event.item      -- the full item table
+zealot.event.item_id   -- integer ID of the item
+zealot.event.title     -- the item title
 ```
 
 **`on_item_delete`**
@@ -336,6 +342,7 @@ zealot.event.item_id   -- integer ID of the deleted item
 ```
 zealot.event.kind        -- "on_comment_add"
 zealot.event.item_id     -- integer ID of the item the comment was added to
+zealot.event.comment_id  -- integer ID of the new comment
 zealot.event.content     -- the comment text
 zealot.event.timestamp   -- ISO datetime string
 ```
@@ -343,7 +350,8 @@ zealot.event.timestamp   -- ISO datetime string
 **`on_type_assign` and `on_type_unassign`**
 ```
 zealot.event.kind        -- "on_type_assign" or "on_type_unassign"
-zealot.event.item        -- the full item table
+zealot.event.item        -- the full item table (with the type already assigned or removed)
+zealot.event.item_id     -- integer ID of the item
 zealot.event.type_name   -- the type that was assigned or removed
 ```
 
@@ -351,7 +359,19 @@ zealot.event.type_name   -- the type that was assigned or removed
 ```
 zealot.event.kind           -- "on_attribute_set"
 zealot.event.item           -- the full item table (with the new attribute value already set)
+zealot.event.item_id        -- integer ID of the item
 zealot.event.attribute_key  -- the key of the attribute that was changed
+zealot.event.old_value      -- the value before the write, or nil if the attribute was not set
+zealot.event.new_value      -- the value after the write, or nil if the attribute is now absent
+```
+
+Removing an attribute also fires `on_attribute_set`, with `new_value` nil.
+
+`old_value` and `new_value` let a rule tell a real transition from a re-save of the same value:
+```lua
+if zealot.event.new_value == "Complete" and zealot.event.old_value ~= "Complete" then
+    -- first time this item became Complete
+end
 ```
 
 ---
@@ -661,16 +681,19 @@ end
 
 ### Stamp a completion date automatically
 
-When Status is set to "Complete", record the date it happened.
+When Status is set to "Complete", record the date it happened. Status is a dropdown: `To Do`, `Specify`, `Working`, `On Going`, `Hold`, `Blocked`, `Complete`, `Rejected`, `Retired`.
 
 **Trigger:** `on_attribute_set` — attribute key: `Status`
 
 ```lua
 local item = zealot.event.item
-if item.attributes["Status"] == "Complete" then
+-- Only stamp on a real transition, not when Complete is re-saved.
+if zealot.event.new_value == "Complete" and zealot.event.old_value ~= "Complete" then
     zealot.items.set_attribute(item.id, "Completed At", zealot.date)
 end
 ```
+
+An item created already `Complete` fires `on_item_create`, not `on_attribute_set`. To stamp those too, add the same rule on `on_item_create`, checking `zealot.event.item.attributes["Status"] == "Complete"`.
 
 ---
 
@@ -833,15 +856,15 @@ end
 
 ---
 
-### Flag stale in-progress items
+### Flag stale working items
 
-Every Monday, add a comment to items that are still "In Progress" past their due date.
+Every Monday, add a comment to items that are still "Working" past their due date.
 
 **Trigger:** Cron — `0 9 * * 1` (Monday at 9 AM)
 
 ```lua
 local items = zealot.items.filter({
-    { key = "Status", op = "eq", value = "In Progress" }
+    { key = "Status", op = "eq", value = "Working" }
 })
 
 local flagged = 0
@@ -850,7 +873,7 @@ for _, item in ipairs(items) do
     -- ISO dates compare correctly as strings (YYYY-MM-DD < YYYY-MM-DD)
     if due and due < zealot.date then
         zealot.comments.add(item.id,
-            "This item has been In Progress past its due date (" .. due .. "). Still relevant?")
+            "This item has been Working past its due date (" .. due .. "). Still relevant?")
         flagged = flagged + 1
     end
 end

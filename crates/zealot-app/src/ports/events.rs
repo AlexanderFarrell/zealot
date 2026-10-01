@@ -1,6 +1,6 @@
 use std::cell::Cell;
 use std::fmt::Debug;
-use zealot_domain::{comment::Comment, common::id::Id, item::Item};
+use zealot_domain::{attribute::Attribute, comment::Comment, common::id::Id, item::Item};
 
 #[derive(Debug, Clone)]
 pub enum ZealotEvent {
@@ -35,6 +35,10 @@ pub enum ZealotEvent {
         account_id: Id,
         item: Item,
         attribute_key: String,
+        /// Value before the write; `None` when the attribute was unset.
+        old_value: Option<Attribute>,
+        /// Value after the write; `None` when the attribute is absent.
+        new_value: Option<Attribute>,
     },
 }
 
