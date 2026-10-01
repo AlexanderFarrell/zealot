@@ -31,7 +31,8 @@ JSON attributes, types, and graph links. Item parameters named `item` accept an 
 Prefer browse-then-read. Multi-item tools return compact summary JSON by default: \
 `browse_items`, `search_items`, `filter_items`, `get_linked_items`, and `get_plan` \
 support `detail:\"meta\"`, `detail:\"summary\"`, or `detail:\"full\"`. Use \
-`get_item` for one full item, or `get_item_outline` before reading long content. \
+`get_item` for one full item, or `get_item_outline` then `read_item` (one section \
+or line range) for long content. `grep_items` finds lines across items or a subtree. \
 List every item of a type with `browse_items` mode `root` plus `type_filter`. \
 Paged list envelopes are `{count,next_offset,items}`; pass `offset:next_offset` \
 until it is absent.
@@ -41,7 +42,9 @@ Dates are `YYYY-MM-DD`, ISO weeks are `YYYY-Wnn`, months are `YYYY-MM`, years ar
 Habit statuses are `Complete`, `Skip`, `Alternate`, and `Not Complete`. Use \
 `add_journal_entry` only when the server has `ZEALOT_JOURNAL_ITEM` configured. \
 Check `list_item_types` and `list_attribute_kinds` before inventing schema. \
-Read before overwriting item content; use `append_to_item` for log-style additions.";
+Change content with `edit_item` (exact text) or `replace_section`, passing the \
+`version` from your read as `expected_version` so a concurrent edit is never \
+overwritten; use `append_to_item` for log-style additions.";
 
 #[derive(Clone)]
 pub struct ZealotServer {

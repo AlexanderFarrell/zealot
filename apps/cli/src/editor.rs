@@ -196,6 +196,7 @@ async fn save_content(client: &ZealotClient, item_id: i64, content: String) -> R
         content: Some(content),
         attributes: None,
         links: None,
+        expected_version: None,
     };
     client.update_item(&dto).await.context("item save failed")?;
     Ok(())

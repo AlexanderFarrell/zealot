@@ -212,6 +212,7 @@ pub fn register(
                         content,
                         attributes: None,
                         links: None,
+                        expected_version: None,
                     };
                     match svc
                         .item

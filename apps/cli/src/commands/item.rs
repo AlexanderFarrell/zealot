@@ -244,6 +244,7 @@ async fn edit_full(ctx: &Ctx, item: ItemDto) -> Result<()> {
         content: (parsed.content != item.content).then_some(parsed.content.clone()),
         attributes: Some(parsed.attributes.clone()),
         links: None,
+        expected_version: None,
     };
     ctx.client.update_item(&dto).await?;
 
@@ -308,6 +309,7 @@ async fn append(ctx: &Ctx, item_ref: ItemRef, text: &[String]) -> Result<()> {
         content: Some(content),
         attributes: None,
         links: None,
+        expected_version: None,
     };
     ctx.client.update_item(&dto).await?;
     println!(

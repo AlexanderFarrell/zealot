@@ -7,6 +7,7 @@ use zealot_domain::{
         AddItemDto, ItemDto, ItemQueryDto, ItemQueryPageDto, SearchResultDto, SearchScope,
         UpdateItemDto,
     },
+    item_content::{ContentEditDto, ContentWriteDto, GrepPageDto, GrepQueryDto},
 };
 
 use crate::{
@@ -93,12 +94,27 @@ impl ZealotClient {
         self.post("/item/query", query).await
     }
 
+    /// Line-level search across item content, matched on the server.
+    pub async fn grep_items(&self, query: &GrepQueryDto) -> Result<GrepPageDto, ApiError> {
+        self.post("/item/grep", query).await
+    }
+
     pub async fn add_item(&self, dto: &AddItemDto) -> Result<ItemDto, ApiError> {
         self.post("/item", dto).await
     }
 
     pub async fn update_item(&self, dto: &UpdateItemDto) -> Result<ItemDto, ApiError> {
         self.patch(&format!("/item/{}", dto.item_id), dto).await
+    }
+
+    /// Apply one targeted content edit on the server (exact replace, append,
+    /// or section rewrite). A stale `expected_version` fails with HTTP 409.
+    pub async fn edit_item_content(
+        &self,
+        item_id: i64,
+        dto: &ContentEditDto,
+    ) -> Result<ContentWriteDto, ApiError> {
+        self.post(&format!("/item/{item_id}/content"), dto).await
     }
 
     pub async fn delete_item(&self, item_id: i64) -> Result<(), ApiError> {

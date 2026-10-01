@@ -23,6 +23,7 @@ use zealot_domain::{
         AddItemDto, Item, ItemDto, ItemQueryDto, ItemQueryPageDto, SearchResultDto, SearchScope,
         UpdateItemDto,
     },
+    item_content::{ContentEditDto, ContentWriteDto, GrepPageDto, GrepQueryDto},
 };
 
 use crate::http::{
@@ -52,8 +53,10 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .route("/backlinks/{item_id}", get(get_backlinks))
         .route("/filter", post(filter_items))
         .route("/query", post(query_items))
+        .route("/grep", post(grep_items))
         .route("/rebuild-links", post(rebuild_links))
         .route("/{item_id}", patch(update_item).delete(delete_item))
+        .route("/{item_id}/content", post(edit_content))
         .route("/{item_id}/attr", patch(set_attributes))
         .route("/{item_id}/attr/rename", patch(rename_attribute))
         .route("/{item_id}/attr/{key}", delete(delete_attribute))
@@ -89,6 +92,8 @@ fn item_service_err(err: ItemServiceError) -> HttpError {
         ItemServiceError::InvalidFilter(msg) => HttpError::UserError { err: msg },
         ItemServiceError::InvalidId(msg) => HttpError::UserError { err: msg },
         ItemServiceError::InvalidRegex(msg) => HttpError::UserError { err: msg },
+        ItemServiceError::Content(e) => HttpError::UserError { err: e.to_string() },
+        ItemServiceError::Conflict(message) => HttpError::Conflict { message },
         ItemServiceError::Repo(e) => {
             tracing::error!("Item repo error: {e}");
             HttpError::Internal
@@ -379,6 +384,22 @@ async fn query_items(
     }))
 }
 
+/// Line-level search across item content (literal or regex, optionally
+/// within a subtree and types), matched on the server.
+async fn grep_items(
+    State(state): State<AppState>,
+    Extension(actor): Extension<Actor>,
+    Json(body): Json<GrepQueryDto>,
+) -> Result<Json<GrepPageDto>, HttpError> {
+    let account = require_account(&actor)?;
+    let page = state
+        .services
+        .item
+        .grep_items(&body, &account)
+        .map_err(item_service_err)?;
+    Ok(Json(page))
+}
+
 async fn rebuild_links(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
@@ -433,6 +454,26 @@ async fn update_item(
         Some(item) => Ok(Json(ItemDto::from(&item))),
         None => Err(HttpError::NotFound),
     }
+}
+
+/// Apply one targeted content edit (`replace`, `append`, or
+/// `replace_section`) on the server. 400 when the edit cannot apply (text not
+/// found, ambiguous match or heading); 409 when `expected_version` is stale or
+/// a concurrent write won.
+async fn edit_content(
+    State(state): State<AppState>,
+    Extension(actor): Extension<Actor>,
+    Path(item_id): Path<i64>,
+    Json(dto): Json<ContentEditDto>,
+) -> Result<Json<ContentWriteDto>, HttpError> {
+    let account = require_account(&actor)?;
+    let id = parse_item_id(item_id)?;
+    let written = state
+        .services
+        .item
+        .edit_content(&id, &dto, &account)
+        .map_err(item_service_err)?;
+    Ok(Json(written))
 }
 
 async fn delete_item(

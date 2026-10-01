@@ -10,6 +10,9 @@ use zealot_domain::{
     item::{
         AddItemDto, ItemDto, ItemLinkDto, ItemQueryDto, ItemSortDto, SearchScope, UpdateItemDto,
     },
+    item_content::{
+        self, ContentEdit, ContentEditDto, ContentError, ContentWriteDto, GrepQueryDto,
+    },
 };
 
 use crate::{
@@ -39,6 +42,19 @@ impl Detail {
 pub struct ItemOutlineParams {
     /// Item ID or exact title
     pub item: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ReadItemParams {
+    /// Item ID or exact title
+    pub item: String,
+    /// Heading whose section to read, as its text ("Goal") or with its level
+    /// ("## Goal"). The section runs to the next heading of the same or
+    /// higher level. Mutually exclusive with `lines`
+    pub section: Option<String>,
+    /// 1-based line range: "12", "12-40", or "12-" (to the end). Mutually
+    /// exclusive with `section`
+    pub lines: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
@@ -231,8 +247,12 @@ pub struct UpdateItemParams {
     pub item: String,
     /// New title (optional)
     pub title: Option<String>,
-    /// New content body (optional)
+    /// New content body (optional). Replaces the whole body; prefer
+    /// `edit_item` or `replace_section` for part of it
     pub content: Option<String>,
+    /// Refuse the write if the content changed since this `version` (from
+    /// `get_item`, `read_item`, or a previous write)
+    pub expected_version: Option<String>,
     /// Return the complete updated item instead of the compact result (default false)
     pub full: Option<bool>,
 }
@@ -260,6 +280,58 @@ pub struct AppendToItemParams {
     pub item: String,
     /// Text to append as a new paragraph at the end of the item's content
     pub text: String,
+    /// Refuse the write if the content changed since this `version`
+    pub expected_version: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct GrepItemsParams {
+    /// Text to find in item content, case-insensitive. Literal unless `regex` is true
+    pub pattern: String,
+    /// Treat `pattern` as a case-insensitive regular expression (default false)
+    pub regex: Option<bool>,
+    /// Item ID or exact title. Only search descendants of this item, following
+    /// `Parent` links through any depth
+    pub under: Option<String>,
+    /// Only search items with at least one of these type names (for example ["Ticket"])
+    pub types: Option<Vec<String>>,
+    /// Lines of context before and after each match (default 0, max 10)
+    pub context_lines: Option<usize>,
+    /// Max matching items per page (default 20, max 100)
+    pub limit: Option<i64>,
+    /// Matching items to skip (default 0)
+    pub offset: Option<i64>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ReplaceSectionParams {
+    /// Item ID or exact title
+    pub item: String,
+    /// Heading whose section to rewrite, as its text ("Goal") or with its
+    /// level ("## Goal")
+    pub heading: String,
+    /// New body for the section, without the heading line. It replaces
+    /// everything up to the next heading of the same or higher level,
+    /// including nested headings
+    pub content: String,
+    /// Refuse the write if the content changed since this `version`
+    pub expected_version: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct EditItemParams {
+    /// Item ID or exact title
+    pub item: String,
+    /// Exact text to replace, copied from the item (without `read_item` line
+    /// number prefixes). Literal, not a regex; include enough surrounding
+    /// text to make it unique
+    pub old: String,
+    /// Replacement text
+    pub new: String,
+    /// Replace every occurrence instead of requiring exactly one (default false)
+    pub replace_all: Option<bool>,
+    /// Refuse the write if the content changed since this `version`
+    pub expected_version: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -294,6 +366,12 @@ pub struct AssignTypeParams {
     pub type_name: String,
 }
 
+/// A targeted read or edit the content rules refused: the caller's input is
+/// wrong, so report it as invalid params with the reason.
+fn content_err(e: ContentError) -> McpError {
+    McpError::invalid_params(e.to_string(), None)
+}
+
 fn clamp_limit(limit: Option<i64>, default: i64) -> i64 {
     limit.unwrap_or(default).clamp(1, MAX_LIMIT)
 }
@@ -301,42 +379,35 @@ fn clamp_limit(limit: Option<i64>, default: i64) -> i64 {
 #[rmcp::tool_router(router = wiki_tool_router, vis = "pub")]
 impl ZealotServer {
     #[rmcp::tool(
-        description = "Get a specific item by ID or exact title. Defaults to full content — pass detail:\"summary\" or \"meta\" for a lighter response."
+        description = "Get a specific item by ID or exact title. Defaults to full content — pass detail:\"summary\" or \"meta\" for a lighter response. Every detail level includes the content `version`; pass it as `expected_version` to a content write."
     )]
     pub async fn get_item(
         &self,
         Parameters(p): Parameters<ItemRefParam>,
     ) -> Result<CallToolResult, McpError> {
-        let item = self.resolve_item(&p.item).await?;
+        let mut item = self.resolve_item(&p.item).await?;
+        item.version = output::item_version(&item);
         Ok(match p.detail {
             Detail::Full => output::json_result(&item),
-            d => output::json_result(&output::ItemSummary::project(&item, d)),
+            d => {
+                let mut summary = json!(output::ItemSummary::project(&item, d));
+                summary["version"] = json!(item.version);
+                output::json_result(&summary)
+            }
         })
     }
 
     #[rmcp::tool(
-        description = "Get the heading outline of an item's content (all Markdown headings with their levels), plus its attribute keys and content length. Use this to understand the structure of a long item before deciding whether to fetch full content."
+        description = "Get the heading outline of an item's content (all Markdown headings with their levels and line numbers; `#` lines in fenced code are skipped), plus its attribute keys, content length, and content `version`. Use this to understand the structure of a long item, then `read_item` one section instead of fetching the full content."
     )]
     pub async fn get_item_outline(
         &self,
         Parameters(p): Parameters<ItemOutlineParams>,
     ) -> Result<CallToolResult, McpError> {
         let item = self.resolve_item(&p.item).await?;
-        let headings: Vec<serde_json::Value> = item
-            .content
-            .lines()
-            .filter_map(|line| {
-                let trimmed = line.trim_start();
-                let level = trimmed.chars().take_while(|&c| c == '#').count();
-                if (1..=6).contains(&level) && trimmed.as_bytes().get(level) == Some(&b' ') {
-                    Some(json!({
-                        "level": level,
-                        "text": trimmed[level..].trim(),
-                    }))
-                } else {
-                    None
-                }
-            })
+        let headings: Vec<serde_json::Value> = item_content::headings(&item.content)
+            .into_iter()
+            .map(|h| json!({"level": h.level, "text": h.text, "line": h.line}))
             .collect();
         let attribute_keys: Vec<String> = item
             .attributes
@@ -347,9 +418,53 @@ impl ZealotServer {
             "item_id": item.item_id,
             "title": item.title,
             "content_chars": item.content.chars().count(),
+            "version": output::item_version(&item),
             "attribute_keys": attribute_keys,
             "headings": headings,
         })))
+    }
+
+    #[rmcp::tool(
+        description = "Read part of an item's content with line numbers: one heading's `section` (\"Goal\" or \"## Goal\"; it runs to the next heading of the same or higher level, so it includes nested headings) or a `lines` range (\"12\", \"12-40\", \"12-\"). With neither, returns the whole body. Each line is `<number>\\t<text>`. The reply includes `version`, `total_lines`, and `start_line`/`end_line`; pass `version` as `expected_version` when you then edit. A missing or ambiguous heading fails and names the options."
+    )]
+    pub async fn read_item(
+        &self,
+        Parameters(p): Parameters<ReadItemParams>,
+    ) -> Result<CallToolResult, McpError> {
+        if p.section.is_some() && p.lines.is_some() {
+            return Err(McpError::invalid_params(
+                "pass either section or lines, not both",
+                None,
+            ));
+        }
+        let item = self.resolve_item(&p.item).await?;
+        let total_lines = item_content::split_lines(&item.content).len();
+        let mut heading = None;
+        let range = if let Some(section) = &p.section {
+            let found = item_content::find_section(&item.content, section).map_err(content_err)?;
+            heading = Some(json!({"level": found.heading.level, "text": found.heading.text}));
+            found.range
+        } else if let Some(lines) = &p.lines {
+            item_content::parse_line_range(lines, total_lines).map_err(content_err)?
+        } else {
+            item_content::LineRange {
+                start: 1,
+                end: total_lines,
+            }
+        };
+        let mut reply = json!({
+            "item_id": item.item_id,
+            "title": item.title,
+            "version": output::item_version(&item),
+            "total_lines": total_lines,
+            "start_line": range.start,
+            "end_line": range.end,
+            "content": item_content::numbered_lines(&item.content, range),
+        });
+        if let Some(heading) = heading {
+            reply["heading"] = heading;
+        }
+        Ok(output::json_result(&reply))
     }
 
     #[rmcp::tool(
@@ -439,6 +554,34 @@ impl ZealotServer {
     }
 
     #[rmcp::tool(
+        description = "Find lines in item content, like `grep -n`, matched on the server. Returns one row per matching item: `{item_id, title, match_count, lines, truncated?}`, where `lines` are `12:matching line`, `11-context line`, and `--` between groups (up to 50 matches per item). `pattern` is case-insensitive and literal unless `regex: true`. `under` (id or title) limits the search to that item's descendants; `types` to items of those types; `context_lines` adds context (max 10). Pages over matching items with `limit` (default 20) and `offset`; continue with `next_offset`. Follow up with `read_item` on a line range, then `edit_item`."
+    )]
+    pub async fn grep_items(
+        &self,
+        Parameters(p): Parameters<GrepItemsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let under = match &p.under {
+            Some(under) => Some(self.resolve_item_id(under).await?),
+            None => None,
+        };
+        let query = GrepQueryDto {
+            pattern: p.pattern,
+            regex: p.regex.unwrap_or(false),
+            under,
+            types: p.types.unwrap_or_default(),
+            context_lines: p.context_lines.unwrap_or(0),
+            limit: Some(clamp_limit(p.limit, SEARCH_DEFAULT_LIMIT)),
+            offset: p.offset.unwrap_or(0).max(0),
+        };
+        let page = self
+            .client
+            .grep_items(&query)
+            .await
+            .map_err(|e| err_ctx("grep", e))?;
+        Ok(output::json_result(&page))
+    }
+
+    #[rmcp::tool(
         description = "Filter items by type, subtree, and attribute values in one call; the reply includes `total` (all matches) and pages with `offset`. `types` (with `type_mode` any/all) limits to item types, e.g. [\"Ticket\"]; `under` (id or title) returns only descendants of that item through any depth of `Parent` links; `sort` is {key, direction?} over `title`, `created`, `updated`, or a scalar attribute (items lacking it sort last). At least one of `types`, `under`, or `filters` is required. Pass `filters` as an array of {key, op, value, list_mode?}; supported ops are eq, ne, gt, lt, gte, lte, and ilike. `ilike` is a case-insensitive substring match on text values (the server wraps the value in `%...%`). `value` may be one value or an array; `list_mode` says whether any (default), all, or none of the array values must match. List attributes match when any element matches. Item-valued attributes such as `Parent` compare by numeric item ID (`{\"key\":\"Parent\",\"op\":\"eq\",\"value\":11}`). All filters are ANDed. Returns compact summaries by default; pass detail:\"full\" for complete content."
     )]
     pub async fn filter_items(
@@ -525,7 +668,7 @@ impl ZealotServer {
     }
 
     #[rmcp::tool(
-        description = "Update an existing item's title and/or content. Only provided fields are changed. Returns a compact result (`item_id`, `title`, `types`, `attributes`, `content_chars`); pass `full: true` for the complete item."
+        description = "Update an existing item's title and/or replace its whole content. Only provided fields are changed. To change part of the body use `edit_item` or `replace_section` instead. Pass `expected_version` (from a read) to refuse the write if the content changed since. Returns `{item_id, title, version, content_chars, changed_lines}`; pass `full: true` for the complete item."
     )]
     pub async fn update_item(
         &self,
@@ -538,46 +681,63 @@ impl ZealotServer {
             content: p.content,
             attributes: None,
             links: None,
+            expected_version: p.expected_version,
         };
         let item = self
             .client
             .update_item(&dto)
             .await
             .map_err(|e| err_ctx(&format!("item #{}", existing.item_id), e))?;
-        Ok(output::write_item_result(&item, p.full.unwrap_or(false)))
+        if p.full.unwrap_or(false) {
+            return Ok(output::json_result(&item));
+        }
+        Ok(output::json_result(&ContentWriteDto {
+            item_id: item.item_id,
+            title: item.title.clone(),
+            version: output::item_version(&item),
+            content_chars: item.content.chars().count(),
+            changed_lines: item_content::changed_lines(&existing.content, &item.content),
+        }))
     }
 
     #[rmcp::tool(
-        description = "Append text as a new paragraph at the end of an item's content. Useful for log-style notes without needing to fetch and resend the full body."
+        description = "Append text as a new paragraph at the end of an item's content. The append runs on the server in one write, so it never overwrites a concurrent edit; `expected_version` additionally refuses it if the item changed since you read it. Replies `{item_id, title, version, content_chars, changed_lines}`."
     )]
     pub async fn append_to_item(
         &self,
         Parameters(p): Parameters<AppendToItemParams>,
     ) -> Result<CallToolResult, McpError> {
-        let existing = self.resolve_item(&p.item).await?;
-        let mut content = existing.content.clone();
-        if !content.is_empty() && !content.ends_with('\n') {
-            content.push('\n');
-        }
-        content.push_str(&p.text);
-        content.push('\n');
-        let dto = UpdateItemDto {
-            item_id: existing.item_id,
-            title: None,
-            content: Some(content),
-            attributes: None,
-            links: None,
+        let edit = ContentEdit::Append { text: p.text };
+        self.edit_content(&p.item, edit, p.expected_version).await
+    }
+
+    #[rmcp::tool(
+        description = "Replace exact text in an item's content on the server, without resending the body. `old` must match exactly once (copy it from `read_item` without the line-number prefix, with enough context to be unique) unless `replace_all` is true; it is literal text, never a regex. Pass the `version` you read as `expected_version` so the edit is refused if the item changed since. Fails, naming the reason, when `old` is not found, matches more than once, or the version is stale. Replies `{item_id, title, version, content_chars, changed_lines: {start, removed, added}}`."
+    )]
+    pub async fn edit_item(
+        &self,
+        Parameters(p): Parameters<EditItemParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let edit = ContentEdit::Replace {
+            old: p.old,
+            new: p.new,
+            replace_all: p.replace_all.unwrap_or(false),
         };
-        let item = self
-            .client
-            .update_item(&dto)
-            .await
-            .map_err(|e| err_ctx(&format!("item #{}", existing.item_id), e))?;
-        Ok(output::json_result(&json!({
-            "item_id": item.item_id,
-            "title": item.title,
-            "content_chars": item.content.chars().count(),
-        })))
+        self.edit_content(&p.item, edit, p.expected_version).await
+    }
+
+    #[rmcp::tool(
+        description = "Rewrite one section of an item's content on the server. `heading` is the heading text (\"Goal\") or text with level (\"## Goal\"); `content` is the new section body without the heading line, and replaces everything up to the next heading of the same or higher level (nested headings included). The heading line is kept. Fails if the heading is missing or ambiguous, or if `expected_version` is stale. Replies `{item_id, title, version, content_chars, changed_lines}`."
+    )]
+    pub async fn replace_section(
+        &self,
+        Parameters(p): Parameters<ReplaceSectionParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let edit = ContentEdit::ReplaceSection {
+            heading: p.heading,
+            content: p.content,
+        };
+        self.edit_content(&p.item, edit, p.expected_version).await
     }
 
     #[rmcp::tool(description = "Delete an item. This is permanent and cannot be undone.")]
@@ -711,6 +871,26 @@ impl ZealotServer {
 }
 
 impl ZealotServer {
+    /// Send one targeted content edit to the server and return its compact reply.
+    async fn edit_content(
+        &self,
+        reference: &str,
+        edit: ContentEdit,
+        expected_version: Option<String>,
+    ) -> Result<CallToolResult, McpError> {
+        let item = self.resolve_item_id(reference).await?;
+        let dto = ContentEditDto {
+            edit,
+            expected_version,
+        };
+        let written = self
+            .client
+            .edit_item_content(item, &dto)
+            .await
+            .map_err(|e| err_ctx(&format!("item #{item}"), e))?;
+        Ok(output::json_result(&written))
+    }
+
     async fn set_one_status(
         &self,
         reference: &str,

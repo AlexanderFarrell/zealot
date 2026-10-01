@@ -115,7 +115,7 @@ All errors return a plain-text body (not JSON).
 | 401 | `Unauthorized` | Not authenticated, or resource belongs to another account |
 | 403 | `Forbidden` | CSRF token missing or mismatched |
 | 404 | `Not found` | Resource does not exist |
-| 409 | error message string | Resource is in use and cannot be deleted (pass `?force=true` to override) |
+| 409 | error message string | Resource is in use and cannot be deleted (pass `?force=true` to override), or a content write's `expected_version` is stale |
 | 500 | `Internal error` | Unexpected server error |
 
 ---
@@ -140,9 +140,12 @@ Returned by all item endpoints.
   ],
   "links": [
     { "other_item_id": 10, "relationship": "parent" }
-  ]
+  ],
+  "version": "3f1a9c0b2d4e5f60"
 }
 ```
+
+`version` is a short SHA-256 hash of `content`. It changes exactly when the body changes. Send it back as `expected_version` on a content write to have the write refused (409) if someone else changed the body since you read it.
 
 ### Attribute wire formats
 
@@ -290,8 +293,10 @@ All endpoints require authentication.
 | GET | `/item/children/{item_id}` | Get items with a parent link to this item |
 | GET | `/item/related/{item_id}` | Get items linked to this item (any relationship) |
 | POST | `/item/filter` | Filter items by attribute values |
+| POST | `/item/grep` | Find matching lines in item content |
 | POST | `/item/rebuild-links` | Rebuild wiki-link relationships from item bodies |
 | PATCH | `/item/{item_id}` | Update item |
+| POST | `/item/{item_id}/content` | Apply one targeted content edit |
 | DELETE | `/item/{item_id}` | Delete item |
 | PATCH | `/item/{item_id}/attr` | Set (merge) attributes on an item |
 | PATCH | `/item/{item_id}/attr/rename` | Rename an attribute key |
@@ -339,11 +344,55 @@ All fields are optional. `item_id` in the body must match the path parameter.
   "title": "Updated title",
   "content": "Updated body",
   "attributes": { "Status": "In Progress" },
-  "links": [{ "other_item_id": 10, "relationship": "parent" }]
+  "links": [{ "other_item_id": 10, "relationship": "parent" }],
+  "expected_version": "3f1a9c0b2d4e5f60"
 }
 ```
 
-Returns updated `ItemDto`.
+Returns updated `ItemDto`. With `expected_version`, the update is refused with 409 if the content no longer has that version, and the content write is a compare-and-swap against the body that was checked.
+
+#### POST /item/{item_id}/content — targeted content edit
+
+Applies one edit to the current body on the server and writes it with a compare-and-swap, so a concurrent write is never overwritten. `op` is one of:
+
+```json
+{ "op": "replace", "old": "exact old text", "new": "new text", "replace_all": false, "expected_version": "3f1a9c0b2d4e5f60" }
+{ "op": "append", "text": "- a new log line" }
+{ "op": "replace_section", "heading": "## Detail", "content": "New section body" }
+```
+
+- `replace` matches `old` literally (never a regex). It must match exactly once unless `replace_all` is true.
+- `append` adds `text` as a new paragraph at the end.
+- `replace_section` replaces everything after the heading line up to the next heading of the same or higher level (nested headings included); the heading line is kept. `heading` is the text (`Detail`) or text with level (`## Detail`). Headings inside fenced code blocks are ignored.
+- `expected_version` is optional on every op.
+
+Returns:
+
+```json
+{ "item_id": 42, "title": "My item", "version": "9b2e...", "content_chars": 5120, "changed_lines": { "start": 12, "removed": 1, "added": 1 } }
+```
+
+`changed_lines` is absent when the edit left the body unchanged. Errors: 400 when `old` is empty, not found, or ambiguous, or the heading is missing or ambiguous (the message names the matching lines); 404 when the item does not exist; 409 when `expected_version` is stale or another write landed first.
+
+#### POST /item/grep — line-level content search
+
+```json
+{ "pattern": "Z190", "regex": false, "under": 11, "types": ["Ticket"], "context_lines": 1, "limit": 20, "offset": 0 }
+```
+
+Only `pattern` is required. Matching is case-insensitive; `pattern` is literal unless `regex` is true. `under` limits the search to descendants of that item (through `Parent` links, excluding the item itself) and `types` to items with any of those types. `context_lines` is capped at 10, `limit` defaults to 20 (max 100). Returns one row per matching item, in item id order:
+
+```json
+{
+  "count": 1,
+  "next_offset": 20,
+  "items": [
+    { "item_id": 12, "title": "Ticket A", "match_count": 1, "lines": ["2-before", "3:fixes Z190.", "4-after"] }
+  ]
+}
+```
+
+`lines` follow `grep -n`: `N:` for a matching line, `N-` for context, and `--` between separate groups. At most 50 matching lines are listed per item; `truncated: true` marks an item with more (`match_count` still counts them all). `next_offset` is present while more matching items remain.
 
 #### PATCH /item/{item_id}/attr — merge attributes
 

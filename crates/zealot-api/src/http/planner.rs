@@ -48,6 +48,8 @@ fn item_service_err(err: ItemServiceError) -> HttpError {
         ItemServiceError::InvalidFilter(msg) => HttpError::UserError { err: msg },
         ItemServiceError::InvalidId(msg) => HttpError::UserError { err: msg },
         ItemServiceError::InvalidRegex(msg) => HttpError::UserError { err: msg },
+        ItemServiceError::Content(e) => HttpError::UserError { err: e.to_string() },
+        ItemServiceError::Conflict(message) => HttpError::Conflict { message },
         ItemServiceError::Repo(e) => {
             tracing::error!("Planner repo error: {e}");
             HttpError::Internal

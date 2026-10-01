@@ -126,6 +126,7 @@ mod tests {
             attributes: serde_json::json!({"Status": "Open", "Priority": 2}),
             types: vec![],
             links: vec![],
+            version: String::new(),
         };
         let buffer = to_buffer(&item);
         let parsed = parse_buffer(&buffer).unwrap();
