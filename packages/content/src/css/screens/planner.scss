@@ -148,6 +148,16 @@ time-blocks-screen {
 }
 
 @media only screen and (max-width: 768px) {
+  /* On phones the right sidebar (Repeats, planner shortcuts) stacks below the
+     planner, so don't pad the planner out to a full screen first (Z195). */
+  daily-planner-screen,
+  weekly-planner-screen,
+  monthly-planner-screen,
+  annual-planner-screen,
+  time-blocks-screen {
+    min-height: 0;
+  }
+
   .planner-repeat-row {
     grid-template-columns: 1fr;
   }
