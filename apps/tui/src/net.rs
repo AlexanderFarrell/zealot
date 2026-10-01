@@ -173,6 +173,7 @@ impl Net {
             content: Some(content),
             attributes: None,
             links: None,
+            expected_version: None,
         };
         self.client
             .update_item(&dto)

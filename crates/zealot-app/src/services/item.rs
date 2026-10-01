@@ -16,6 +16,9 @@ use zealot_domain::{
         AddItemCoreDto, AddItemDto, Item, ItemCore, ItemLink, ItemLinkDto, ItemQueryDto,
         SearchScope, UpdateItemCoreDto, UpdateItemDto, relationship,
     },
+    item_content::{
+        self, ContentEditDto, ContentError, ContentWriteDto, GrepHitDto, GrepPageDto, GrepQueryDto,
+    },
     item_type::{ItemType, ItemTypeRef},
 };
 
@@ -61,7 +64,33 @@ pub enum ItemServiceError {
     InvalidId(String),
     #[error("invalid regex: {0}")]
     InvalidRegex(String),
+    /// A targeted content read or edit that cannot apply (text not found,
+    /// ambiguous heading, and so on). A version conflict is `Conflict`.
+    #[error("{0}")]
+    Content(ContentError),
+    /// The content changed since the caller's `expected_version`.
+    #[error("{0}")]
+    Conflict(String),
 }
+
+impl From<ContentError> for ItemServiceError {
+    fn from(err: ContentError) -> Self {
+        match err {
+            ContentError::VersionConflict { .. } => ItemServiceError::Conflict(err.to_string()),
+            other => ItemServiceError::Content(other),
+        }
+    }
+}
+
+/// Default and maximum matching items per `grep_items` page.
+const GREP_DEFAULT_LIMIT: i64 = 20;
+const GREP_MAX_LIMIT: i64 = 100;
+/// Upper bound on items a scoped grep considers.
+const GREP_MAX_CANDIDATES: i64 = 100_000;
+
+/// Message for a compare-and-swap that lost to a concurrent write.
+const CONCURRENT_EDIT: &str =
+    "the item changed while the edit was applied; re-read it and retry the edit";
 
 #[derive(Debug, Clone)]
 pub struct SearchResult {
@@ -255,6 +284,94 @@ impl ItemService {
                     .collect())
             }
         }
+    }
+
+    /// Line-level search across item content, optionally limited to the
+    /// descendants of `under` and to items with one of `types`. Matching runs
+    /// here, over batches of item bodies, so callers never fetch every item.
+    /// Pages over matching items in id order.
+    pub fn grep_items(
+        &self,
+        query: &GrepQueryDto,
+        account: &Account,
+    ) -> Result<GrepPageDto, ItemServiceError> {
+        if query.pattern.is_empty() {
+            return Err(ItemServiceError::InvalidFilter(String::from(
+                "pattern must not be empty",
+            )));
+        }
+        let pattern = if query.regex {
+            query.pattern.clone()
+        } else {
+            regex::escape(&query.pattern)
+        };
+        let re = Regex::new(&format!("(?i){pattern}"))
+            .map_err(|e| ItemServiceError::InvalidRegex(e.to_string()))?;
+        let limit = query.limit.unwrap_or(GREP_DEFAULT_LIMIT).clamp(1, GREP_MAX_LIMIT) as usize;
+        let offset = query.offset.max(0) as usize;
+
+        let mut ids = if query.under.is_some() || !query.types.is_empty() {
+            let under = query
+                .under
+                .map(|id| Id::try_from(id).map_err(|e| ItemServiceError::InvalidId(e.to_string())))
+                .transpose()?;
+            let scope = ItemQuery {
+                types: query.types.clone(),
+                all_types: false,
+                under,
+                filters: Vec::new(),
+                sort: None,
+                limit: GREP_MAX_CANDIDATES,
+                offset: 0,
+            };
+            self.item_attribute_value_repo
+                .query_item_ids(&scope, &account.account_id)
+                .map_err(ItemServiceError::Repo)?
+                .0
+        } else {
+            self.item_repo
+                .get_all_item_ids_for_user(&account.account_id)
+                .map_err(ItemServiceError::Repo)?
+        };
+        ids.sort_by_key(|id| i64::from(*id));
+
+        // Collect one past the page to know whether another page exists.
+        let mut skipped = 0;
+        let mut hits = Vec::new();
+        'scan: for batch in ids.chunks(REGEX_SCAN_BATCH as usize) {
+            let items = self
+                .item_repo
+                .get_items_by_ids(&batch.to_vec(), account)
+                .map_err(ItemServiceError::Repo)?;
+            for item in items {
+                let Some((lines, match_count, truncated)) =
+                    item_content::grep_lines(&item.content, query.context_lines, |l| re.is_match(l))
+                else {
+                    continue;
+                };
+                if skipped < offset {
+                    skipped += 1;
+                    continue;
+                }
+                hits.push(GrepHitDto {
+                    item_id: item.item_id.into(),
+                    title: item.title,
+                    match_count,
+                    lines,
+                    truncated,
+                });
+                if hits.len() > limit {
+                    break 'scan;
+                }
+            }
+        }
+        let more = hits.len() > limit;
+        hits.truncate(limit);
+        Ok(GrepPageDto {
+            count: hits.len(),
+            next_offset: more.then_some((offset + limit) as i64),
+            items: hits,
+        })
     }
 
     pub fn get_recent_items(
@@ -537,6 +654,7 @@ impl ItemService {
         let current_item = self
             .get_item_by_id(item_id, account)?
             .ok_or(ItemServiceError::NotFound)?;
+        item_content::check_version(&current_item.content, dto.expected_version.as_deref())?;
         let item_types =
             self.resolve_assigned_item_types(&current_item.types, &account.account_id)?;
 
@@ -573,11 +691,34 @@ impl ItemService {
             .map(|new_title| new_title != &current_item.title)
             .unwrap_or(false);
 
-        match self
-            .item_repo
-            .update_item(&parsed, account)
-            .map_err(ItemServiceError::Repo)?
-        {
+        // With an expected version, the content write is a compare-and-swap
+        // against the body just checked, so a concurrent edit is refused.
+        let updated = match (&dto.expected_version, &dto.content) {
+            (Some(_), Some(content)) => {
+                let swapped = self
+                    .item_repo
+                    .update_content_if_unchanged(
+                        item_id,
+                        &current_item.content,
+                        dto.title.as_deref(),
+                        content,
+                        account,
+                    )
+                    .map_err(ItemServiceError::Repo)?;
+                if !swapped {
+                    return Err(ItemServiceError::Conflict(CONCURRENT_EDIT.to_string()));
+                }
+                self.item_repo
+                    .get_item_by_id(item_id, account)
+                    .map_err(ItemServiceError::Repo)?
+            }
+            _ => self
+                .item_repo
+                .update_item(&parsed, account)
+                .map_err(ItemServiceError::Repo)?,
+        };
+
+        match updated {
             Some(item) => {
                 if let Some(attributes) = &parsed_attributes {
                     self.item_attribute_value_repo
@@ -613,6 +754,55 @@ impl ItemService {
             }
             None => Ok(None),
         }
+    }
+
+    /// Apply one targeted content edit (exact replace, append, or section
+    /// rewrite) on the server. The new body is computed from the current one
+    /// and written with a compare-and-swap, so nothing between the read and
+    /// the write is lost; `expected_version` additionally refuses the edit if
+    /// the body changed since the caller read it.
+    pub fn edit_content(
+        &self,
+        item_id: &Id,
+        dto: &ContentEditDto,
+        account: &Account,
+    ) -> Result<ContentWriteDto, ItemServiceError> {
+        let current = self
+            .item_repo
+            .get_item_by_id(item_id, account)
+            .map_err(ItemServiceError::Repo)?
+            .ok_or(ItemServiceError::NotFound)?;
+        item_content::check_version(&current.content, dto.expected_version.as_deref())?;
+        let content = item_content::apply_edit(&current.content, &dto.edit)?;
+        let changed_lines = item_content::changed_lines(&current.content, &content);
+
+        if changed_lines.is_some() {
+            let swapped = self
+                .item_repo
+                .update_content_if_unchanged(item_id, &current.content, None, &content, account)
+                .map_err(ItemServiceError::Repo)?;
+            if !swapped {
+                return Err(ItemServiceError::Conflict(CONCURRENT_EDIT.to_string()));
+            }
+            self.sync_wiki_links_from_content(item_id, &content, account)?;
+            self.sync_headings(item_id, &content)?;
+            self.sync_external_links(item_id, &content)?;
+            if let Some(updated) = self.get_item_by_id(item_id, account)? {
+                tracing::info!(account_id = ?account.account_id, ?item_id, ?changed_lines, "item content edited");
+                self.event_port.emit(ZealotEvent::ItemUpdated {
+                    account_id: account.account_id,
+                    item: updated,
+                });
+            }
+        }
+
+        Ok(ContentWriteDto {
+            item_id: current.item_id.into(),
+            title: current.title,
+            version: item_content::content_version(&content),
+            content_chars: content.chars().count(),
+            changed_lines,
+        })
     }
 
     pub fn delete_item(&self, item_id: &Id, account: &Account) -> Result<(), ItemServiceError> {

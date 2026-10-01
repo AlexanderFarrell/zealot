@@ -405,6 +405,45 @@ impl ItemRepo for ItemSqliteRepo {
         })
     }
 
+    fn update_content_if_unchanged(
+        &self,
+        item_id: &Id,
+        expected_content: &str,
+        title: Option<&str>,
+        content: &str,
+        account: &Account,
+    ) -> Result<bool, RepoError> {
+        let title = title.map(str::to_string);
+        let content = content.to_string();
+        let expected_content = expected_content.to_string();
+        let item_id_val = i64::from(*item_id);
+        let account_id_val = i64::from(account.account_id);
+        let pool = self.pool.clone();
+
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                // One conditional statement: the write lands only if nobody
+                // changed the content since the caller read it.
+                let result = sqlx::query(
+                    "UPDATE item SET
+                       title = COALESCE(?, title),
+                       content = ?,
+                       updated_at = strftime('%s', 'now')
+                     WHERE item_id = ? AND account_id = ? AND content = ?",
+                )
+                .bind(title)
+                .bind(content)
+                .bind(item_id_val)
+                .bind(account_id_val)
+                .bind(expected_content)
+                .execute(&pool)
+                .await
+                .map_err(RepoError::from)?;
+                Ok(result.rows_affected() == 1)
+            })
+        })
+    }
+
     fn delete_item(&self, item_id: &Id, account: &Account) -> Result<(), RepoError> {
         let item_id_val = i64::from(*item_id);
         let account_id_val = i64::from(account.account_id);

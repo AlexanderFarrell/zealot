@@ -4,6 +4,7 @@ pub mod auth;
 pub mod comment;
 pub mod common;
 pub mod item;
+pub mod item_content;
 pub mod item_type;
 pub mod media;
 pub mod repeat;

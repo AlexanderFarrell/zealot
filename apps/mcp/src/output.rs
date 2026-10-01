@@ -151,6 +151,16 @@ pub struct SearchFieldHit {
     pub snippet: Option<String>,
 }
 
+/// The item's content version, computed locally when the server predates
+/// `ItemDto::version` so reads always carry one.
+pub fn item_version(item: &ItemDto) -> String {
+    if item.version.is_empty() {
+        zealot_domain::item_content::content_version(&item.content)
+    } else {
+        item.version.clone()
+    }
+}
+
 /// Compact JSON in a single text content block.
 pub fn json_result<T: Serialize>(value: &T) -> CallToolResult {
     CallToolResult::success(vec![Content::text(
@@ -309,6 +319,7 @@ mod tests {
             attributes: serde_json::json!({"Status": "Open"}),
             types: vec![],
             links: vec![],
+            version: String::new(),
         }
     }
 

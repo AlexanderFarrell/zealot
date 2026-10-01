@@ -69,4 +69,32 @@ pub trait ItemRepo: Debug + Send + Sync {
         account: &Account,
     ) -> Result<Option<ItemCore>, RepoError>;
     fn delete_item(&self, item_id: &Id, account: &Account) -> Result<(), RepoError>;
+
+    /// Set the item's content (and `title`, when given) only if its content
+    /// still equals `expected_content`. Returns `false`, writing nothing, when
+    /// the content has changed or the item is missing.
+    ///
+    /// This is the compare-and-swap that makes server-side edits safe against
+    /// a concurrent write. Database backends override it with one conditional
+    /// `UPDATE`; this default is a non-atomic fallback for test doubles.
+    fn update_content_if_unchanged(
+        &self,
+        item_id: &Id,
+        expected_content: &str,
+        title: Option<&str>,
+        content: &str,
+        account: &Account,
+    ) -> Result<bool, RepoError> {
+        match self.get_item_by_id(item_id, account)? {
+            Some(current) if current.content == expected_content => {
+                let dto = UpdateItemCoreDto {
+                    item_id: *item_id,
+                    title: title.map(str::to_string),
+                    content: Some(content.to_string()),
+                };
+                Ok(self.update_item(&dto, account)?.is_some())
+            }
+            _ => Ok(false),
+        }
+    }
 }

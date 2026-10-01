@@ -24,31 +24,49 @@ Tool parameters named `item` accept either a numeric id (`"42"` or `"#42"`) or a
 Use browse-then-read.
 
 - Multi-item tools return summaries by default. Use `detail: "meta"`, `"summary"`, or `"full"` where available.
-- `get_item` defaults to full content for a single item.
-- Use `get_item_outline` before reading a long item; it returns headings, attribute keys, and content length.
+- `get_item` defaults to full content for a single item. Every read of one item (`get_item`, `get_item_outline`, `read_item`) returns the content `version`.
+- Use `get_item_outline` before reading a long item; it returns headings with line numbers, attribute keys, and content length. Then `read_item` the one section or line range you need instead of the full body.
 - Paged tools return `{"count": N, "next_offset": 50, "items": [...]}`. Continue with `offset: next_offset` until `next_offset` is absent. Query-backed tools (`filter_items`, `browse_items` with `type_filter`, `get_plan`) also return `total`, the number of all matching items, so "how many?" needs no paging.
 - List tools accept `fields: ["TicketID", "Status"]` to return only `item_id`, `title`, `types`, and those attributes per item, overriding `detail`. Prefer it for scans.
-- `create_item`, `update_item`, and `add_comment` reply compactly (ids, title, types, attributes, `content_chars`; comments: `comment_id`, `item_id`, `timestamp`). Pass `full: true` only when you need the complete item back.
+- `create_item` and `add_comment` reply compactly (ids, title, types, attributes, `content_chars`; comments: `comment_id`, `item_id`, `timestamp`). Content writes (`update_item`, `edit_item`, `replace_section`, `append_to_item`) reply `{item_id, title, version, content_chars, changed_lines}`. Pass `full: true` to `create_item` or `update_item` only when you need the complete item back.
 - Outputs are compact JSON, not pretty JSON. Preserve ids and exact strings when writing follow-up calls.
 
 ## Wiki Tools
 
 - `get_item(item, detail?)`
-- `get_item_outline(item)`
+- `get_item_outline(item)` returns headings with their levels and line numbers, plus `version`
+- `read_item(item, section? | lines?)` returns one heading's section or a line range (`"12-40"`), each line prefixed with its number and a tab, plus `version`
 - `browse_items(mode, type_filter?, sort?, limit?, offset?, detail?, fields?)` where mode is `root`, `recent`, `random`, or `most_viewed`. `root` alone returns items without a parent; `root` with `type_filter` returns every item of that type at any depth, sorted by `sort` and with `total`, which is how to list all Projects, Tickets, and so on.
 - `search_items(term, scope?, regex?, limit?, offset?, detail?, fields?)` where scope is `title`, `content`, or `heading`
+- `grep_items(pattern, regex?, under?, types?, context_lines?, limit?, offset?)` finds matching lines in item content, with line numbers, across all items or a subtree
 - `filter_items(filters?, types?, type_mode?, under?, sort?, limit?, offset?, detail?, fields?)` combines type, subtree, and attribute conditions in one call (details below)
 - `get_linked_items(item, direction, detail?, limit?, offset?, fields?)` where direction is `children`, `related`, or `backlinks`
 - `create_item(title, content?, attributes?, types?, links?, parent?, full?)`. `parent` (id or title) is added to the `Parent` list attribute, merged with any `Parent` in `attributes`.
-- `update_item(item, title?, content?, full?)`
-- `append_to_item(item, text)`
+- `update_item(item, title?, content?, expected_version?, full?)` replaces the whole body
+- `edit_item(item, old, new, replace_all?, expected_version?)` replaces exact text on the server
+- `append_to_item(item, text, expected_version?)` appends on the server
+- `replace_section(item, heading, content, expected_version?)` rewrites one heading's section body on the server
 - `delete_item(item)`
 - `update_item_attributes(item, set?, remove?, rename?)`
 - `set_status(items, status, comment?)` sets Status on up to 50 items and adds the same comment to each in one call. `comment` is required for `Hold`, `Blocked`, and `Rejected`. Items are independent: the reply lists `{item_id, title, status, comment_id?}` or `{item, error}` per item, with `updated` and `failed` counts.
 - `assign_item_type(item, type_name)` / `unassign_item_type(item, type_name)`
 - `rebuild_links()`
 
-Read before overwriting content. Use `append_to_item` for logs, notes, and journal-like additions when you do not need to rewrite the full body.
+## Editing Content
+
+Work on item content the way you work on files: find, read the part you need, then change exact text.
+
+1. **Find.** `grep_items(pattern, under?)` returns matching lines with line numbers across all items or a subtree, for example every item under Zealot that mentions `Z190`. For one known item, `get_item_outline` gives its headings and their line numbers.
+2. **Read.** `read_item(item, section: "## Detail")` or `read_item(item, lines: "40-60")` returns just those lines, each as `<number>\t<text>`, plus the `version`.
+3. **Edit.** `edit_item(item, old, new, expected_version)` replaces exact text; copy `old` from the read without the line-number prefix and include enough context that it matches once. `replace_section(item, heading, content, expected_version)` rewrites a whole section body. `append_to_item(item, text)` adds a paragraph at the end.
+
+Rules:
+
+- Always pass the `version` you read as `expected_version`. If the item changed since (for example Alexander edited it in the UI), the write is refused with a 409 conflict and nothing is lost; re-read the section and redo the edit against the new text.
+- `edit_item` fails, naming the reason, when `old` is not found or matches more than once. Add surrounding text, or set `replace_all: true` only when every occurrence should change. It never uses regex.
+- Each successful write returns the new `version`; use it for the next edit to the same item.
+- Use `update_item` with `content` only for a deliberate whole-body rewrite, and still pass `expected_version`.
+- Edits and appends run on the server in one write, so they do not race with other writers the way resending a full body does.
 
 ## Attributes And Types
 
@@ -192,4 +210,4 @@ code block
     Admonition body
 ````
 
-When generating content, build one complete markdown string. Do not overwrite existing content unless you have read it first and the user asked for a rewrite.
+When creating content, build one complete markdown string. To change existing content, prefer `edit_item` or `replace_section` over rewriting the body, and do not rewrite a whole body unless the user asked for it.

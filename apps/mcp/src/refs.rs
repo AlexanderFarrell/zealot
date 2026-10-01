@@ -37,6 +37,15 @@ impl ZealotServer {
                 .map_err(|e| err_ctx(&format!("item titled '{t}'"), e)),
         }
     }
+
+    /// The numeric id for an item reference. An id is used as is, with no
+    /// request; only a title is looked up.
+    pub async fn resolve_item_id(&self, item: &str) -> Result<i64, McpError> {
+        match ItemRef::parse(item) {
+            ItemRef::Id(id) => Ok(id),
+            ItemRef::Title(_) => Ok(self.resolve_item(item).await?.item_id),
+        }
+    }
 }
 
 #[cfg(test)]

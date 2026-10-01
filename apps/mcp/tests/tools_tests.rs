@@ -385,21 +385,18 @@ async fn create_item_wraps_scalar_parent_attribute_before_adding_parent() {
 }
 
 #[tokio::test]
-async fn append_to_item_fetches_then_patches_newline_joined_content() {
+async fn append_to_item_posts_a_server_side_append() {
     let (server, mock) = make_server().await;
-    Mock::given(method("GET"))
-        .and(path("/item/id/5"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(item(5, "Note", "one")))
-        .expect(1)
-        .mount(&mock)
-        .await;
-    Mock::given(method("PATCH"))
-        .and(path("/item/5"))
-        .and(body_json(json!({
+    Mock::given(method("POST"))
+        .and(path("/item/5/content"))
+        .and(body_json(json!({"op": "append", "text": "two"})))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "item_id": 5,
-            "content": "one\ntwo\n"
+            "title": "Note",
+            "version": "abc",
+            "content_chars": 8,
+            "changed_lines": {"start": 2, "removed": 0, "added": 1}
         })))
-        .respond_with(ResponseTemplate::new(200).set_body_json(item(5, "Note", "one\ntwo\n")))
         .expect(1)
         .mount(&mock)
         .await;
@@ -408,11 +405,13 @@ async fn append_to_item_fetches_then_patches_newline_joined_content() {
         .append_to_item(Parameters(AppendToItemParams {
             item: "5".to_string(),
             text: "two".to_string(),
+            expected_version: None,
         }))
         .await
         .unwrap();
     let value: Value = serde_json::from_str(&text_of(result)).unwrap();
     assert_eq!(value["content_chars"], 8);
+    assert_eq!(value["version"], "abc");
 }
 
 #[tokio::test]
@@ -1007,6 +1006,7 @@ async fn update_item_compact_by_default_and_full_on_request() {
         item: "#20".to_string(),
         title: Some("T2".to_string()),
         content: Some("new body".to_string()),
+        expected_version: None,
         full,
     };
 
@@ -1017,6 +1017,8 @@ async fn update_item_compact_by_default_and_full_on_request() {
     assert_eq!(value["title"], "T2");
     assert_eq!(value["content_chars"], 8);
     assert!(value.get("content").is_none());
+    assert_eq!(value["version"], zealot_domain::item_content::content_version("new body"));
+    assert!(value.get("changed_lines").is_some());
 
     let value: Value = serde_json::from_str(&text_of(
         server

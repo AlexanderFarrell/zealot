@@ -132,7 +132,7 @@ The authoritative agent-facing tool contract lives in [MCP System Prompt](./mcp-
 
 At a high level, the server covers these workflows:
 
-- Wiki items: browse, search, filter, outline, read, create, update, append, delete, type assignment, attributes, and links.
+- Wiki items: browse, search, filter, line-level grep, outline, section and line-range reads, create, update, exact-text edits, section rewrites, append, delete, type assignment, attributes, and links.
 - Planner and habits: day dashboards, period plans, habit entries, habit status updates, comments, and journal entries.
 - Time blocks: range/item reads plus create, update, and delete operations using `HH:MM` times.
 - Media: list, read, upload, create folder, rename, and delete.
@@ -227,9 +227,11 @@ Before executing any of the following, the agent should present what it is about
 
 Attribute update tools only overwrite the keys you pass unless the specific tool documents full replacement semantics. Existing attributes not included in the call are normally left unchanged, so you do not need to read and re-send all attributes to update one field.
 
-### Item Content Updates Are Partial
+### Item Content Updates Are Targeted
 
-`update_item` updates only the fields you pass. Omitting `content` leaves the existing content unchanged. Omitting `title` leaves the title unchanged.
+Change part of an item with `edit_item` (exact text) or `replace_section` (one heading's section) instead of resending the body. Find the spot with `grep_items` or `get_item_outline`, read it with `read_item`, and pass the `version` from that read as `expected_version`: if the item changed in the meantime, the write is refused with a conflict instead of silently overwriting the other edit. `append_to_item` appends on the server.
+
+`update_item` updates only the fields you pass. Omitting `content` leaves the existing content unchanged. Omitting `title` leaves the title unchanged. Passing `content` replaces the whole body.
 
 ### Show automation scripts before running
 

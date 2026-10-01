@@ -77,6 +77,11 @@ pub struct ItemDto {
     pub attributes: Value,
     pub types: Vec<ItemTypeRefDto>,
     pub links: Vec<ItemLinkDto>,
+    /// Content version (see `item_content::content_version`). Send it back as
+    /// `expected_version` on a content write to refuse the write if the body
+    /// changed since it was read. Empty from servers that predate it.
+    #[serde(default)]
+    pub version: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -176,6 +181,11 @@ pub struct UpdateItemDto {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub links: Option<Vec<ItemLinkDto>>,
+
+    /// Refuse the update unless the content still has this version
+    /// (see `item_content::content_version`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_version: Option<String>,
 }
 
 pub struct AddItemCoreDto {
@@ -283,6 +293,7 @@ impl From<&Item> for ItemDto {
             attributes: serde_json::to_value(&value.attributes).unwrap(), // Serde JSON serialization failure is not expected.
             types: value.types.iter().map(ItemTypeRefDto::from).collect(),
             links: value.links.iter().map(ItemLinkDto::from).collect(),
+            version: crate::item_content::content_version(&value.content),
         }
     }
 }

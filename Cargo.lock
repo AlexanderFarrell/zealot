@@ -7958,8 +7958,10 @@ name = "zealot-domain"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "hex",
  "serde",
  "serde_json",
+ "sha2",
  "size",
  "thiserror 1.0.69",
  "uuid",
