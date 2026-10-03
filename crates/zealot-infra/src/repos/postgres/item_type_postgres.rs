@@ -317,7 +317,9 @@ impl ItemTypeRepo for ItemTypePostgresRepo {
                          WHERE ak.key = $2 AND (ak.account_id = $3 OR ak.is_system = true)
                          ON CONFLICT DO NOTHING",
                     )
-                    .bind(type_id)
+                    // i64 to match add_attr_kinds_to_item_type, which runs the
+                    // same SQL text; sqlx caches statements by text (Z199).
+                    .bind(i64::from(type_id))
                     .bind(key)
                     .bind(account_id_val)
                     .execute(&pool)

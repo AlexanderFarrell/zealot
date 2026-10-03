@@ -288,10 +288,13 @@ impl RepeatRepo for RepeatPostgresRepo {
                     }
                 })?;
 
+                // Bind `item_id` as i64, like every other call site of this
+                // SQL text: sqlx caches statements per connection by text, so
+                // an i32 here poisons comment_postgres::add_comment (Z199).
                 let exists: Option<i32> = sqlx::query_scalar(
                     "SELECT item_id FROM item WHERE item_id = $1 AND account_id = $2",
                 )
-                .bind(item_id_val as i32)
+                .bind(item_id_val)
                 .bind(account_id_val)
                 .fetch_optional(&pool)
                 .await
