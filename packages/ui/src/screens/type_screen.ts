@@ -14,6 +14,9 @@ const itemTypeApi = new ItemTypeAPI('/api');
 const attrKindApi = new AttributeKindAPI('/api');
 const itemApi = new ItemAPI('/api');
 
+/** Items fetched per page on the type screen. */
+const TYPE_PAGE_SIZE = 50;
+
 export class TypeScreen extends BaseElementEmpty {
     private typeTitle: string | null = null;
     private renderId = 0;
@@ -40,7 +43,7 @@ export class TypeScreen extends BaseElementEmpty {
         const [typeResult, kindsResult, itemsResult] = await Promise.allSettled([
             itemTypeApi.get_by_name(title),
             attrKindApi.get_all(),
-            itemApi.GetAll(title),
+            itemApi.Query({ types: [title], limit: TYPE_PAGE_SIZE }),
         ]);
 
         if (renderId !== this.renderId) {
@@ -60,7 +63,7 @@ export class TypeScreen extends BaseElementEmpty {
         }
 
         const attributeKinds = kindsResult.status === 'fulfilled' ? kindsResult.value : [];
-        const items = itemsResult.status === 'fulfilled' ? itemsResult.value : null;
+        const firstPage = itemsResult.status === 'fulfilled' ? itemsResult.value : null;
         const kindsError = kindsResult.status === 'rejected'
             ? this.messageForError(kindsResult.reason, 'Failed to load attribute kinds.')
             : null;
@@ -72,7 +75,7 @@ export class TypeScreen extends BaseElementEmpty {
         shell.className = 'type-screen-shell';
         shell.appendChild(this.buildHeader(typeResult.value));
         shell.appendChild(this.buildAssignedKindsSection(typeResult.value, attributeKinds, kindsError));
-        shell.appendChild(this.buildItemsSection(typeResult.value, items, itemsError));
+        shell.appendChild(this.buildItemsSection(typeResult.value, firstPage, itemsError));
         this.appendChild(shell);
     }
 
@@ -282,7 +285,7 @@ export class TypeScreen extends BaseElementEmpty {
         return section;
     }
 
-    private buildItemsSection(itemType: ItemType, items: Item[] | null, itemsError: string | null): HTMLElement {
+    private buildItemsSection(itemType: ItemType, firstPage: { items: Item[]; total: number } | null, itemsError: string | null): HTMLElement {
         const section = document.createElement('section');
         section.className = 'type-screen-section';
         section.appendChild(this.buildSectionHeader('Items of This Type'));
@@ -314,14 +317,61 @@ export class TypeScreen extends BaseElementEmpty {
                 typesEditable: false,
             },
             emptyMessage: `No items assigned to ${itemType.Name}.`,
-            items: items ?? [],
+            items: firstPage?.items ?? [],
             onOpenItem: (item) => {
                 getNavigator().openItem(item.Title);
             },
         });
         section.appendChild(table);
 
+        if (firstPage && firstPage.total > firstPage.items.length) {
+            section.appendChild(this.buildLoadMore(itemType, table, firstPage));
+        }
+
         return section;
+    }
+
+    /** "Load more" row under the table: fetches the next page and appends it. */
+    private buildLoadMore(
+        itemType: ItemType,
+        table: ItemTableView,
+        firstPage: { items: Item[]; total: number },
+    ): HTMLElement {
+        const row = document.createElement('div');
+        row.className = 'type-screen-load-more';
+
+        const status = document.createElement('span');
+        status.className = 'tool-muted';
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = 'Load more';
+
+        let loaded = firstPage.items.length;
+        const total = firstPage.total;
+        const updateStatus = () => {
+            status.textContent = `${loaded} of ${total}`;
+        };
+        updateStatus();
+
+        button.addEventListener('click', async () => {
+            button.disabled = true;
+            try {
+                const next = await itemApi.Query({ types: [itemType.Name], limit: TYPE_PAGE_SIZE, offset: loaded });
+                table.appendItems(next.items);
+                loaded += next.items.length;
+                updateStatus();
+                if (next.items.length === 0 || loaded >= total) {
+                    button.remove();
+                    return;
+                }
+            } catch (error) {
+                status.textContent = this.messageForError(error, 'Failed to load more items.');
+            }
+            button.disabled = false;
+        });
+
+        row.append(status, button);
+        return row;
     }
 
     private renderNotFound(title: string): void {

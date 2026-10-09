@@ -147,14 +147,15 @@ impl ItemTypeRepo for ItemTypePostgresRepo {
                         it.type_id,
                         it.name,
                         it.account_id,
-                        COUNT(DISTINCT lnk.attribute_kind_id) AS required_attributes_count,
-                        COUNT(DISTINCT i.item_id) AS item_count
+                        (SELECT COUNT(*) FROM item_type_attribute_kind_link lnk
+                         WHERE lnk.item_type_id = it.type_id) AS required_attributes_count,
+                        (SELECT COUNT(*) FROM item_item_type_link item_lnk
+                         JOIN item i ON i.item_id = item_lnk.item_id
+                         WHERE item_lnk.type_id = it.type_id AND i.account_id = $1
+                           AND ($2 OR NOT EXISTS (SELECT 1 FROM attribute a WHERE a.item_id = i.item_id AND a.key = 'Archived' AND a.value_int = 1))
+                        ) AS item_count
                      FROM item_type it
-                     LEFT JOIN item_type_attribute_kind_link lnk ON it.type_id = lnk.item_type_id
-                     LEFT JOIN item_item_type_link item_lnk ON it.type_id = item_lnk.type_id
-                     LEFT JOIN item i ON i.item_id = item_lnk.item_id AND i.account_id = $1 AND ($2 OR NOT EXISTS (SELECT 1 FROM attribute a WHERE a.item_id = i.item_id AND a.key = 'Archived' AND a.value_int = 1))
                      WHERE (it.account_id = $1 OR it.account_id IS NULL)
-                     GROUP BY it.type_id, it.name, it.account_id
                      ORDER BY LOWER(it.name), it.type_id",
                 )
                 .bind(account_id_val)

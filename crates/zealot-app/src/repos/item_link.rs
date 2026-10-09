@@ -40,4 +40,29 @@ pub trait ItemLinkRepo: Debug + Send + Sync {
         linked_ids: &[Id],
         account: &Account,
     ) -> Result<(), RepoError>;
+
+    /// Replaces the item's `wikilink` links with `linked_ids` and records
+    /// `titles` as the `[[...]]` references its content makes, in one
+    /// transaction. `titles` are the extracted targets, resolved or not.
+    fn replace_wikilinks(
+        &self,
+        item_id: &Id,
+        titles: &[String],
+        linked_ids: &[Id],
+        account: &Account,
+    ) -> Result<(), RepoError>;
+
+    /// Ids of the account's items whose recorded references include any of
+    /// `titles`.
+    fn get_wikilink_source_ids(
+        &self,
+        titles: &[String],
+        account_id: &Id,
+    ) -> Result<Vec<Id>, RepoError>;
+
+    /// Whether recorded references cover every item of the account, so a
+    /// rename may rely on them.
+    fn wikilink_refs_complete(&self, account_id: &Id) -> Result<bool, RepoError>;
+
+    fn mark_wikilink_refs_complete(&self, account_id: &Id) -> Result<(), RepoError>;
 }

@@ -114,6 +114,11 @@ struct RootItemsParams {
     item_type: Option<String>,
     #[serde(default)]
     include_archived: bool,
+    /// Optional page size. Without it the whole list is returned, as before.
+    #[serde(default)]
+    limit: Option<i64>,
+    #[serde(default)]
+    offset: i64,
 }
 
 const MAX_SEARCH_LIMIT: i64 = 100;
@@ -195,7 +200,12 @@ async fn get_root_items(
             .get_root_items_with_archived(params.include_archived, &account)
     }
     .map_err(item_service_err)?;
-    Ok(Json(items.iter().map(ItemDto::from).collect()))
+    let offset = params.offset.max(0) as usize;
+    let page = items.iter().skip(offset);
+    Ok(Json(match params.limit {
+        Some(limit) => page.take(limit.max(0) as usize).map(ItemDto::from).collect(),
+        None => page.map(ItemDto::from).collect(),
+    }))
 }
 
 async fn get_recent_items(

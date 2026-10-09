@@ -1,3 +1,4 @@
+use crate::repos::ID_CHUNK;
 use std::collections::HashMap;
 
 use chrono::NaiveDate;
@@ -565,8 +566,8 @@ fn build_query_sql(
     if !query.types.is_empty() {
         let type_exists = |placeholders: &str| {
             format!(
-                "EXISTS (SELECT 1 FROM item_item_type_link l JOIN item_type t ON t.type_id = l.type_id
-                 WHERE l.item_id = i.item_id AND t.name IN ({placeholders}))"
+                "i.item_id IN (SELECT l.item_id FROM item_item_type_link l JOIN item_type t ON t.type_id = l.type_id
+                 WHERE t.name IN ({placeholders}))"
             )
         };
         if query.all_types {
@@ -689,6 +690,13 @@ impl ItemAttributeValueRepo for ItemAttributeValueSqliteRepo {
         item_ids: &Vec<Id>,
         account_id: &Id,
     ) -> Result<HashMap<Id, HashMap<String, Attribute>>, RepoError> {
+        if item_ids.len() > ID_CHUNK {
+            let mut attributes = HashMap::new();
+            for chunk in item_ids.chunks(ID_CHUNK) {
+                attributes.extend(self.get_attributes_for_items(&chunk.to_vec(), account_id)?);
+            }
+            return Ok(attributes);
+        }
         let item_ids = item_ids.clone();
         let account_id_val = i64::from(*account_id);
         let pool = self.pool.clone();

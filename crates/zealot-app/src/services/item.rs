@@ -89,6 +89,9 @@ const GREP_MAX_LIMIT: i64 = 100;
 const GREP_MAX_CANDIDATES: i64 = 100_000;
 
 /// Message for a compare-and-swap that lost to a concurrent write.
+/// Items re-resolved per batch when rebuilding or re-linking wikilinks.
+const WIKILINK_PAGE: i64 = 500;
+
 const CONCURRENT_EDIT: &str =
     "the item changed while the edit was applied; re-read it and retry the edit";
 
@@ -851,7 +854,7 @@ impl ItemService {
                 }
 
                 if title_changed {
-                    self.rebuild_wiki_links_for_account(account)?;
+                    self.relink_after_rename(&current_item.title, &item.title, account)?;
                 }
 
                 let result = self.get_item_by_id(&item.item_id, account)?;
@@ -1393,7 +1396,7 @@ impl ItemService {
         content: &str,
         account: &Account,
     ) -> Result<(), ItemServiceError> {
-        let titles = Self::extract_wiki_link_titles(content);
+        let mut titles = Self::extract_wiki_link_titles(content);
         let mut resolved_ids: Vec<Id> = Vec::new();
         for title in &titles {
             let items = self
@@ -1406,28 +1409,77 @@ impl ItemService {
                 }
             }
         }
+        titles.sort();
+        titles.dedup();
         self.item_link_repo
-            .replace_links_by_relationship(item_id, "wikilink", &resolved_ids, account)
+            .replace_wikilinks(item_id, &titles, &resolved_ids, account)
             .map_err(ItemServiceError::Repo)
     }
 
+    /// Full wikilink rebuild, for repair: re-resolves every `[[Title]]` of the
+    /// account, a page of items at a time, and records its references so
+    /// renames can then be incremental. Returns the number of items processed.
     pub fn rebuild_wiki_links_for_account(
         &self,
         account: &Account,
     ) -> Result<usize, ItemServiceError> {
-        let item_ids = self
-            .item_repo
-            .get_all_item_ids_for_user(&account.account_id)
-            .map_err(ItemServiceError::Repo)?;
-        let items = self
-            .item_repo
-            .get_items_by_ids(&item_ids, account)
-            .map_err(ItemServiceError::Repo)?;
-        let count = items.len();
-        for item in &items {
-            self.sync_wiki_links_from_content(&item.item_id, &item.content, account)?;
+        let mut count = 0;
+        let mut after_id = 0;
+        loop {
+            let page = self
+                .item_repo
+                .get_items_page_after(after_id, WIKILINK_PAGE, account)
+                .map_err(ItemServiceError::Repo)?;
+            let Some(last) = page.last() else {
+                break;
+            };
+            after_id = i64::from(last.item_id);
+            for item in &page {
+                self.sync_wiki_links_from_content(&item.item_id, &item.content, account)?;
+            }
+            count += page.len();
         }
+        self.item_link_repo
+            .mark_wikilink_refs_complete(&account.account_id)
+            .map_err(ItemServiceError::Repo)?;
         Ok(count)
+    }
+
+    /// After a rename, re-resolves only the wikilinks the new title can change:
+    /// those of items that mention the old title (now dangling or pointing at
+    /// another item of that title) or the new one (now resolvable). Falls back
+    /// to a full rebuild until the account's references are fully recorded.
+    fn relink_after_rename(
+        &self,
+        old_title: &str,
+        new_title: &str,
+        account: &Account,
+    ) -> Result<(), ItemServiceError> {
+        if !self
+            .item_link_repo
+            .wikilink_refs_complete(&account.account_id)
+            .map_err(ItemServiceError::Repo)?
+        {
+            self.rebuild_wiki_links_for_account(account)?;
+            return Ok(());
+        }
+        let sources = self
+            .item_link_repo
+            .get_wikilink_source_ids(
+                &[old_title.to_string(), new_title.to_string()],
+                &account.account_id,
+            )
+            .map_err(ItemServiceError::Repo)?;
+        for batch in sources.chunks(WIKILINK_PAGE as usize) {
+            let items = self
+                .item_repo
+                .get_items_by_ids(&batch.to_vec(), account)
+                .map_err(ItemServiceError::Repo)?;
+            for item in &items {
+                self.sync_wiki_links_from_content(&item.item_id, &item.content, account)?;
+            }
+        }
+        Ok(())
     }
 
     fn extract_headings(content: &str) -> Vec<(u8, u32, String)> {

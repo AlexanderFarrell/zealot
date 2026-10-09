@@ -99,6 +99,17 @@ export class ItemAPI extends BaseAPI {
         return dtos.map(d => new Item(d));
     }
 
+    /** One page of items of the given types (`POST /item/query`); `total` counts every match. */
+    async Query(query: { types: string[]; limit?: number; offset?: number; includeArchived?: boolean }): Promise<{ items: Item[]; total: number }> {
+        const page = await post_json(`${this.baseUrl}/item/query`, {
+            types: query.types,
+            limit: query.limit ?? 50,
+            offset: query.offset ?? 0,
+            include_archived: query.includeArchived ?? false,
+        }) as { items: ItemDto[]; total: number };
+        return { items: page.items.map(d => new Item(d)), total: page.total };
+    }
+
     async Add(dto: AddItemDto): Promise<Item> {
         const data = await post_json(`${this.baseUrl}/item`, dto) as ItemDto;
         return new Item(data);

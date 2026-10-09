@@ -82,6 +82,12 @@ ON CONFLICT DO NOTHING;
 INSERT INTO item_item_link (first_item_id, second_item_id, relationship)
 SELECT i, lnk, 'wikilink' FROM bn WHERE lnk > 0
 ON CONFLICT DO NOTHING;
+-- The references and completeness marker a migrated, backfilled database has (Z223).
+INSERT INTO item_wikilink_ref (item_id, target_title)
+SELECT i, lt FROM bn WHERE lnk > 0
+ON CONFLICT DO NOTHING;
+INSERT INTO wikilink_ref_state (account_id) VALUES (@ACCOUNT@)
+ON CONFLICT DO NOTHING;
 
 SELECT setval(pg_get_serial_sequence('item', 'item_id'), (SELECT max(item_id) FROM item));
 DROP TABLE bk;

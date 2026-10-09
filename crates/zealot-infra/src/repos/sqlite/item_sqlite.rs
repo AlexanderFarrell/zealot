@@ -1,3 +1,4 @@
+use crate::repos::ID_CHUNK;
 use std::collections::HashMap;
 
 use sqlx::SqlitePool;
@@ -101,6 +102,13 @@ impl ItemRepo for ItemSqliteRepo {
         item_ids: &Vec<Id>,
         account: &Account,
     ) -> Result<Vec<ItemCore>, RepoError> {
+        if item_ids.len() > ID_CHUNK {
+            let mut items = Vec::with_capacity(item_ids.len());
+            for chunk in item_ids.chunks(ID_CHUNK) {
+                items.extend(self.get_items_by_ids(&chunk.to_vec(), account)?);
+            }
+            return Ok(items);
+        }
         let pool = self.pool.clone();
         let item_ids = item_ids.clone();
         let account_id_val = i64::from(account.account_id);
@@ -458,6 +466,31 @@ impl ItemRepo for ItemSqliteRepo {
                     .await
                     .map(|_| ())
                     .map_err(RepoError::from)
+            })
+        })
+    }
+
+    fn get_items_page_after(
+        &self,
+        after_id: i64,
+        limit: i64,
+        account: &Account,
+    ) -> Result<Vec<ItemCore>, RepoError> {
+        let account_id_val = i64::from(account.account_id);
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let rows = sqlx::query_as::<_, ItemRow>(
+                    "SELECT item_id, title, content FROM item
+                     WHERE account_id = ? AND item_id > ? ORDER BY item_id LIMIT ?",
+                )
+                .bind(account_id_val)
+                .bind(after_id)
+                .bind(limit)
+                .fetch_all(&pool)
+                .await
+                .map_err(RepoError::from)?;
+                rows.into_iter().map(row_to_item_core).collect()
             })
         })
     }
