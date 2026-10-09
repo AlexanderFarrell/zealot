@@ -1,4 +1,4 @@
-import { BaseElementEmpty } from '@websoil/engine';
+import { BaseElementEmpty, Popups } from '@websoil/engine';
 import { AttributeKindAPI } from '@zealot/api/src/attribute_kind';
 import type { AttributeKind } from '@zealot/domain/src/attribute';
 import { AttributeBaseTypesArray } from '@zealot/domain/src/attribute';
@@ -289,8 +289,15 @@ function buildKindTable(
             const rebuildConfigCell = () => {
                 configCell.innerHTML = '';
                 const fields = buildConfigFields(kind.BaseType, kind.Config, (newConfig) => {
+                    const previous = kind.Config;
                     kind.Config = newConfig;
-                    void attributeKindApi.update(kind.KindID, { kind_id: kind.KindID, config: kind.Config });
+                    attributeKindApi.update(kind.KindID, { kind_id: kind.KindID, config: kind.Config })
+                        .catch(async (error) => {
+                            // The server refuses a default the kind does not accept; put the old config back.
+                            kind.Config = previous;
+                            Popups.add_error(await getErrorMessage(error, 'Failed to update attribute kind.'));
+                            rebuildConfigCell();
+                        });
                 });
                 if (fields) {
                     configCell.appendChild(fields);
@@ -355,6 +362,18 @@ function buildConfigFields(
     config: AttributeConfig,
     onChange: (newConfig: AttributeConfig) => void,
 ): HTMLElement | null {
+    const fields = buildTypeConfigFields(baseType, config, onChange);
+    const container = fields ?? document.createElement('div');
+    container.className = 'config-fields';
+    container.appendChild(buildDefaultField(baseType, config, onChange));
+    return container;
+}
+
+function buildTypeConfigFields(
+    baseType: AttributeBaseType,
+    config: AttributeConfig,
+    onChange: (newConfig: AttributeConfig) => void,
+): HTMLElement | null {
     switch (baseType) {
         case 'list':
             return buildListConfigFields(config, onChange);
@@ -367,6 +386,48 @@ function buildConfigFields(
             return buildTextConfigFields(config, onChange);
         default:
             return null;
+    }
+}
+
+/** Free-text default, parsed per base type; the server validates it against the kind. Item kinds take none. */
+function buildDefaultField(
+    baseType: AttributeBaseType,
+    config: AttributeConfig,
+    onChange: (newConfig: AttributeConfig) => void,
+): HTMLElement {
+    const label = document.createElement('label');
+    label.className = 'config-field';
+    const span = document.createElement('span');
+    span.textContent = baseType === 'list' ? 'Default (comma separated)' : 'Default';
+    const input = document.createElement('input');
+    input.placeholder = 'None';
+    const current = config.default;
+    if (current !== undefined && current !== null) {
+        input.value = Array.isArray(current) ? current.join(', ') : String(current);
+    }
+    input.disabled = baseType === 'item';
+    input.addEventListener('change', () => {
+        const newConfig: AttributeConfig = { ...config };
+        const raw = input.value.trim();
+        if (raw === '') delete newConfig.default;
+        else newConfig.default = parseDefault(baseType, raw);
+        onChange(newConfig);
+    });
+    label.append(span, input);
+    return label;
+}
+
+function parseDefault(baseType: AttributeBaseType, raw: string): unknown {
+    switch (baseType) {
+        case 'integer':
+        case 'decimal':
+            return Number(raw);
+        case 'boolean':
+            return raw === 'true';
+        case 'list':
+            return raw.split(',').map((part) => part.trim()).filter((part) => part !== '');
+        default:
+            return raw;
     }
 }
 

@@ -20,6 +20,8 @@ pub enum AttributeServiceError {
     InUse(String),
     #[error("{0}")]
     ReadOnly(String),
+    #[error("{0}")]
+    InvalidDefault(String),
     #[error("repo error: {0}")]
     Repo(#[from] RepoError),
 }
@@ -64,6 +66,7 @@ impl AttributeService {
         dto: &AddAttributeKindDto,
         account_id: &Id,
     ) -> Result<Option<AttributeKind>, AttributeServiceError> {
+        self.check_default(&dto.key, &dto.base_type, &dto.config)?;
         let kind = self
             .repo
             .add_attribute_kind(dto, account_id)
@@ -82,6 +85,15 @@ impl AttributeService {
         let kind_id = Id::try_from(dto.kind_id).map_err(|_| AttributeServiceError::NotFound)?;
         let current = self.repo.get_attribute_kind_by_id(&kind_id, account_id)?;
         ensure_mutable(current.as_ref())?;
+        // A new config replaces the old one whole, so its `default` is checked against the kind it will belong to.
+        if let (Some(config), Some(current)) = (&dto.config, &current) {
+            let key = dto.key.as_deref().unwrap_or(&current.key);
+            let base_type = dto
+                .base_type
+                .as_deref()
+                .unwrap_or_else(|| current.base_type.as_db_str());
+            self.check_default(key, base_type, config)?;
+        }
         let kind = self
             .repo
             .update_attribute_kind(dto, account_id)
@@ -90,6 +102,19 @@ impl AttributeService {
             tracing::info!(account_id = ?account_id, key = %k.key, "attribute kind updated");
         }
         Ok(kind)
+    }
+
+    /// Rejects a kind config whose `default` is not a valid value for the kind.
+    fn check_default(
+        &self,
+        key: &str,
+        base_type: &str,
+        config: &serde_json::Value,
+    ) -> Result<(), AttributeServiceError> {
+        let kind = self.repo.preview_attribute_kind(key, base_type, config)?;
+        kind.parse_default(config)
+            .map(|_| ())
+            .map_err(|err| AttributeServiceError::InvalidDefault(format!("Invalid default: {err}")))
     }
 
     pub fn delete_attribute_kind(
@@ -187,6 +212,21 @@ mod tests {
         ) -> Result<HashMap<String, AttributeKind>, RepoError> {
             Ok(HashMap::new())
         }
+        /// Stands in for the repo's config parsing with a 1-10 integer kind.
+        fn preview_attribute_kind(
+            &self,
+            key: &str,
+            _base_type: &str,
+            _config: &serde_json::Value,
+        ) -> Result<AttributeKind, RepoError> {
+            let mut kind = make_kind(key, false);
+            kind.base_type = AttributeBaseType::Scalar(AttributeBaseScalarType::Integer);
+            kind.spec = AttributeKindSpec::Integer {
+                min: Some(1),
+                max: Some(10),
+            };
+            Ok(kind)
+        }
         fn add_attribute_kind(
             &self,
             _dto: &AddAttributeKindDto,
@@ -230,6 +270,7 @@ mod tests {
     fn make_kind(key: &str, is_system: bool) -> AttributeKind {
         AttributeKind {
             kind_id: Id::try_from(7i64).unwrap(),
+            default: None,
             is_system,
             key: key.to_string(),
             description: String::new(),
@@ -320,6 +361,27 @@ mod tests {
         let repo = Arc::new(MockAttributeRepo::new(Some(make_kind("Mood", false)), 0));
         let result = service(&repo).update_attribute_kind(&rename_dto(), &account_id());
         assert!(matches!(result, Ok(Some(_))));
+        assert!(repo.kind_updated.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn update_with_invalid_default_is_rejected_before_writing() {
+        let repo = Arc::new(MockAttributeRepo::new(Some(make_kind("Priority2", false)), 0));
+        let mut dto = rename_dto();
+        dto.config = Some(serde_json::json!({"min": 1, "max": 10, "default": 11}));
+        let err = service(&repo)
+            .update_attribute_kind(&dto, &account_id())
+            .unwrap_err();
+        assert!(matches!(err, AttributeServiceError::InvalidDefault(_)));
+        assert!(!repo.kind_updated.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn update_with_valid_default_or_none_reaches_the_repo() {
+        let repo = Arc::new(MockAttributeRepo::new(Some(make_kind("Priority2", false)), 0));
+        let mut dto = rename_dto();
+        dto.config = Some(serde_json::json!({"min": 1, "max": 10, "default": 3}));
+        assert!(service(&repo).update_attribute_kind(&dto, &account_id()).is_ok());
         assert!(repo.kind_updated.load(Ordering::Relaxed));
     }
 }

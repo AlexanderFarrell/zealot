@@ -193,7 +193,7 @@ export class AssignTypeModal extends HTMLElement {
             const kind = kinds[key];
             const binding = createAttributeValueInput({
                 attributeKey: key,
-                value: null,
+                value: kind?.Config.default ?? null,
                 ...(kind ? { kind } : {}),
             });
 

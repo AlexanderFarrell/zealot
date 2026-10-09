@@ -76,7 +76,9 @@ export interface AttributeConfig {
     max_len?: number;
     pattern?: string;
     values?: string[];
-    list_type?: AttributeBaseType
+    list_type?: AttributeBaseType;
+    /** Value clients prefill; the API still requires required attributes to be sent. */
+    default?: unknown;
 }
 
 export interface AttributeKindDto {
