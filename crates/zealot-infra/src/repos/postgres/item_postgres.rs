@@ -479,6 +479,31 @@ impl ItemRepo for ItemPostgresRepo {
         })
     }
 
+    fn get_items_page_after(
+        &self,
+        after_id: i64,
+        limit: i64,
+        account: &Account,
+    ) -> Result<Vec<ItemCore>, RepoError> {
+        let account_id_val = i64::from(account.account_id);
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let rows = sqlx::query_as::<_, ItemRow>(
+                    "SELECT item_id, title, content FROM item
+                     WHERE account_id = $1::int8 AND item_id > $2::int8 ORDER BY item_id LIMIT $3",
+                )
+                .bind(account_id_val)
+                .bind(after_id)
+                .bind(limit)
+                .fetch_all(&pool)
+                .await
+                .map_err(RepoError::from)?;
+                rows.into_iter().map(row_to_item_core).collect()
+            })
+        })
+    }
+
     fn get_all_item_ids_for_user(&self, account_id: &Id) -> Result<Vec<Id>, RepoError> {
         let account_id_val = i64::from(*account_id);
         let pool = self.pool.clone();

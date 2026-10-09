@@ -57,6 +57,14 @@ pub trait ItemRepo: Debug + Send + Sync {
         account: &Account,
     ) -> Result<Vec<ItemCore>, RepoError>;
     fn get_all_item_ids_for_user(&self, account_id: &Id) -> Result<Vec<Id>, RepoError>;
+    /// Up to `limit` of the account's items with an id above `after_id`, in id
+    /// order. Walk a whole account without holding every id or body at once.
+    fn get_items_page_after(
+        &self,
+        after_id: i64,
+        limit: i64,
+        account: &Account,
+    ) -> Result<Vec<ItemCore>, RepoError>;
 
     fn add_item(
         &self,

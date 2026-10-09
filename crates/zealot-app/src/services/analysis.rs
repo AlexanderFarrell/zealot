@@ -180,6 +180,14 @@ mod tests {
         fn get_all_item_ids_for_user(&self, _account_id: &Id) -> Result<Vec<Id>, RepoError> {
             Ok(vec![])
         }
+        fn get_items_page_after(
+            &self,
+            _after_id: i64,
+            _limit: i64,
+            _account: &Account,
+        ) -> Result<Vec<ItemCore>, RepoError> {
+            Ok(vec![])
+        }
         fn add_item(
             &self,
             _dto: &AddItemCoreDto,

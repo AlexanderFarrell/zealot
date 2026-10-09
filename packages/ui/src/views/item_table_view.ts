@@ -54,6 +54,12 @@ export class ItemTableView extends HTMLElement {
         return this;
     }
 
+    /** Adds a further page of items below those already shown. */
+    appendItems(items: Item[]): void {
+        this._items.push(...items);
+        this._render();
+    }
+
     private async _ensureKinds(): Promise<void> {
         this._attributeKinds = await loadAttributeKinds();
         this._render();

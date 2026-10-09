@@ -85,6 +85,10 @@ SELECT bn.i, 12 * ((bn.i * 13 + bk.k * 7) % (@N@ / 12)) + 1, 'topic'
 FROM bn JOIN bk ON bk.k < bn.nt;
 INSERT OR IGNORE INTO item_item_link (first_item_id, second_item_id, relationship)
 SELECT i, lnk, 'wikilink' FROM bn WHERE lnk > 0;
+-- The references and completeness marker a migrated, backfilled database has (Z223).
+INSERT INTO item_wikilink_ref (item_id, target_title)
+SELECT i, lt FROM bn WHERE lnk > 0;
+INSERT INTO wikilink_ref_state (account_id) VALUES (@ACCOUNT@);
 
 DROP TABLE bk;
 DROP TABLE bn;

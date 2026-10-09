@@ -8,6 +8,10 @@ use zealot_app::{config::ZealotConfig, repos::ZealotRepos};
 use crate::repos::{postgres::get_postgres_repos, sqlite::get_sqlite_repos};
 
 mod override_sets;
+
+/// Ids bound per statement when loading by an id list. SQLite caps bound
+/// variables at 32,766; callers may pass any number of ids.
+pub(crate) const ID_CHUNK: usize = 500;
 pub mod mysql;
 pub mod postgres;
 pub mod sqlite;
@@ -32,6 +36,8 @@ mod required_change_tests;
 mod system_attribute_kind_tests;
 #[cfg(test)]
 mod type_default_override_tests;
+#[cfg(test)]
+mod scale_tests;
 
 pub async fn get_repo_from_config(config: &ZealotConfig) -> Result<ZealotRepos, String> {
     match config.database.as_str() {

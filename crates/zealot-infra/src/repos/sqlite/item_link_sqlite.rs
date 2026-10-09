@@ -1,3 +1,4 @@
+use crate::repos::ID_CHUNK;
 use std::collections::{HashMap, HashSet};
 
 use sqlx::SqlitePool;
@@ -28,6 +29,13 @@ impl ItemLinkRepo for ItemLinkSqliteRepo {
         item_ids: &Vec<Id>,
         account_id: &Id,
     ) -> Result<HashMap<Id, Vec<ItemLink>>, RepoError> {
+        if item_ids.len() > ID_CHUNK {
+            let mut links = HashMap::new();
+            for chunk in item_ids.chunks(ID_CHUNK) {
+                links.extend(self.get_links_for_items(&chunk.to_vec(), account_id)?);
+            }
+            return Ok(links);
+        }
         let item_ids = item_ids.clone();
         let account_id_val = i64::from(*account_id);
         let pool = self.pool.clone();
@@ -42,19 +50,20 @@ impl ItemLinkRepo for ItemLinkSqliteRepo {
                 let sql = format!(
                     "SELECT l.first_item_id, l.second_item_id, l.relationship
                      FROM item_item_link l
-                     JOIN item src ON src.item_id = l.first_item_id
-                     JOIN item target ON target.item_id = l.second_item_id
-                     WHERE src.account_id = ? AND target.account_id = ? AND l.first_item_id IN ({})
+                     WHERE l.first_item_id IN ({})
+                       AND EXISTS (SELECT 1 FROM item src
+                                   WHERE src.item_id = l.first_item_id AND src.account_id = ?)
+                       AND EXISTS (SELECT 1 FROM item target
+                                   WHERE target.item_id = l.second_item_id AND target.account_id = ?)
                      ORDER BY l.first_item_id, l.second_item_id",
                     placeholders
                 );
 
-                let mut query = sqlx::query_as::<_, ItemLinkRow>(&sql)
-                    .bind(account_id_val)
-                    .bind(account_id_val);
+                let mut query = sqlx::query_as::<_, ItemLinkRow>(&sql);
                 for item_id in &item_ids {
                     query = query.bind(i64::from(*item_id));
                 }
+                query = query.bind(account_id_val).bind(account_id_val);
 
                 let rows = query.fetch_all(&pool).await.map_err(RepoError::from)?;
                 let mut links_by_item: HashMap<Id, Vec<ItemLink>> = HashMap::new();
@@ -300,6 +309,127 @@ impl ItemLinkRepo for ItemLinkSqliteRepo {
                 }
 
                 tx.commit().await.map_err(RepoError::from)
+            })
+        })
+    }
+
+    fn replace_wikilinks(
+        &self,
+        item_id: &Id,
+        titles: &[String],
+        linked_ids: &[Id],
+        _account: &Account,
+    ) -> Result<(), RepoError> {
+        let item_id_val = i64::from(*item_id);
+        let titles = titles.to_vec();
+        let target_ids: Vec<i64> = linked_ids.iter().map(|id| i64::from(*id)).collect();
+        let pool = self.pool.clone();
+
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let mut tx = pool.begin().await.map_err(RepoError::from)?;
+
+                sqlx::query(
+                    "DELETE FROM item_item_link WHERE first_item_id = ? AND relationship = 'wikilink'",
+                )
+                .bind(item_id_val)
+                .execute(&mut *tx)
+                .await
+                .map_err(RepoError::from)?;
+                for &target_id in &target_ids {
+                    sqlx::query(
+                        "INSERT OR IGNORE INTO item_item_link (first_item_id, second_item_id, relationship)
+                         VALUES (?, ?, 'wikilink')",
+                    )
+                    .bind(item_id_val)
+                    .bind(target_id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(RepoError::from)?;
+                }
+
+                sqlx::query("DELETE FROM item_wikilink_ref WHERE item_id = ?")
+                    .bind(item_id_val)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(RepoError::from)?;
+                for title in &titles {
+                    sqlx::query(
+                        "INSERT OR IGNORE INTO item_wikilink_ref (item_id, target_title) VALUES (?, ?)",
+                    )
+                    .bind(item_id_val)
+                    .bind(title)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(RepoError::from)?;
+                }
+
+                tx.commit().await.map_err(RepoError::from)
+            })
+        })
+    }
+
+    fn get_wikilink_source_ids(
+        &self,
+        titles: &[String],
+        account_id: &Id,
+    ) -> Result<Vec<Id>, RepoError> {
+        let titles = titles.to_vec();
+        let account_id_val = i64::from(*account_id);
+        let pool = self.pool.clone();
+
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let mut ids = std::collections::BTreeSet::new();
+                for title in &titles {
+                    let rows = sqlx::query_scalar::<_, i64>(
+                        "SELECT r.item_id FROM item_wikilink_ref r
+                         JOIN item i ON i.item_id = r.item_id
+                         WHERE r.target_title = ? AND i.account_id = ?",
+                    )
+                    .bind(title)
+                    .bind(account_id_val)
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
+                    ids.extend(rows);
+                }
+                ids.into_iter()
+                    .map(|id| {
+                        Id::try_from(id).map_err(|e| RepoError::DatabaseError { err: e.to_string() })
+                    })
+                    .collect()
+            })
+        })
+    }
+
+    fn wikilink_refs_complete(&self, account_id: &Id) -> Result<bool, RepoError> {
+        let account_id_val = i64::from(*account_id);
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                sqlx::query_scalar::<_, bool>(
+                    "SELECT EXISTS(SELECT 1 FROM wikilink_ref_state WHERE account_id = ?)",
+                )
+                .bind(account_id_val)
+                .fetch_one(&pool)
+                .await
+                .map_err(RepoError::from)
+            })
+        })
+    }
+
+    fn mark_wikilink_refs_complete(&self, account_id: &Id) -> Result<(), RepoError> {
+        let account_id_val = i64::from(*account_id);
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                sqlx::query("INSERT OR IGNORE INTO wikilink_ref_state (account_id) VALUES (?)")
+                    .bind(account_id_val)
+                    .execute(&pool)
+                    .await
+                    .map(|_| ())
+                    .map_err(RepoError::from)
             })
         })
     }

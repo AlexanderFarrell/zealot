@@ -309,4 +309,131 @@ impl ItemLinkRepo for ItemLinkPostgresRepo {
             })
         })
     }
+
+    fn replace_wikilinks(
+        &self,
+        item_id: &Id,
+        titles: &[String],
+        linked_ids: &[Id],
+        _account: &Account,
+    ) -> Result<(), RepoError> {
+        let item_id_val = i64::from(*item_id);
+        let titles = titles.to_vec();
+        let target_ids: Vec<i64> = linked_ids.iter().map(|id| i64::from(*id)).collect();
+        let pool = self.pool.clone();
+
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let mut tx = pool.begin().await.map_err(RepoError::from)?;
+
+                sqlx::query(
+                    "DELETE FROM item_item_link WHERE first_item_id = $1::int8 AND relationship = 'wikilink'",
+                )
+                .bind(item_id_val)
+                .execute(&mut *tx)
+                .await
+                .map_err(RepoError::from)?;
+                for &target_id in &target_ids {
+                    sqlx::query(
+                        "INSERT INTO item_item_link (first_item_id, second_item_id, relationship)
+                         VALUES ($1::int8::int4, $2::int8::int4, 'wikilink')
+                         ON CONFLICT (first_item_id, second_item_id, relationship) DO NOTHING",
+                    )
+                    .bind(item_id_val)
+                    .bind(target_id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(RepoError::from)?;
+                }
+
+                sqlx::query("DELETE FROM item_wikilink_ref WHERE item_id = $1::int8")
+                    .bind(item_id_val)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(RepoError::from)?;
+                for title in &titles {
+                    sqlx::query(
+                        "INSERT INTO item_wikilink_ref (item_id, target_title)
+                         VALUES ($1::int8::int4, $2) ON CONFLICT DO NOTHING",
+                    )
+                    .bind(item_id_val)
+                    .bind(title)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(RepoError::from)?;
+                }
+
+                tx.commit().await.map_err(RepoError::from)
+            })
+        })
+    }
+
+    fn get_wikilink_source_ids(
+        &self,
+        titles: &[String],
+        account_id: &Id,
+    ) -> Result<Vec<Id>, RepoError> {
+        let titles = titles.to_vec();
+        let account_id_val = i64::from(*account_id);
+        let pool = self.pool.clone();
+
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let mut ids = std::collections::BTreeSet::new();
+                for title in &titles {
+                    let rows = sqlx::query_scalar::<_, i32>(
+                        "SELECT r.item_id FROM item_wikilink_ref r
+                         JOIN item i ON i.item_id = r.item_id
+                         WHERE r.target_title = $1 AND i.account_id = $2::int8",
+                    )
+                    .bind(title)
+                    .bind(account_id_val)
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
+                    ids.extend(rows);
+                }
+                ids.into_iter()
+                    .map(|id| {
+                        Id::try_from(id as i64)
+                            .map_err(|e| RepoError::DatabaseError { err: e.to_string() })
+                    })
+                    .collect()
+            })
+        })
+    }
+
+    fn wikilink_refs_complete(&self, account_id: &Id) -> Result<bool, RepoError> {
+        let account_id_val = i64::from(*account_id);
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                sqlx::query_scalar::<_, bool>(
+                    "SELECT EXISTS(SELECT 1 FROM wikilink_ref_state WHERE account_id = $1::int8)",
+                )
+                .bind(account_id_val)
+                .fetch_one(&pool)
+                .await
+                .map_err(RepoError::from)
+            })
+        })
+    }
+
+    fn mark_wikilink_refs_complete(&self, account_id: &Id) -> Result<(), RepoError> {
+        let account_id_val = i64::from(*account_id);
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                sqlx::query(
+                    "INSERT INTO wikilink_ref_state (account_id) VALUES ($1::int8::int4)
+                     ON CONFLICT DO NOTHING",
+                )
+                .bind(account_id_val)
+                .execute(&pool)
+                .await
+                .map(|_| ())
+                .map_err(RepoError::from)
+            })
+        })
+    }
 }
