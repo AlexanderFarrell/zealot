@@ -12,7 +12,7 @@ use zealot_mcp::{
     tools::{
         ZealotServer,
         analysis::{HabitStatsParams, LimitParams, WikiStatsParams},
-        automation::{ItemTypeNameParam, ListAttributeKindsParams},
+        automation::{DeleteAttributeKindParams, ItemTypeNameParam, ListAttributeKindsParams},
         err_ctx,
         media::GetMediaParams,
         planner::{AddCommentParams, AddJournalEntryParams, DayDashboardParams, GetPlanParams},
@@ -1475,6 +1475,30 @@ async fn list_attribute_kinds_filters_by_keys_and_item_type() {
         .await
         .unwrap();
     assert_eq!(keys_of(by_keys), ["Priority"]);
+}
+
+#[tokio::test]
+async fn delete_system_attribute_kind_reports_read_only() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("DELETE"))
+        .and(path("/attribute/key/Parent"))
+        .and(query_param("force", "true"))
+        .respond_with(
+            ResponseTemplate::new(400)
+                .set_body_string("System attribute kind 'Parent' is read-only."),
+        )
+        .mount(&mock)
+        .await;
+
+    let err = server
+        .delete_attribute_kind(Parameters(DeleteAttributeKindParams {
+            key: "Parent".to_string(),
+            force: Some(true),
+        }))
+        .await
+        .unwrap_err();
+    assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
+    assert!(err.message.contains("read-only"));
 }
 
 #[tokio::test]

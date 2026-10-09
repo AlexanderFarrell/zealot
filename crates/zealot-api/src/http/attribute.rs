@@ -148,7 +148,8 @@ async fn update_attribute_kind(
         .update_attribute_kind(&dto, &account.account_id)
     {
         Ok(Some(kind)) => Ok(Json(kind_to_json(&kind))),
-        Ok(None) => Err(HttpError::NotFound),
+        Ok(None) | Err(AttributeServiceError::NotFound) => Err(HttpError::NotFound),
+        Err(AttributeServiceError::ReadOnly(err)) => Err(HttpError::UserError { err }),
         Err(e) => {
             tracing::error!(account_id = ?account.account_id, %e, "failed to update attribute kind");
             Err(HttpError::Internal)
@@ -170,6 +171,7 @@ async fn delete_attribute_kind(
         .map(|_| StatusCode::OK)
         .map_err(|e| match e {
             AttributeServiceError::InUse(msg) => HttpError::Conflict { message: msg },
+            AttributeServiceError::ReadOnly(err) => HttpError::UserError { err },
             e => {
                 tracing::error!(account_id = ?account.account_id, key = %key, %e, "failed to delete attribute kind");
                 HttpError::Internal

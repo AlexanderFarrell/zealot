@@ -431,10 +431,11 @@ impl AttributeRepo for AttributeSqliteRepo {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
                 sqlx::query_scalar::<_, i64>(
-                    "SELECT COUNT(*) FROM attribute WHERE key = ? AND account_id = ?",
+                    "SELECT COUNT(*) FROM item WHERE account_id = ? AND item_id IN (SELECT item_id FROM attribute WHERE key = ? UNION SELECT item_id FROM attribute_list_value WHERE key = ?)",
                 )
-                .bind(&key)
                 .bind(account_id_val)
+                .bind(&key)
+                .bind(&key)
                 .fetch_one(&self.pool)
                 .await
                 .map_err(RepoError::from)
@@ -451,13 +452,19 @@ impl AttributeRepo for AttributeSqliteRepo {
         let key = key.to_string();
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
-                sqlx::query("DELETE FROM attribute WHERE key = ? AND account_id = ?")
+                // Scalar values live in `attribute`, list values in `attribute_list_value`.
+                let mut tx = self.pool.begin().await.map_err(RepoError::from)?;
+                for table in ["attribute", "attribute_list_value"] {
+                    sqlx::query(&format!(
+                        "DELETE FROM {table} WHERE key = ? AND item_id IN (SELECT item_id FROM item WHERE account_id = ?)"
+                    ))
                     .bind(&key)
                     .bind(account_id_val)
-                    .execute(&self.pool)
+                    .execute(&mut *tx)
                     .await
-                    .map(|_| ())
-                    .map_err(RepoError::from)
+                    .map_err(RepoError::from)?;
+                }
+                tx.commit().await.map_err(RepoError::from)
             })
         })
     }
