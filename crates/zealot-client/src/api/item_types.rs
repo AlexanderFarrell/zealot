@@ -1,5 +1,5 @@
 use zealot_domain::item_type::{
-    AddItemTypeDto, ItemTypeDto, ItemTypeSummaryDto, UpdateItemTypeDto,
+    AddItemTypeDto, ItemTypeDto, ItemTypeSummaryDto, NonCompliantPageDto, UpdateItemTypeDto,
 };
 
 use crate::{ApiError, ZealotClient, api::seg};
@@ -34,6 +34,20 @@ impl ZealotClient {
     pub async fn update_item_type(&self, dto: &UpdateItemTypeDto) -> Result<ItemTypeDto, ApiError> {
         self.patch(&format!("/item_type/{}", dto.type_id), dto)
             .await
+    }
+
+    pub async fn list_non_compliant_items(
+        &self,
+        type_id: i64,
+        limit: Option<i64>,
+        offset: Option<i64>,
+    ) -> Result<NonCompliantPageDto, ApiError> {
+        self.get(&format!(
+            "/item_type/{type_id}/non_compliant?limit={}&offset={}",
+            limit.unwrap_or(50),
+            offset.unwrap_or(0)
+        ))
+        .await
     }
 
     pub async fn delete_item_type(&self, type_id: i64, force: bool) -> Result<(), ApiError> {

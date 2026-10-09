@@ -5,8 +5,8 @@ use crate::{
     repos::ZealotRepos,
     services::{
         account::AccountService, analysis::AnalysisService, attribute::AttributeService,
-        auth::AuthService, comment::CommentService, item::ItemService, item_type::ItemTypeService,
-        media::MediaService, planner::PlannerService, repeat::RepeatService, rule::RuleService,
+        auth::AuthService, comment::CommentService, item::ItemService,
+        item_type::{ItemTypeService, KindDefaults}, media::MediaService, planner::PlannerService, repeat::RepeatService, rule::RuleService,
         statistic::StatisticService, time_block::TimeBlockService,
     },
 };
@@ -80,7 +80,10 @@ impl ZealotServices {
             )),
             comment,
             item,
-            item_type: Arc::new(ItemTypeService::new(&repos.item_type)),
+            item_type: Arc::new(
+                ItemTypeService::new(&repos.item_type)
+                    .with_defaults(Arc::new(KindDefaults::new(&repos.attribute))),
+            ),
             media,
             planner,
             repeat,

@@ -167,7 +167,7 @@ fn decode_scalar_from_cols(
     None
 }
 
-fn scalar_to_cols(
+pub(super) fn scalar_to_cols(
     scalar: &AttributeScalar,
 ) -> (
     Option<String>,

@@ -62,6 +62,61 @@ An item can have **zero, one, or many** types simultaneously. Types are stored a
 
 ### Required attributes enforcement
 
+Item writes (create, update, set/rename/delete attribute, assign type) are rejected when the result would leave an item without a required attribute of one of its types. The error names the missing keys.
+
+**Relationships.** A required relationship is a required attribute whose kind is `item` or a list of `item` (for example `Parent`). It is checked the same way; the only difference is that relationship attributes never have a default.
+
+**Changing a type's requirements behaves like a SQL migration** (`ALTER TABLE ... ADD COLUMN ... DEFAULT`). Adding a required attribute to a type with existing items:
+
+- if the attribute kind has a default, the default is written to every member that lacks a value, in one transaction. Existing values are never overwritten. The backfill is a bulk write and fires no per-item events (no `AttributeSet`, so rules do not run for it);
+- if it has no default (always the case for relationships) and any member lacks a value, the whole change fails with `409 Conflict` and nothing is written. The message gives the number of items and example ids. Required relationships therefore only apply when existing items already satisfy them;
+- a dry run (`dry_run`) reports the same numbers and lists the items that would block the change, without an error and without writing.
+
+Removing a requirement is never validated.
+
+**Items already out of compliance** (left that way by older versions, which let a requirement be added without checking members) can still be edited toward compliance: an edit is accepted if it introduces no newly missing required attribute. Setting a missing attribute, or editing any other attribute, works; deleting or renaming a required attribute that is present is still rejected. Creating an item and assigning a type always require full compliance. `GET /item_type/{type_id}/non_compliant` (MCP `list_non_compliant_items`) lists the items to repair.
+
+### JSON shape (API response)
+
+```json
+{
+  "item_id": 42,
+  "title": "Quarterly review",
+  "content": "## Agenda\n\n- Review OKRs\n- Plan next quarter",
+  "attributes": {
+    "Status": "In Progress",
+    "Date": "2026-06-10",
+    "Priority": "High"
+  },
+  "types": [
+    { "type_id": 3, "name": "Meeting", "is_system": false }
+  ],
+  "links": [
+    { "other_item_id": 7, "relationship": "parent" }
+  ]
+}
+```
+
+---
+
+## Item Types
+
+**Item types** are user-defined (or system-defined) categories that can be assigned to items. They optionally enforce the presence of specific attribute keys.
+
+| Field | Type | Description |
+|---|---|---|
+| `type_id` | integer | Stable numeric identifier. |
+| `name` | string | Human-readable label, e.g. `"Task"`, `"Goal"`, `"Meeting"`. |
+| `description` | string | Free-text description shown in the UI. |
+| `required_attributes` | array of strings | Attribute keys that must be present on any item of this type. Validated by `is_valid()`. |
+| `is_system` | boolean | `true` for types created by the system; `false` for user-created types. System types cannot be deleted. |
+
+### Multi-type items
+
+An item can have **zero, one, or many** types simultaneously. Types are stored as a list on the item; there is no single "primary" type. Each assigned type's `required_attributes` is checked independently — an item is considered valid for a type when all of that type's required attribute keys are present.
+
+### Required attributes enforcement
+
 Required attributes are enforced at the application layer. If a required key is missing the item still saves, but the UI may flag it as invalid for that type. Use `GET /item_type/` to retrieve the current type definitions before creating or updating items programmatically.
 
 ### JSON shape (API response)

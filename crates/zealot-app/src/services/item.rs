@@ -691,7 +691,7 @@ impl ItemService {
 
         let type_names = dto.types.clone().unwrap_or_default();
         let item_types = self.resolve_requested_item_types(&type_names, &account.account_id)?;
-        self.ensure_valid_for_types(&item_types, &attributes)?;
+        self.ensure_valid_for_types(&item_types, None, &attributes)?;
 
         let links = match &dto.links {
             Some(raw) => self.parse_links(raw)?,
@@ -776,7 +776,11 @@ impl ItemService {
             for (key, value) in attributes {
                 merged_attributes.insert(key.clone(), value.clone());
             }
-            self.ensure_valid_for_types(&item_types, &merged_attributes)?;
+            self.ensure_valid_for_types(
+                &item_types,
+                Some(&current_item.attributes),
+                &merged_attributes,
+            )?;
         }
 
         let links = match &dto.links {
@@ -947,7 +951,7 @@ impl ItemService {
         for (key, value) in &parsed {
             merged_attributes.insert(key.clone(), value.clone());
         }
-        self.ensure_valid_for_types(&item_types, &merged_attributes)?;
+        self.ensure_valid_for_types(&item_types, Some(&previous_attributes), &merged_attributes)?;
         self.item_attribute_value_repo
             .replace_item_attributes(item_id, &parsed, account)
             .map_err(ItemServiceError::Repo)?;
@@ -999,12 +1003,13 @@ impl ItemService {
         }
         let item_types =
             self.resolve_assigned_item_types(&current_item.types, &account.account_id)?;
+        let before = current_item.attributes.clone();
         let mut merged_attributes = current_item.attributes;
         let attribute = merged_attributes.remove(old_key).ok_or_else(|| {
             ItemServiceError::InvalidFilter(format!("attribute '{old_key}' does not exist"))
         })?;
         merged_attributes.insert(String::from(new_key), attribute);
-        self.ensure_valid_for_types(&item_types, &merged_attributes)?;
+        self.ensure_valid_for_types(&item_types, Some(&before), &merged_attributes)?;
         self.item_attribute_value_repo
             .rename_item_attribute(item_id, old_key, new_key, account)
             .map_err(ItemServiceError::Repo)?;
@@ -1024,9 +1029,10 @@ impl ItemService {
         let item_types =
             self.resolve_assigned_item_types(&current_item.types, &account.account_id)?;
         let old_value = current_item.attributes.get(key).cloned();
+        let before = current_item.attributes.clone();
         let mut merged_attributes = current_item.attributes;
         merged_attributes.remove(key);
-        self.ensure_valid_for_types(&item_types, &merged_attributes)?;
+        self.ensure_valid_for_types(&item_types, Some(&before), &merged_attributes)?;
         self.item_attribute_value_repo
             .delete_item_attribute(item_id, key, account)
             .map_err(ItemServiceError::Repo)?;
@@ -1079,7 +1085,7 @@ impl ItemService {
             .ok_or_else(|| {
                 ItemServiceError::InvalidFilter(format!("unknown item type: {type_name}"))
             })?;
-        self.ensure_valid_for_types(&vec![item_type], &current_item.attributes)?;
+        self.ensure_valid_for_types(&vec![item_type], None, &current_item.attributes)?;
         self.item_type_repo
             .assign_item_types(&vec![type_name.to_string()], item_id, &account.account_id)
             .map_err(ItemServiceError::Repo)?;
@@ -1268,19 +1274,29 @@ impl ItemService {
         Ok(resolved)
     }
 
+    /// Check `attributes` against each type's requirements. With `before` (the item's attributes
+    /// ahead of this edit) an edit passes when it adds no newly missing required key, so an item
+    /// already out of compliance can still be repaired one attribute at a time. Without `before`
+    /// (create, assign type) every requirement must hold.
     fn ensure_valid_for_types(
         &self,
         item_types: &Vec<ItemType>,
+        before: Option<&HashMap<String, Attribute>>,
         attributes: &HashMap<String, Attribute>,
     ) -> Result<(), ItemServiceError> {
-        if let Some(item_type) = item_types
-            .iter()
-            .find(|item_type| !item_type.is_valid(attributes))
-        {
-            return Err(ItemServiceError::InvalidFilter(format!(
-                "item is missing required attributes for type '{}'",
-                item_type.name
-            )));
+        for item_type in item_types {
+            let mut missing = item_type.missing_required(attributes);
+            if let Some(before) = before {
+                let already = item_type.missing_required(before);
+                missing.retain(|key| !already.contains(key));
+            }
+            if !missing.is_empty() {
+                return Err(ItemServiceError::InvalidFilter(format!(
+                    "item is missing required attributes for type '{}': {}",
+                    item_type.name,
+                    missing.join(", ")
+                )));
+            }
         }
 
         Ok(())

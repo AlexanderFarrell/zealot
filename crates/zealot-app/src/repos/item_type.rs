@@ -3,11 +3,35 @@ use std::fmt::Debug;
 use std::collections::HashMap;
 
 use zealot_domain::{
+    attribute::Attribute,
     common::id::Id,
-    item_type::{AddItemTypeDto, ItemType, ItemTypeRef, ItemTypeSummary, UpdateItemTypeDto},
+    item_type::{
+        AddItemTypeDto, ItemType, ItemTypeRef, ItemTypeSummary, NonCompliantPageDto,
+        UpdateItemTypeDto,
+    },
 };
 
 use crate::repos::common::RepoError;
+
+/// Members of a type that lack one attribute key.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MissingRequired {
+    pub key: String,
+    pub count: i64,
+    /// Up to the requested sample size of item ids, ascending.
+    pub sample_ids: Vec<i64>,
+}
+
+/// One atomic change to a type: optional rename, requirement links added and removed, and the
+/// default values written onto members that lack an added key.
+#[derive(Debug, Clone, Default)]
+pub struct RequiredChange {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub add: Vec<String>,
+    pub remove: Vec<String>,
+    pub backfills: Vec<(String, Attribute)>,
+}
 
 pub trait ItemTypeRepo: Debug + Send + Sync {
     fn get_item_types(&self, account_id: &Id) -> Result<Vec<ItemType>, RepoError>;
@@ -72,4 +96,36 @@ pub trait ItemTypeRepo: Debug + Send + Sync {
         item_id: &Id,
         account_id: &Id,
     ) -> Result<(), RepoError>;
+    /// For each key that names an attribute kind, the members of the type with no value for it.
+    /// Keys without a kind are skipped, matching `add_attr_kinds_to_item_type`.
+    fn count_missing_required(
+        &self,
+        type_id: &Id,
+        keys: &[String],
+        sample: i64,
+        account_id: &Id,
+    ) -> Result<Vec<MissingRequired>, RepoError>;
+    /// Distinct members of the type lacking at least one of `keys` (keys without a kind are skipped).
+    fn count_items_missing_any(
+        &self,
+        type_id: &Id,
+        keys: &[String],
+        account_id: &Id,
+    ) -> Result<i64, RepoError>;
+    /// Apply `change` in one transaction. Returns the number of members given each backfilled
+    /// key. A failure leaves the type and its items untouched.
+    fn apply_required_change(
+        &self,
+        type_id: &Id,
+        change: &RequiredChange,
+        account_id: &Id,
+    ) -> Result<std::collections::BTreeMap<String, i64>, RepoError>;
+    /// Members that lack any currently required key, with the keys each lacks.
+    fn list_non_compliant(
+        &self,
+        type_id: &Id,
+        limit: i64,
+        offset: i64,
+        account_id: &Id,
+    ) -> Result<NonCompliantPageDto, RepoError>;
 }

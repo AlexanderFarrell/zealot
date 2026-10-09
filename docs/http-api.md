@@ -469,7 +469,8 @@ All endpoints require authentication.
 | POST | `/item_type/` | Create type |
 | PATCH | `/item_type/{type_id}` | Update type |
 | DELETE | `/item_type/{type_id}` | Delete type |
-| POST | `/item_type/{type_id}/attr_kind` | Associate attribute kinds with a type |
+| POST | `/item_type/{type_id}/attr_kind` | Associate attribute kinds with a type (adds requirements; accepts `?dry_run=true`) |
+| GET | `/item_type/{type_id}/non_compliant` | Items missing required attributes (`?limit=&offset=`) |
 | DELETE | `/item_type/{type_id}/attr_kind` | Disassociate attribute kinds |
 
 #### ItemTypeDto
@@ -515,9 +516,42 @@ All fields optional. `type_id` in the body must match the path parameter.
   "type_id": 3,
   "name": "Task",
   "description": "Updated description",
-  "required_attributes": ["Status", "Due Date"]
+  "required_attributes": ["Status", "Due Date"],
+  "dry_run": false
 }
 ```
+
+Adding keys to `required_attributes` checks the type's existing items first (see "Changing a type's requirements" in `data-model.md`). Keys whose attribute kind has a default are backfilled on every item lacking a value; this happens in one transaction and fires no per-item events. If any added key has no default and some items lack it, nothing changes and the response is `409 Conflict`:
+
+```
+Cannot require 'Due Date' on type 'Task': 12 existing item(s) lack a value and there is no default to fill it. Nothing was changed. ...
+```
+
+With `"dry_run": true` nothing is written and no 409 is returned. The response is the type plus a `report` (also present, without `dry_run`, whenever `required_attributes` is sent):
+
+```json
+{
+  "type_id": 3, "name": "Task", "required_attributes": ["Status"],
+  "report": {
+    "dry_run": true,
+    "added": ["Due Date"], "removed": [],
+    "backfilled": { "Priority": 4 },
+    "non_compliant": { "total": 12, "by_key": { "Due Date": 12 }, "sample_ids": { "Due Date": [3, 8, 9] } }
+  }
+}
+```
+
+`backfilled` counts items given a default; `non_compliant` counts items lacking an added key that has no default (up to 50 sample ids per key). Removing keys is never validated.
+
+#### GET /item_type/{type_id}/non_compliant — items out of compliance
+
+Items of the type that lack some currently required attributes, for repairing data left invalid by older versions. `limit` (default 50, max 200) and `offset` page the list; archived items are included.
+
+```json
+{ "total": 2, "items": [ { "item_id": 7, "title": "Draft", "archived": false, "missing": ["Due Date"] } ] }
+```
+
+Such items can still be edited toward compliance: an edit is accepted when it introduces no newly missing required attribute.
 
 #### DELETE /item_type/{type_id} — delete type
 
@@ -539,6 +573,8 @@ Body is a JSON array of attribute kind keys:
 ```json
 ["Status", "Due Date", "Priority"]
 ```
+
+Adds these as required attributes with the same existing-item check, backfill, and `409` as `PATCH`. Pass `?dry_run=true` to preview. The response is the `report` object shown above.
 
 #### DELETE /item_type/{type_id}/attr_kind
 

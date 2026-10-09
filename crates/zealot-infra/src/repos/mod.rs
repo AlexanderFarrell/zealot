@@ -26,6 +26,8 @@ mod regex_search_tests;
 #[cfg(test)]
 mod semantic_attribute_tests;
 #[cfg(test)]
+mod required_change_tests;
+#[cfg(test)]
 mod system_attribute_kind_tests;
 
 pub async fn get_repo_from_config(config: &ZealotConfig) -> Result<ZealotRepos, String> {
