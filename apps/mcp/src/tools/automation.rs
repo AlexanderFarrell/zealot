@@ -99,6 +99,8 @@ pub struct CreateItemTypeParams {
     pub name: String,
     pub description: Option<String>,
     pub required_attributes: Option<Vec<String>>,
+    /// Type-level defaults for required attributes, `{"Priority": 5}`. They override the attribute kind's default for items of this type.
+    pub required_defaults: Option<std::collections::BTreeMap<String, serde_json::Value>>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -109,6 +111,8 @@ pub struct UpdateItemTypeParams {
     pub required_attributes: Option<Vec<String>>,
     /// Report what a change to `required_attributes` would do (items backfilled with the attribute's default, or items that would be left without a value) without changing anything.
     pub dry_run: Option<bool>,
+    /// Type-level defaults for required attributes, `{"Priority": 5}`. They override the attribute kind's default for items of this type. Set a key to null to clear it. Keys must be required by the type.
+    pub required_defaults: Option<std::collections::BTreeMap<String, serde_json::Value>>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -330,7 +334,7 @@ impl ZealotServer {
     }
 
     #[rmcp::tool(
-        description = "Create a new item type with a name, optional description, and required attribute keys."
+        description = "Create a new item type with a name, optional description, required attribute keys, and optional type-level defaults for them (required_defaults: {\"Priority\": 5}), which override the attribute kind's default for items of this type."
     )]
     pub async fn create_item_type(
         &self,
@@ -340,6 +344,7 @@ impl ZealotServer {
             name: p.name,
             description: p.description.unwrap_or_default(),
             required_attributes: p.required_attributes.unwrap_or_default(),
+            required_defaults: p.required_defaults,
         };
         let t = self
             .client
@@ -350,7 +355,7 @@ impl ZealotServer {
     }
 
     #[rmcp::tool(
-        description = "Update an existing item type's name, description, or required attributes. Adding a required attribute behaves like SQL ADD COLUMN: if the attribute kind has a default it is filled on every existing item of the type (no per-item events fire); if it has no default and any item lacks a value the whole change fails and reports how many items and which ones. Pass dry_run:true to see the `report` (backfilled counts, non_compliant items) without changing anything."
+        description = "Update an existing item type's name, description, or required attributes. Adding a required attribute behaves like SQL ADD COLUMN: if the attribute kind has a default it is filled on every existing item of the type (no per-item events fire); if it has no default and any item lacks a value the whole change fails and reports how many items and which ones. Pass dry_run:true to see the `report` (backfilled counts, non_compliant items) without changing anything. `required_defaults` sets (value) or clears (null) a type-level default for a required attribute; when a new requirement backfills existing items, each item gets its types' agreeing type defaults, else the kind default."
     )]
     pub async fn update_item_type(
         &self,
@@ -361,6 +366,7 @@ impl ZealotServer {
             name: p.name,
             description: p.description,
             required_attributes: p.required_attributes,
+            required_defaults: p.required_defaults,
             dry_run: p.dry_run,
         };
         let t = self

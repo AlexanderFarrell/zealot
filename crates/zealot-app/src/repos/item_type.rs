@@ -13,24 +13,47 @@ use zealot_domain::{
 
 use crate::repos::common::RepoError;
 
-/// Members of a type that lack one attribute key.
+/// Members of a type that lack one attribute key and share the same set of "override types":
+/// the item's types, among a given universe, that set a type-level default for that key.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MissingRequired {
-    pub key: String,
+pub struct MissingGroup {
+    /// Type ids from the universe that the members have (empty: no type-level default applies).
+    pub set: Vec<i64>,
     pub count: i64,
     /// Up to the requested sample size of item ids, ascending.
     pub sample_ids: Vec<i64>,
 }
 
-/// One atomic change to a type: optional rename, requirement links added and removed, and the
-/// default values written onto members that lack an added key.
+/// Members of a type that need a value for `key` but would get none: lacking it, with exactly the
+/// override types in one of `sets` (among `universe`), and no kind default to fall back on.
+#[derive(Debug, Clone)]
+pub struct Offender {
+    pub key: String,
+    pub universe: Vec<i64>,
+    pub sets: Vec<Vec<i64>>,
+}
+
+/// Write `value` to members of the type that lack `key` and whose override types, among
+/// `universe`, are exactly `set`.
+#[derive(Debug, Clone)]
+pub struct Backfill {
+    pub key: String,
+    pub universe: Vec<i64>,
+    pub set: Vec<i64>,
+    pub value: Attribute,
+}
+
+/// One atomic change to a type: optional rename, requirement links added and removed, type-level
+/// defaults set (`Some`) or cleared (`None`), and the default values written onto members that
+/// lack an added key.
 #[derive(Debug, Clone, Default)]
 pub struct RequiredChange {
     pub name: Option<String>,
     pub description: Option<String>,
     pub add: Vec<String>,
     pub remove: Vec<String>,
-    pub backfills: Vec<(String, Attribute)>,
+    pub defaults: std::collections::BTreeMap<String, Option<serde_json::Value>>,
+    pub backfills: Vec<Backfill>,
 }
 
 pub trait ItemTypeRepo: Debug + Send + Sync {
@@ -96,22 +119,30 @@ pub trait ItemTypeRepo: Debug + Send + Sync {
         item_id: &Id,
         account_id: &Id,
     ) -> Result<(), RepoError>;
-    /// For each key that names an attribute kind, the members of the type with no value for it.
-    /// Keys without a kind are skipped, matching `add_attr_kinds_to_item_type`.
-    fn count_missing_required(
+    /// Members of the type lacking `key`, grouped by which of `universe` (type ids with a type-level
+    /// default for `key`) they have. Empty when `key` names no attribute kind, matching
+    /// `add_attr_kinds_to_item_type`.
+    fn missing_by_override_set(
         &self,
         type_id: &Id,
-        keys: &[String],
+        key: &str,
+        universe: &[i64],
         sample: i64,
         account_id: &Id,
-    ) -> Result<Vec<MissingRequired>, RepoError>;
-    /// Distinct members of the type lacking at least one of `keys` (keys without a kind are skipped).
-    fn count_items_missing_any(
+    ) -> Result<Vec<MissingGroup>, RepoError>;
+    /// Distinct members of the type that fall in any of `offenders`.
+    fn count_offenders(
         &self,
         type_id: &Id,
-        keys: &[String],
+        offenders: &[Offender],
         account_id: &Id,
     ) -> Result<i64, RepoError>;
+    /// Every type (of the account or system) that sets a type-level default for `key`.
+    fn overrides_for_key(
+        &self,
+        key: &str,
+        account_id: &Id,
+    ) -> Result<Vec<(i64, serde_json::Value)>, RepoError>;
     /// Apply `change` in one transaction. Returns the number of members given each backfilled
     /// key. A failure leaves the type and its items untouched.
     fn apply_required_change(

@@ -4,6 +4,7 @@ import type { AttributeKind } from '@zealot/domain/src/attribute';
 import { AttributeBaseTypesArray } from '@zealot/domain/src/attribute';
 import type { AddAttributeKindDto, AttributeBaseType, AttributeConfig } from '@zealot/domain/src/attribute';
 import { ConfirmDialog } from '../common/confirm_dialog';
+import { formatDefaultInput, parseDefaultInput } from '../common/default_input';
 import { LoadingSpinner } from '../common/loading_spinner';
 
 const attributeKindApi = new AttributeKindAPI('/api');
@@ -402,33 +403,17 @@ function buildDefaultField(
     const input = document.createElement('input');
     input.placeholder = 'None';
     const current = config.default;
-    if (current !== undefined && current !== null) {
-        input.value = Array.isArray(current) ? current.join(', ') : String(current);
-    }
+    input.value = formatDefaultInput(current);
     input.disabled = baseType === 'item';
     input.addEventListener('change', () => {
         const newConfig: AttributeConfig = { ...config };
         const raw = input.value.trim();
         if (raw === '') delete newConfig.default;
-        else newConfig.default = parseDefault(baseType, raw);
+        else newConfig.default = parseDefaultInput(baseType, raw);
         onChange(newConfig);
     });
     label.append(span, input);
     return label;
-}
-
-function parseDefault(baseType: AttributeBaseType, raw: string): unknown {
-    switch (baseType) {
-        case 'integer':
-        case 'decimal':
-            return Number(raw);
-        case 'boolean':
-            return raw === 'true';
-        case 'list':
-            return raw.split(',').map((part) => part.trim()).filter((part) => part !== '');
-        default:
-            return raw;
-    }
 }
 
 function buildListConfigFields(

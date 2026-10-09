@@ -83,6 +83,7 @@ async fn seeded() -> Arc<ZealotServices> {
                 name: "Scrap".into(),
                 description: String::new(),
                 required_attributes: vec![],
+                required_defaults: None,
             },
             &me(),
         )
@@ -93,6 +94,7 @@ async fn seeded() -> Arc<ZealotServices> {
                 name: "Chore".into(),
                 description: "A small job".into(),
                 required_attributes: vec!["Status".into(), "Effort".into()],
+                required_defaults: None,
             },
             &me(),
         )

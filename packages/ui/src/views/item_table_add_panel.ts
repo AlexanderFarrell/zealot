@@ -1,6 +1,7 @@
 import { ItemTypeAPI } from '@zealot/api/src/item_type';
 import type { AttributeKind } from '@zealot/domain/src/attribute';
 import type { ItemType } from '@zealot/domain/src/item_type';
+import { effectiveDefault } from '@zealot/domain/src/item_type';
 import { createAttributeValueInput, isBlankAttributeValue } from './attribute_value_input';
 import type { CreateDraftState, ItemTableCreateRowConfig } from './item_table_types';
 import { confirmDiscard, registerPendingWork, type PendingWork } from '../common/unsaved_changes';
@@ -178,7 +179,15 @@ export function buildAddPanel(
         actions.append(submitBtn, cancelBtn);
         form.appendChild(actions);
 
+        // Values this panel suggested from defaults; dropped again if the type changes unedited.
+        const prefilled = new Map<string, unknown>();
         const renderAttributeFields = (type: ItemType | null): void => {
+            for (const [key, value] of prefilled) {
+                if (JSON.stringify(draft.attributes[key]) === JSON.stringify(value)) {
+                    delete draft.attributes[key];
+                }
+            }
+            prefilled.clear();
             attrContainer.innerHTML = '';
             if (!type?.RequiredAttributes.length) return;
 
@@ -189,6 +198,14 @@ export function buildAddPanel(
                 if (alreadyProvided) continue;
 
                 const kind = attributeKinds[key];
+                // Prefill the type's suggested value; the API still requires it to be sent.
+                if (!(key in draft.attributes)) {
+                    const suggested = effectiveDefault([type], key, kind?.Config.default);
+                    if (suggested !== undefined && suggested !== null) {
+                        draft.attributes[key] = suggested as never;
+                        prefilled.set(key, suggested);
+                    }
+                }
                 const field = document.createElement('div');
                 field.className = 'item-table-add-panel__field';
 

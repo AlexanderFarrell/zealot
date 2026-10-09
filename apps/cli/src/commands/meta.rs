@@ -69,6 +69,7 @@ pub async fn item_type(ctx: &Ctx, cmd: TypeCmd) -> Result<()> {
                 name: name.clone(),
                 description,
                 required_attributes,
+                required_defaults: None,
             };
             let t = ctx.client.add_item_type(&dto).await?;
             if ctx.json {

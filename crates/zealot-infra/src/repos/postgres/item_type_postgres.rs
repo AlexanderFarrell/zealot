@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashMap};
 use sqlx::PgPool;
 use zealot_app::repos::{
     common::RepoError,
-    item_type::{ItemTypeRepo, MissingRequired, RequiredChange},
+    item_type::{ItemTypeRepo, MissingGroup, Offender, RequiredChange},
 };
 use zealot_domain::{
     attribute::Attribute,
@@ -15,6 +15,7 @@ use zealot_domain::{
 };
 
 use super::item_attribute_value_postgres::scalar_to_cols;
+use crate::repos::override_sets;
 
 #[derive(Debug)]
 pub struct ItemTypePostgresRepo {
@@ -34,6 +35,7 @@ struct ItemTypeWithRequiredRow {
     description: String,
     account_id: Option<i32>,
     required_key: Option<String>,
+    required_default: Option<String>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -65,9 +67,15 @@ fn rows_to_item_types(rows: Vec<ItemTypeWithRequiredRow>) -> Result<Vec<ItemType
             name: row.name.clone(),
             description: row.description.clone(),
             required_attributes: Vec::new(),
+            required_defaults: BTreeMap::new(),
         });
 
         if let Some(key) = row.required_key {
+            if let Some(raw) = &row.required_default {
+                let value = serde_json::from_str(raw)
+                    .map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
+                entry.required_defaults.insert(key.clone(), value);
+            }
             entry.required_attributes.push(key);
         }
     }
@@ -96,7 +104,7 @@ fn rows_to_item_type_summaries(
 }
 
 const ITEM_TYPE_SELECT: &str = "
-    SELECT it.type_id, it.name, it.description, it.account_id, ak.key AS required_key
+    SELECT it.type_id, it.name, it.description, it.account_id, ak.key AS required_key, lnk.default_value::text AS required_default
     FROM item_type it
     LEFT JOIN item_type_attribute_kind_link lnk ON it.type_id = lnk.item_type_id
     LEFT JOIN attribute_kind ak ON lnk.attribute_kind_id = ak.kind_id
@@ -344,6 +352,7 @@ impl ItemTypeRepo for ItemTypePostgresRepo {
                     name,
                     description,
                     required_attributes: required,
+                    required_defaults: BTreeMap::new(),
                 }))
             })
         })
@@ -561,58 +570,74 @@ impl ItemTypeRepo for ItemTypePostgresRepo {
         })
     }
 
-    fn count_missing_required(
+    fn missing_by_override_set(
         &self,
         type_id: &Id,
-        keys: &[String],
+        key: &str,
+        universe: &[i64],
         sample: i64,
         account_id: &Id,
-    ) -> Result<Vec<MissingRequired>, RepoError> {
+    ) -> Result<Vec<MissingGroup>, RepoError> {
+        if universe.len() > override_sets::MAX_UNIVERSE {
+            return Err(RepoError::DatabaseError {
+                err: format!("'{key}' has type defaults on too many types"),
+            });
+        }
         let type_id_val = i64::from(*type_id);
         let account_id_val = i64::from(*account_id);
-        let keys = keys.to_vec();
+        let key = key.to_string();
+        let universe = universe.to_vec();
         let pool = self.pool.clone();
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
-                let mut out = Vec::new();
-                for key in &keys {
-                    let is_kind: bool = sqlx::query_scalar(
-                        "SELECT EXISTS(SELECT 1 FROM attribute_kind
-                         WHERE key = $1 AND (account_id = $2 OR is_system = true))",
-                    )
-                    .bind(key)
-                    .bind(account_id_val)
-                    .fetch_one(&pool)
-                    .await
-                    .map_err(RepoError::from)?;
-                    if !is_kind {
-                        continue;
-                    }
+                let is_kind: bool = sqlx::query_scalar(
+                    "SELECT EXISTS(SELECT 1 FROM attribute_kind
+                     WHERE key = $1 AND (account_id = $2 OR is_system = true))",
+                )
+                .bind(&key)
+                .bind(account_id_val)
+                .fetch_one(&pool)
+                .await
+                .map_err(RepoError::from)?;
+                if !is_kind {
+                    return Ok(Vec::new());
+                }
 
-                    let from = format!(
-                        "FROM item_item_type_link l JOIN item i ON i.item_id = l.item_id
-                         WHERE l.type_id = $1 AND i.account_id = $2 AND {}",
-                        missing_value("$3")
-                    );
-                    let count: i64 = sqlx::query_scalar(&format!("SELECT COUNT(*) {from}"))
-                        .bind(type_id_val)
-                        .bind(account_id_val)
-                        .bind(key)
-                        .fetch_one(&pool)
-                        .await
-                        .map_err(RepoError::from)?;
-                    let sample_ids: Vec<i64> = sqlx::query_scalar(&format!(
-                        "SELECT l.item_id::bigint {from} ORDER BY l.item_id LIMIT $4"
-                    ))
+                let from = format!(
+                    "FROM item_item_type_link l JOIN item i ON i.item_id = l.item_id
+                     WHERE l.type_id = $1 AND i.account_id = $2 AND {}",
+                    missing_value("$3")
+                );
+                let groups_sql = format!(
+                    "SELECT mask, COUNT(*) FROM (SELECT CAST({} AS BIGINT) AS mask {from}) t
+                     GROUP BY mask ORDER BY mask",
+                    override_sets::mask_expr(&universe)
+                );
+                let groups: Vec<(i64, i64)> = sqlx::query_as(&groups_sql)
                     .bind(type_id_val)
                     .bind(account_id_val)
-                    .bind(key)
-                    .bind(sample)
+                    .bind(&key)
                     .fetch_all(&pool)
                     .await
                     .map_err(RepoError::from)?;
-                    out.push(MissingRequired {
-                        key: key.clone(),
+
+                let mut out = Vec::with_capacity(groups.len());
+                for (mask, count) in groups {
+                    let set = override_sets::set_from_mask(&universe, mask);
+                    let sample_sql = format!(
+                        "SELECT l.item_id::bigint {from} AND {} ORDER BY l.item_id LIMIT $4",
+                        override_sets::exact_set(&universe, &set)
+                    );
+                    let sample_ids: Vec<i64> = sqlx::query_scalar(&sample_sql)
+                        .bind(type_id_val)
+                        .bind(account_id_val)
+                        .bind(&key)
+                        .bind(sample)
+                        .fetch_all(&pool)
+                        .await
+                        .map_err(RepoError::from)?;
+                    out.push(MissingGroup {
+                        set,
                         count,
                         sample_ids,
                     });
@@ -622,51 +647,84 @@ impl ItemTypeRepo for ItemTypePostgresRepo {
         })
     }
 
-    fn count_items_missing_any(
+    fn count_offenders(
         &self,
         type_id: &Id,
-        keys: &[String],
+        offenders: &[Offender],
         account_id: &Id,
     ) -> Result<i64, RepoError> {
+        if offenders.is_empty() {
+            return Ok(0);
+        }
         let type_id_val = i64::from(*type_id);
         let account_id_val = i64::from(*account_id);
-        let keys = keys.to_vec();
+        let offenders = offenders.to_vec();
         let pool = self.pool.clone();
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
-                let mut kind_keys = Vec::new();
-                for key in &keys {
-                    let is_kind: bool = sqlx::query_scalar(
-                        "SELECT EXISTS(SELECT 1 FROM attribute_kind
-                         WHERE key = $1 AND (account_id = $2 OR is_system = true))",
-                    )
-                    .bind(key)
-                    .bind(account_id_val)
-                    .fetch_one(&pool)
-                    .await
-                    .map_err(RepoError::from)?;
-                    if is_kind {
-                        kind_keys.push(key.clone());
-                    }
-                }
-                if kind_keys.is_empty() {
-                    return Ok(0);
-                }
-                let any_missing = (0..kind_keys.len())
-                    .map(|i| format!("({})", missing_value(&format!("${}", i + 3))))
+                let any = offenders
+                    .iter()
+                    .enumerate()
+                    .map(|(i, offender)| {
+                        let sets = offender
+                            .sets
+                            .iter()
+                            .map(|set| {
+                                format!("({})", override_sets::exact_set(&offender.universe, set))
+                            })
+                            .collect::<Vec<_>>()
+                            .join(" OR ");
+                        format!("({} AND ({sets}))", missing_value(&format!("${}", i + 3)))
+                    })
                     .collect::<Vec<_>>()
                     .join(" OR ");
                 let sql = format!(
                     "SELECT COUNT(*) FROM item_item_type_link l JOIN item i ON i.item_id = l.item_id
-                     WHERE l.type_id = $1 AND i.account_id = $2 AND ({any_missing})"
+                     WHERE l.type_id = $1 AND i.account_id = $2 AND ({any})"
                 );
                 let mut query = sqlx::query_scalar::<_, i64>(&sql)
                     .bind(type_id_val)
                     .bind(account_id_val);
-                for key in &kind_keys {
-                    query = query.bind(key);
+                for offender in &offenders {
+                    query = query.bind(&offender.key);
                 }
                 query.fetch_one(&pool).await.map_err(RepoError::from)
+            })
+        })
+    }
+
+    fn overrides_for_key(
+        &self,
+        key: &str,
+        account_id: &Id,
+    ) -> Result<Vec<(i64, serde_json::Value)>, RepoError> {
+        let account_id_val = i64::from(*account_id);
+        let key = key.to_string();
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let rows: Vec<(i64, String)> = sqlx::query_as(
+                    "SELECT lnk.item_type_id::bigint, lnk.default_value::text
+                     FROM item_type_attribute_kind_link lnk
+                     JOIN attribute_kind ak ON ak.kind_id = lnk.attribute_kind_id
+                     JOIN item_type it ON it.type_id = lnk.item_type_id
+                     WHERE ak.key = $1 AND (ak.account_id = $2 OR ak.is_system = true)
+                       AND (it.account_id = $2 OR it.account_id IS NULL)
+                       AND lnk.default_value IS NOT NULL
+                     ORDER BY lnk.item_type_id",
+                )
+                .bind(&key)
+                .bind(account_id_val)
+                .fetch_all(&pool)
+                .await
+                .map_err(RepoError::from)?;
+                rows.into_iter()
+                    .map(|(type_id, raw)| {
+                        serde_json::from_str(&raw)
+                            .map(|value| (type_id, value))
+                            .map_err(|e| RepoError::DatabaseError { err: e.to_string() })
+                    })
+                    .collect()
             })
         })
     }
@@ -733,14 +791,34 @@ impl ItemTypeRepo for ItemTypePostgresRepo {
                     .map_err(RepoError::from)?;
                 }
 
+                for (key, value) in &change.defaults {
+                    sqlx::query(
+                        "UPDATE item_type_attribute_kind_link SET default_value = CAST($1 AS jsonb)
+                         WHERE item_type_id = $2
+                         AND attribute_kind_id IN (
+                             SELECT ak.kind_id FROM attribute_kind ak
+                             WHERE ak.key = $3 AND (ak.account_id = $4 OR ak.is_system = true)
+                         )",
+                    )
+                    .bind(value.as_ref().map(|v| v.to_string()))
+                    .bind(type_id_val)
+                    .bind(key)
+                    .bind(account_id_val)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(RepoError::from)?;
+                }
+
                 let mut backfilled = BTreeMap::new();
-                for (key, attribute) in &change.backfills {
+                for backfill in &change.backfills {
+                    let key = &backfill.key;
                     let from = format!(
                         "FROM item_item_type_link l JOIN item i ON i.item_id = l.item_id
-                         WHERE l.type_id = $1 AND i.account_id = $2 AND {}",
-                        missing_value("$3")
+                         WHERE l.type_id = $1 AND i.account_id = $2 AND {} AND {}",
+                        missing_value("$3"),
+                        override_sets::exact_set(&backfill.universe, &backfill.set)
                     );
-                    let count = match attribute {
+                    let count = match &backfill.value {
                         Attribute::Scalar(scalar) => {
                             let (vt, vn, vi, vd, vid) = scalar_to_cols(scalar);
                             sqlx::query(&format!(
@@ -795,7 +873,7 @@ impl ItemTypeRepo for ItemTypePostgresRepo {
                             ids.len() as i64
                         }
                     };
-                    backfilled.insert(key.clone(), count);
+                    *backfilled.entry(key.clone()).or_insert(0) += count;
                 }
 
                 tx.commit().await.map_err(RepoError::from)?;

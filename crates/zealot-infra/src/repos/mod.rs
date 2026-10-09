@@ -7,6 +7,7 @@ use zealot_app::{config::ZealotConfig, repos::ZealotRepos};
 
 use crate::repos::{postgres::get_postgres_repos, sqlite::get_sqlite_repos};
 
+mod override_sets;
 pub mod mysql;
 pub mod postgres;
 pub mod sqlite;
@@ -29,6 +30,8 @@ mod semantic_attribute_tests;
 mod required_change_tests;
 #[cfg(test)]
 mod system_attribute_kind_tests;
+#[cfg(test)]
+mod type_default_override_tests;
 
 pub async fn get_repo_from_config(config: &ZealotConfig) -> Result<ZealotRepos, String> {
     match config.database.as_str() {

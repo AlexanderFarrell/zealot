@@ -79,6 +79,7 @@ fn item_type_service_err(err: ItemTypeServiceError) -> HttpError {
         ItemTypeServiceError::NotFound => HttpError::NotFound,
         ItemTypeServiceError::ReadOnly(err) => HttpError::UserError { err },
         ItemTypeServiceError::InUse(message) => HttpError::Conflict { message },
+        ItemTypeServiceError::InvalidDefault(err) => HttpError::UserError { err },
         ItemTypeServiceError::WouldInvalidate { message, .. } => HttpError::Conflict { message },
         ItemTypeServiceError::Repo(e) => {
             tracing::error!("ItemType repo error: {e}");

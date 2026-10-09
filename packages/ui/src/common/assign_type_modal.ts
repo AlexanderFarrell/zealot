@@ -4,6 +4,7 @@ import { ItemTypeAPI } from '@zealot/api/src/item_type';
 import { AttributeAPI } from '@zealot/api/src/attribute';
 import type { Item } from '@zealot/domain/src/item';
 import type { ItemType } from '@zealot/domain/src/item_type';
+import { effectiveDefault } from '@zealot/domain/src/item_type';
 import {
     createAttributeValueInput,
     isBlankAttributeValue,
@@ -163,6 +164,9 @@ export class AssignTypeModal extends HTMLElement {
         if (!this.item) return;
 
         const missing = type.RequiredAttributes.filter((k) => !(k in this.item!.Attributes));
+        // The item's current types take part in the suggested default (agreeing type defaults win).
+        const held = new Set(this.item.Types.map((t) => t.Name));
+        const heldTypes = (await itemTypeApi.get_all()).filter((t) => held.has(t.Name));
 
         if (missing.length === 0) {
             await this.assignType(type.Name, [], [], btn);
@@ -193,7 +197,7 @@ export class AssignTypeModal extends HTMLElement {
             const kind = kinds[key];
             const binding = createAttributeValueInput({
                 attributeKey: key,
-                value: kind?.Config.default ?? null,
+                value: effectiveDefault([...heldTypes, type], key, kind?.Config.default) ?? null,
                 ...(kind ? { kind } : {}),
             });
 
