@@ -5,6 +5,7 @@ import { ItemTypeAPI } from '@zealot/api/src/item_type';
 import type { AttributeKind } from '@zealot/domain/src/attribute';
 import type { Item } from '@zealot/domain/src/item';
 import type { ItemType } from '@zealot/domain/src/item_type';
+import { formatDefaultInput, parseDefaultInput } from '../common/default_input';
 import { LoadingSpinner } from '../common/loading_spinner';
 import { ItemTableView, type ItemTableColumn } from '../views/item_table_view';
 import { icons } from '@zealot/content';
@@ -203,6 +204,7 @@ export class TypeScreen extends BaseElementEmpty {
                     <tr>
                         <th>Name</th>
                         <th>Type</th>
+                        <th>Default</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -219,6 +221,9 @@ export class TypeScreen extends BaseElementEmpty {
                 const type = document.createElement('td');
                 type.textContent = kind?.BaseType ?? 'unknown';
 
+                const defaultCell = document.createElement('td');
+                defaultCell.appendChild(this.buildDefaultInput(itemType, key, kind));
+
                 const actions = document.createElement('td');
                 const removeButton = document.createElement('button');
                 removeButton.type = 'button';
@@ -229,7 +234,7 @@ export class TypeScreen extends BaseElementEmpty {
                 });
                 actions.appendChild(removeButton);
 
-                row.append(name, type, actions);
+                row.append(name, type, defaultCell, actions);
                 tbody.appendChild(row);
             });
 
@@ -378,6 +383,38 @@ export class TypeScreen extends BaseElementEmpty {
             input.value = previousName;
             this.renderInlineError(input, await this.getErrorMessage(error, 'Failed to rename item type.'));
         }
+    }
+
+    /**
+     * Type-level default for one required attribute. Empty falls back to the kind default shown as
+     * the placeholder. The server validates the value; on refusal the screen re-renders from it.
+     */
+    private buildDefaultInput(itemType: ItemType, key: string, kind: AttributeKind | undefined): HTMLElement {
+        const input = document.createElement('input');
+        const kindDefault = kind?.Config.default;
+        input.placeholder = kindDefault === undefined || kindDefault === null
+            ? 'None'
+            : `Kind default: ${formatDefaultInput(kindDefault)}`;
+        input.value = formatDefaultInput(itemType.RequiredDefaults[key]);
+        input.disabled = itemType.IsSystem || !kind || kind.BaseType === 'item';
+        input.addEventListener('change', () => {
+            const raw = input.value.trim();
+            const value = raw === '' || !kind ? null : parseDefaultInput(kind.BaseType, raw);
+            void this.saveTypeDefault(itemType, key, value);
+        });
+        return input;
+    }
+
+    private async saveTypeDefault(itemType: ItemType, key: string, value: unknown): Promise<void> {
+        try {
+            await itemTypeApi.update(itemType.TypeID, {
+                type_id: itemType.TypeID,
+                required_defaults: { [key]: value },
+            });
+        } catch (error) {
+            Popups.add_error(await this.getErrorMessage(error, `Failed to set the default for "${key}".`));
+        }
+        void this.render();
     }
 
     private async addAttributeKind(itemType: ItemType, key: string): Promise<void> {

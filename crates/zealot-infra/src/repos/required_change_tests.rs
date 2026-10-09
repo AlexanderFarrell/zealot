@@ -4,7 +4,7 @@
 //! No production data.
 use std::{collections::HashMap, sync::Arc};
 
-use serde_json::json;
+use serde_json::{Value as JsonValue, json};
 use sqlx::{SqlitePool, sqlite::SqlitePoolOptions};
 use zealot_app::{
     ports::events::{EventPort, NoopEventPort},
@@ -45,8 +45,14 @@ fn account() -> Account {
 struct MapDefaults(HashMap<String, Attribute>);
 
 impl RequirementDefaults for MapDefaults {
-    fn default_for(&self, _: &Id, _: &ItemType, key: &str) -> Option<Attribute> {
+    fn kind_default(&self, _: &Id, key: &str) -> Option<Attribute> {
         self.0.get(key).cloned()
+    }
+
+    fn parse_override(&self, _: &Id, key: &str, _: &JsonValue) -> Result<Attribute, String> {
+        Err(format!(
+            "MapDefaults does not validate type defaults ('{key}')"
+        ))
     }
 }
 
@@ -105,6 +111,7 @@ async fn fixture(defaults: MapDefaults) -> Fixture {
                 name: "Thing".into(),
                 description: String::new(),
                 required_attributes: vec![],
+                required_defaults: None,
             },
             &id(1),
         )
@@ -145,6 +152,7 @@ impl Fixture {
             name: None,
             description: None,
             required_attributes: Some(keys.iter().map(|k| k.to_string()).collect()),
+            required_defaults: None,
             dry_run: Some(dry_run),
         }
     }
@@ -677,6 +685,7 @@ async fn requirement_changes_on_postgres() {
                 name: "Thing".into(),
                 description: String::new(),
                 required_attributes: vec![],
+                required_defaults: None,
             },
             &id(1),
         )
@@ -701,6 +710,7 @@ async fn requirement_changes_on_postgres() {
         description: None,
         required_attributes: Some(keys.iter().map(|k| k.to_string()).collect()),
         dry_run: Some(dry_run),
+        required_defaults: None,
     };
 
     let dry = types

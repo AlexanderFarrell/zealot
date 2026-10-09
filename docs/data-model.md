@@ -74,6 +74,10 @@ Item writes (create, update, set/rename/delete attribute, assign type) are rejec
 
 Removing a requirement is never validated.
 
+**Type-level defaults.** A type can override an attribute kind's default for one of its required attributes (for example Priority 5 on Epics while the kind says 3). It is stored on the type's requirement (`item_type_attribute_kind_link.default_value`), so removing the requirement removes its default. The value is validated with the kind's own rules; relationship (item-valued) kinds and empty lists take none. System types are read-only.
+
+The effective default for an item with several types: take the type-level defaults of the item's types that require the attribute. None set: the kind default. All agree: that value. Any disagree: the kind default (no type-specific suggestion). Clients prefill the effective default when adding an item, assigning a type, or adding a row on the type screen; the API never fills it in on create or assign. The same rule decides what a new requirement backfills on each existing member, so a member whose other type disagrees gets the kind default. A member with no type default and no kind default blocks the change as above. Changing or clearing a type default never touches existing items.
+
 **Items already out of compliance** (left that way by older versions, which let a requirement be added without checking members) can still be edited toward compliance: an edit is accepted if it introduces no newly missing required attribute. Setting a missing attribute, or editing any other attribute, works; deleting or renaming a required attribute that is present is still rejected. Creating an item and assigning a type always require full compliance. `GET /item_type/{type_id}/non_compliant` (MCP `list_non_compliant_items`) lists the items to repair.
 
 ### JSON shape (API response)

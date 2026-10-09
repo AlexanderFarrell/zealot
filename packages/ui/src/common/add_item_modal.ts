@@ -3,6 +3,7 @@ import { ItemAPI } from '@zealot/api/src/item';
 import { ItemTypeAPI } from '@zealot/api/src/item_type';
 import type { AttributeKind } from '@zealot/domain/src/attribute';
 import type { ItemType } from '@zealot/domain/src/item_type';
+import { effectiveDefault } from '@zealot/domain/src/item_type';
 import type { AddItemDto } from '@zealot/domain/src/item';
 import { ItemChipsInput } from '../views/item_chips_input';
 import {
@@ -186,7 +187,7 @@ export class AddItemModal extends HTMLElement {
             const opts: Parameters<typeof createAttributeValueInput>[0] = {
                 allowEmpty: true,
                 attributeKey: key,
-                value: kind?.Config.default,
+                value: effectiveDefault([type], key, kind?.Config.default),
                 onValueChange: () => {},
             };
             if (kind) opts.kind = kind;

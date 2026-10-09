@@ -517,9 +517,12 @@ All fields optional. `type_id` in the body must match the path parameter.
   "name": "Task",
   "description": "Updated description",
   "required_attributes": ["Status", "Due Date"],
+  "required_defaults": { "Status": "To Do", "Due Date": null },
   "dry_run": false
 }
 ```
+
+`required_defaults` sets (a value) or clears (`null`) a type-level default for a required attribute, overriding the attribute kind's default for items of this type; keys not listed are unchanged. Each key must be required by the type after this update, and the value is validated by the kind's rules (400 otherwise; relationship kinds and system types take none). The type response lists them as `required_defaults`. `POST /item_type/` accepts the same field. When a new requirement backfills existing items, each item gets the effective default over all its types: type-level defaults that agree, else the kind default.
 
 Adding keys to `required_attributes` checks the type's existing items first (see "Changing a type's requirements" in `data-model.md`). Keys whose attribute kind has a default are backfilled on every item lacking a value; this happens in one transaction and fires no per-item events. If any added key has no default and some items lack it, nothing changes and the response is `409 Conflict`:
 

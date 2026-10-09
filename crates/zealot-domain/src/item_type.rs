@@ -2,6 +2,8 @@ use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 
+use serde_json::Value;
+
 use crate::{attribute::Attribute, common::id::Id};
 
 #[derive(Debug, Clone)]
@@ -11,6 +13,9 @@ pub struct ItemType {
     pub name: String,
     pub description: String,
     pub required_attributes: Vec<String>,
+    /// Type-level default per required key (raw JSON, validated against the kind when written).
+    /// Overrides the kind default for items of this type; see `effective_default`.
+    pub required_defaults: BTreeMap<String, Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -38,6 +43,9 @@ pub struct ItemTypeDto {
     pub name: String,
     pub description: String,
     pub required_attributes: Vec<String>,
+    /// Type-level default per required attribute, overriding the kind's default.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub required_defaults: BTreeMap<String, Value>,
     /// Present only on the response to a requirement change (including a dry run).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub report: Option<RequiredChangeReport>,
@@ -104,6 +112,9 @@ pub struct AddItemTypeDto {
     pub name: String,
     pub description: String,
     pub required_attributes: Vec<String>,
+    /// Optional type-level defaults for keys in `required_attributes`.
+    #[serde(default)]
+    pub required_defaults: Option<BTreeMap<String, Value>>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -112,6 +123,10 @@ pub struct UpdateItemTypeDto {
     pub name: Option<String>,
     pub description: Option<String>,
     pub required_attributes: Option<Vec<String>>,
+    /// Set (value) or clear (`null`) type-level defaults; keys not listed are unchanged. Each key
+    /// must be required by the type after this update.
+    #[serde(default)]
+    pub required_defaults: Option<BTreeMap<String, Value>>,
     /// Report what a change to `required_attributes` would do without writing anything.
     #[serde(default)]
     pub dry_run: Option<bool>,
@@ -139,6 +154,20 @@ impl ItemType {
     }
 }
 
+/// The default a new value of `key` starts from for an item with several types: the type-level
+/// defaults of the item's types that require it. None set: the kind default. All agree: that value.
+/// Any disagree: the kind default, so there is no type-specific suggestion.
+pub fn effective_default(
+    type_defaults: &[Attribute],
+    kind_default: Option<&Attribute>,
+) -> Option<Attribute> {
+    match type_defaults.split_first() {
+        None => kind_default.cloned(),
+        Some((first, rest)) if rest.iter().all(|other| other == first) => Some(first.clone()),
+        Some(_) => kind_default.cloned(),
+    }
+}
+
 impl From<&ItemType> for ItemTypeRef {
     fn from(value: &ItemType) -> Self {
         Self {
@@ -157,6 +186,7 @@ impl From<&ItemType> for ItemTypeDto {
             name: value.name.clone(),
             description: value.description.clone(),
             required_attributes: value.required_attributes.clone(),
+            required_defaults: value.required_defaults.clone(),
             report: None,
         }
     }
@@ -181,5 +211,44 @@ impl From<&ItemTypeSummary> for ItemTypeSummaryDto {
             required_attributes_count: value.required_attributes_count,
             item_count: value.item_count,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::attribute::AttributeScalar;
+
+    fn int(n: i64) -> Attribute {
+        Attribute::Scalar(AttributeScalar::Integer(n))
+    }
+
+    #[test]
+    fn no_type_default_uses_the_kind_default() {
+        assert_eq!(effective_default(&[], Some(&int(3))), Some(int(3)));
+        assert_eq!(effective_default(&[], None), None);
+    }
+
+    #[test]
+    fn one_type_default_overrides_the_kind() {
+        assert_eq!(effective_default(&[int(5)], Some(&int(3))), Some(int(5)));
+        assert_eq!(effective_default(&[int(5)], None), Some(int(5)));
+    }
+
+    #[test]
+    fn agreeing_type_defaults_win() {
+        assert_eq!(
+            effective_default(&[int(5), int(5)], Some(&int(3))),
+            Some(int(5))
+        );
+    }
+
+    #[test]
+    fn conflicting_type_defaults_fall_back_to_the_kind_default() {
+        assert_eq!(
+            effective_default(&[int(5), int(7)], Some(&int(3))),
+            Some(int(3))
+        );
+        assert_eq!(effective_default(&[int(5), int(7)], None), None);
     }
 }

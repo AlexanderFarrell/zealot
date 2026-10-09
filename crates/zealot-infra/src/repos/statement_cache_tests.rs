@@ -122,6 +122,7 @@ fn check_attr_kinds_after_new_item_type(types: &dyn ItemTypeRepo) {
                 name: "Ticket".to_string(),
                 description: "t".to_string(),
                 required_attributes: vec!["Status".to_string()],
+                required_defaults: None,
             },
             &account.account_id,
         )

@@ -1,39 +1,49 @@
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashSet},
+    sync::Arc,
+};
+
+use serde_json::{Value, json};
 
 use zealot_domain::{
     attribute::{Attribute, AttributeScalar},
     common::id::Id,
     item_type::{
         AddItemTypeDto, ItemType, ItemTypeSummary, NON_COMPLIANT_SAMPLE, NonCompliantPageDto,
-        NonCompliantSummary, RequiredChangeReport, UpdateItemTypeDto,
+        NonCompliantSummary, RequiredChangeReport, UpdateItemTypeDto, effective_default,
     },
 };
 
 use crate::repos::{
     attribute::AttributeRepo,
     common::RepoError,
-    item_type::{ItemTypeRepo, RequiredChange},
+    item_type::{Backfill, ItemTypeRepo, Offender, RequiredChange},
 };
 
-/// Where a default value for a newly required attribute comes from. The type is passed so a
-/// later type-level override can resolve as `type default ?? kind default`.
+/// Where defaults for a required attribute come from beyond the types themselves: the attribute
+/// kind's default, and the kind's rules for validating a type-level default.
 pub trait RequirementDefaults: std::fmt::Debug + Send + Sync {
-    fn default_for(&self, account_id: &Id, item_type: &ItemType, key: &str) -> Option<Attribute>;
+    fn kind_default(&self, account_id: &Id, key: &str) -> Option<Attribute>;
+    /// Parse a type-level default for `key` with the kind's own rules.
+    fn parse_override(&self, account_id: &Id, key: &str, raw: &Value) -> Result<Attribute, String>;
 }
 
-/// No attribute has a default, so every requirement change that leaves items without a value
-/// is rejected. Used until attribute kind defaults (Z45) are wired in.
+/// No kind has a default and any type-level default is accepted as given. For tests.
 #[derive(Debug)]
 pub struct NoDefaults;
 
 impl RequirementDefaults for NoDefaults {
-    fn default_for(&self, _: &Id, _: &ItemType, _: &str) -> Option<Attribute> {
+    fn kind_default(&self, _: &Id, _: &str) -> Option<Attribute> {
         None
+    }
+
+    fn parse_override(&self, _: &Id, key: &str, _: &Value) -> Result<Attribute, String> {
+        Err(format!("no attribute kind '{key}' to validate against"))
     }
 }
 
-/// Defaults from the attribute kind (`AttributeKind.default`). Resolution is `type default ??
-/// kind default`; type-level defaults (Z218) slot in at `type_default`.
+/// Defaults from the attribute kind (`AttributeKind.default`, Z45) and its validation rules.
+/// Type-level overrides are stored on the type and resolved by `change_required`.
 #[derive(Debug)]
 pub struct KindDefaults {
     attributes: Arc<dyn AttributeRepo>,
@@ -45,25 +55,37 @@ impl KindDefaults {
             attributes: attributes.clone(),
         }
     }
-
-    /// No type-level defaults exist yet.
-    fn type_default(&self, _item_type: &ItemType, _key: &str) -> Option<Attribute> {
-        None
-    }
 }
 
 impl RequirementDefaults for KindDefaults {
-    fn default_for(&self, account_id: &Id, item_type: &ItemType, key: &str) -> Option<Attribute> {
-        self.type_default(item_type, key).or_else(|| {
-            match self.attributes.get_attribute_kind(key, account_id) {
-                Ok(kind) => kind.and_then(|kind| kind.default),
-                Err(err) => {
-                    // Treated as no default, so the change is rejected rather than half-filled.
-                    tracing::error!(%key, "attribute kind lookup failed: {err}");
-                    None
-                }
+    fn kind_default(&self, account_id: &Id, key: &str) -> Option<Attribute> {
+        match self.attributes.get_attribute_kind(key, account_id) {
+            Ok(kind) => kind.and_then(|kind| kind.default),
+            Err(err) => {
+                // Treated as no default, so the change is rejected rather than half-filled.
+                tracing::error!(%key, "attribute kind lookup failed: {err}");
+                None
             }
-        })
+        }
+    }
+
+    fn parse_override(&self, account_id: &Id, key: &str, raw: &Value) -> Result<Attribute, String> {
+        let kind = self
+            .attributes
+            .get_attribute_kind(key, account_id)
+            .map_err(|err| format!("attribute kind lookup failed: {err}"))?
+            .ok_or_else(|| format!("unknown attribute kind '{key}'"))?;
+        let attribute = kind
+            .parse_default(&json!({ "default": raw }))
+            .map_err(|err| format!("invalid default for '{key}': {err}"))?
+            .ok_or_else(|| format!("default for '{key}' must be a value; send null to clear"))?;
+        if usable_default(&attribute) {
+            Ok(attribute)
+        } else {
+            Err(format!(
+                "'{key}' cannot have a default: relationships and empty lists have none"
+            ))
+        }
     }
 }
 
@@ -88,6 +110,9 @@ pub enum ItemTypeServiceError {
     ReadOnly(String),
     #[error("{0}")]
     InUse(String),
+    /// A type-level default that does not fit its attribute kind or the type.
+    #[error("{0}")]
+    InvalidDefault(String),
     /// A requirement change would leave existing items without a value and has no default to
     /// give them. Nothing was changed.
     #[error("{message}")]
@@ -162,14 +187,35 @@ impl ItemTypeService {
         dto: &AddItemTypeDto,
         account_id: &Id,
     ) -> Result<Option<ItemType>, ItemTypeServiceError> {
+        let overrides = match &dto.required_defaults {
+            Some(raw) if !raw.is_empty() => {
+                self.parse_overrides(account_id, &dto.required_attributes, raw)?
+            }
+            _ => BTreeMap::new(),
+        };
         let item_type = self
             .repo
             .add_item_type(dto, account_id)
             .map_err(ItemTypeServiceError::Repo)?;
-        if let Some(ref t) = item_type {
-            tracing::info!(account_id = ?account_id, type_id = ?t.type_id, name = %t.name, "item type created");
+        let Some(created) = item_type else {
+            return Ok(None);
+        };
+        tracing::info!(account_id = ?account_id, type_id = ?created.type_id, name = %created.name, "item type created");
+        if overrides.is_empty() {
+            return Ok(Some(created));
         }
-        Ok(item_type)
+        // A new type has no members, so only the stored defaults need writing.
+        self.repo
+            .apply_required_change(
+                &created.type_id,
+                &RequiredChange {
+                    defaults: overrides.into_iter().map(|(k, v)| (k, Some(v.0))).collect(),
+                    ..Default::default()
+                },
+                account_id,
+            )
+            .map_err(ItemTypeServiceError::Repo)?;
+        self.get_item_type(&created.type_id, account_id)
     }
 
     pub fn update_item_type(
@@ -202,6 +248,14 @@ impl ItemTypeService {
             None => (Vec::new(), Vec::new()),
         };
         let dry_run = dto.dry_run.unwrap_or(false);
+        let desired_required: Vec<String> = match &dto.required_attributes {
+            Some(desired) => desired.clone(),
+            None => current.required_attributes.clone(),
+        };
+        let override_changes = match &dto.required_defaults {
+            Some(raw) => self.parse_override_changes(account_id, &desired_required, raw)?,
+            None => BTreeMap::new(),
+        };
         let change = self.change_required(
             &current,
             account_id,
@@ -209,6 +263,7 @@ impl ItemTypeService {
             dto.description.clone(),
             add,
             remove,
+            override_changes,
             dry_run,
         )?;
         tracing::info!(account_id = ?account_id, ?type_id, dry_run, "item type updated");
@@ -229,7 +284,16 @@ impl ItemTypeService {
         let required: HashSet<&String> = current.required_attributes.iter().collect();
         let add = unique(attr_kind_keys.iter().filter(|key| !required.contains(key)));
         Ok(self
-            .change_required(&current, account_id, None, None, add, Vec::new(), dry_run)?
+            .change_required(
+                &current,
+                account_id,
+                None,
+                None,
+                add,
+                Vec::new(),
+                BTreeMap::new(),
+                dry_run,
+            )?
             .report)
     }
 
@@ -249,6 +313,7 @@ impl ItemTypeService {
             None,
             Vec::new(),
             unique(attr_kind_keys.iter()),
+            BTreeMap::new(),
             false,
         )?;
         Ok(())
@@ -271,10 +336,59 @@ impl ItemTypeService {
             .map_err(ItemTypeServiceError::Repo)
     }
 
-    /// The one place a type's requirements change. Existing members are checked first; an added
-    /// attribute without a default that some members lack rejects the whole change. Otherwise the
-    /// links, rename and default backfill commit in one transaction. `dry_run` stops before that
-    /// and reports the same numbers, including would-be offenders, without an error.
+    /// Validate type-level defaults for a new type: each key must be required, each value must
+    /// fit its kind. Returns the validated raw JSON with its parsed form.
+    fn parse_overrides(
+        &self,
+        account_id: &Id,
+        required: &[String],
+        raw: &BTreeMap<String, Value>,
+    ) -> Result<BTreeMap<String, (Value, Attribute)>, ItemTypeServiceError> {
+        let mut out = BTreeMap::new();
+        for (key, value) in raw {
+            if value.is_null() {
+                continue;
+            }
+            if !required.contains(key) {
+                return Err(ItemTypeServiceError::InvalidDefault(format!(
+                    "'{key}' is not a required attribute of this type, so it cannot have a type default"
+                )));
+            }
+            let parsed = self
+                .defaults
+                .parse_override(account_id, key, value)
+                .map_err(ItemTypeServiceError::InvalidDefault)?;
+            out.insert(key.clone(), (value.clone(), parsed));
+        }
+        Ok(out)
+    }
+
+    /// As `parse_overrides`, for an update: `null` clears a key.
+    fn parse_override_changes(
+        &self,
+        account_id: &Id,
+        required: &[String],
+        raw: &BTreeMap<String, Value>,
+    ) -> Result<BTreeMap<String, Option<(Value, Attribute)>>, ItemTypeServiceError> {
+        let mut out = BTreeMap::new();
+        for (key, value) in raw {
+            if value.is_null() {
+                out.insert(key.clone(), None);
+                continue;
+            }
+            let one = BTreeMap::from([(key.clone(), value.clone())]);
+            let mut parsed = self.parse_overrides(account_id, required, &one)?;
+            out.insert(key.clone(), parsed.remove(key));
+        }
+        Ok(out)
+    }
+
+    /// The one place a type's requirements change. Existing members are checked first; each
+    /// member lacking an added attribute gets the effective default over all of its types (type
+    /// defaults that agree, else the kind default). Members with none of those would be left
+    /// without a value, so the whole change is rejected. Otherwise the links, rename, type-level
+    /// defaults and backfill commit in one transaction. `dry_run` stops before that and reports
+    /// the same numbers, including would-be offenders, without an error.
     ///
     /// Backfill is a bulk write and fires no per-item events.
     #[allow(clippy::too_many_arguments)]
@@ -286,16 +400,10 @@ impl ItemTypeService {
         description: Option<String>,
         add: Vec<String>,
         remove: Vec<String>,
+        override_changes: BTreeMap<String, Option<(Value, Attribute)>>,
         dry_run: bool,
     ) -> Result<ItemTypeChange, ItemTypeServiceError> {
-        let missing = if add.is_empty() {
-            Vec::new()
-        } else {
-            self.repo
-                .count_missing_required(&current.type_id, &add, NON_COMPLIANT_SAMPLE, account_id)
-                .map_err(ItemTypeServiceError::Repo)?
-        };
-
+        let type_id = i64::from(current.type_id);
         let mut report = RequiredChangeReport {
             dry_run,
             added: add.clone(),
@@ -303,34 +411,95 @@ impl ItemTypeService {
             ..Default::default()
         };
         let mut backfills = Vec::new();
-        let mut offending = Vec::new();
-        for entry in missing.into_iter().filter(|entry| entry.count > 0) {
-            match self
-                .defaults
-                .default_for(account_id, current, &entry.key)
-                .filter(usable_default)
+        let mut offenders = Vec::new();
+
+        for key in &add {
+            // Type-level defaults for this key across all types, with this change applied to us.
+            let mut universe: BTreeMap<i64, Attribute> = BTreeMap::new();
+            for (other_type, raw) in self
+                .repo
+                .overrides_for_key(key, account_id)
+                .map_err(ItemTypeServiceError::Repo)?
             {
-                Some(default) => {
-                    report.backfilled.insert(entry.key.clone(), entry.count);
-                    backfills.push((entry.key, default));
+                if other_type == type_id {
+                    continue;
                 }
-                None => {
-                    report
-                        .non_compliant
-                        .by_key
-                        .insert(entry.key.clone(), entry.count);
-                    report
-                        .non_compliant
-                        .sample_ids
-                        .insert(entry.key.clone(), entry.sample_ids);
-                    offending.push(entry.key);
+                if let Ok(parsed) = self.defaults.parse_override(account_id, key, &raw) {
+                    universe.insert(other_type, parsed);
                 }
             }
+            match override_changes.get(key) {
+                Some(Some((_, parsed))) => {
+                    universe.insert(type_id, parsed.clone());
+                }
+                Some(None) => {}
+                None => {
+                    if let Some(raw) = current.required_defaults.get(key) {
+                        if let Ok(parsed) = self.defaults.parse_override(account_id, key, raw) {
+                            universe.insert(type_id, parsed);
+                        }
+                    }
+                }
+            }
+            let ids: Vec<i64> = universe.keys().copied().collect();
+            let kind_default = self
+                .defaults
+                .kind_default(account_id, key)
+                .filter(usable_default);
+
+            let groups = self
+                .repo
+                .missing_by_override_set(
+                    &current.type_id,
+                    key,
+                    &ids,
+                    NON_COMPLIANT_SAMPLE,
+                    account_id,
+                )
+                .map_err(ItemTypeServiceError::Repo)?;
+            let mut bad_sets = Vec::new();
+            for group in groups.into_iter().filter(|group| group.count > 0) {
+                let values: Vec<Attribute> = group
+                    .set
+                    .iter()
+                    .filter_map(|id| universe.get(id).cloned())
+                    .collect();
+                match effective_default(&values, kind_default.as_ref()) {
+                    Some(value) => {
+                        *report.backfilled.entry(key.clone()).or_insert(0) += group.count;
+                        backfills.push(Backfill {
+                            key: key.clone(),
+                            universe: ids.clone(),
+                            set: group.set,
+                            value,
+                        });
+                    }
+                    None => {
+                        *report.non_compliant.by_key.entry(key.clone()).or_insert(0) += group.count;
+                        let samples = report
+                            .non_compliant
+                            .sample_ids
+                            .entry(key.clone())
+                            .or_default();
+                        samples.extend(group.sample_ids);
+                        samples.sort_unstable();
+                        samples.truncate(NON_COMPLIANT_SAMPLE as usize);
+                        bad_sets.push(group.set);
+                    }
+                }
+            }
+            if !bad_sets.is_empty() {
+                offenders.push(Offender {
+                    key: key.clone(),
+                    universe: ids,
+                    sets: bad_sets,
+                });
+            }
         }
-        if !offending.is_empty() {
+        if !offenders.is_empty() {
             report.non_compliant.total = self
                 .repo
-                .count_items_missing_any(&current.type_id, &offending, account_id)
+                .count_offenders(&current.type_id, &offenders, account_id)
                 .map_err(ItemTypeServiceError::Repo)?;
         }
 
@@ -340,13 +509,21 @@ impl ItemTypeService {
                 report,
             });
         }
-        if !offending.is_empty() {
+        if !offenders.is_empty() {
             return Err(ItemTypeServiceError::WouldInvalidate {
                 message: would_invalidate_message(&current.name, &report.non_compliant),
                 summary: report.non_compliant,
             });
         }
 
+        let mut defaults: BTreeMap<String, Option<Value>> = override_changes
+            .into_iter()
+            .map(|(key, change)| (key, change.map(|(raw, _)| raw)))
+            .collect();
+        // A removed requirement takes its type default with it; nothing else to write.
+        for key in &remove {
+            defaults.remove(key);
+        }
         self.repo
             .apply_required_change(
                 &current.type_id,
@@ -355,6 +532,7 @@ impl ItemTypeService {
                     description,
                     add,
                     remove,
+                    defaults,
                     backfills,
                 },
                 account_id,
@@ -464,7 +642,7 @@ fn would_invalidate_message(type_name: &str, summary: &NonCompliantSummary) -> S
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repos::item_type::MissingRequired;
+    use crate::repos::item_type::MissingGroup;
     use std::collections::HashMap;
     use std::sync::atomic::{AtomicBool, Ordering};
     use zealot_domain::item_type::{
@@ -476,8 +654,11 @@ mod tests {
         item_type: Option<ItemType>,
         item_count: i64,
         deleted: AtomicBool,
-        missing: HashMap<String, MissingRequired>,
-        distinct_missing: i64,
+        /// Members lacking a key, by key, as the repo would group them.
+        missing: HashMap<String, Vec<MissingGroup>>,
+        /// Type-level defaults other types set, by key.
+        overrides: HashMap<String, Vec<(i64, Value)>>,
+        offender_count: i64,
         applied: std::sync::Mutex<Vec<RequiredChange>>,
     }
 
@@ -488,19 +669,15 @@ mod tests {
                 item_count,
                 deleted: AtomicBool::new(false),
                 missing: HashMap::new(),
-                distinct_missing: 0,
+                overrides: HashMap::new(),
+                offender_count: 0,
                 applied: Default::default(),
             }
         }
         fn empty() -> Self {
-            Self {
-                item_type: None,
-                item_count: 0,
-                deleted: AtomicBool::new(false),
-                missing: HashMap::new(),
-                distinct_missing: 0,
-                applied: Default::default(),
-            }
+            let mut repo = Self::with_type(make_type("Task", false), 0);
+            repo.item_type = None;
+            repo
         }
     }
 
@@ -511,6 +688,7 @@ mod tests {
             name: name.to_string(),
             description: String::new(),
             required_attributes: vec![],
+            required_defaults: BTreeMap::new(),
         }
     }
 
@@ -545,7 +723,7 @@ mod tests {
             Ok(vec![])
         }
         fn add_item_type(&self, _: &AddItemTypeDto, _: &Id) -> Result<Option<ItemType>, RepoError> {
-            Ok(None)
+            Ok(self.item_type.clone())
         }
         fn update_item_type(
             &self,
@@ -583,28 +761,33 @@ mod tests {
         fn unassign_item_types(&self, _: &Vec<String>, _: &Id, _: &Id) -> Result<(), RepoError> {
             Ok(())
         }
-        fn count_missing_required(
+        fn missing_by_override_set(
             &self,
             _: &Id,
-            keys: &[String],
+            key: &str,
+            _: &[i64],
             _: i64,
             _: &Id,
-        ) -> Result<Vec<MissingRequired>, RepoError> {
-            Ok(keys
-                .iter()
-                .filter_map(|key| self.missing.get(key))
-                .cloned()
-                .collect())
+        ) -> Result<Vec<MissingGroup>, RepoError> {
+            Ok(self.missing.get(key).cloned().unwrap_or_default())
         }
-        fn count_items_missing_any(&self, _: &Id, _: &[String], _: &Id) -> Result<i64, RepoError> {
-            Ok(self.distinct_missing)
+        fn count_offenders(
+            &self,
+            _: &Id,
+            _: &[crate::repos::item_type::Offender],
+            _: &Id,
+        ) -> Result<i64, RepoError> {
+            Ok(self.offender_count)
+        }
+        fn overrides_for_key(&self, key: &str, _: &Id) -> Result<Vec<(i64, Value)>, RepoError> {
+            Ok(self.overrides.get(key).cloned().unwrap_or_default())
         }
         fn apply_required_change(
             &self,
             _: &Id,
             change: &RequiredChange,
             _: &Id,
-        ) -> Result<std::collections::BTreeMap<String, i64>, RepoError> {
+        ) -> Result<BTreeMap<String, i64>, RepoError> {
             self.applied.lock().unwrap().push(change.clone());
             Ok(Default::default())
         }
@@ -670,94 +853,215 @@ mod tests {
         assert!(matches!(result, Err(ItemTypeServiceError::NotFound)));
     }
 
-    fn require_update(keys: &[&str], dry_run: bool) -> UpdateItemTypeDto {
+    fn int(n: i64) -> Attribute {
+        Attribute::Scalar(AttributeScalar::Integer(n))
+    }
+
+    /// Kind default and the kind's validation, by key; integers only.
+    #[derive(Debug, Default)]
+    struct FakeKinds {
+        kind_default: Option<Attribute>,
+    }
+    impl RequirementDefaults for FakeKinds {
+        fn kind_default(&self, _: &Id, _: &str) -> Option<Attribute> {
+            self.kind_default.clone()
+        }
+        fn parse_override(&self, _: &Id, key: &str, raw: &Value) -> Result<Attribute, String> {
+            match raw.as_i64() {
+                Some(n) if (0..=10).contains(&n) => Ok(int(n)),
+                _ => Err(format!("invalid default for '{key}'")),
+            }
+        }
+    }
+
+    fn require(keys: &[&str], dry_run: bool) -> UpdateItemTypeDto {
         UpdateItemTypeDto {
             type_id: 1,
             name: None,
             description: None,
             required_attributes: Some(keys.iter().map(|k| k.to_string()).collect()),
+            required_defaults: None,
             dry_run: Some(dry_run),
         }
     }
 
-    fn with_missing(key: &str, count: i64) -> MockItemTypeRepo {
-        let mut repo = MockItemTypeRepo::with_type(make_type("Task", false), count);
-        repo.missing.insert(
-            key.to_string(),
-            MissingRequired {
-                key: key.to_string(),
-                count,
-                sample_ids: vec![7, 9],
-            },
-        );
-        repo.distinct_missing = count;
+    fn group(set: &[i64], count: i64) -> MissingGroup {
+        MissingGroup {
+            set: set.to_vec(),
+            count,
+            sample_ids: vec![7, 9],
+        }
+    }
+
+    fn service(repo: &Arc<MockItemTypeRepo>, kind_default: Option<Attribute>) -> ItemTypeService {
+        ItemTypeService::new(&(repo.clone() as Arc<dyn ItemTypeRepo>))
+            .with_defaults(Arc::new(FakeKinds { kind_default }))
+    }
+
+    fn priority_repo(groups: Vec<MissingGroup>) -> MockItemTypeRepo {
+        let mut repo = MockItemTypeRepo::with_type(make_type("Task", false), 5);
+        repo.missing.insert("Priority".into(), groups);
         repo
     }
 
-    #[derive(Debug)]
-    struct FixedDefault(Attribute);
-    impl RequirementDefaults for FixedDefault {
-        fn default_for(&self, _: &Id, _: &ItemType, _: &str) -> Option<Attribute> {
-            Some(self.0.clone())
-        }
-    }
-
     #[test]
-    fn default_that_is_an_item_reference_or_empty_list_does_not_count() {
-        for default in [
-            Attribute::Scalar(AttributeScalar::Item(Id::try_from(3i64).unwrap())),
-            Attribute::List(vec![]),
-        ] {
-            let repo = Arc::new(with_missing("Owner", 2));
-            let svc = ItemTypeService::new(&(repo.clone() as Arc<dyn ItemTypeRepo>))
-                .with_defaults(Arc::new(FixedDefault(default)));
-            let result = svc.update_item_type(&require_update(&["Owner"], false), &account_id());
-            assert!(matches!(
-                result,
-                Err(ItemTypeServiceError::WouldInvalidate { .. })
-            ));
-            assert!(repo.applied.lock().unwrap().is_empty());
-        }
-    }
-
-    #[test]
-    fn usable_default_backfills_in_one_repo_call() {
-        let repo = Arc::new(with_missing("Owner", 2));
-        let default = Attribute::Scalar(AttributeScalar::Text("me".into()));
-        let svc = ItemTypeService::new(&(repo.clone() as Arc<dyn ItemTypeRepo>))
-            .with_defaults(Arc::new(FixedDefault(default.clone())));
-        let change = svc
-            .update_item_type(&require_update(&["Owner"], false), &account_id())
+    fn kind_default_backfills_members_with_no_type_default() {
+        let repo = Arc::new(priority_repo(vec![group(&[], 3)]));
+        let change = service(&repo, Some(int(3)))
+            .update_item_type(&require(&["Priority"], false), &account_id())
             .unwrap()
             .unwrap();
-        assert_eq!(change.report.backfilled["Owner"], 2);
+        assert_eq!(change.report.backfilled["Priority"], 3);
         let applied = repo.applied.lock().unwrap();
-        assert_eq!(applied.len(), 1);
-        assert_eq!(applied[0].add, ["Owner"]);
-        assert_eq!(applied[0].backfills, [("Owner".to_string(), default)]);
+        assert_eq!(applied[0].backfills.len(), 1);
+        assert_eq!(applied[0].backfills[0].value, int(3));
     }
 
     #[test]
-    fn dry_run_never_calls_the_write_path() {
-        let repo = Arc::new(with_missing("Owner", 2));
-        let svc = ItemTypeService::new(&(repo.clone() as Arc<dyn ItemTypeRepo>));
-        let change = svc
-            .update_item_type(&require_update(&["Owner"], true), &account_id())
-            .unwrap()
+    fn type_default_beats_kind_default_for_its_members() {
+        let mut repo = priority_repo(vec![group(&[1], 2)]);
+        repo.item_type.as_mut().unwrap().required_defaults =
+            BTreeMap::from([("Priority".to_string(), json!(5))]);
+        let repo = Arc::new(repo);
+        // Our own default is on the stored type; the change re-reads it.
+        let mut dto = require(&["Priority"], false);
+        dto.required_defaults = Some(BTreeMap::from([("Priority".to_string(), json!(5))]));
+        service(&repo, Some(int(3)))
+            .update_item_type(&dto, &account_id())
             .unwrap();
-        assert!(change.report.dry_run);
-        assert_eq!(change.report.non_compliant.total, 2);
+        let applied = repo.applied.lock().unwrap();
+        assert_eq!(applied[0].backfills[0].value, int(5));
+        assert_eq!(applied[0].backfills[0].set, [1]);
+        assert_eq!(applied[0].defaults["Priority"], Some(json!(5)));
+    }
+
+    #[test]
+    fn members_whose_other_type_disagrees_get_the_kind_default() {
+        // Types 1 (this one, default 5) and 2 (default 7): one group has both, one only us.
+        let mut repo = priority_repo(vec![group(&[1], 2), group(&[1, 2], 4)]);
+        repo.overrides
+            .insert("Priority".into(), vec![(2, json!(7))]);
+        let repo = Arc::new(repo);
+        let mut dto = require(&["Priority"], false);
+        dto.required_defaults = Some(BTreeMap::from([("Priority".to_string(), json!(5))]));
+        service(&repo, Some(int(3)))
+            .update_item_type(&dto, &account_id())
+            .unwrap();
+        let applied = repo.applied.lock().unwrap();
+        let by_set: HashMap<Vec<i64>, Attribute> = applied[0]
+            .backfills
+            .iter()
+            .map(|b| (b.set.clone(), b.value.clone()))
+            .collect();
+        assert_eq!(by_set[&vec![1]], int(5));
+        assert_eq!(
+            by_set[&vec![1, 2]],
+            int(3),
+            "conflict falls back to the kind default"
+        );
+    }
+
+    #[test]
+    fn agreeing_type_defaults_win_over_the_kind_default() {
+        let mut repo = priority_repo(vec![group(&[1, 2], 4)]);
+        repo.overrides
+            .insert("Priority".into(), vec![(2, json!(5))]);
+        let repo = Arc::new(repo);
+        let mut dto = require(&["Priority"], false);
+        dto.required_defaults = Some(BTreeMap::from([("Priority".to_string(), json!(5))]));
+        service(&repo, Some(int(3)))
+            .update_item_type(&dto, &account_id())
+            .unwrap();
+        assert_eq!(repo.applied.lock().unwrap()[0].backfills[0].value, int(5));
+    }
+
+    #[test]
+    fn conflict_with_no_kind_default_rejects_the_change() {
+        let mut repo = priority_repo(vec![group(&[1, 2], 4)]);
+        repo.overrides
+            .insert("Priority".into(), vec![(2, json!(7))]);
+        repo.offender_count = 4;
+        let repo = Arc::new(repo);
+        let mut dto = require(&["Priority"], false);
+        dto.required_defaults = Some(BTreeMap::from([("Priority".to_string(), json!(5))]));
+        let result = service(&repo, None).update_item_type(&dto, &account_id());
+        let Err(ItemTypeServiceError::WouldInvalidate { summary, .. }) = result else {
+            panic!("expected WouldInvalidate, got {result:?}");
+        };
+        assert_eq!(summary.total, 4);
+        assert_eq!(summary.by_key["Priority"], 4);
         assert!(repo.applied.lock().unwrap().is_empty());
     }
 
     #[test]
-    fn already_required_keys_are_not_rechecked() {
-        let mut repo = with_missing("Owner", 2);
-        repo.item_type.as_mut().unwrap().required_attributes = vec!["Owner".into()];
+    fn no_default_anywhere_rejects_and_dry_run_reports_without_writing() {
+        let mut repo = priority_repo(vec![group(&[], 2)]);
+        repo.offender_count = 2;
         let repo = Arc::new(repo);
-        let svc = ItemTypeService::new(&(repo.clone() as Arc<dyn ItemTypeRepo>));
-        let change = svc
-            .update_item_type(&require_update(&["Owner"], false), &account_id())
+        let svc = service(&repo, None);
+        assert!(matches!(
+            svc.update_item_type(&require(&["Priority"], false), &account_id()),
+            Err(ItemTypeServiceError::WouldInvalidate { .. })
+        ));
+        let dry = svc
+            .update_item_type(&require(&["Priority"], true), &account_id())
+            .unwrap()
+            .unwrap();
+        assert!(dry.report.dry_run);
+        assert_eq!(dry.report.non_compliant.total, 2);
+        assert!(repo.applied.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn invalid_or_unrequired_type_defaults_are_rejected_before_any_write() {
+        let repo = Arc::new(priority_repo(vec![]));
+        let svc = service(&repo, Some(int(3)));
+        let mut out_of_range = require(&["Priority"], false);
+        out_of_range.required_defaults =
+            Some(BTreeMap::from([("Priority".to_string(), json!(99))]));
+        assert!(matches!(
+            svc.update_item_type(&out_of_range, &account_id()),
+            Err(ItemTypeServiceError::InvalidDefault(_))
+        ));
+        let mut not_required = require(&["Priority"], false);
+        not_required.required_defaults = Some(BTreeMap::from([("Other".to_string(), json!(1))]));
+        assert!(matches!(
+            svc.update_item_type(&not_required, &account_id()),
+            Err(ItemTypeServiceError::InvalidDefault(_))
+        ));
+        assert!(repo.applied.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn null_clears_a_type_default_and_leaves_items_alone() {
+        let mut repo = priority_repo(vec![]);
+        repo.item_type.as_mut().unwrap().required_attributes = vec!["Priority".into()];
+        repo.item_type.as_mut().unwrap().required_defaults =
+            BTreeMap::from([("Priority".to_string(), json!(5))]);
+        let repo = Arc::new(repo);
+        let dto = UpdateItemTypeDto {
+            type_id: 1,
+            name: None,
+            description: None,
+            required_attributes: None,
+            required_defaults: Some(BTreeMap::from([("Priority".to_string(), Value::Null)])),
+            dry_run: None,
+        };
+        service(&repo, Some(int(3)))
+            .update_item_type(&dto, &account_id())
+            .unwrap();
+        let applied = repo.applied.lock().unwrap();
+        assert_eq!(applied[0].defaults["Priority"], None);
+        assert!(applied[0].backfills.is_empty());
+    }
+
+    #[test]
+    fn already_required_keys_are_not_rechecked() {
+        let mut repo = priority_repo(vec![group(&[], 2)]);
+        repo.item_type.as_mut().unwrap().required_attributes = vec!["Priority".into()];
+        let repo = Arc::new(repo);
+        let change = service(&repo, None)
+            .update_item_type(&require(&["Priority"], false), &account_id())
             .unwrap()
             .unwrap();
         assert!(change.report.added.is_empty());
