@@ -437,7 +437,7 @@ impl ZealotServer {
     }
 
     #[rmcp::tool(
-        description = "Update an attribute kind's key, description, base type, or config by its numeric ID."
+        description = "Update an attribute kind's key, description, base type, or config by its numeric ID. System attribute kinds (is_system, such as Status, Parent, Date) are read-only and are rejected."
     )]
     pub async fn update_attribute_kind(
         &self,
@@ -459,7 +459,7 @@ impl ZealotServer {
     }
 
     #[rmcp::tool(
-        description = "Delete an attribute kind by its key. Pass force:true to delete even if items still use it."
+        description = "Delete an attribute kind by its key. Pass force:true to delete even if items still use it. System attribute kinds (is_system, such as Status, Parent, Date) are read-only and are rejected, even with force:true."
     )]
     pub async fn delete_attribute_kind(
         &self,
