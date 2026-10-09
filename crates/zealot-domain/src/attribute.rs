@@ -14,6 +14,8 @@ pub struct AttributeKind {
     pub description: String,
     pub base_type: AttributeBaseType,
     pub spec: AttributeKindSpec,
+    /// Value clients prefill and services backfill; stored as `default` in the kind's config.
+    pub default: Option<Attribute>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -44,6 +46,28 @@ pub enum AttributeBaseScalarType {
 pub enum AttributeBaseType {
     Scalar(AttributeBaseScalarType),
     List(AttributeBaseScalarType),
+}
+
+impl AttributeBaseType {
+    /// The `base_type` string stored for this type; every list kind is stored as `list`.
+    pub fn as_db_str(&self) -> &'static str {
+        match self {
+            Self::List(_) => "list",
+            Self::Scalar(AttributeBaseScalarType::Text) => "text",
+            Self::Scalar(AttributeBaseScalarType::Integer) => "integer",
+            Self::Scalar(AttributeBaseScalarType::Decimal) => "decimal",
+            Self::Scalar(AttributeBaseScalarType::Date) => "date",
+            Self::Scalar(AttributeBaseScalarType::Week) => "week",
+            Self::Scalar(AttributeBaseScalarType::Dropdown) => "dropdown",
+            Self::Scalar(AttributeBaseScalarType::Boolean) => "boolean",
+            Self::Scalar(AttributeBaseScalarType::Item) => "item",
+            Self::Scalar(AttributeBaseScalarType::Email) => "email",
+            Self::Scalar(AttributeBaseScalarType::Telephone) => "telephone",
+            Self::Scalar(AttributeBaseScalarType::Url) => "url",
+            Self::Scalar(AttributeBaseScalarType::Media) => "media",
+            Self::Scalar(AttributeBaseScalarType::Place) => "place",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -247,6 +271,18 @@ impl AttributeError {
             key: key.to_string(),
             expected,
             source: Box::new(self),
+        }
+    }
+}
+
+impl AttributeKind {
+    /// Reads `default` from a kind config, validated by this kind's own rules. Absent or `null` is no default.
+    pub fn parse_default(&self, config: &Value) -> Result<Option<Attribute>, AttributeError> {
+        match config.get("default") {
+            None | Some(Value::Null) => Ok(None),
+            Some(value) => Attribute::single_from_json(value, self)
+                .map(Some)
+                .map_err(|err| err.for_attribute(&self.key, Some(self))),
         }
     }
 }
@@ -680,6 +716,7 @@ mod attribute_tests {
 
     fn kind(base_type: AttributeBaseType, spec: AttributeKindSpec) -> AttributeKind {
         AttributeKind {
+            default: None,
             kind_id: Id::try_from(1).unwrap(),
             is_system: false,
             key: String::from("test"),
@@ -823,6 +860,47 @@ mod attribute_tests {
                 "{scalar:?} {value}"
             );
         }
+    }
+
+    #[test]
+    fn parses_kind_default_with_the_kinds_own_rules() {
+        let k = kind(
+            AttributeBaseType::Scalar(AttributeBaseScalarType::Integer),
+            AttributeKindSpec::Integer {
+                min: Some(1),
+                max: Some(10),
+            },
+        );
+        assert_eq!(
+            k.parse_default(&json!({"default": 3})).unwrap(),
+            Some(Attribute::Scalar(AttributeScalar::Integer(3)))
+        );
+        assert_eq!(k.parse_default(&json!({})).unwrap(), None);
+        assert_eq!(k.parse_default(&json!({"default": null})).unwrap(), None);
+        assert!(k.parse_default(&json!({"default": 11})).is_err());
+        assert!(k.parse_default(&json!({"default": "three"})).is_err());
+    }
+
+    #[test]
+    fn kind_default_must_be_a_dropdown_value_or_valid_list() {
+        let dropdown = kind(
+            AttributeBaseType::Scalar(AttributeBaseScalarType::Dropdown),
+            AttributeKindSpec::Dropdown {
+                values: vec!["a".into(), "b".into()],
+            },
+        );
+        assert!(dropdown.parse_default(&json!({"default": "a"})).is_ok());
+        assert!(dropdown.parse_default(&json!({"default": "z"})).is_err());
+
+        let list = kind(
+            AttributeBaseType::List(AttributeBaseScalarType::Dropdown),
+            AttributeKindSpec::Dropdown {
+                values: vec!["a".into(), "b".into()],
+            },
+        );
+        assert!(list.parse_default(&json!({"default": ["a", "b"]})).is_ok());
+        assert!(list.parse_default(&json!({"default": ["a", "z"]})).is_err());
+        assert!(list.parse_default(&json!({"default": "a"})).is_err());
     }
 
     #[test]

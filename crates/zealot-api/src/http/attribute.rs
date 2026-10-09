@@ -127,6 +127,7 @@ async fn add_attribute_kind(
             tracing::error!(account_id = ?account.account_id, "add_attribute_kind returned None");
             Err(HttpError::Internal)
         }
+        Err(AttributeServiceError::InvalidDefault(err)) => Err(HttpError::UserError { err }),
         Err(e) => {
             tracing::error!(account_id = ?account.account_id, %e, "failed to add attribute kind");
             Err(HttpError::Internal)
@@ -149,7 +150,9 @@ async fn update_attribute_kind(
     {
         Ok(Some(kind)) => Ok(Json(kind_to_json(&kind))),
         Ok(None) | Err(AttributeServiceError::NotFound) => Err(HttpError::NotFound),
-        Err(AttributeServiceError::ReadOnly(err)) => Err(HttpError::UserError { err }),
+        Err(AttributeServiceError::ReadOnly(err) | AttributeServiceError::InvalidDefault(err)) => {
+            Err(HttpError::UserError { err })
+        }
         Err(e) => {
             tracing::error!(account_id = ?account.account_id, %e, "failed to update attribute kind");
             Err(HttpError::Internal)
@@ -189,6 +192,10 @@ fn kind_to_json(kind: &AttributeKind) -> serde_json::Value {
         if let Some(map) = config.as_object_mut() {
             map.insert("list_type".into(), inner.into());
         }
+    }
+    // Services and clients read the default from `config.default`.
+    if let (Some(default), Some(map)) = (&kind.default, config.as_object_mut()) {
+        map.insert("default".into(), serde_json::json!(default));
     }
     serde_json::json!({
         "kind_id": i64::from(kind.kind_id),
@@ -299,6 +306,7 @@ mod kind_json_tests {
     fn list_kind_reports_inner_type_and_values() {
         let kind = AttributeKind {
             kind_id: Id::try_from(1).unwrap(),
+            default: None,
             is_system: false,
             key: "Tags".into(),
             description: String::new(),
@@ -311,5 +319,26 @@ mod kind_json_tests {
         assert_eq!(json["base_type"], "list");
         assert_eq!(json["config"]["list_type"], "dropdown");
         assert_eq!(json["config"]["values"], serde_json::json!(["a", "b"]));
+    }
+
+    /// A kind's default is reported in `config.default`; a kind without one has no such key.
+    #[test]
+    fn kind_reports_default_in_config() {
+        use zealot_domain::attribute::{Attribute, AttributeScalar};
+        let mut kind = AttributeKind {
+            kind_id: Id::try_from(1).unwrap(),
+            default: None,
+            is_system: false,
+            key: "Priority".into(),
+            description: String::new(),
+            base_type: AttributeBaseType::Scalar(AttributeBaseScalarType::Integer),
+            spec: AttributeKindSpec::Integer {
+                min: Some(1),
+                max: Some(10),
+            },
+        };
+        assert!(kind_to_json(&kind)["config"].get("default").is_none());
+        kind.default = Some(Attribute::Scalar(AttributeScalar::Integer(3)));
+        assert_eq!(kind_to_json(&kind)["config"]["default"], 3);
     }
 }

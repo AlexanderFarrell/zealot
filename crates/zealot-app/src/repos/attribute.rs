@@ -22,6 +22,13 @@ pub trait AttributeRepo: Debug + Send + Sync {
         &self,
         account_id: &Id,
     ) -> Result<HashMap<String, AttributeKind>, RepoError>;
+    /// Builds the kind a `base_type` and `config` describe without storing it, so callers can validate a config.
+    fn preview_attribute_kind(
+        &self,
+        key: &str,
+        base_type: &str,
+        config: &serde_json::Value,
+    ) -> Result<AttributeKind, RepoError>;
     fn add_attribute_kind(
         &self,
         dto: &AddAttributeKindDto,

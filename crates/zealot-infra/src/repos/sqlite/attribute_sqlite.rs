@@ -193,14 +193,18 @@ fn row_to_attribute_kind(row: AttributeKindRow) -> Result<AttributeKind, RepoErr
     let kind_id =
         Id::try_from(row.kind_id).map_err(|e| RepoError::DatabaseError { err: e.to_string() })?;
 
-    Ok(AttributeKind {
+    let mut kind = AttributeKind {
         kind_id,
         is_system: row.is_system != 0,
         key: row.key,
         description: row.description,
         base_type,
         spec,
-    })
+        default: None,
+    };
+    // Stored defaults were validated on write; one that no longer parses is dropped rather than failing the read.
+    kind.default = kind.parse_default(&config).ok().flatten();
+    Ok(kind)
 }
 
 fn spec_to_config(spec: &AttributeKindSpec) -> Value {
@@ -350,6 +354,23 @@ impl AttributeRepo for AttributeSqliteRepo {
                 }
                 Ok(result)
             })
+        })
+    }
+
+    fn preview_attribute_kind(
+        &self,
+        key: &str,
+        base_type: &str,
+        config: &Value,
+    ) -> Result<AttributeKind, RepoError> {
+        row_to_attribute_kind(AttributeKindRow {
+            kind_id: 0,
+            account_id: None,
+            key: key.to_string(),
+            description: String::new(),
+            base_type: base_type.to_string(),
+            config: config.to_string(),
+            is_system: 0,
         })
     }
 

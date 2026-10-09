@@ -18,6 +18,8 @@ mod statement_cache_tests;
 #[cfg(test)]
 mod content_edit_tests;
 #[cfg(test)]
+mod attribute_kind_default_tests;
+#[cfg(test)]
 mod query_tests;
 #[cfg(test)]
 mod regex_search_tests;

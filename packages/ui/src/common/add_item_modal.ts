@@ -186,7 +186,7 @@ export class AddItemModal extends HTMLElement {
             const opts: Parameters<typeof createAttributeValueInput>[0] = {
                 allowEmpty: true,
                 attributeKey: key,
-                value: undefined,
+                value: kind?.Config.default,
                 onValueChange: () => {},
             };
             if (kind) opts.kind = kind;
