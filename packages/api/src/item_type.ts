@@ -5,6 +5,7 @@ import type {
     AddItemTypeDto,
     ItemTypeDto,
     ItemTypeSummaryDto,
+    NonCompliantPageDto,
     UpdateItemTypeDto,
 } from "@zealot/domain/src/item_type";
 
@@ -83,6 +84,10 @@ export class ItemTypeAPI extends BasicAPI<ItemType, ItemTypeDto,
         const data = await patch_json(`${this.URL}/${id}`, updates) as ItemTypeDto;
         ItemTypeAPI.invalidateAll();
         return this.Factory(data);
+    }
+
+    async non_compliant(id: number, limit = 50, offset = 0): Promise<NonCompliantPageDto> {
+        return await get_json(`${this.URL}/${id}/non_compliant?limit=${limit}&offset=${offset}`) as NonCompliantPageDto;
     }
 
     async remove(id: number): Promise<Response> {

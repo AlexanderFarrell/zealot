@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 
@@ -38,6 +38,47 @@ pub struct ItemTypeDto {
     pub name: String,
     pub description: String,
     pub required_attributes: Vec<String>,
+    /// Present only on the response to a requirement change (including a dry run).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub report: Option<RequiredChangeReport>,
+}
+
+/// What a requirement change did, or with `dry_run` would do. Counts are items of the type.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RequiredChangeReport {
+    pub dry_run: bool,
+    pub added: Vec<String>,
+    pub removed: Vec<String>,
+    /// Items given a default value, per added attribute key.
+    pub backfilled: BTreeMap<String, i64>,
+    /// Items that lack an added attribute that has no default. When non-empty the change is rejected.
+    pub non_compliant: NonCompliantSummary,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NonCompliantSummary {
+    /// Distinct items lacking at least one added attribute without a default.
+    pub total: i64,
+    pub by_key: BTreeMap<String, i64>,
+    /// Up to `NON_COMPLIANT_SAMPLE` item ids per key, ascending.
+    pub sample_ids: BTreeMap<String, Vec<i64>>,
+}
+
+pub const NON_COMPLIANT_SAMPLE: i64 = 50;
+
+/// Items of a type that lack some of the type's required attributes.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NonCompliantItemDto {
+    pub item_id: i64,
+    pub title: String,
+    pub archived: bool,
+    pub missing: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NonCompliantPageDto {
+    pub total: i64,
+    pub items: Vec<NonCompliantItemDto>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,6 +112,9 @@ pub struct UpdateItemTypeDto {
     pub name: Option<String>,
     pub description: Option<String>,
     pub required_attributes: Option<Vec<String>>,
+    /// Report what a change to `required_attributes` would do without writing anything.
+    #[serde(default)]
+    pub dry_run: Option<bool>,
 }
 
 // Errors
@@ -82,12 +126,16 @@ pub enum ItemTypeError {}
 
 impl ItemType {
     pub fn is_valid(&self, attributes: &HashMap<String, Attribute>) -> bool {
-        for key in &self.required_attributes {
-            if !attributes.contains_key(key) {
-                return false;
-            }
-        }
-        return true;
+        self.missing_required(attributes).is_empty()
+    }
+
+    /// Required keys absent from `attributes`, in the type's order.
+    pub fn missing_required(&self, attributes: &HashMap<String, Attribute>) -> Vec<String> {
+        self.required_attributes
+            .iter()
+            .filter(|key| !attributes.contains_key(*key))
+            .cloned()
+            .collect()
     }
 }
 
@@ -109,6 +157,7 @@ impl From<&ItemType> for ItemTypeDto {
             name: value.name.clone(),
             description: value.description.clone(),
             required_attributes: value.required_attributes.clone(),
+            report: None,
         }
     }
 }

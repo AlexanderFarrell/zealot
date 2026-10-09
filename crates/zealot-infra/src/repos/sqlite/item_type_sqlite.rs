@@ -1,11 +1,20 @@
 use std::collections::{BTreeMap, HashMap};
 
 use sqlx::SqlitePool;
-use zealot_app::repos::{common::RepoError, item_type::ItemTypeRepo};
-use zealot_domain::{
-    common::id::Id,
-    item_type::{AddItemTypeDto, ItemType, ItemTypeRef, ItemTypeSummary, UpdateItemTypeDto},
+use zealot_app::repos::{
+    common::RepoError,
+    item_type::{ItemTypeRepo, MissingRequired, RequiredChange},
 };
+use zealot_domain::{
+    attribute::Attribute,
+    common::id::Id,
+    item_type::{
+        AddItemTypeDto, ItemType, ItemTypeRef, ItemTypeSummary, NonCompliantItemDto,
+        NonCompliantPageDto, UpdateItemTypeDto,
+    },
+};
+
+use super::item_attribute_value_sqlite::scalar_to_cols;
 
 #[derive(Debug)]
 pub struct ItemTypeSqliteRepo {
@@ -521,4 +530,352 @@ impl ItemTypeRepo for ItemTypeSqliteRepo {
             })
         })
     }
+
+    fn count_missing_required(
+        &self,
+        type_id: &Id,
+        keys: &[String],
+        sample: i64,
+        account_id: &Id,
+    ) -> Result<Vec<MissingRequired>, RepoError> {
+        let type_id_val = i64::from(*type_id);
+        let account_id_val = i64::from(*account_id);
+        let keys = keys.to_vec();
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let mut out = Vec::new();
+                for key in &keys {
+                    let is_kind: bool = sqlx::query_scalar(
+                        "SELECT EXISTS(SELECT 1 FROM attribute_kind
+                         WHERE key = ?1 AND (account_id = ?2 OR is_system = 1))",
+                    )
+                    .bind(key)
+                    .bind(account_id_val)
+                    .fetch_one(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
+                    if !is_kind {
+                        continue;
+                    }
+
+                    let from = format!(
+                        "FROM item_item_type_link l JOIN item i ON i.item_id = l.item_id
+                         WHERE l.type_id = ?1 AND i.account_id = ?2 AND {}",
+                        missing_value("?3")
+                    );
+                    let count: i64 = sqlx::query_scalar(&format!("SELECT COUNT(*) {from}"))
+                        .bind(type_id_val)
+                        .bind(account_id_val)
+                        .bind(key)
+                        .fetch_one(&pool)
+                        .await
+                        .map_err(RepoError::from)?;
+                    let sample_ids: Vec<i64> = sqlx::query_scalar(&format!(
+                        "SELECT l.item_id {from} ORDER BY l.item_id LIMIT ?4"
+                    ))
+                    .bind(type_id_val)
+                    .bind(account_id_val)
+                    .bind(key)
+                    .bind(sample)
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
+                    out.push(MissingRequired {
+                        key: key.clone(),
+                        count,
+                        sample_ids,
+                    });
+                }
+                Ok(out)
+            })
+        })
+    }
+
+    fn count_items_missing_any(
+        &self,
+        type_id: &Id,
+        keys: &[String],
+        account_id: &Id,
+    ) -> Result<i64, RepoError> {
+        let type_id_val = i64::from(*type_id);
+        let account_id_val = i64::from(*account_id);
+        let keys = keys.to_vec();
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let mut kind_keys = Vec::new();
+                for key in &keys {
+                    let is_kind: bool = sqlx::query_scalar(
+                        "SELECT EXISTS(SELECT 1 FROM attribute_kind
+                         WHERE key = ?1 AND (account_id = ?2 OR is_system = 1))",
+                    )
+                    .bind(key)
+                    .bind(account_id_val)
+                    .fetch_one(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
+                    if is_kind {
+                        kind_keys.push(key.clone());
+                    }
+                }
+                if kind_keys.is_empty() {
+                    return Ok(0);
+                }
+                let any_missing = (0..kind_keys.len())
+                    .map(|i| format!("({})", missing_value(&format!("?{}", i + 3))))
+                    .collect::<Vec<_>>()
+                    .join(" OR ");
+                let sql = format!(
+                    "SELECT COUNT(*) FROM item_item_type_link l JOIN item i ON i.item_id = l.item_id
+                     WHERE l.type_id = ?1 AND i.account_id = ?2 AND ({any_missing})"
+                );
+                let mut query = sqlx::query_scalar::<_, i64>(&sql)
+                    .bind(type_id_val)
+                    .bind(account_id_val);
+                for key in &kind_keys {
+                    query = query.bind(key);
+                }
+                query.fetch_one(&pool).await.map_err(RepoError::from)
+            })
+        })
+    }
+
+    fn apply_required_change(
+        &self,
+        type_id: &Id,
+        change: &RequiredChange,
+        account_id: &Id,
+    ) -> Result<BTreeMap<String, i64>, RepoError> {
+        let type_id_val = i64::from(*type_id);
+        let account_id_val = i64::from(*account_id);
+        let change = change.clone();
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let mut tx = pool.begin().await.map_err(RepoError::from)?;
+
+                if change.name.is_some() || change.description.is_some() {
+                    sqlx::query(
+                        "UPDATE item_type
+                         SET name = COALESCE(?1, name),
+                             description = COALESCE(?2, description)
+                         WHERE type_id = ?3 AND account_id = ?4",
+                    )
+                    .bind(&change.name)
+                    .bind(&change.description)
+                    .bind(type_id_val)
+                    .bind(account_id_val)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(RepoError::from)?;
+                }
+
+                for key in &change.add {
+                    sqlx::query(
+                        "INSERT OR IGNORE INTO item_type_attribute_kind_link (attribute_kind_id, item_type_id)
+                         SELECT ak.kind_id, ?1 FROM attribute_kind ak
+                         WHERE ak.key = ?2 AND (ak.account_id = ?3 OR ak.is_system = 1)",
+                    )
+                    .bind(type_id_val)
+                    .bind(key)
+                    .bind(account_id_val)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(RepoError::from)?;
+                }
+
+                for key in &change.remove {
+                    sqlx::query(
+                        "DELETE FROM item_type_attribute_kind_link
+                         WHERE item_type_id = ?1
+                         AND attribute_kind_id IN (
+                             SELECT ak.kind_id FROM attribute_kind ak
+                             WHERE ak.key = ?2 AND (ak.account_id = ?3 OR ak.is_system = 1)
+                         )",
+                    )
+                    .bind(type_id_val)
+                    .bind(key)
+                    .bind(account_id_val)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(RepoError::from)?;
+                }
+
+                let mut backfilled = BTreeMap::new();
+                for (key, attribute) in &change.backfills {
+                    let from = format!(
+                        "FROM item_item_type_link l JOIN item i ON i.item_id = l.item_id
+                         WHERE l.type_id = ?1 AND i.account_id = ?2 AND {}",
+                        missing_value("?3")
+                    );
+                    let count = match attribute {
+                        Attribute::Scalar(scalar) => {
+                            let (vt, vn, vi, vd, vid) = scalar_to_cols(scalar);
+                            sqlx::query(&format!(
+                                "INSERT INTO attribute
+                                 (item_id, key, value_text, value_num, value_int, value_date, value_item_id)
+                                 SELECT l.item_id, ?3, ?4, ?5, ?6, ?7, ?8 {from}"
+                            ))
+                            .bind(type_id_val)
+                            .bind(account_id_val)
+                            .bind(key)
+                            .bind(vt)
+                            .bind(vn)
+                            .bind(vi)
+                            .bind(vd)
+                            .bind(vid)
+                            .execute(&mut *tx)
+                            .await
+                            .map_err(RepoError::from)?
+                            .rows_affected() as i64
+                        }
+                        Attribute::List(values) => {
+                            let ids: Vec<i64> = sqlx::query_scalar(&format!(
+                                "SELECT l.item_id {from} ORDER BY l.item_id"
+                            ))
+                            .bind(type_id_val)
+                            .bind(account_id_val)
+                            .bind(key)
+                            .fetch_all(&mut *tx)
+                            .await
+                            .map_err(RepoError::from)?;
+                            for id in &ids {
+                                for (ordinal, scalar) in values.iter().enumerate() {
+                                    let (vt, vn, vi, vd, vid) = scalar_to_cols(scalar);
+                                    sqlx::query(
+                                        "INSERT INTO attribute_list_value
+                                         (item_id, key, ordinal, value_text, value_num, value_int, value_date, value_item_id)
+                                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                                    )
+                                    .bind(id)
+                                    .bind(key)
+                                    .bind(ordinal as i64)
+                                    .bind(vt)
+                                    .bind(vn)
+                                    .bind(vi)
+                                    .bind(vd)
+                                    .bind(vid)
+                                    .execute(&mut *tx)
+                                    .await
+                                    .map_err(RepoError::from)?;
+                                }
+                            }
+                            ids.len() as i64
+                        }
+                    };
+                    backfilled.insert(key.clone(), count);
+                }
+
+                tx.commit().await.map_err(RepoError::from)?;
+                Ok(backfilled)
+            })
+        })
+    }
+
+    fn list_non_compliant(
+        &self,
+        type_id: &Id,
+        limit: i64,
+        offset: i64,
+        account_id: &Id,
+    ) -> Result<NonCompliantPageDto, RepoError> {
+        let type_id_val = i64::from(*type_id);
+        let account_id_val = i64::from(*account_id);
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let keys: Vec<String> = sqlx::query_scalar(
+                    "SELECT ak.key FROM item_type_attribute_kind_link lnk
+                     JOIN attribute_kind ak ON ak.kind_id = lnk.attribute_kind_id
+                     WHERE lnk.item_type_id = ?1 ORDER BY ak.key",
+                )
+                .bind(type_id_val)
+                .fetch_all(&pool)
+                .await
+                .map_err(RepoError::from)?;
+                if keys.is_empty() {
+                    return Ok(NonCompliantPageDto {
+                        total: 0,
+                        items: Vec::new(),
+                    });
+                }
+
+                let any_missing = (0..keys.len())
+                    .map(|i| format!("({})", missing_value(&format!("?{}", i + 3))))
+                    .collect::<Vec<_>>()
+                    .join(" OR ");
+                let from = format!(
+                    "FROM item_item_type_link l JOIN item i ON i.item_id = l.item_id
+                     WHERE l.type_id = ?1 AND i.account_id = ?2 AND ({any_missing})"
+                );
+
+                let total_sql = format!("SELECT COUNT(*) {from}");
+                let mut total = sqlx::query_scalar::<_, i64>(&total_sql)
+                    .bind(type_id_val)
+                    .bind(account_id_val);
+                for key in &keys {
+                    total = total.bind(key);
+                }
+                let total = total.fetch_one(&pool).await.map_err(RepoError::from)?;
+
+                let limit_ph = format!("?{}", keys.len() + 3);
+                let offset_ph = format!("?{}", keys.len() + 4);
+                let page_sql = format!(
+                    "SELECT i.item_id, i.title {from} ORDER BY i.item_id LIMIT {limit_ph} OFFSET {offset_ph}"
+                );
+                let mut page = sqlx::query_as::<_, (i64, String)>(&page_sql)
+                .bind(type_id_val)
+                .bind(account_id_val);
+                for key in &keys {
+                    page = page.bind(key);
+                }
+                let rows = page
+                    .bind(limit)
+                    .bind(offset)
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
+
+                let mut items = Vec::with_capacity(rows.len());
+                for (item_id, title) in rows {
+                    let present: Vec<String> = sqlx::query_scalar(
+                        "SELECT key FROM attribute WHERE item_id = ?1
+                         UNION SELECT key FROM attribute_list_value WHERE item_id = ?1",
+                    )
+                    .bind(item_id)
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
+                    let archived: bool = sqlx::query_scalar(
+                        "SELECT EXISTS(SELECT 1 FROM attribute
+                         WHERE item_id = ?1 AND key = 'Archived' AND value_int = 1)",
+                    )
+                    .bind(item_id)
+                    .fetch_one(&pool)
+                    .await
+                    .map_err(RepoError::from)?;
+                    items.push(NonCompliantItemDto {
+                        item_id,
+                        title,
+                        archived,
+                        missing: keys
+                            .iter()
+                            .filter(|key| !present.contains(key))
+                            .cloned()
+                            .collect(),
+                    });
+                }
+                Ok(NonCompliantPageDto { total, items })
+            })
+        })
+    }
+}
+
+/// SQL predicate: the item `l.item_id` has no scalar or list value for the key at placeholder `key`.
+fn missing_value(key: &str) -> String {
+    format!(
+        "NOT EXISTS (SELECT 1 FROM attribute a WHERE a.item_id = l.item_id AND a.key = {key}) \
+         AND NOT EXISTS (SELECT 1 FROM attribute_list_value v WHERE v.item_id = l.item_id AND v.key = {key})"
+    )
 }

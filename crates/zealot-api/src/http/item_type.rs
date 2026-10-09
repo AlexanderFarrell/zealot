@@ -11,13 +11,28 @@ use zealot_app::services::item_type::ItemTypeServiceError;
 use zealot_domain::{
     auth::Actor,
     common::id::Id,
-    item_type::{AddItemTypeDto, ItemTypeDto, ItemTypeSummaryDto, UpdateItemTypeDto},
+    item_type::{
+        AddItemTypeDto, ItemTypeDto, ItemTypeSummaryDto, NonCompliantPageDto, RequiredChangeReport,
+        UpdateItemTypeDto,
+    },
 };
 
 use crate::http::{
     common::HttpError,
     middleware::{auth_middleware, csrf_middleware},
 };
+
+#[derive(Deserialize)]
+struct DryRunParams {
+    #[serde(default)]
+    dry_run: bool,
+}
+
+#[derive(Deserialize)]
+struct PageParams {
+    limit: Option<i64>,
+    offset: Option<i64>,
+}
 
 #[derive(Deserialize)]
 struct DeleteParams {
@@ -36,6 +51,7 @@ pub fn routes(state: AppState) -> Router<AppState> {
                 .patch(update_item_type)
                 .delete(delete_item_type),
         )
+        .route("/{type_id}/non_compliant", get(list_non_compliant))
         .route(
             "/{type_id}/attr_kind",
             post(add_attr_kinds).delete(remove_attr_kinds),
@@ -63,6 +79,7 @@ fn item_type_service_err(err: ItemTypeServiceError) -> HttpError {
         ItemTypeServiceError::NotFound => HttpError::NotFound,
         ItemTypeServiceError::ReadOnly(err) => HttpError::UserError { err },
         ItemTypeServiceError::InUse(message) => HttpError::Conflict { message },
+        ItemTypeServiceError::WouldInvalidate { message, .. } => HttpError::Conflict { message },
         ItemTypeServiceError::Repo(e) => {
             tracing::error!("ItemType repo error: {e}");
             HttpError::Internal
@@ -162,7 +179,13 @@ async fn update_item_type(
         .item_type
         .update_item_type(&dto, &account.account_id)
     {
-        Ok(Some(t)) => Ok(Json(ItemTypeDto::from(&t))),
+        Ok(Some(change)) => {
+            let mut out = ItemTypeDto::from(&change.item_type);
+            if dto.required_attributes.is_some() || change.report.dry_run {
+                out.report = Some(change.report);
+            }
+            Ok(Json(out))
+        }
         Ok(None) => Err(HttpError::NotFound),
         Err(err) => Err(item_type_service_err(err)),
     }
@@ -188,15 +211,37 @@ async fn add_attr_kinds(
     State(state): State<AppState>,
     Extension(actor): Extension<Actor>,
     Path(type_id): Path<i64>,
+    Query(params): Query<DryRunParams>,
     Json(keys): Json<Vec<String>>,
-) -> Result<StatusCode, HttpError> {
+) -> Result<Json<RequiredChangeReport>, HttpError> {
     let account = require_account(&actor)?;
     let id = Id::try_from(type_id).map_err(|e| HttpError::UserError { err: e.to_string() })?;
     state
         .services
         .item_type
-        .add_attr_kinds_to_item_type(&keys, &id, &account.account_id)
-        .map(|_| StatusCode::OK)
+        .add_attr_kinds_to_item_type(&keys, &id, &account.account_id, params.dry_run)
+        .map(Json)
+        .map_err(item_type_service_err)
+}
+
+async fn list_non_compliant(
+    State(state): State<AppState>,
+    Extension(actor): Extension<Actor>,
+    Path(type_id): Path<i64>,
+    Query(page): Query<PageParams>,
+) -> Result<Json<NonCompliantPageDto>, HttpError> {
+    let account = require_account(&actor)?;
+    let id = Id::try_from(type_id).map_err(|e| HttpError::UserError { err: e.to_string() })?;
+    state
+        .services
+        .item_type
+        .list_non_compliant(
+            &id,
+            page.limit.unwrap_or(50),
+            page.offset.unwrap_or(0),
+            &account.account_id,
+        )
+        .map(Json)
         .map_err(item_type_service_err)
 }
 

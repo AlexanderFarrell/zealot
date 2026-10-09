@@ -107,6 +107,16 @@ pub struct UpdateItemTypeParams {
     pub name: Option<String>,
     pub description: Option<String>,
     pub required_attributes: Option<Vec<String>>,
+    /// Report what a change to `required_attributes` would do (items backfilled with the attribute's default, or items that would be left without a value) without changing anything.
+    pub dry_run: Option<bool>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct NonCompliantItemsParams {
+    /// Item type name
+    pub name: String,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -340,7 +350,7 @@ impl ZealotServer {
     }
 
     #[rmcp::tool(
-        description = "Update an existing item type's name, description, or required attributes."
+        description = "Update an existing item type's name, description, or required attributes. Adding a required attribute behaves like SQL ADD COLUMN: if the attribute kind has a default it is filled on every existing item of the type (no per-item events fire); if it has no default and any item lacks a value the whole change fails and reports how many items and which ones. Pass dry_run:true to see the `report` (backfilled counts, non_compliant items) without changing anything."
     )]
     pub async fn update_item_type(
         &self,
@@ -351,6 +361,7 @@ impl ZealotServer {
             name: p.name,
             description: p.description,
             required_attributes: p.required_attributes,
+            dry_run: p.dry_run,
         };
         let t = self
             .client
@@ -358,6 +369,26 @@ impl ZealotServer {
             .await
             .map_err(|e| err_ctx(&format!("item type #{}", p.type_id), e))?;
         Ok(output::json_result(&t))
+    }
+
+    #[rmcp::tool(
+        description = "List items of a type that lack some of the type's required attributes (for repairing data left invalid by older requirement changes). Each item shows which attributes it is missing. Those items can still be edited toward compliance."
+    )]
+    pub async fn list_non_compliant_items(
+        &self,
+        Parameters(p): Parameters<NonCompliantItemsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let t = self
+            .client
+            .get_item_type_by_name(&p.name)
+            .await
+            .map_err(|e| err_ctx(&format!("item type '{}'", p.name), e))?;
+        let page = self
+            .client
+            .list_non_compliant_items(t.type_id, p.limit, p.offset)
+            .await
+            .map_err(|e| err_ctx(&format!("item type '{}'", p.name), e))?;
+        Ok(output::json_result(&page))
     }
 
     #[rmcp::tool(
