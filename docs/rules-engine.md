@@ -13,6 +13,7 @@ The rules engine lets you automate Zealot using **Lua scripts**. Scripts can res
 5. [The `zealot` API](#the-zealot-api)
    - [zealot.items](#zealotitems)
    - [zealot.comments](#zealotcomments)
+   - [zealot.types and zealot.attribute_kinds](#zealottypes-and-zealotattribute_kinds)
    - [Utilities](#utilities)
    - [zealot.event](#zealothevent)
    - [Reporting API](#reporting-api)
@@ -277,6 +278,52 @@ for _, c in ipairs(zealot.comments.list(4804)) do
     zealot.notify(c.timestamp .. " " .. c.content)
 end
 ```
+
+---
+
+### `zealot.types` and `zealot.attribute_kinds`
+
+Read-only reflection on the schema. Rules cannot create, change or delete types or kinds. Both read the rule owner's schema, like the other reads.
+
+**`zealot.types.list()`** returns every type, ordered by name. **`zealot.types.get(name)`** returns one type or `nil`. A type table is:
+
+```
+type.id                  -- integer
+type.name                -- string
+type.description         -- string
+type.is_system           -- boolean
+type.item_count          -- integer, items currently assigned the type
+type.required_attributes -- array of kind tables, in the type's order
+```
+
+**`zealot.attribute_kinds.get(key)`** returns one kind or `nil`; **`zealot.attribute_kinds.list()`** returns all kinds ordered by key. The same kind table is used for each entry of `required_attributes`:
+
+```
+kind.id           -- integer
+kind.key          -- string, the attribute name
+kind.description  -- string
+kind.is_system    -- boolean
+kind.base_type    -- "text", "integer", "decimal", "date", "week", "dropdown", "boolean", "item",
+                  -- "email", "telephone", "url", "media", "place" or "list"
+kind.config       -- table, same as the API: min/max, values, pattern, list_type (for "list"), ...
+kind.default      -- the kind's default value, or nil (also at kind.config.default)
+```
+
+Example: report items that are missing an attribute their type requires.
+
+```lua
+local t = zealot.types.get("Ticket")
+for _, item in ipairs(zealot.items.find_by_type(t.name)) do
+    for _, kind in ipairs(t.required_attributes) do
+        if item.attributes[kind.key] == nil then
+            local fallback = kind.default ~= nil and (" (default " .. tostring(kind.default) .. ")") or ""
+            zealot.notify(item.title .. " is missing " .. kind.key .. fallback)
+        end
+    end
+end
+```
+
+`kind.default` is a scalar, or an array for list kinds.
 
 ---
 

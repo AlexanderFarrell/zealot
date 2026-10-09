@@ -4,6 +4,7 @@ pub mod habits;
 pub mod items;
 pub mod statistics;
 pub mod time_blocks;
+pub mod types;
 pub mod utils;
 
 use std::sync::{Arc, Mutex};
@@ -27,6 +28,7 @@ pub fn setup_zealot_globals(
     statistics::register(&zealot, lua, services.clone(), account_id)?;
     habits::register(&zealot, lua, services.clone(), account_id, tz)?;
     time_blocks::register(&zealot, lua, services.clone(), account_id)?;
+    types::register(&zealot, lua, services.clone(), account_id)?;
     utils::register(&zealot, lua, context, account_id, output_buf)?;
     clock::register(&zealot, lua, tz)?;
 

@@ -18,6 +18,117 @@ pub struct AttributeKind {
     pub default: Option<Attribute>,
 }
 
+impl AttributeKind {
+    /// JSON shape shared by the HTTP API, MCP and Lua: `config` holds the spec, `list_type` and `default`.
+    pub fn to_json(&self) -> serde_json::Value {
+        let kind = self;
+        let mut config = spec_to_config_json(&kind.spec);
+        // A list kind carries its inner type's spec (dropdown values, min/max, ...); name the inner type too.
+        if let AttributeBaseType::List(inner) = &kind.base_type {
+            let inner = base_type_str(&AttributeBaseType::Scalar(inner.clone()));
+            if let Some(map) = config.as_object_mut() {
+                map.insert("list_type".into(), inner.into());
+            }
+        }
+        // Services and clients read the default from `config.default`.
+        if let (Some(default), Some(map)) = (&kind.default, config.as_object_mut()) {
+            map.insert("default".into(), serde_json::json!(default));
+        }
+        serde_json::json!({
+            "kind_id": i64::from(kind.kind_id),
+            "key": kind.key,
+            "description": kind.description,
+            "is_system": kind.is_system,
+            "base_type": base_type_str(&kind.base_type),
+            "config": config,
+        })
+    }
+}
+
+pub fn base_type_str(bt: &AttributeBaseType) -> &'static str {
+    match bt {
+        AttributeBaseType::List(_) => "list",
+        AttributeBaseType::Scalar(s) => match s {
+            AttributeBaseScalarType::Text => "text",
+            AttributeBaseScalarType::Integer => "integer",
+            AttributeBaseScalarType::Decimal => "decimal",
+            AttributeBaseScalarType::Date => "date",
+            AttributeBaseScalarType::Week => "week",
+            AttributeBaseScalarType::Dropdown => "dropdown",
+            AttributeBaseScalarType::Boolean => "boolean",
+            AttributeBaseScalarType::Item => "item",
+            AttributeBaseScalarType::Email => "email",
+            AttributeBaseScalarType::Telephone => "telephone",
+            AttributeBaseScalarType::Url => "url",
+            AttributeBaseScalarType::Media => "media",
+            AttributeBaseScalarType::Place => "place",
+        },
+    }
+}
+
+fn spec_to_config_json(spec: &AttributeKindSpec) -> serde_json::Value {
+    match spec {
+        AttributeKindSpec::Text {
+            min_len,
+            max_len,
+            pattern,
+        } => {
+            let mut m = serde_json::Map::new();
+            if let Some(v) = min_len {
+                m.insert("min_len".into(), (*v as u64).into());
+            }
+            if let Some(v) = max_len {
+                m.insert("max_len".into(), (*v as u64).into());
+            }
+            if let Some(v) = pattern {
+                m.insert("pattern".into(), v.clone().into());
+            }
+            serde_json::Value::Object(m)
+        }
+        AttributeKindSpec::Integer { min, max } => {
+            let mut m = serde_json::Map::new();
+            if let Some(v) = min {
+                m.insert("min".into(), (*v).into());
+            }
+            if let Some(v) = max {
+                m.insert("max".into(), (*v).into());
+            }
+            serde_json::Value::Object(m)
+        }
+        AttributeKindSpec::Decimal { min, max } => {
+            let mut m = serde_json::Map::new();
+            if let Some(v) = min {
+                if let Some(n) = serde_json::Number::from_f64(*v) {
+                    m.insert("min".into(), n.into());
+                }
+            }
+            if let Some(v) = max {
+                if let Some(n) = serde_json::Number::from_f64(*v) {
+                    m.insert("max".into(), n.into());
+                }
+            }
+            serde_json::Value::Object(m)
+        }
+        AttributeKindSpec::Dropdown { values } => {
+            let arr: Vec<serde_json::Value> = values.iter().map(|v| v.clone().into()).collect();
+            let mut m = serde_json::Map::new();
+            m.insert("values".into(), arr.into());
+            serde_json::Value::Object(m)
+        }
+        AttributeKindSpec::List { list_type } => {
+            let inner = match list_type {
+                AttributeBaseType::List(t) | AttributeBaseType::Scalar(t) => {
+                    base_type_str(&AttributeBaseType::Scalar(t.clone()))
+                }
+            };
+            let mut m = serde_json::Map::new();
+            m.insert("list_type".into(), inner.into());
+            serde_json::Value::Object(m)
+        }
+        _ => serde_json::Value::Object(serde_json::Map::new()),
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AttributeBaseScalarType {
@@ -389,9 +500,12 @@ impl Attribute {
             AttributeBaseScalarType::Dropdown => Self::parse_dropdown(value, spec),
             AttributeBaseScalarType::Boolean => Self::parse_boolean(value),
             AttributeBaseScalarType::Item => Self::parse_item(value),
-            AttributeBaseScalarType::Email => {
-                Self::parse_formatted(value, validate_email, "email address", AttributeScalar::Email)
-            }
+            AttributeBaseScalarType::Email => Self::parse_formatted(
+                value,
+                validate_email,
+                "email address",
+                AttributeScalar::Email,
+            ),
             AttributeBaseScalarType::Telephone => Self::parse_formatted(
                 value,
                 validate_telephone,
@@ -593,9 +707,7 @@ fn validate_url(text: &str) -> bool {
         .strip_prefix("https://")
         .or_else(|| text.strip_prefix("http://"));
     rest.is_some_and(|rest| {
-        !rest.is_empty()
-            && !rest.starts_with('/')
-            && !text.chars().any(char::is_whitespace)
+        !rest.is_empty() && !rest.starts_with('/') && !text.chars().any(char::is_whitespace)
     })
 }
 
@@ -837,23 +949,54 @@ mod attribute_tests {
             (AttributeBaseScalarType::Email, json!("a@b.co"), true),
             (AttributeBaseScalarType::Email, json!("a@b"), false),
             (AttributeBaseScalarType::Email, json!("a b@c.com"), false),
-            (AttributeBaseScalarType::Telephone, json!("+1 (555) 123-4567"), true),
+            (
+                AttributeBaseScalarType::Telephone,
+                json!("+1 (555) 123-4567"),
+                true,
+            ),
             (AttributeBaseScalarType::Telephone, json!("12"), false),
-            (AttributeBaseScalarType::Telephone, json!("555-abc-1234"), false),
-            (AttributeBaseScalarType::Url, json!("https://example.com/x?y=1"), true),
+            (
+                AttributeBaseScalarType::Telephone,
+                json!("555-abc-1234"),
+                false,
+            ),
+            (
+                AttributeBaseScalarType::Url,
+                json!("https://example.com/x?y=1"),
+                true,
+            ),
             (AttributeBaseScalarType::Url, json!("example.com"), false),
-            (AttributeBaseScalarType::Url, json!("javascript:alert(1)"), false),
-            (AttributeBaseScalarType::Media, json!("/media/photo.png"), true),
+            (
+                AttributeBaseScalarType::Url,
+                json!("javascript:alert(1)"),
+                false,
+            ),
+            (
+                AttributeBaseScalarType::Media,
+                json!("/media/photo.png"),
+                true,
+            ),
             (AttributeBaseScalarType::Media, json!("/media/"), false),
-            (AttributeBaseScalarType::Media, json!("/api/media/paste/x.png"), true),
-            (AttributeBaseScalarType::Place, json!("10 Downing St, London"), true),
+            (
+                AttributeBaseScalarType::Media,
+                json!("/api/media/paste/x.png"),
+                true,
+            ),
+            (
+                AttributeBaseScalarType::Place,
+                json!("10 Downing St, London"),
+                true,
+            ),
             (AttributeBaseScalarType::Place, json!("51.5, -0.12"), true),
             (AttributeBaseScalarType::Place, json!("95.0, 0"), false),
             (AttributeBaseScalarType::Place, json!(""), false),
             (AttributeBaseScalarType::Email, json!(5), false),
         ];
         for (scalar, value, ok) in cases {
-            let k = kind(AttributeBaseType::Scalar(scalar.clone()), AttributeKindSpec::Email);
+            let k = kind(
+                AttributeBaseType::Scalar(scalar.clone()),
+                AttributeKindSpec::Email,
+            );
             assert_eq!(
                 Attribute::single_from_json(&value, &k).is_ok(),
                 ok,
@@ -914,7 +1057,6 @@ mod attribute_tests {
         assert!(Attribute::single_from_json(&json!(["a", "b"]), &k).is_ok());
         assert!(Attribute::single_from_json(&json!(["a", "c"]), &k).is_err());
     }
-
 }
 
 impl Serialize for Attribute {
