@@ -13,7 +13,7 @@ import { NavigationCommands, setNavigator, getNavigator, registerNavigationComma
 import { ToolCommands, getToolHost, registerToolCommands, setToolHost } from './ui/tool_host';
 import { setRightSidebarHost, getRightSidebarHost } from './ui/right_sidebar_host';
 import { registerDropZone, unregisterDropZone, unregisterDropZonesIn } from './ui/drag_drop';
-import { registerContextMenu, unregisterContextMenu, unregisterContextMenuIn } from './ui/context_menu';
+import { registerContextMenu, unregisterContextMenu, unregisterContextMenuIn, showContextMenu } from './ui/context_menu';
 import { AppSettings } from './settings';
 import { setDesktopMode, getDesktopMode, getRemoteHost } from './desktop_mode';
 import { logInfo, logError } from './log';
@@ -74,6 +74,7 @@ export {
     registerContextMenu,
     unregisterContextMenu,
     unregisterContextMenuIn,
+    showContextMenu,
 }
 
 export type { DropZone } from './ui/drag_drop'

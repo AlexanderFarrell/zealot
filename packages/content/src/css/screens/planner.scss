@@ -12,6 +12,8 @@ time-blocks-screen {
 
 .planner-screen {
   display: grid;
+  // minmax(0, …) stops long titles widening the column past the screen.
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   padding-bottom: 32px;
   align-content: start;
@@ -76,6 +78,7 @@ time-blocks-screen {
 .planner-section,
 .planner-error-card {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   padding: 14px;
   border-radius: 12px;
@@ -89,6 +92,7 @@ time-blocks-screen {
 
 .planner-section-body {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
 }
 

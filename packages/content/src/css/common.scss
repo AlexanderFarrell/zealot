@@ -1684,3 +1684,37 @@ desktop-dock-host {
   --dv-drag-over-background-color: rgba(232, 107, 255, 0.12);
   --dv-drag-over-border-color: var(--accent-0);
 }
+
+/* ── Mobile collapsible sections (makeMobileCollapsible) ─────────────────── */
+
+.mobile-collapsible-toggle {
+  all: unset;
+  pointer-events: none;
+}
+
+@media only screen and (max-width: 768px) {
+  .mobile-collapsible-toggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    cursor: pointer;
+    pointer-events: auto;
+
+    &::after {
+      content: '▲';
+      font-size: 0.7em;
+      opacity: 0.6;
+    }
+  }
+
+  .mobile-collapsible--collapsed {
+    .mobile-collapsible-toggle::after {
+      content: '▼';
+    }
+
+    > :not(h2) {
+      display: none;
+    }
+  }
+}

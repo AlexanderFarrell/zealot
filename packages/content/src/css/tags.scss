@@ -4,6 +4,12 @@
 	box-sizing: border-box;
 }
 
+// Stop iOS WebKit enlarging text in blocks it thinks are too wide to read.
+html {
+	-webkit-text-size-adjust: 100%;
+	text-size-adjust: 100%;
+}
+
 body {
 	color: var(--text-0);
 	font-size: 14px;

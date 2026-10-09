@@ -1,4 +1,4 @@
-import { BaseElementEmpty, Popups, commands, getNavigator, openInNewTab, getRightSidebarHost, registerContextMenu, unregisterContextMenu, unregisterContextMenuIn } from '@websoil/engine';
+import { BaseElementEmpty, Popups, commands, getNavigator, openInNewTab, getRightSidebarHost, registerContextMenu, showContextMenu, unregisterContextMenu, unregisterContextMenuIn, type ContextAction } from '@websoil/engine';
 import { ItemAPI } from '@zealot/api/src/item';
 import type { Item } from '@zealot/domain/src/item';
 import { ConfirmDialog } from '../common/confirm_dialog';
@@ -18,6 +18,7 @@ import { createItemTitleIconElement } from '../views/item_title';
 import { StatisticsView } from '../views/statistics_view';
 import { getItemSaveQueue, type ItemSaveQueue } from './item_save_queue';
 import { registerPendingWork, type PendingWork } from '../common/unsaved_changes';
+import { makeMobileCollapsible } from '../common/mobile_collapsible';
 
 const itemApi = new ItemAPI('/api');
 
@@ -222,7 +223,7 @@ export class ItemScreen extends BaseElementEmpty {
             this.renderAttributes(item, attrsSection, renderTitleIcon);
         };
 
-        registerContextMenu(this, () => [
+        const itemActions = (): ContextAction[] => [
             { label: 'Copy Link', onClick: () => {
                 void navigator.clipboard.writeText(window.location.href);
                 Popups.add('Link copied');
@@ -259,7 +260,8 @@ export class ItemScreen extends BaseElementEmpty {
                     }
                 })();
             }},
-        ]);
+        ];
+        registerContextMenu(this, itemActions);
 
         if (item.Archived) {
             const banner = document.createElement('p');
@@ -269,7 +271,7 @@ export class ItemScreen extends BaseElementEmpty {
         }
 
         // Action buttons
-        this.appendChild(this.buildActions(item, () => onTypesDone()));
+        this.appendChild(this.buildActions(item, () => onTypesDone(), itemActions));
 
         // Icon + Title row
         renderTitleIcon();
@@ -317,7 +319,7 @@ export class ItemScreen extends BaseElementEmpty {
             this.appendChild(statisticsSection.section);
         }
 
-        const commentsSection = this.buildCollectionSection('Comments');
+        const commentsSection = this.buildCollectionSection('Comments', { collapsedOnMobile: true });
         const commentsView = new CommentsView().init({
             scope: { kind: 'item', itemId: item.ItemID },
         });
@@ -369,15 +371,16 @@ export class ItemScreen extends BaseElementEmpty {
         });
     }
 
-    private buildActions(item: Item, onManageTypes: () => void): HTMLElement {
+    private buildActions(item: Item, onManageTypes: () => void, itemActions: () => ContextAction[]): HTMLElement {
         const row = document.createElement('div');
         row.className = 'button_row row gap';
 
-        const makeBtn = (iconUrl: string, label: string, onClick: () => void): HTMLButtonElement => {
+        // Secondary actions collapse into the "More" menu on phones.
+        const makeBtn = (iconUrl: string, label: string, onClick: () => void, secondary = false): HTMLButtonElement => {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.title = label;
-            btn.className = 'item-action-btn';
+            btn.className = secondary ? 'item-action-btn item-action-btn--secondary' : 'item-action-btn';
             const img = document.createElement('img');
             img.src = iconUrl;
             img.alt = label;
@@ -402,7 +405,7 @@ export class ItemScreen extends BaseElementEmpty {
 
         row.appendChild(makeBtn(icons.expand, 'Open in New Tab', () => {
             openInNewTab(window.location.pathname);
-        }));
+        }, true));
 
         row.appendChild(makeBtn(icons.edit, 'Toggle Content', () => {
             content_visible = !content_visible;
@@ -413,7 +416,7 @@ export class ItemScreen extends BaseElementEmpty {
         for (const subtree of [false, true]) {
             const button = document.createElement('button');
             button.type = 'button';
-            button.className = 'item-action-btn';
+            button.className = 'item-action-btn item-action-btn--secondary';
             const label = `${item.Archived ? 'Unarchive' : 'Archive'} ${subtree ? 'Subtree' : 'Item'}`;
             button.title = label;
             button.textContent = label;
@@ -434,19 +437,19 @@ export class ItemScreen extends BaseElementEmpty {
                     getNavigator().openHome();
                 }
             })();
-        }));
+        }, true));
 
         row.appendChild(this.buildDownloadBtn(item));
 
         row.appendChild(makeBtn(icons.tag, 'Manage types', () => {
             AssignTypeModal.show(item, onManageTypes);
-        }));
+        }, true));
 
         row.appendChild(makeBtn(icons.postAdd, 'Paste Template', () => {
             PasteTemplateModal.show((templateContent) => {
                 this.pasteTemplate(item, templateContent);
             });
-        }));
+        }, true));
 
         row.appendChild(makeBtn(icons.schedule, 'Time Blocks', () => {
             getNavigator().openTimeBlocksForItem(item.ItemID);
@@ -472,11 +475,19 @@ export class ItemScreen extends BaseElementEmpty {
         });
         row.appendChild(viewBtn);
 
+        const moreBtn = makeBtn(icons.more, 'More', () => {
+            const rect = moreBtn.getBoundingClientRect();
+            showContextMenu(itemActions(), rect.left, rect.bottom + 4);
+        });
+        moreBtn.classList.add('item-action-btn--more');
+        row.appendChild(moreBtn);
+
         return row;
     }
 
     private buildDownloadBtn(item: Item): HTMLElement {
         const wrapper = document.createElement('div');
+        wrapper.className = 'item-action-btn--secondary';
         wrapper.style.cssText = 'position: relative; display: inline-block;';
 
         const btn = document.createElement('button');
@@ -735,12 +746,16 @@ export class ItemScreen extends BaseElementEmpty {
         ]);
     }
 
-    private buildCollectionSection(title: string): { content: HTMLElement; section: HTMLElement } {
+    private buildCollectionSection(
+        title: string,
+        options: { collapsedOnMobile?: boolean } = {},
+    ): { content: HTMLElement; section: HTMLElement } {
         const section = document.createElement('section');
         section.className = 'item-collection-section';
 
         const heading = document.createElement('h2');
         heading.textContent = title;
+        if (options.collapsedOnMobile) makeMobileCollapsible(section, heading, title);
         section.appendChild(heading);
 
         const content = document.createElement('div');
