@@ -142,6 +142,63 @@ cd apps/mobile && npx tauri ios build
 
 Produces a `.ipa` in `apps/mobile/src-tauri/gen/apple/build/`.
 
+### Installing on a physical iPhone
+
+The `.ipa` is signed for development, so it only installs on devices listed
+in the team's provisioning profile.
+
+**New iPhone (once per device):**
+
+1. Plug in the iPhone, unlock it, and tap **Trust** if asked.
+2. On the iPhone: Settings → Privacy & Security → **Developer Mode** → on →
+   Restart → **Turn On** after reboot. If the toggle is missing, open Xcode →
+   Window → Devices and Simulators with the phone connected, then look again.
+3. Check the phone is ready (`developerModeStatus: enabled`) and note its
+   hardware UDID:
+
+   ```bash
+   xcrun devicectl list devices   # Identifier column is the <devicectl-id>
+   xcrun devicectl device info details --device <devicectl-id> | grep -E "developerModeStatus|udid"
+   ```
+
+4. Register the device with the team. `tauri ios build` does not register new
+   devices, so run one Xcode build that does:
+
+   ```bash
+   cd apps/mobile/src-tauri/gen/apple
+   xcodebuild -project zealot-mobile.xcodeproj -scheme zealot-mobile_iOS \
+     -destination 'id=<hardware-udid>' -configuration release \
+     -allowProvisioningUpdates -allowProvisioningDeviceRegistration build
+   ```
+
+   Only the signing step matters here. If the build fails later (for example
+   in the Rust build phase), the device is still registered. Signing errors
+   at this step:
+
+   - `No Accounts` — sign Xcode into the Apple ID (see one-time setup).
+   - `PLA Update available` — accept the latest Program License Agreement at
+     <https://developer.apple.com/account>, then retry.
+   - `isn't registered in your developer account` — the
+     `-allowProvisioningDeviceRegistration` flag is missing.
+
+5. Rebuild the `.ipa` with `npm run tauri:ios:build` so the profile includes
+   the new device.
+
+**Install and launch:**
+
+```bash
+IPA=apps/mobile/src-tauri/gen/apple/build/arm64/Zealot.ipa
+xcrun devicectl device install app --device <devicectl-id> "$IPA"
+xcrun devicectl device process launch --device <devicectl-id> com.zealot.app
+```
+
+To confirm a build includes a device before installing:
+
+```bash
+unzip -q -o "$IPA" -d /tmp/zealot-ipa
+security cms -D -i /tmp/zealot-ipa/Payload/Zealot.app/embedded.mobileprovision | grep <hardware-udid>
+```
+
 ---
 
 ### Android development

@@ -8,6 +8,7 @@ import { buildItemCardList } from '../views/item_card_list';
 import { buildAddPanel } from '../views/item_table_add_panel';
 import { createItem } from '../views/item_table_save';
 import type { CreateDraftState, ItemTableCreateRowConfig } from '../views/item_table_types';
+import { makeMobileCollapsible } from '../common/mobile_collapsible';
 
 export interface PlannerHeaderAction {
     iconURL: string;
@@ -179,12 +180,16 @@ export function createPlannerHeader(
     return header;
 }
 
-export function createPlannerSection(title: string): PlannerSectionElements {
+export function createPlannerSection(
+    title: string,
+    options: { collapsedOnMobile?: boolean } = {},
+): PlannerSectionElements {
     const section = document.createElement('section');
     section.className = 'planner-section';
 
     const heading = document.createElement('h2');
     heading.textContent = title;
+    if (options.collapsedOnMobile) makeMobileCollapsible(section, heading, title);
     section.appendChild(heading);
 
     const body = document.createElement('div');

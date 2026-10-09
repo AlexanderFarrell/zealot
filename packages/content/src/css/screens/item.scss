@@ -289,9 +289,33 @@ item-screen {
 }
 
 
+// The "More" button only appears on phones, where it holds the secondary actions.
+.item-action-btn--more {
+  display: none;
+}
+
 @media (max-width: 640px) {
   .item-action-btn--view-toggle {
     display: none;
+  }
+
+  item-screen .button_row {
+    flex-wrap: nowrap;
+  }
+
+  .item-action-btn--secondary {
+    display: none !important;
+  }
+
+  .item-action-btn--more {
+    display: inline-flex;
+    margin-left: auto;
+  }
+
+  // Finger-sized targets for the menu the "More" button opens.
+  .ctx-menu-item {
+    padding: 11px 14px;
+    font-size: 15px;
   }
 }
 
@@ -494,6 +518,9 @@ item-view {
 .item-card__type {
   font-size: 11px;
   color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .item-card__parent {

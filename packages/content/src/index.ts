@@ -46,6 +46,7 @@ import MoneyIcon from "./icon/money.svg";
 import MonitorIcon from "./icon/monitor.svg";
 import MonthIcon from "./icon/month.svg";
 import MoonIcon from "./icon/moon.svg";
+import MoreIcon from "./icon/more.svg";
 import NavigationIcon from "./icon/navigation.svg";
 import NewFolderIcon from "./icon/new_folder.svg";
 import NewsIcon from "./icon/news.svg";
@@ -142,6 +143,7 @@ const icons = {
   monitor: MonitorIcon,
   month: MonthIcon,
   moon: MoonIcon,
+  more: MoreIcon,
   navigation: NavigationIcon,
   newFolder: NewFolderIcon,
   news: NewsIcon,

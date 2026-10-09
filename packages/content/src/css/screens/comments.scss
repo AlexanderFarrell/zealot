@@ -5,6 +5,8 @@ comments-view {
 
 .comments-view-shell {
   display: grid;
+  // minmax(0, …) stops long titles widening the column past the screen.
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 
@@ -16,12 +18,14 @@ comments-view {
 
 .comments-view-list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
 }
 
 .comments-view-card,
 .comments-view-composer {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   padding: 12px;
   border-radius: 12px;
@@ -37,6 +41,7 @@ comments-view {
 }
 
 .comments-view-meta {
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -59,8 +64,18 @@ comments-view {
   align-items: center;
   justify-self: start;
   width: auto;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   padding: 3px 8px;
   font-size: 0.85rem;
+}
+
+.comments-view-item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .comments-view-actions,
@@ -77,6 +92,7 @@ comments-view {
 .comments-view-content {
   display: block;
   width: 100%;
+  overflow-wrap: anywhere;
 
   .zealotscript-view-container .ProseMirror {
     padding: 0;
@@ -112,9 +128,20 @@ comments-view {
 }
 
 @media only screen and (max-width: 768px) {
+  .comments-view-card {
+    gap: 6px;
+    padding: 10px;
+  }
+
   .comments-view-card-header {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     display: grid;
+    gap: 6px;
+  }
+
+  .comments-view-actions > button {
+    padding: 4px 10px;
+    font-size: 0.85rem;
   }
 
   .comments-view-actions {

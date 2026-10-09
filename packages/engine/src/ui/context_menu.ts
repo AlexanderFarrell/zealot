@@ -58,6 +58,12 @@ function closeMenu(): void {
     overlay.innerHTML = '';
 }
 
+/** Open the context menu at a point, e.g. from an overflow ("more") button. */
+export function showContextMenu(actions: ContextAction[], x: number, y: number): void {
+    if (actions.length === 0) return;
+    showMenu(actions, x, y);
+}
+
 function showMenu(actions: ContextAction[], x: number, y: number): void {
     const el = getOrCreateOverlay();
     el.innerHTML = '';
