@@ -24,6 +24,30 @@ export interface CommentsViewConfig {
     scope: CommentsViewScope;
 }
 
+/** Comment drafts are kept per item or day so a reload or crash does not lose them. */
+const DRAFT_STORAGE_PREFIX = 'zealot.comment-draft.';
+
+function draftStorageKey(scope: CommentsViewScope): string {
+    return DRAFT_STORAGE_PREFIX + (scope.kind === 'item' ? `item.${scope.itemId}` : `day.${scope.date.toISODate()}`);
+}
+
+function readStoredDraft(scope: CommentsViewScope): string {
+    try {
+        return localStorage.getItem(draftStorageKey(scope)) ?? '';
+    } catch {
+        return '';
+    }
+}
+
+function writeStoredDraft(scope: CommentsViewScope, content: string): void {
+    try {
+        if (content.trim()) localStorage.setItem(draftStorageKey(scope), content);
+        else localStorage.removeItem(draftStorageKey(scope));
+    } catch {
+        // Storage can be full or disabled; the in-memory draft and leave prompt still apply.
+    }
+}
+
 function currentTimeValue(): string {
     return DateTime.local().toFormat('HH:mm');
 }
@@ -75,6 +99,7 @@ export class CommentsView extends HTMLElement {
     private _savingCommentId: number | null = null;
     private _submitting = false;
     private _unregisterPendingWork: (() => void) | null = null;
+    private readonly _onPageHide = () => this.persistDraft();
 
     connectedCallback(): void {
         if (!this._config) {
@@ -90,19 +115,26 @@ export class CommentsView extends HTMLElement {
         if (!this._unregisterPendingWork) {
             this._unregisterPendingWork = registerPendingWork(this.pendingWork());
         }
+        window.addEventListener('pagehide', this._onPageHide);
     }
 
     disconnectedCallback(): void {
+        this.persistDraft();
+        window.removeEventListener('pagehide', this._onPageHide);
         this._unregisterPendingWork?.();
         this._unregisterPendingWork = null;
     }
 
     init(config: CommentsViewConfig): this {
+        // Keep the previous scope's draft, then drop its editors so _render
+        // does not read them back into the new scope.
+        this.persistDraft();
+        this.replaceChildren();
         this._config = config;
         this._comments = [];
-        this._composerOpen = false;
+        this._draftContent = readStoredDraft(config.scope);
+        this._composerOpen = this._draftContent.trim() !== '';
         this._deletingCommentId = null;
-        this._draftContent = '';
         this._draftError = null;
         this._draftItem = null;
         this._draftTime = currentTimeValue();
@@ -179,6 +211,10 @@ export class CommentsView extends HTMLElement {
         }
 
         const hadFocus = this.contains(document.activeElement);
+        // The editors report text only after a 500 ms pause, so read them before
+        // they are rebuilt; otherwise a re-render drops the latest typing.
+        this.syncEditors();
+        this.persistDraft();
 
         this.className = 'comments-view';
         this.innerHTML = '';
@@ -435,6 +471,7 @@ export class CommentsView extends HTMLElement {
         editor.addEventListener('change', (event) => {
             this._draftContent = (event as CustomEvent<string>).detail;
             this._draftError = null;
+            this.persistDraft();
         });
         editor.addEventListener('keydown', (event: KeyboardEvent) => {
             if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
@@ -502,14 +539,8 @@ export class CommentsView extends HTMLElement {
             });
 
             this._comments = sortComments([...this._comments, created]);
-            this._draftContent = '';
-            this._draftError = null;
+            this.clearDraft();
             this._composerOpen = false;
-            if (this._config.scope.kind === 'day') {
-                this._draftTime = currentTimeValue();
-                this._draftItem = null;
-                this._draftInitialTime = this._draftTime;
-            }
         } catch (error) {
             const message = extractMessage(error, 'Failed to post comment.');
             this._draftError = message;
@@ -591,13 +622,7 @@ export class CommentsView extends HTMLElement {
     private async closeComposer(): Promise<void> {
         if (await confirmDiscard(this.pendingWorkForComposer())) {
             this._composerOpen = false;
-            this._draftContent = '';
-            this._draftError = null;
-            if (this._config?.scope.kind === 'day') {
-                this._draftItem = null;
-                this._draftTime = currentTimeValue();
-                this._draftInitialTime = this._draftTime;
-            }
+            this.clearDraft();
             this._render();
         }
     }
@@ -635,8 +660,28 @@ export class CommentsView extends HTMLElement {
     private syncEditors(): void {
         const draft = this.querySelector<ZealotScriptEditor>('zealotscript-editor[data-comments-draft="true"]');
         if (draft) this._draftContent = draft.content;
-        const edit = this.querySelector<ZealotScriptEditor>('zealotscript-editor[data-comment-edit-id]');
+        if (this._editingCommentId == null) return;
+        const edit = this.querySelector<ZealotScriptEditor>(`zealotscript-editor[data-comment-edit-id="${this._editingCommentId}"]`);
         if (edit) this._editingContent = edit.content;
+    }
+
+    /** Clears the composer, its editor and its stored copy. */
+    private clearDraft(): void {
+        this.querySelector('zealotscript-editor[data-comments-draft="true"]')?.remove();
+        this._draftContent = '';
+        this._draftError = null;
+        if (this._config?.scope.kind === 'day') {
+            this._draftItem = null;
+            this._draftTime = currentTimeValue();
+            this._draftInitialTime = this._draftTime;
+        }
+        this.persistDraft();
+    }
+
+    private persistDraft(): void {
+        if (!this._config) return;
+        this.syncEditors();
+        writeStoredDraft(this._config.scope, this._draftContent);
     }
 
     private pendingWork(): PendingWork {
@@ -644,6 +689,10 @@ export class CommentsView extends HTMLElement {
             id: `comments-${this._config?.scope.kind ?? 'unknown'}-${this._config?.scope.kind === 'item' ? this._config.scope.itemId : this._config?.scope.kind === 'day' ? this._config.scope.date.toISODate() : ''}`,
             isDirty: () => this.isComposerDirty() || this.isEditDirty(),
             prompt: () => this.isEditDirty() ? this.pendingWorkForEdit().prompt() : this.pendingWorkForComposer().prompt(),
+            // An edit prompt only names the edit, so keep a composer draft then.
+            discard: () => {
+                if (!this.isEditDirty()) this.clearDraft();
+            },
         };
     }
 
