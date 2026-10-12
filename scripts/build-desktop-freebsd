@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "$(uname -s)" != "FreeBSD" ]]; then
+  printf 'This script must run on FreeBSD.\n' >&2
+  exit 1
+fi
+
+repo_root=$(cd "$(dirname "$0")/.." && pwd)
+cd "$repo_root"
+
+for command in cargo npm pkg-config; do
+  if ! command -v "$command" >/dev/null 2>&1; then
+    printf 'Missing required command: %s\n' "$command" >&2
+    exit 1
+  fi
+done
+
+if ! pkg-config --exists gtk+-3.0; then
+  printf 'Missing GTK 3 development files. Install the FreeBSD WebKitGTK dependencies first.\n' >&2
+  exit 1
+fi
+
+if [[ ! -d node_modules ]]; then
+  if [[ -f package-lock.json ]]; then
+    npm ci
+  else
+    npm install
+  fi
+fi
+
+npm run build:desktop
+cargo build --release -p zealot-desktop
+
+printf 'Built FreeBSD desktop executable:\n  %s\n' "$repo_root/target/release/zealot-desktop"
