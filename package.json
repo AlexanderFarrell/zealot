@@ -15,6 +15,7 @@
         "tauri:desktop": "npm run tauri:desktop -w @zealot/desktop",
         "package:desktop": "npm run tauri:desktop:build -w @zealot/desktop && ./scripts/package-desktop.sh",
         "build:desktop:appimage": "./scripts/build-desktop-appimage",
+        "build:desktop:freebsd": "./scripts/build-desktop-freebsd",
         "install:desktop": "./scripts/linux-install.sh",
         "tauri:ios": "npm run tauri:ios -w @zealot/mobile",
         "tauri:android": "npm run tauri:android -w @zealot/mobile",
