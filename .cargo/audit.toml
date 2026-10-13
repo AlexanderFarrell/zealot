@@ -1,0 +1,11 @@
+# Accepted `cargo audit` findings. Each entry needs a reason and an owner so a new
+# finding stands out instead of being lost in noise. Re-check these when upgrading.
+
+[advisories]
+ignore = [
+    # rsa 0.9.10, "Marvin Attack" timing side channel (CVSS 5.9), no patched version.
+    # Pulled in by sqlx-mysql. The `mysql` feature stays because MySQL support is wanted
+    # (Z229 was rejected). Not reachable until MySQL is implemented; Z210 must check for a
+    # fixed `rsa` release, or record an explicit decision, before shipping MySQL.
+    "RUSTSEC-2023-0071",
+]
