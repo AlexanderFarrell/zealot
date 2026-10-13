@@ -7,12 +7,12 @@ import { BaseAPI } from "./common";
 export class CommentAPI extends BaseAPI {
     async GetForDay(date: DateTime): Promise<Comment[]> {
         const iso = date.toISODate();
-        let dtos: Array<CommentDto> = await get_json(`${this.baseUrl}/comment/day/${iso}`);
+        const dtos: Array<CommentDto> = await get_json(`${this.baseUrl}/comment/day/${iso}`);
         return dtos.map(d => new Comment(d));
     }
 
     async GetForItem(item_id: number): Promise<Comment[]> {
-        let dtos: Array<CommentDto> = await get_json(`${this.baseUrl}/comment/item/${item_id}`)
+        const dtos: Array<CommentDto> = await get_json(`${this.baseUrl}/comment/item/${item_id}`)
         return dtos.map(d => new Comment(d));
     }
 

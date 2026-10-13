@@ -14,7 +14,7 @@ window.addEventListener('error', (e) => {
 
 initLinkPreview();
 
-let main = document.querySelector<HTMLDivElement>('#app')!;
+const main = document.querySelector<HTMLDivElement>('#app')!;
 main.innerHTML = "";
 main.appendChild(new MainScreen().init({
     MainContentBuilder: () => {

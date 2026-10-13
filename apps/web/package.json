@@ -6,6 +6,8 @@
     "scripts": {
         "dev": "vite --host",
         "build": "tsc && vite build",
+        "typecheck": "tsc --noEmit",
+        "lint": "eslint src",
         "preview": "vite preview"
     },
     "dependencies": {
@@ -17,6 +19,7 @@
         "vite": "^7.1.7"
     },
     "devDependencies": {
+        "eslint": "^10.0.3",
         "@types/luxon": "^3.7.1"
     }
 }

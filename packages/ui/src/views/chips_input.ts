@@ -22,7 +22,7 @@ class ChipsInput extends HTMLElement {
 
     public set OnClickItem(value: (item: string) => void) {
         this.on_click_item = value;
-        let views = this.querySelectorAll('.chip_item')!
+        const views = this.querySelectorAll('.chip_item')!
         views.forEach((v) => {
             v.addEventListener('click', () => {
                 this.on_click_item!((v as HTMLElement).textContent)
@@ -96,7 +96,7 @@ class ChipsInput extends HTMLElement {
 
     remove_items(...items: string[]) {
         items.forEach(item => {
-            let index = this.items.indexOf(item)
+            const index = this.items.indexOf(item)
             if (index != -1) {
                 this.items.splice(index, 1);
             }
@@ -132,7 +132,7 @@ class ChipsInput extends HTMLElement {
         })
         this.items_container.innerHTML = "";
         this.items.forEach(item => {
-            let view = document.createElement("div");
+            const view = document.createElement("div");
             view.classList.add('chip_item')
             view.innerText = item;
             if (this.on_click_item) {
@@ -140,7 +140,7 @@ class ChipsInput extends HTMLElement {
                     this.on_click_item!(item);
                 })
             }
-            let delete_button = document.createElement("button");
+            const delete_button = document.createElement("button");
             delete_button.innerHTML = `<img src="${icons.close}" style="display: inline;">`
             view.appendChild(delete_button)
 
@@ -155,7 +155,7 @@ class ChipsInput extends HTMLElement {
     }
 
     remove_item_by_index(index: number) {
-        let item = this.items[index];
+        const item = this.items[index];
         this.items.splice(index, 1);
         this.refresh();
         this.dispatchEvent(new CustomEvent('chips-remove', {

@@ -1819,6 +1819,8 @@ mod tests {
         assert!(snippet.is_none());
     }
 
+    // The pattern is invalid on purpose: this test exercises the error path.
+    #[allow(clippy::invalid_regex)]
     #[test]
     fn invalid_regex_returns_error() {
         use super::ItemServiceError;

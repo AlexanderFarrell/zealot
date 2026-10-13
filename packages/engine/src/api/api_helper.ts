@@ -218,7 +218,7 @@ export class BasicAPI<Type, Dto, AddDto, UpdateDto> {
     }
 
     async get_by_id(id: number): Promise<Type | null> {
-        let dto = (await get_json(`${this.URL}/id/${id}`)) as Dto | null
+        const dto = (await get_json(`${this.URL}/id/${id}`)) as Dto | null
         if (dto == null) {
             return null;
         }
@@ -226,7 +226,7 @@ export class BasicAPI<Type, Dto, AddDto, UpdateDto> {
     }
 
     async get_all(): Promise<Type[]> {
-        let dtos = (await get_json(this.URL)) as Dto[]
+        const dtos = (await get_json(this.URL)) as Dto[]
         return dtos.map(d => {
             return this.Factory(d)
         })

@@ -447,6 +447,8 @@ cargo test                      # Rust unit tests
 | Web at `:5173` returns 502 on any `/api/*` request | Backend not running | Start `cargo run -p zealot-server` first |
 | `npm run dev:web` fails with TypeScript errors | Stale or missing deps | Run `npm install` from the repo root |
 | `npm run typecheck` fails with "cannot find module" | Package build artifact missing | Run `npm run build:web` once, then retry |
+| `cargo test --workspace` or `cargo clippy --workspace` fails with "proc macro panicked" in `zealot-mobile` or `zealot-desktop` | Tauri embeds its frontend at compile time and `apps/mobile/dist` or `apps/desktop/dist` does not exist yet (both are git-ignored) | `mkdir -p apps/mobile/dist apps/desktop/dist` (an empty folder is enough for `cargo check`, `clippy` and tests), or run `npm run build:mobile` and `npm run build:desktop` |
+| `npm run lint` reports warnings | Known backlog (`any`, unused variables), tracked by Z151; errors fail the run, warnings do not | Fix warnings in files you touch; do not add new ones |
 | E2E tests time out waiting for services | Docker image build is slow | Let it finish — first build takes a few minutes; subsequent runs are faster |
 | E2E tests fail: "connection refused" | Port conflict | Check that ports 18456 and 18080 are free: `lsof -i :18456` |
 | Playwright: "browser not found" | First run, browsers not installed | `run.sh` installs them automatically — just retry |

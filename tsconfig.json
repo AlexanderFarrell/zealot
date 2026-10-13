@@ -4,7 +4,6 @@
   "references": [
     { "path": "./packages/domain" },
     { "path": "./packages/schemas" },
-    { "path": "./packages/core" },
     { "path": "./packages/commands" },
     { "path": "./packages/api" },
     { "path": "./packages/content" },

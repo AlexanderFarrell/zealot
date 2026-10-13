@@ -11,8 +11,8 @@ export class MediaAPI extends BaseAPI {
     public async ListFiles(location: string, page: number = 1): Promise<FileStat[]> {
         const loc = location.replace(/\/+$/, '');
         const url = loc ? `${this.baseUrl}/media/${loc}?page=${page}` : `${this.baseUrl}/media?page=${page}`;
-        let json = await get_json(url);
-        let dtos: FileStatDto[] = json['files'];
+        const json = await get_json(url);
+        const dtos: FileStatDto[] = json['files'];
         return dtos.map(d => new FileStat(d));
     }
 

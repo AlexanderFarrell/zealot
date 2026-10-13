@@ -11,13 +11,13 @@ export class AttributeKindAPI extends BasicAPI<AttributeKind, AttributeKindDto, 
     public Kinds: LazyData<Record<string, AttributeKind>>;
 
     constructor(baseURL: string) {
-        let dto_factory = (dto: AttributeKindDto) => {
+        const dto_factory = (dto: AttributeKindDto) => {
             return new AttributeKind(dto);
         }
 
-        let kinds_source = async () => {
-            let kinds: Record<string, AttributeKind> = {};
-            let list = await this.get_all();
+        const kinds_source = async () => {
+            const kinds: Record<string, AttributeKind> = {};
+            const list = await this.get_all();
             list.forEach(kind => {
                 kinds[kind.Key] = kind;
             })

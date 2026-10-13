@@ -106,7 +106,7 @@ export interface UpdateAttributeKindDto {
 }
 
 export interface AttributeFilterDto {
-    key: String,
+    key: string,
     op: AttributeOp,
     value: any,
     list_mode?: AttributeListMode,

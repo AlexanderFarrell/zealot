@@ -171,7 +171,7 @@ function buildUploadButton(input: HTMLInputElement, onUploaded: () => void): HTM
         }
         button.disabled = true;
         button.textContent = 'Uploading…';
-        const name = `${Date.now()}-${file.name.replace(/[^\w.\-]+/g, '_')}`;
+        const name = `${Date.now()}-${file.name.replace(/[^\w.-]+/g, '_')}`;
         const upload = new File([file], name, { type: file.type });
         void mediaApi.UploadFolder(upload, UPLOAD_FOLDER)
             .then(() => {

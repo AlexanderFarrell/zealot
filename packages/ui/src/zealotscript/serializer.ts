@@ -23,7 +23,7 @@ const MARK_DELIMITERS: Record<string, { open: string; close: string }> = {
 };
 
 const escapeText = (text: string): string => {
-	return text.replace(/\\/g, "\\\\").replace(/([*_~`<>\[\]])/g, "\\$1");
+	return text.replace(/\\/g, "\\\\").replace(/([*_~`<>[\]])/g, "\\$1");
 };
 
 const escapeCodeText = (text: string): string => {

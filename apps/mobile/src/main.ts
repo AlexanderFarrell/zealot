@@ -69,7 +69,7 @@ async function boot(): Promise<void> {
 
     // Verify the stored API key is still valid before skipping the login screen
     const api = getAPI();
-    let loggedIn = false;
+    let loggedIn: boolean;
     try {
         loggedIn = await api.Auth.IsLoggedIn();
     } catch {

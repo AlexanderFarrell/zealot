@@ -270,7 +270,7 @@ const buildInputRules = (schema: Schema) => {
 	addMarkRule(schema.marks["code"], /`([^`\n]+)`$/);
 	addMarkRule(schema.marks["underline"], /(?<![A-Za-z0-9_])_([^_\n]+)_$/);
 
-	rules.push(new InputRule(/:([a-z0-9_+\-]+):$/, (state, match, start, end) => {
+	rules.push(new InputRule(/:([a-z0-9_+-]+):$/, (state, match, start, end) => {
 		const shortcode = match[1];
 		if (!shortcode) return null;
 		const emoji = lookupEmoji(shortcode);

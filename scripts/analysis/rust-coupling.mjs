@@ -88,17 +88,42 @@ async function main() {
     };
 
     if (cargoCouplingBinary) {
-        const result = runCommand(cargoCouplingBinary, [], { allowFailure: true });
+        // `cargo-coupling` has no default action: it needs the `coupling` subcommand. It analyzes
+        // the whole Cargo workspace, so one run from the repo root covers crates/ and apps/.
+        const reportFile = path.join(OUTPUT_DIR, "cargo-coupling.report.md");
+        const baseArgs = ["coupling", "--no-git", "--exclude-tests"];
+        const reportResult = runCommand(cargoCouplingBinary, [...baseArgs, "-o", reportFile, "."], {
+            allowFailure: true,
+        });
+        const summaryResult = runCommand(cargoCouplingBinary, [...baseArgs, "--summary", "."], {
+            allowFailure: true,
+        });
         const stdoutFile = path.join(OUTPUT_DIR, "cargo-coupling.stdout.txt");
         const stderrFile = path.join(OUTPUT_DIR, "cargo-coupling.stderr.txt");
-        await writeText(stdoutFile, result.stdout || "");
-        await writeText(stderrFile, result.stderr || "");
+        await writeText(stdoutFile, summaryResult.stdout || "");
+        await writeText(stderrFile, `${reportResult.stderr || ""}${summaryResult.stderr || ""}`);
+
+        const text = summaryResult.stdout || "";
+        const grade = text.match(/Grade:\s*(\S+)[^|]*\|\s*Score:\s*([\d.]+)/);
+        const count = (label) => {
+            const match = text.match(new RegExp(`${label}:\\s*(\\d+)`));
+            return match ? Number(match[1]) : null;
+        };
+        // A run that printed no grade did not analyze anything (for example it only printed usage).
+        const analyzed = Boolean(grade) && reportResult.exitCode === 0 && summaryResult.exitCode === 0;
         externalTool = {
             ...externalTool,
-            command: result.command,
-            exitCode: result.exitCode,
+            command: summaryResult.command,
+            exitCode: summaryResult.exitCode,
             stdoutFile,
             stderrFile,
+            reportFile: reportResult.exitCode === 0 ? reportFile : null,
+            analyzed,
+            grade: grade ? grade[1] : null,
+            score: grade ? Number(grade[2]) : null,
+            criticalIssues: count("Critical"),
+            highIssues: count("High"),
+            mediumIssues: count("Medium"),
         };
     }
 
@@ -147,6 +172,21 @@ async function main() {
 
     if (!cargoCouplingBinary) {
         lines.push(externalTool.installHint);
+        lines.push("");
+    } else if (!externalTool.analyzed) {
+        lines.push(`cargo-coupling is installed but produced no analysis (exit ${externalTool.exitCode}); see ${externalTool.stderrFile}`);
+        lines.push("");
+    } else {
+        const issues = [
+            ["critical", externalTool.criticalIssues],
+            ["high", externalTool.highIssues],
+            ["medium", externalTool.mediumIssues],
+        ]
+            .filter(([, value]) => value !== null)
+            .map(([label, value]) => `${value} ${label}`)
+            .join(", ");
+        lines.push(`cargo-coupling: grade ${externalTool.grade}, score ${externalTool.score}/1.00${issues ? `, issues: ${issues}` : ""}`);
+        lines.push(`Full report: ${path.relative(process.cwd(), externalTool.reportFile)}`);
         lines.push("");
     }
 

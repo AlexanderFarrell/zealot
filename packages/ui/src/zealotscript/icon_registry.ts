@@ -17,7 +17,7 @@ type SimpleIconsModule = typeof import('simple-icons');
 type LucideModule = typeof import('lucide');
 type MdiModule = typeof import('@mdi/js');
 
-const ICON_SHORTCODE_RE = /^:([a-z0-9_+\-]+):$/;
+const ICON_SHORTCODE_RE = /^:([a-z0-9_+-]+):$/;
 
 const LEGACY_ICON_CATALOG: Record<string, IconCatalogEntry> = {
 	alert: { source: 'lucide', exportName: 'TriangleAlert' },

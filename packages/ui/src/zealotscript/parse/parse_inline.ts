@@ -252,7 +252,7 @@ const parseInlineRange = (
 			const closeIndex = text.indexOf(":", index + 1);
 			if (closeIndex > index + 1) {
 				const shortcode = text.slice(index + 1, closeIndex);
-				if (/^[a-z0-9_+\-]+$/.test(shortcode)) {
+				if (/^[a-z0-9_+-]+$/.test(shortcode)) {
 					const emojiChar = lookupEmoji(shortcode);
 					if (emojiChar) {
 						flushBuffer();
