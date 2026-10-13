@@ -162,6 +162,8 @@ When running the server outside Docker, copy `scripts/.zealot.example.env` and s
 | `npm run build:web` | Production build → `apps/web/dist/` |
 | `npm run typecheck` | `tsc --noEmit` across all packages |
 | `npm run lint` | ESLint across all packages |
+| `npm run test` | Vitest unit tests across all packages (no Docker, no network) |
+| `npm run test:coverage` | Same, with a coverage summary per package and an HTML report under `artifacts/coverage/<package>/` |
 | `cargo run -p zealot-server` | Run backend in dev mode |
 | `cargo build --release -p zealot-server` | Release-optimised backend build |
 | `cargo test` | Run all Rust unit tests |
@@ -349,7 +351,25 @@ npm run test:debug    # debug mode with pause
 npm run report        # view last HTML report
 ```
 
-### 4.4 TypeScript type checking
+### 4.4 TypeScript unit tests
+
+```bash
+npm run test            # every package, fails if any test fails
+npm run test:coverage   # per-package coverage summary; HTML in artifacts/coverage/<package>/index.html
+npm run test -w @zealot/domain   # one package
+```
+
+Tests are [Vitest](https://vitest.dev) files named `*.test.ts` next to the code they test, so `typecheck` and `lint` cover them too. They need no Docker and no network, and run in about a second per package.
+
+- `packages/domain` and `packages/content` run in Node.
+- `packages/api`, `packages/engine` and `packages/ui` run in `happy-dom`, because `@websoil/engine` exports custom elements that extend `HTMLElement`.
+- API tests mock `fetch` with `packages/api/src/testing/fetch_mock.ts`, which records each request (method, url, JSON body) so a test asserts the exact call the client makes.
+- The shared Vitest configuration is `vitest.shared.ts`; each package's `vitest.config.ts` calls it.
+- Add a test with every change to parsing, attribute handling, or an API client method. Shared coverage numbers are tracked in the `Z226 - Coverage Baseline` Document in Zealot.
+
+The Playwright and Python suites below remain the check for behaviour that needs a browser or the server.
+
+### 4.5 TypeScript type checking
 
 ```bash
 npm run typecheck    # tsc --noEmit across all packages
