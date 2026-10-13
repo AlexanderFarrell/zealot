@@ -1,4 +1,4 @@
-import type { EditorState, Transaction } from "prosemirror-state";
+import { TextSelection, type EditorState, type Transaction } from "prosemirror-state";
 import { isInTable } from "prosemirror-tables";
 import { extractYouTubeVideoId } from "./parse/parse_youtube";
 
@@ -113,5 +113,30 @@ export const insertTabs = (titles = ["Tab 1", "Tab 2"]): PMCommand => (state, di
 	const node = tabs.createAndFill({}, tabNodes);
 	if (!node) return false;
 	if (dispatch) dispatch(state.tr.replaceSelectionWith(node).scrollIntoView());
+	return true;
+};
+
+// Enter on an empty last line of a code block leaves the block, like pressing Enter
+// twice in a list. Without it the only way out was Mod-Enter, which nobody discovers.
+export const exitCodeBlockOnBlankLine: PMCommand = (state, dispatch) => {
+	const { $from, empty } = state.selection;
+	if (!empty || !$from.parent.type.spec.code) return false;
+	if ($from.parentOffset !== $from.parent.content.size) return false;
+	if (!$from.parent.textContent.endsWith("\n")) return false;
+
+	const paragraph = state.schema.nodes["paragraph"];
+	if (!paragraph) return false;
+	const container = $from.node($from.depth - 1);
+	const index = $from.index($from.depth - 1);
+	if (!container.canReplaceWith(index + 1, index + 1, paragraph)) return false;
+
+	if (dispatch) {
+		const blockEnd = $from.after();
+		const tr = state.tr.delete($from.pos - 1, $from.pos);
+		const insertAt = blockEnd - 1;
+		tr.insert(insertAt, paragraph.create());
+		tr.setSelection(TextSelection.create(tr.doc, insertAt + 1));
+		dispatch(tr.scrollIntoView());
+	}
 	return true;
 };

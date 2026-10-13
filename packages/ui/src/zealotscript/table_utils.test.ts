@@ -29,8 +29,9 @@ describe("isMarkdownTableSeparator", () => {
         expect(isMarkdownTableSeparator("| --- | :---: | ---: |")).toBe(true);
     });
 
-    it("rejects short dashes, text and a wrong column count", () => {
-        expect(isMarkdownTableSeparator("| -- | --- |")).toBe(false);
+    it("accepts short dashes; rejects empty cells, text and a wrong column count", () => {
+        expect(isMarkdownTableSeparator("| -- | --- |")).toBe(true); // GitHub-style aligned `--:` cells
+        expect(isMarkdownTableSeparator("| | --- |")).toBe(false);
         expect(isMarkdownTableSeparator("| --- | abc |")).toBe(false);
         expect(isMarkdownTableSeparator("| --- | --- |", 3)).toBe(false);
         expect(isMarkdownTableSeparator("")).toBe(false);

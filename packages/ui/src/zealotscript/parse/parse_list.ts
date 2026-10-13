@@ -21,17 +21,18 @@ type ParsedListLine = {
 	checked: boolean | null;
 };
 
-const getIndentLevel = (prefix: string): number => {
-	let tabs = 0;
-	let spaces = 0;
+// Indent is measured in columns (tab = 4), not fixed levels, so Markdown that nests
+// with 2 spaces (GitHub, Notion, ChatGPT) and tab-nested content both parse correctly.
+const getIndentWidth = (prefix: string): number => {
+	let width = 0;
 	for (const c of prefix) {
-		if (c === "\t") tabs++;
-		else if (c === " ") spaces++;
+		if (c === "\t") width += 4;
+		else if (c === " ") width += 1;
 	}
-	return tabs + Math.floor(spaces / 4);
+	return width;
 };
 
-const TASK_PREFIX_RE = /^\[([xX ])\]\s/;
+const TASK_PREFIX_RE = /^\[([xX ])\](?:\s+|$)/;
 
 const extractChecked = (text: string): { text: string; checked: boolean | null } => {
 	const m = TASK_PREFIX_RE.exec(text);
@@ -40,15 +41,16 @@ const extractChecked = (text: string): { text: string; checked: boolean | null }
 };
 
 const parseListLine = (line: string): ParsedListLine | null => {
-	const bulletMatch = /^([ \t]*)([-*])\s+(.+)$/.exec(line);
-	if (bulletMatch) {
-		const { text, checked } = extractChecked(bulletMatch[3] ?? "");
-		return { indent: getIndentLevel(bulletMatch[1] ?? ""), type: "bullet", text, checked };
+	// The marker may stand alone: an empty item is "- " (or "-" once trailing space is trimmed).
+	const bulletMatch = /^([ \t]*)[-*+](?:[ \t]+(.*))?$/.exec(line);
+	if (bulletMatch && !/^[ \t]*([-*+])\1{1,}[ \t]*$/.test(line)) {
+		const { text, checked } = extractChecked((bulletMatch[2] ?? "").trim());
+		return { indent: getIndentWidth(bulletMatch[1] ?? ""), type: "bullet", text, checked };
 	}
-	const orderedMatch = /^([ \t]*)(\d+)\.\s+(.+)$/.exec(line);
+	const orderedMatch = /^([ \t]*)\d+[.)](?:[ \t]+(.*))?$/.exec(line);
 	if (orderedMatch) {
-		const { text, checked } = extractChecked(orderedMatch[3] ?? "");
-		return { indent: getIndentLevel(orderedMatch[1] ?? ""), type: "ordered", text, checked };
+		const { text, checked } = extractChecked((orderedMatch[2] ?? "").trim());
+		return { indent: getIndentWidth(orderedMatch[1] ?? ""), type: "ordered", text, checked };
 	}
 	return null;
 };
@@ -81,7 +83,19 @@ export const parseList = (schema: Schema, lines: string[], startIndex: number) =
 		const rawLine = lines[index];
 		if (rawLine === undefined) break;
 		const parsed = parseListLine(rawLine);
-		if (!parsed) break;
+		if (!parsed) {
+			// A more-indented, non-blank line directly under an item continues that item.
+			const continuation = /^([ \t]+)(\S.*)$/.exec(rawLine);
+			const lastTop = stack[stack.length - 1];
+			const lastItem = lastTop?.list.items[lastTop.list.items.length - 1];
+			if (!continuation || !lastItem || !lastTop) break;
+			if (getIndentWidth(continuation[1] ?? "") <= lastTop.indent) break;
+			if (/^(```|:::|#{1,6}\s|>)/.test(continuation[2] ?? "")) break;
+			lastItem.text = lastItem.text.length > 0 ? `${lastItem.text} ${continuation[2]}` : (continuation[2] ?? "");
+			index++;
+			linesConsumed++;
+			continue;
+		}
 
 		if (!root) {
 			root = { type: parsed.type, items: [] };

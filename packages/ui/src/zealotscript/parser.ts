@@ -77,6 +77,42 @@ const parseAdmonitionBlock = (schema: Schema, lines: string[], startIndex: numbe
 	return { node, linesConsumed: index - startIndex };
 };
 
+// Quote content may hold any block (lists, code, tables, nested quotes). Runs of plain
+// lines stay together as one paragraph, as they always have inside quotes.
+const parseQuoteContent = (schema: Schema, lines: string[]): PMNode[] => {
+	const blocks: PMNode[] = [];
+	let index = 0;
+	const startsBlock = (i: number): boolean => {
+		const line = lines[i];
+		if (line === undefined) return false;
+		if (blockTypes.some((t) => t(schema, line))) return true;
+		return multiblockTypes.some((t) => t(schema, lines, i));
+	};
+	while (index < lines.length) {
+		const line = lines[index];
+		if (line === undefined) break;
+		let consumed = false;
+		for (const t of blockTypes) {
+			const node = t(schema, line);
+			if (node) { blocks.push(node); index++; consumed = true; break; }
+		}
+		if (consumed) continue;
+		for (const t of multiblockTypes) {
+			const result = t(schema, lines, index);
+			if (result) { blocks.push(result.node); index += result.linesConsumed; consumed = true; break; }
+		}
+		if (consumed) continue;
+		const plain: string[] = [line];
+		index++;
+		while (index < lines.length && (lines[index] ?? "").trim() !== "" && !startsBlock(index)) {
+			plain.push(lines[index] ?? "");
+			index++;
+		}
+		blocks.push(...parseParagraphs(schema, plain));
+	}
+	return blocks;
+};
+
 const parseBlockquote = (schema: Schema, lines: string[], startIndex: number) => {
 	const quoteLines: string[] = [];
 	let index = startIndex;
@@ -96,7 +132,7 @@ const parseBlockquote = (schema: Schema, lines: string[], startIndex: number) =>
 	const blockquote = schema.nodes["blockquote"];
 	if (!paragraph || !blockquote) return null;
 
-	const blocks = parseParagraphs(schema, quoteLines);
+	const blocks = parseQuoteContent(schema, quoteLines);
 	const content = blocks.length > 0 ? blocks : [paragraph.create()];
 	const node = blockquote.create(null, content);
 	return { node, linesConsumed: index - startIndex };
