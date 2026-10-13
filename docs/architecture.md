@@ -332,6 +332,11 @@ Test files:
 | `test_database.py` | Item CRUD, attribute operations |
 | `test_rules_engine.py` | Rule creation, manual execution, output log |
 
+The web container uses the production nginx template from `apps/web`, so the
+proxy routes under test are the ones that ship. Expected migrations are derived
+from `crates/zealot-infra/migrations/sqlite`; a new system attribute kind must
+be added to `EXPECTED_SYSTEM_ATTRIBUTE_KINDS` in `test_database.py`.
+
 ### 4.3 Playwright browser tests (`test/playwright/`)
 
 `run.sh` manages the full lifecycle:
@@ -350,6 +355,20 @@ npm run test:ui       # interactive Playwright UI
 npm run test:debug    # debug mode with pause
 npm run report        # view last HTML report
 ```
+
+This suite and the Python suite in 4.2 are the end-to-end check: both should
+pass with 0 failures on `master` before a UI or API change is merged. Notes for
+writing tests:
+
+- Direct `request` calls that mutate data need the CSRF header; use
+  `csrfHeaders(request)` from `helpers/csrf.ts`.
+- The comment composer is collapsed behind the "Add Comment" toggle, and its
+  editor is a `zealotscript-editor`, not a textarea. Open it with
+  `COMMENTS.composerToggle`, then use `COMMENTS.draftTextarea` (the ProseMirror
+  surface).
+- Known product bugs are marked with `test.fail(true, '<TicketID> ...')` so the
+  suite stays green and flags the test when the bug is fixed.
+- `test-results/` and `playwright-report/` are git-ignored output.
 
 ### 4.4 TypeScript unit tests
 

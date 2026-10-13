@@ -1,11 +1,12 @@
+import type { Page, APIRequestContext } from '@playwright/test';
 import { test, expect } from '@playwright/test';
 import { generateSuffix } from '../helpers/unique';
-import { LOGIN, REGISTER, APP_SHELL } from '../helpers/selectors';
+import { LOGIN, REGISTER, APP_SHELL, POPUP } from '../helpers/selectors';
 
 // Helper: register a user via API then log in via the UI
 async function registerAndLogin(
-  page: Parameters<Parameters<typeof test>[1]>[0]['page'],
-  request: Parameters<Parameters<typeof test>[1]>[0]['request'],
+  page: Page,
+  request: APIRequestContext,
   username: string,
   password: string,
 ) {
@@ -52,7 +53,8 @@ test('login with wrong password shows error', async ({ page, request }) => {
   await page.fill(LOGIN.passwordInput, 'wrong-password');
   await page.click(LOGIN.submitButton);
 
-  await expect(page.locator(LOGIN.errorMessage)).not.toBeEmpty();
+  // main_screen.ts reports login failures as an error popup.
+  await expect(page.locator(POPUP.error)).not.toBeEmpty();
   await expect(page.locator(LOGIN.screen)).toBeVisible();
 });
 
@@ -115,7 +117,8 @@ test('register with mismatched passwords shows error', async ({ page }) => {
   await page.fill(REGISTER.surnameInput, 'User');
   await page.click(REGISTER.submitButton);
 
-  await expect(page.locator(REGISTER.errorMessage)).not.toBeEmpty();
+  // packages/api/src/auth.ts rejects before any request; main_screen.ts shows it as a popup.
+  await expect(page.locator(POPUP.error)).toContainText('Passwords do not match.');
   await expect(page.locator(REGISTER.screen)).toBeVisible();
 });
 

@@ -78,9 +78,12 @@ test('create item with blank title shows error', async ({ page }) => {
 
   await page.click(ADD_ITEM.submitButton);
 
-  await expect(page.locator(ADD_ITEM.errorEl)).toBeVisible();
-  await expect(page.locator(ADD_ITEM.errorEl)).toContainText('Title is required.');
+  // The title input is `required`, so the browser blocks the submit before the
+  // modal's own "Title is required." check runs: the modal stays open and the
+  // field is flagged as invalid.
   await expect(page.locator(ADD_ITEM.modal)).toBeVisible();
+  await expect(page.locator(ADD_ITEM.titleInput)).toHaveJSProperty('validity.valueMissing', true);
+  await expect(page).not.toHaveURL(/\/item\//);
 });
 
 test('view item by navigating to /item/{title}', async ({ page, createItem }) => {
@@ -119,13 +122,16 @@ test('edit item content persists after reload', async ({ page, createItem }) => 
   await page.goto(`/item/${encodeURIComponent(title)}`);
   await expect(page.locator(ITEM.screen)).toBeVisible();
 
-  const textarea = page.locator('item-screen .item-content textarea');
-  await textarea.fill(content);
+  // Item content is a <zealotscript-editor> (ProseMirror surface), not a textarea.
+  const editor = page.locator('item-screen .item-content zealotscript-editor .ProseMirror');
+  await expect(editor).toBeVisible();
+  await editor.click();
+  await page.keyboard.type(content);
   // Content save is debounced 1000ms — wait for it to fire
   await page.waitForTimeout(1500);
 
   await page.reload();
-  await expect(page.locator('item-screen .item-content textarea')).toHaveValue(content, { timeout: 10_000 });
+  await expect(page.locator('item-screen .item-content zealotscript-editor .ProseMirror')).toContainText(content, { timeout: 10_000 });
 });
 
 test('item not found shows descriptive message', async ({ page }) => {

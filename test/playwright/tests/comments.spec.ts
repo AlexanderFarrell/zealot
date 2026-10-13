@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { test, expect } from '../fixtures';
 import { uniqueTitle } from '../helpers/unique';
 import { ITEM, COMMENTS, CONFIRM, APP_SHELL } from '../helpers/selectors';
@@ -8,11 +9,17 @@ test.beforeEach(async ({ page }) => {
 });
 
 async function navigateToItem(
-  page: Parameters<Parameters<typeof test>[1]>[0]['page'],
+  page: Page,
   title: string,
 ) {
   await page.goto(`/item/${encodeURIComponent(title)}`);
   await expect(page.locator(ITEM.screen)).toBeVisible({ timeout: 10_000 });
+}
+
+// The composer is collapsed behind an "Add Comment" toggle until opened.
+async function openComposer(page: Page) {
+  await page.locator(COMMENTS.composerToggle).click();
+  await expect(page.locator(COMMENTS.draftTextarea)).toBeVisible();
 }
 
 test('comments section is visible on item screen', async ({ page, createItem }) => {
@@ -32,12 +39,15 @@ test('fresh item shows "No comments yet."', async ({ page, createItem }) => {
   await expect(page.locator(COMMENTS.empty)).toContainText('No comments yet.');
 });
 
-test('comment composer is always visible', async ({ page, createItem }) => {
+test('comment composer opens from the Add Comment toggle', async ({ page, createItem }) => {
   const title = uniqueTitle('ComposerItem');
   await createItem(title);
   await navigateToItem(page, title);
 
-  await expect(page.locator(COMMENTS.draftTextarea)).toBeVisible();
+  await expect(page.locator(COMMENTS.composerToggle)).toBeVisible();
+  await expect(page.locator(COMMENTS.draftTextarea)).toHaveCount(0);
+
+  await openComposer(page);
   await expect(page.locator(COMMENTS.postButton)).toBeVisible();
 });
 
@@ -47,6 +57,7 @@ test('add a comment via the composer', async ({ page, createItem }) => {
   await navigateToItem(page, title);
 
   const commentText = `Test comment ${Date.now()}`;
+  await openComposer(page);
   await page.fill(COMMENTS.draftTextarea, commentText);
   await page.click(COMMENTS.postButton);
 
@@ -54,16 +65,20 @@ test('add a comment via the composer', async ({ page, createItem }) => {
   await expect(page.locator(COMMENTS.content)).toContainText(commentText);
 });
 
-test('draft textarea clears after posting', async ({ page, createItem }) => {
+test('composer closes and the draft is empty after posting', async ({ page, createItem }) => {
   const title = uniqueTitle('DraftClear');
   await createItem(title);
   await navigateToItem(page, title);
 
+  await openComposer(page);
   await page.fill(COMMENTS.draftTextarea, 'Some draft text');
   await page.click(COMMENTS.postButton);
 
   await expect(page.locator(COMMENTS.card)).toBeVisible({ timeout: 10_000 });
-  await expect(page.locator(COMMENTS.draftTextarea)).toHaveValue('');
+  await expect(page.locator(COMMENTS.draftTextarea)).toHaveCount(0);
+
+  await openComposer(page);
+  await expect(page.locator(COMMENTS.draftTextarea)).toHaveText('');
 });
 
 test('posting blank comment shows error', async ({ page, createItem }) => {
@@ -72,6 +87,7 @@ test('posting blank comment shows error', async ({ page, createItem }) => {
   await navigateToItem(page, title);
 
   // Leave draft empty and click Post
+  await openComposer(page);
   await page.click(COMMENTS.postButton);
 
   // comments_view.ts sets _draftError when content is empty
@@ -85,6 +101,7 @@ test('edit a comment', async ({ page, createItem }) => {
 
   // Post a comment first
   const original = `Original ${Date.now()}`;
+  await openComposer(page);
   await page.fill(COMMENTS.draftTextarea, original);
   await page.click(COMMENTS.postButton);
   await expect(page.locator(COMMENTS.card)).toBeVisible({ timeout: 10_000 });
@@ -107,6 +124,7 @@ test('Ctrl+Enter submits the edit', async ({ page, createItem }) => {
   await createItem(title);
   await navigateToItem(page, title);
 
+  await openComposer(page);
   await page.fill(COMMENTS.draftTextarea, `Initial ${Date.now()}`);
   await page.click(COMMENTS.postButton);
   await expect(page.locator(COMMENTS.card)).toBeVisible({ timeout: 10_000 });
@@ -126,6 +144,7 @@ test('delete a comment removes the card', async ({ page, createItem }) => {
   await navigateToItem(page, title);
 
   // Post a comment
+  await openComposer(page);
   await page.fill(COMMENTS.draftTextarea, `Delete me ${Date.now()}`);
   await page.click(COMMENTS.postButton);
   await expect(page.locator(COMMENTS.card)).toBeVisible({ timeout: 10_000 });
@@ -148,6 +167,7 @@ test('cancel edit restores the comment card', async ({ page, createItem }) => {
   await navigateToItem(page, title);
 
   const original = `Cancel test ${Date.now()}`;
+  await openComposer(page);
   await page.fill(COMMENTS.draftTextarea, original);
   await page.click(COMMENTS.postButton);
   await expect(page.locator(COMMENTS.card)).toBeVisible({ timeout: 10_000 });
