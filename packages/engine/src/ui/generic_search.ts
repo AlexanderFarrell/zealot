@@ -32,13 +32,13 @@ export class GenericSearch<T> extends BaseElement<GenericSearchInfo<T>> {
 		`
 
 		let results: T[] = [];
-		let search_input = this.querySelector('[data-role="generic-search-input"]')! as HTMLInputElement;
-		let results_view = this.querySelector('[name="generic_results"]')! as HTMLDivElement;
+		const search_input = this.querySelector('[data-role="generic-search-input"]')! as HTMLInputElement;
+		const results_view = this.querySelector('[name="generic_results"]')! as HTMLDivElement;
 
 		search_input.addEventListener('input', async () => {
 			this.results_views = [];
 			try {
-				let term = search_input.value;
+				const term = search_input.value;
 				results_view.innerHTML = '';
 				if (term === "" && !this.searchOnEmpty()) {
 					return;
@@ -62,7 +62,7 @@ export class GenericSearch<T> extends BaseElement<GenericSearchInfo<T>> {
 			}
 
 			results.forEach((result) => {
-				let view = this.data!.on_make_view(result);
+				const view = this.data!.on_make_view(result);
 				view.addEventListener('click', () => {
 					this.data!.on_select(result);
 				})
@@ -103,7 +103,7 @@ export class GenericSearch<T> extends BaseElement<GenericSearchInfo<T>> {
 	}
 
 	focus() {
-		let input = this.querySelector('[data-role="generic-search-input"]')! as HTMLInputElement;
+		const input = this.querySelector('[data-role="generic-search-input"]')! as HTMLInputElement;
 		input.focus();
 		if (this.searchOnEmpty() && input.value.trim() === "") {
 			input.dispatchEvent(new Event("input"));

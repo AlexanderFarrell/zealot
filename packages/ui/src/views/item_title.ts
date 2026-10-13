@@ -10,7 +10,7 @@ type ItemTitleOptions = {
 	textClassName?: string;
 };
 
-const SHORTCODE_RE = /^:([a-z0-9_+\-]+):$/;
+const SHORTCODE_RE = /^:([a-z0-9_+-]+):$/;
 
 const joinClasses = (...classes: Array<string | undefined>): string =>
 	classes.filter((value) => value && value.trim().length > 0).join(' ');

@@ -6,6 +6,8 @@
     "scripts": {
         "dev": "vite --port 5174",
         "build": "tsc && vite build",
+        "typecheck": "tsc --noEmit",
+        "lint": "eslint src",
         "tauri": "tauri",
         "tauri:ios": "tauri ios dev",
         "tauri:android": "tauri android dev",
@@ -23,6 +25,7 @@
         "luxon": "^3.7.2"
     },
     "devDependencies": {
+        "eslint": "^10.0.3",
         "@tauri-apps/cli": "^2",
         "typescript": "*",
         "vite": "^7.1.7"

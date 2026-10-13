@@ -85,7 +85,6 @@ class AnalysisUtils {
         const scores = AnalysisUtils.computeScoreTimeSeries(items, days);
         const completedCounts = AnalysisUtils.computeCompletedTimeSeries(items, days);
 
-        let current = 0;
         let best = 0;
         let run = 0;
         let scoreSum = 0;
@@ -107,7 +106,7 @@ class AnalysisUtils {
         }
 
         // Walk back from today to find current streak
-        current = 0;
+        let current = 0;
         for (let i = scores.y.length - 1; i >= 0; i--) {
             if ((completedCounts.y[i] ?? 0) > 0) current++;
             else break;

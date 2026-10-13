@@ -25,9 +25,9 @@ export class LoginView extends BaseElement<LoginViewInfo> {
         </form>
         `
 
-        let form = this.querySelector('#login')! as HTMLFormElement;
-        let error_msg_view = this.querySelector('#error_message')! as HTMLDivElement;
-        let back_button = this.querySelector('#register_instead')! as HTMLAnchorElement;
+        const form = this.querySelector('#login')! as HTMLFormElement;
+        const error_msg_view = this.querySelector('#error_message')! as HTMLDivElement;
+        const back_button = this.querySelector('#register_instead')! as HTMLAnchorElement;
 
         form.addEventListener('submit', async (e: SubmitEvent) => {
             e.preventDefault();

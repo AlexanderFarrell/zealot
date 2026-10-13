@@ -18,23 +18,23 @@ export class ItemTypeAPI extends BasicAPI<ItemType, ItemTypeDto,
     public Summaries: LazyData<ItemTypeSummary[]>;
 
     constructor(baseURL: string) {
-        let dto_factory = (dto: ItemTypeDto) => {
+        const dto_factory = (dto: ItemTypeDto) => {
             return new ItemType(dto);
         }
-        let summary_factory = (dto: ItemTypeSummaryDto) => {
+        const summary_factory = (dto: ItemTypeSummaryDto) => {
             return new ItemTypeSummary(dto);
         }
 
-        let types_source = async () => {
-            let types: Record<string, ItemType> = {};
-            let list = await this.get_all();
+        const types_source = async () => {
+            const types: Record<string, ItemType> = {};
+            const list = await this.get_all();
             list.forEach(t => {
                 types[t.Name] = t;
             })
             return types;
         }
-        let summaries_source = async () => {
-            let list = await get_json(`${this.URL}/summary`) as ItemTypeSummaryDto[];
+        const summaries_source = async () => {
+            const list = await get_json(`${this.URL}/summary`) as ItemTypeSummaryDto[];
             return list.map(summary_factory);
         }
 

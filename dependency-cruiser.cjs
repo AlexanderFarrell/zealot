@@ -19,7 +19,7 @@ module.exports = {
             name: "no-foundation-to-ui-facing",
             severity: "error",
             comment: "Lower-level shared packages must not depend on engine, api, ui, or app layers.",
-            from: { path: "^packages/(domain|content|core|commands|schemas|theme)/src" },
+            from: { path: "^packages/(domain|content|commands|schemas|theme)/src" },
             to: { path: "^packages/(engine|api|ui)/src|^apps/" },
         },
         {

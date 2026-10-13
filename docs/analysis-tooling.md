@@ -47,7 +47,7 @@ The internal crate/app dependency model is currently:
 - `zealot-server` may depend on the internal crates.
 - `zealot-cli`, `zealot-tui`, and `zealot-mcp` are treated as thin entrypoints and may only depend on `zealot-domain`.
 
-The Rust coupling wrapper enforces those boundaries from `cargo metadata`, then stores a machine-readable summary in `artifacts/analysis/rust-coupling/`.
+The Rust coupling wrapper enforces those boundaries from `cargo metadata`, then runs `cargo-coupling coupling --no-git --exclude-tests .` (the subcommand analyzes the whole Cargo workspace) and stores a machine-readable summary in `artifacts/analysis/rust-coupling/`. The summary shows the tool's grade, score and issue counts; the full report is `cargo-coupling.report.md` in the same folder. If `cargo-coupling` is installed but produces no grade, the summary says so rather than reporting success.
 
 ### TypeScript
 
@@ -55,7 +55,7 @@ The TypeScript dependency rules currently enforce:
 
 - `apps/web` may depend on workspace packages.
 - packages under `packages/*` must not import from app code.
-- foundational shared packages such as `domain`, `content`, `core`, `commands`, `schemas`, and `theme` must stay below `engine`, `api`, `ui`, and `apps/web`.
+- foundational shared packages such as `domain`, `content`, `commands`, `schemas`, and `theme` must stay below `engine`, `api`, `ui`, and `apps/web`.
 - `engine` and `api` must stay below `ui`.
 - `ui` must not import from `apps/web`.
 

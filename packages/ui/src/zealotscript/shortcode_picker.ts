@@ -20,7 +20,7 @@ type ShortcodePickerOptions = {
 	onSelect: (suggestion: ShortcodeSuggestion) => void;
 };
 
-const SHORTCODE_QUERY_RE = /^[a-z0-9_+\-]*$/;
+const SHORTCODE_QUERY_RE = /^[a-z0-9_+-]*$/;
 const SHORTCODE_SUGGESTION_LIMIT = 12;
 
 const compareMatches = (

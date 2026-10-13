@@ -7,7 +7,7 @@ import { get_json, put_req } from "@websoil/engine";
 export class RepeatAPI extends BaseAPI {
     public async GetForDay(date: DateTime): Promise<RepeatEntry[]> {
         const iso = date.toISODate();
-        let dtos: RepeatEntryDto[] = await get_json(`${this.baseUrl}/repeat/day/${iso}`);
+        const dtos: RepeatEntryDto[] = await get_json(`${this.baseUrl}/repeat/day/${iso}`);
         return dtos.map(d => new RepeatEntry(d));
     }
 

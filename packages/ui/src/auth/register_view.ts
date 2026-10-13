@@ -34,9 +34,9 @@ export class RegisterView extends BaseElement<RegisterViewInfo> {
         </form>
         `
 
-        let form = this.querySelector('#register')! as HTMLFormElement;
-        let error_msg_view = this.querySelector('#error_message')! as HTMLDivElement;
-        let back_button = this.querySelector('#login_instead')! as HTMLAnchorElement;
+        const form = this.querySelector('#register')! as HTMLFormElement;
+        const error_msg_view = this.querySelector('#error_message')! as HTMLDivElement;
+        const back_button = this.querySelector('#login_instead')! as HTMLAnchorElement;
 
         form.addEventListener('submit', async (e: SubmitEvent) => {
             e.preventDefault();

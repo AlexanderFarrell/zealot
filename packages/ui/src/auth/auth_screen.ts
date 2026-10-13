@@ -20,7 +20,7 @@ export class AuthScreen extends BaseElement<AuthScreenInfo> {
 
     to_login() {
         this.innerHTML = "";
-        let view = new LoginView();
+        const view = new LoginView();
         view.init({on_login_attempt: this.data!.on_login_attempt});
         view.addEventListener('back', () => {
             this.to_register();
@@ -30,7 +30,7 @@ export class AuthScreen extends BaseElement<AuthScreenInfo> {
 
     to_register() {
         this.innerHTML = "";
-        let view = new RegisterView();
+        const view = new RegisterView();
         view.init({on_register_attempt: this.data!.on_register_attempt});
         view.addEventListener('back', () => {
             this.to_login();

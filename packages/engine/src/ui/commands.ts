@@ -27,7 +27,7 @@ class CommandRunner {
             return;
         }
 
-        let c = this.Commands.get(name)!;
+        const c = this.Commands.get(name)!;
         c.func();
     }
 
@@ -50,6 +50,6 @@ class CommandRunner {
     }
 }
 
-export let runner = new CommandRunner();
+export const runner = new CommandRunner();
 
 export default runner;

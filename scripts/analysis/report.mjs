@@ -26,6 +26,9 @@ async function main() {
                   violationCount: rustCoupling.violationCount,
                   cycleCount: rustCoupling.cycleCount,
                   externalToolInstalled: rustCoupling.externalTool?.installed ?? false,
+                  externalToolAnalyzed: rustCoupling.externalTool?.analyzed ?? false,
+                  grade: rustCoupling.externalTool?.grade ?? null,
+                  score: rustCoupling.externalTool?.score ?? null,
               }
             : null,
         rustMetrics: rustMetrics
@@ -52,7 +55,13 @@ async function main() {
         "",
         "## Rust coupling",
         rustCoupling
-            ? `Violations: ${rustCoupling.violationCount}, cycles: ${rustCoupling.cycleCount}, cargo-coupling installed: ${rustCoupling.externalTool?.installed ? "yes" : "no"}`
+            ? `Violations: ${rustCoupling.violationCount}, cycles: ${rustCoupling.cycleCount}, cargo-coupling: ${
+                  rustCoupling.externalTool?.analyzed
+                      ? `grade ${rustCoupling.externalTool.grade} (${rustCoupling.externalTool.score}/1.00)`
+                      : rustCoupling.externalTool?.installed
+                        ? "installed but produced no analysis"
+                        : "not installed"
+              }`
             : "No report found.",
         "",
         "## Rust metrics",
