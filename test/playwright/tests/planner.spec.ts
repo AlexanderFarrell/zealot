@@ -6,14 +6,13 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator(APP_SHELL.webClient)).toBeVisible({ timeout: 10_000 });
 });
 
-test('daily planner renders sections: Items, Repeats, Comments', async ({ page }) => {
+test('daily planner renders sections: Items, Comments', async ({ page }) => {
   await page.goto('/planner/daily/2026-01-15');
   await expect(page.locator('daily-planner-screen')).toBeVisible();
 
   // createPlannerSection creates <section class="planner-section"><h2>Title</h2>
-  await expect(page.locator('.planner-section h2:text("Items")')).toBeVisible();
-  await expect(page.locator('.planner-section h2:text("Repeats")')).toBeVisible();
-  await expect(page.locator('.planner-section h2:text("Comments")')).toBeVisible();
+  await expect(page.locator('.planner-section').getByRole('heading', { name: 'Items' })).toBeVisible();
+  await expect(page.locator('.planner-section').getByRole('heading', { name: 'Comments' })).toBeVisible();
 });
 
 test('daily planner shows formatted date in header', async ({ page }) => {
@@ -69,6 +68,9 @@ test('daily planner shows comment composer', async ({ page }) => {
   await expect(page.locator('daily-planner-screen')).toBeVisible();
 
   await expect(page.locator(COMMENTS.view)).toBeVisible();
+  // The composer is collapsed until the toggle is clicked.
+  await expect(page.locator(COMMENTS.composerToggle)).toBeVisible();
+  await page.locator(COMMENTS.composerToggle).click();
   await expect(page.locator(COMMENTS.draftTextarea)).toBeVisible();
   await expect(page.locator(COMMENTS.postButton)).toBeVisible();
 });

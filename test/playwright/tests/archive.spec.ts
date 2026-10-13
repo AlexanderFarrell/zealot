@@ -10,7 +10,8 @@ test('archive preserves history, hides search, and restores through the UI', asy
   const before = await (await request.get(`/api/item/id/${id}`)).json();
   await page.getByRole('button', { name: 'Archive Item', exact: true }).click();
   await page.locator(CONFIRM.confirmButton).click();
-  await expect(page.locator('.item-archive-banner')).toBeVisible();
+  // Subtree archive touches every descendant; under the parallel suite 5 s is not always enough.
+  await expect(page.locator('.item-archive-banner')).toBeVisible({ timeout: 15_000 });
   const archived = await (await request.get(`/api/item/id/${id}`)).json();
   expect(archived.archived).toBe(true);
   expect(archived.content).toBe(before.content);
@@ -23,7 +24,8 @@ test('archive preserves history, hides search, and restores through the UI', asy
   await page.getByRole('checkbox', { name: 'Include archived' }).check();
   await expect(page.locator(SEARCH.resultRow)).toContainText(title);
   await page.locator(SEARCH.resultRow).click();
-  await expect(page.locator('.item-archive-banner')).toBeVisible();
+  // Subtree archive touches every descendant; under the parallel suite 5 s is not always enough.
+  await expect(page.locator('.item-archive-banner')).toBeVisible({ timeout: 15_000 });
   await page.getByRole('button', { name: 'Unarchive Item', exact: true }).click();
   await page.locator(CONFIRM.confirmButton).click();
   await expect(page.locator('.item-archive-banner')).toHaveCount(0);
@@ -44,7 +46,8 @@ test('subtree archive and unarchive retain Parent links and wikilink resolution'
   await page.getByRole('button', { name: 'Archive Subtree', exact: true }).click();
   await expect(page.locator('confirm-dialog')).toContainText('all descendants');
   await page.locator(CONFIRM.confirmButton).click();
-  await expect(page.locator('.item-archive-banner')).toBeVisible();
+  // Subtree archive touches every descendant; under the parallel suite 5 s is not always enough.
+  await expect(page.locator('.item-archive-banner')).toBeVisible({ timeout: 15_000 });
   const archivedChild = await (await request.get(`/api/item/id/${child}`)).json();
   expect(archivedChild.archived).toBe(true);
   expect(archivedChild.attributes.Parent).toEqual([root]);

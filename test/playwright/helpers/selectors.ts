@@ -44,6 +44,11 @@ export const SEARCH = {
   status: 'item-search-modal .item-search-inline-status',
 } as const;
 
+// popups.ts — toast container appended to document.body; errors carry class "error"
+export const POPUP = {
+  error: '#popup_container popup-.error',
+} as const;
+
 // item_screen.ts — custom element <item-screen>, light DOM
 export const ITEM = {
   screen: 'item-screen',
@@ -58,8 +63,11 @@ export const COMMENTS = {
   empty: '.comments-view-empty',
   card: '.comments-view-card',
   content: '.comments-view-content',
-  editTextarea: 'textarea[data-comment-edit-id]',
-  draftTextarea: 'textarea[data-comments-draft]',
+  // Both are <zealotscript-editor> elements (light DOM) whose ProseMirror surface is editable.
+  editTextarea: 'zealotscript-editor[data-comment-edit-id] .ProseMirror',
+  draftTextarea: 'zealotscript-editor[data-comments-draft="true"] .ProseMirror',
+  // The composer is collapsed until this toggle is clicked.
+  composerToggle: '.comments-view-composer-toggle',
   postButton: '.comments-view-composer button[type="submit"]',
   editButton: '.comments-view-actions button:text("Edit")',
   deleteButton: '.comments-view-actions button:text("Delete")',

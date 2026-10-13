@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures';
 import { uniqueTitle, generateSuffix } from '../helpers/unique';
+import { csrfHeaders } from '../helpers/csrf';
 import { APP_SHELL, CONFIRM } from '../helpers/selectors';
 
 test.beforeEach(async ({ page }) => {
@@ -17,7 +18,7 @@ test('"Create Type" button on types screen navigates to /settings/types', async 
   await page.goto('/types');
   await expect(page.locator('types-screen')).toBeVisible();
 
-  await page.click('types-screen button:text("Create Type")');
+  await page.getByRole('button', { name: 'Create Type' }).click();
   await expect(page).toHaveURL('/settings/types');
   await expect(page.locator('settings-screen')).toBeVisible();
 });
@@ -59,6 +60,7 @@ test('types screen table row click navigates to type detail', async ({ page, req
   const typeName = `Type_${generateSuffix()}`;
   await request.post('/api/item_type', {
     data: { name: typeName, description: '', required_attributes: [] },
+    headers: await csrfHeaders(request),
   });
 
   await page.goto('/types');
@@ -77,6 +79,7 @@ test('delete a type from settings', async ({ page, request }) => {
   const typeName = `DelType_${generateSuffix()}`;
   await request.post('/api/item_type', {
     data: { name: typeName, description: '', required_attributes: [] },
+    headers: await csrfHeaders(request),
   });
 
   await page.goto('/settings/types');

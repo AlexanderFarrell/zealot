@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sqlite3
 
 import pytest
@@ -10,21 +11,14 @@ import pytest
 # relative to this test file.
 DB_PATH = os.path.join(os.path.dirname(__file__), "zealot_data", "zealot.db")
 
+# Derived from the migration files so the list cannot drift when migrations are added.
+MIGRATIONS_DIR = os.path.join(
+    os.path.dirname(__file__), "..", "..", "crates", "zealot-infra", "migrations", "sqlite"
+)
 EXPECTED_MIGRATIONS = [
-    "initial schema",
-    "account split full name",
-    "backfill parent links",
-    "rules",
-    "relationship string",
-    "api key",
-    "template item type",
-    "add status values",
-    "cascade delete comments",
-    "api keys multi",
-    "heading and link index",
-    "item views",
-    "time blocks",
-    "statistics",
+    re.sub(r"^\d+_", "", name[: -len(".sql")]).replace("_", " ")
+    for name in sorted(os.listdir(MIGRATIONS_DIR))
+    if name.endswith(".sql")
 ]
 
 EXPECTED_SYSTEM_ATTRIBUTE_KINDS = [
@@ -44,6 +38,7 @@ EXPECTED_SYSTEM_ATTRIBUTE_KINDS = [
     "Value Kind",
     "Unit",
     "Daily Aggregation",
+    "Archived",
 ]
 
 EXPECTED_ITEM_TYPES = ["Plan", "Repeat", "Template", "Statistic"]
