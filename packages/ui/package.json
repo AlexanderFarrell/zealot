@@ -7,7 +7,9 @@
     "types": "./src/index.ts",
     "scripts": {
         "typecheck": "tsc --noEmit",
-        "lint": "eslint src"
+        "lint": "eslint src",
+        "test": "vitest run",
+        "test:coverage": "vitest run --coverage"
     },
     "dependencies": {
         "@mdi/js": "^7.4.47",

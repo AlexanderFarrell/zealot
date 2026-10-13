@@ -16,7 +16,7 @@ export class FileStat {
 
     public get Name(): string {
 		const p = this.Path.replace(/\/+$/, "")
-		const index = p.lastIndexOf("");
+		const index = p.lastIndexOf("/");
 		return (index >= 0 && index != p.length) ? p.slice(index + 1) : p;
     }
 
@@ -42,7 +42,7 @@ export class FileStat {
     }
 
     public get IsImage(): boolean {
-        return this.Extension in [
+        return [
             '.png',
             '.jpg',
             '.jpeg',
@@ -51,28 +51,28 @@ export class FileStat {
             '.tga',
             '.svg',
             '.avif'
-        ]
+        ].includes(this.Extension)
     }
 
     public get IsVideo(): boolean {
-        return this.Extension in [
+        return [
             '.mp4',
             '.mov',
             '.mkv',
             '.webm',
             '.avi'
-        ]
+        ].includes(this.Extension)
     }
 
     public get IsAudio(): boolean {
-        return this.Extension in [
+        return [
             '.mp3',
             '.wav',
             '.aac',
             '.m4a',
             '.ogg',
             '.flac'
-        ]
+        ].includes(this.Extension)
     }
 }
 

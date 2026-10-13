@@ -268,6 +268,7 @@ export class LazyData<T> {
             return this.data_in_flight;
         }
 
+        this.dirty = false;
         this.data_in_flight = this.source().then(d => {
             this.data = d;
             this.data_in_flight = null;
