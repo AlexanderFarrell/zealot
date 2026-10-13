@@ -79,6 +79,17 @@ const extractNestedSubBlocks = (
 			if (depth === 0) {
 				if (currentHeader !== null) {
 					subBlocks.push({ headerLine: currentHeader, contentLines: currentContent });
+					// The serializer closes every sub-block ("`:::col` ... :::") and then the
+					// container. A `:::` followed by another sub-block or a second `:::` is
+					// that explicit sub-block closer; anything else closes the container.
+					const following = lines[index + 1];
+					const explicit = following !== undefined && (subOpenRe.test(following) || following.trim() === ":::");
+					if (explicit) {
+						currentHeader = null;
+						currentContent = [];
+						index++;
+						continue;
+					}
 				}
 				index++;
 				break;

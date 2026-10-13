@@ -343,11 +343,13 @@ const tabSpec: NodeSpec = {
 	}
 };
 
+// addListNodes installs its own list_item spec, so ours (with the task `checked`
+// attribute) must be applied afterwards or checkboxes silently lose their state.
 const nodes = addListNodes(
-	baseSchema.spec.nodes.update("code_block", codeBlockSpec).update("list_item", listItemSpec),
+	baseSchema.spec.nodes.update("code_block", codeBlockSpec),
 	"paragraph block*",
 	"block"
-).append({
+).update("list_item", listItemSpec).append({
 	admonition: admonitionSpec,
 	...pmTableNodes,
 	youtube_embed: youtubeEmbedSpec,

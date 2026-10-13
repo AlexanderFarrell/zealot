@@ -8,12 +8,16 @@ import { gapCursor } from "prosemirror-gapcursor";
 import { history } from "prosemirror-history";
 import { InputRule, inputRules, textblockTypeInputRule, wrappingInputRule } from "prosemirror-inputrules";
 import { liftListItem, sinkListItem } from "prosemirror-schema-list";
-import type { MarkType, Schema } from "prosemirror-model";
+import { Slice, type MarkType, type Schema } from "prosemirror-model";
 import ZealotSchema from "./schema";
 import { parseZealotScript } from "./parser";
+import { importMarkdown, looksLikeMarkdown } from "./import_markdown";
+import { autolinkPlugin } from "./autolink_plugin";
+import { taskItemInputRule, wikilinkHref, wikilinkInputRule } from "./link_input_rules";
+import { ensureTrailingParagraph, stripTrailingParagraph, trailingParagraphPlugin } from "./trailing_paragraph";
 import { serializeZealotScript } from "./serializer";
 import { tableEditing, columnResizing, goToNextCell, addRowBefore, addRowAfter, deleteRow, addColumnBefore, addColumnAfter, deleteColumn, deleteTable, toggleHeaderRow } from "prosemirror-tables";
-import { insertTable, insertAdmonition, insertYoutubeEmbed, insertMermaidBlock, extractYouTubeVideoId, insertDetails, insertSpoiler, insertColumns, insertTabs, isInTable } from "./commands";
+import { exitCodeBlockOnBlankLine, insertTable, insertAdmonition, insertYoutubeEmbed, insertMermaidBlock, extractYouTubeVideoId, insertDetails, insertSpoiler, insertColumns, insertTabs, isInTable } from "./commands";
 import { TabsView } from "./zealotscript_view";
 import { lookupEmoji } from "./emoji_map";
 import { hasIcon, setIconRefElement } from "./icon_registry";
@@ -145,6 +149,9 @@ export class TaskListItemView {
 		if (node.type !== this.node.type) return false;
 		this.node = node;
 		const checked: boolean | null = node.attrs.checked ?? null;
+		// Becoming (or ceasing to be) a task changes the DOM shape; let the view rebuild it.
+		const hasCheckbox = this.dom.querySelector("input[type=checkbox]") !== null;
+		if ((checked !== null) !== hasCheckbox) return false;
 		if (checked !== null) {
 			this.dom.setAttribute("data-checked", String(checked));
 			const input = this.dom.querySelector<HTMLInputElement>("input[type=checkbox]");
@@ -298,6 +305,11 @@ const buildInputRules = (schema: Schema) => {
 		}));
 	}
 
+	const wikilinkRule = wikilinkInputRule(schema);
+	if (wikilinkRule) rules.push(wikilinkRule);
+	const taskRule = taskItemInputRule(schema);
+	if (taskRule) rules.push(taskRule);
+
 	return inputRules({ rules });
 };
 
@@ -354,6 +366,7 @@ const buildPlugins = (schema: Schema) => {
 		columnResizing(),
 		tableEditing(),
 		keymap({ Tab: tableTab, "Shift-Tab": goToNextCell(-1) }),
+		keymap({ Enter: exitCodeBlockOnBlankLine }),
 		keymap(buildKeymap(schema)),
 		keymap(baseKeymap),
 		dropCursor(),
@@ -361,6 +374,8 @@ const buildPlugins = (schema: Schema) => {
 		history(),
 		keymap({ "Mod-k": addLink, "Mod-Shift-k": removeLink }),
 		buildInputRules(schema),
+		autolinkPlugin(),
+		trailingParagraphPlugin(),
 		codeHighlightPlugin(),
 	];
 };
@@ -473,10 +488,12 @@ export class ZealotScriptEditor extends HTMLElement {
 		const { state } = this._view;
 		const from = this._wikilinkPickerFrom;
 		const to = state.selection.from;
-		const insertText = `[[${item.Title}]] `;
-		const textNode = state.schema.text(insertText);
+		const linkMark = state.schema.marks["link"];
+		const textNode = linkMark
+			? state.schema.text(item.Title, [linkMark.create({ href: wikilinkHref(item.Title) })])
+			: state.schema.text(`[[${item.Title}]]`);
 		let tr = state.tr.replaceWith(from, to, textNode);
-		const cursorPos = from + insertText.length;
+		const cursorPos = from + textNode.nodeSize;
 		tr = tr.setSelection(TextSelection.create(tr.doc, cursorPos));
 		this._view.dispatch(tr);
 		this._hideWikilinkPicker();
@@ -761,7 +778,7 @@ export class ZealotScriptEditor extends HTMLElement {
 
 		const state = EditorState.create({
 			schema: ZealotSchema,
-			doc: parseZealotScript(ZealotSchema, this._lastValue),
+			doc: ensureTrailingParagraph(parseZealotScript(ZealotSchema, this._lastValue)),
 			plugins: buildPlugins(ZealotSchema),
 		});
 
@@ -868,7 +885,22 @@ export class ZealotScriptEditor extends HTMLElement {
 				const imageFile = Array.from(event.clipboardData?.files ?? [])
 					.find((candidate) => candidate.type.startsWith("image/"));
 				const file = imageItem?.getAsFile() ?? imageFile;
-				if (!file) return false;
+				if (!file) {
+					// Markdown copied from other tools arrives as plain text. Parse it
+					// as ZealotScript instead of letting each line become a paragraph.
+					const plain = event.clipboardData?.getData("text/plain") ?? "";
+					if (plain.length === 0 || !looksLikeMarkdown(plain)) return false;
+					const doc = parseZealotScript(ZealotSchema, importMarkdown(plain));
+					const first = doc.firstChild;
+					const last = doc.lastChild;
+					const inline = first?.type.name === "paragraph" && last?.type.name === "paragraph";
+					const slice = doc.childCount === 1 && first && inline
+						? new Slice(first.content, 0, 0)
+						: new Slice(doc.content, inline ? 1 : 0, inline ? 1 : 0);
+					event.preventDefault();
+					_view.dispatch(_view.state.tr.replaceSelection(slice).scrollIntoView());
+					return true;
+				}
 				event.preventDefault();
 				const ext = file.type.split("/")[1] ?? "png";
 				const filename = `paste-${Date.now()}.${ext}`;
@@ -914,7 +946,7 @@ export class ZealotScriptEditor extends HTMLElement {
 				if (this._saveTimer !== null) window.clearTimeout(this._saveTimer);
 				this._saveTimer = window.setTimeout(() => {
 					if (!this._view) return;
-					const value = serializeZealotScript(this._view.state.doc);
+					const value = serializeZealotScript(stripTrailingParagraph(this._view.state.doc));
 					if (value === this._lastValue) return;
 					this._lastValue = value;
 					this.dispatchEvent(new CustomEvent("change", { detail: value, bubbles: true }));
@@ -937,13 +969,13 @@ export class ZealotScriptEditor extends HTMLElement {
 
 	get content(): string {
 		if (!this._view) return this._lastValue;
-		return serializeZealotScript(this._view.state.doc);
+		return serializeZealotScript(stripTrailingParagraph(this._view.state.doc));
 	}
 
 	set content(value: string) {
 		this._lastValue = value;
 		if (!this._view) return;
-		const doc = parseZealotScript(ZealotSchema, value);
+		const doc = ensureTrailingParagraph(parseZealotScript(ZealotSchema, value));
 		const tr = this._view.state.tr.replaceWith(0, this._view.state.doc.content.size, doc.content);
 		this._view.dispatch(tr);
 	}

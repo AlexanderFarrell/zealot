@@ -365,6 +365,7 @@ Tests are [Vitest](https://vitest.dev) files named `*.test.ts` next to the code 
 - `packages/api`, `packages/engine` and `packages/ui` run in `happy-dom`, because `@websoil/engine` exports custom elements that extend `HTMLElement`.
 - API tests mock `fetch` with `packages/api/src/testing/fetch_mock.ts`, which records each request (method, url, JSON body) so a test asserts the exact call the client makes.
 - The shared Vitest configuration is `vitest.shared.ts`; each package's `vitest.config.ts` calls it.
+- ZealotScript editing is tested below the DOM: `packages/ui/src/zealotscript/roundtrip.test.ts` asserts every stored construct survives load → save unchanged, and `editing_behaviour.test.ts` drives ProseMirror `EditorState` directly (autolink, trailing paragraph, Enter in lists and code blocks, Markdown import). Write a failing test there before fixing an editor glitch.
 - Add a test with every change to parsing, attribute handling, or an API client method. Shared coverage numbers are tracked in the `Z226 - Coverage Baseline` Document in Zealot.
 
 The Playwright and Python suites below remain the check for behaviour that needs a browser or the server.

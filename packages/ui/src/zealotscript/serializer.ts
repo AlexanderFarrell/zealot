@@ -26,6 +26,16 @@ const escapeText = (text: string): string => {
 	return text.replace(/\\/g, "\\\\").replace(/([*_~`<>[\]])/g, "\\$1");
 };
 
+// Unmarked text: escape only what the parser would otherwise read as formatting, so
+// "2 * 3 * 4" and "C:\\path" survive a save/load cycle. Underscores inside a word
+// (snake_case) never open a mark, so they stay readable.
+const escapePlainText = (text: string): string => {
+	return text
+		.replace(/\\/g, "\\\\")
+		.replace(/([*~`])/g, "\\$1")
+		.replace(/(?<![A-Za-z0-9])_|_(?![A-Za-z0-9])/g, "\\_");
+};
+
 const escapeCodeText = (text: string): string => {
 	return text.replace(/\\/g, "\\\\").replace(/`/g, "\\`");
 };
@@ -101,6 +111,8 @@ const serializeTextNode = (node: PMNode): string => {
 	if (!linkMark) return rendered;
 	const href = (linkMark.attrs.href || "").trim();
 	if (href.length === 0) return rendered;
+	// A link whose label is its own URL is written bare, so autolinked text round-trips.
+	if (nonLinkMarks.length === 0 && text === href && /^https?:\/\/[^\s<>()]+$/i.test(href)) return href;
 	return serializeZealotHref(rendered, href);
 };
 
@@ -108,9 +120,54 @@ const serializeMathInlineNode = (node: PMNode): string => {
 	return `$${node.attrs.src || ""}$`;
 };
 
+const markKey = (mark: Mark): string =>
+	mark.type.name === "color" ? `color:${mark.attrs.value}` : mark.type.name;
+
+const markTokens = (key: string): { open: string; close: string } | null => {
+	if (key.startsWith("color:")) return { open: `<${key}>`, close: "</color>" };
+	return MARK_DELIMITERS[key] ?? null;
+};
+
+// Formatting marks on a plain text node, outermost first.
+const formattingKeys = (node: PMNode): string[] => {
+	const present = new Map<string, number>();
+	for (const mark of node.marks) {
+		const order = (MARK_ORDER as readonly string[]).indexOf(mark.type.name);
+		if (order >= 0) present.set(markKey(mark), order);
+	}
+	return [...present.entries()].sort((a, b) => a[1] - b[1]).map(([key]) => key);
+};
+
 const serializeInline = (node: PMNode): string => {
 	let out = "";
+	// Marks currently open across adjacent text nodes, so "**bold *and italic***"
+	// is written with nested delimiters instead of re-wrapping every node.
+	let open: string[] = [];
+
+	const closeFrom = (depth: number) => {
+		for (let i = open.length - 1; i >= depth; i--) out += markTokens(open[i] ?? "")?.close ?? "";
+		open = open.slice(0, depth);
+	};
+
 	node.forEach((child) => {
+		const plainText = child.isText &&
+			!child.marks.some((m) => m.type.name === "link" || m.type.name === "code");
+		if (plainText) {
+			const keys = formattingKeys(child);
+			let keep = 0;
+			while (keep < open.length && keys.includes(open[keep] ?? "")) keep++;
+			closeFrom(keep);
+			for (const key of keys) {
+				if (open.includes(key)) continue;
+				out += markTokens(key)?.open ?? "";
+				open.push(key);
+			}
+			const text = child.text || "";
+			out += open.length > 0 ? escapeText(text) : escapePlainText(text);
+			return;
+		}
+
+		closeFrom(0);
 		if (child.isText) {
 			out += serializeTextNode(child);
 			return;
@@ -139,6 +196,8 @@ const serializeInline = (node: PMNode): string => {
 		}
 		out += wrapInlineLiteralWithMarks(escapeText(child.textContent || ""), child.marks);
 	});
+
+	closeFrom(0);
 	return out;
 };
 
@@ -202,7 +261,7 @@ const serializeList = (node: PMNode, ordered: boolean, indentLevel = 0): string 
 		const checked: boolean | null = item.attrs.checked ?? null;
 		const taskPrefix = checked === null ? "" : checked ? "[x] " : "[ ] ";
 		const bullet = ordered ? `${counter}. ` : "- ";
-		lines.push(prefixBase + bullet + taskPrefix + text);
+		lines.push((prefixBase + bullet + taskPrefix + text).trimEnd());
 		counter++;
 
 		for (const nested of nestedLists) {

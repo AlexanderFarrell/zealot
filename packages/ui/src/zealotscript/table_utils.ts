@@ -37,7 +37,7 @@ export const isMarkdownTableSeparator = (line: string, expectedColumns?: number)
 	const cells = splitTableRow(line);
 	if (cells.length === 0) return false;
 	if (expectedColumns !== undefined && cells.length !== expectedColumns) return false;
-	return cells.every((cell) => /^:?-{3,}:?$/.test(cell.trim()));
+	return cells.every((cell) => /^:?-+:?$/.test(cell.trim()));
 };
 
 export const escapeTableCell = (text: string): string => {

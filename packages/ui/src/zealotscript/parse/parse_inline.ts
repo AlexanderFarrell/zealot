@@ -1,9 +1,10 @@
 import type { Node as PMNode, Schema } from "prosemirror-model";
 import { lookupEmoji } from "../emoji_map";
 import { hasIcon } from "../icon_registry";
+import { hrefForUrl, isUrlStart, matchBareUrl } from "../linkify";
 
 type InlineAtomMatch = {
-	type: "mdlink" | "hard_break" | "wikilink" | "image";
+	type: "mdlink" | "hard_break" | "wikilink" | "image" | "autolink";
 	full: string;
 	label: string;
 	href: string;
@@ -30,8 +31,12 @@ type SymmetricMark = {
 	requireWordBoundary: boolean;
 };
 
-const IMAGE_RE = /^!\[([^\]]*)\]\(([^)]+)\)/;
-const MDLINK_RE = /^\[([^\]]+)\]\(([^)]+)\)/;
+// Destinations may hold one level of balanced parentheses (Wikipedia URLs) and an
+// optional "title" that is dropped.
+const LINK_DEST = String.raw`((?:[^()\s]|\([^()\s]*\))+)(?:\s+"[^"]*")?`;
+const IMAGE_RE = new RegExp(String.raw`^!\[([^\]]*)\]\(\s*${LINK_DEST}\s*\)`);
+const MDLINK_RE = new RegExp(String.raw`^\[([^\]]+)\]\(\s*${LINK_DEST}\s*\)`);
+const ANGLE_AUTOLINK_RE = /^<((?:https?:\/\/|mailto:)[^\s<>]+)>/i;
 const HARD_BREAK_RE = /^<br\s*\/?>/i;
 const WIKILINK_RE = /^\[\[([^\]#|]+)(?:#([^\]|]+))?(?:\|([^\]]+))?\]\]/;
 const WORD_CHAR_RE = /[A-Za-z0-9]/;
@@ -48,6 +53,7 @@ const PAIRED_TAG_MARKS: PairedTagMark[] = [
 
 const SYMMETRIC_MARKS: SymmetricMark[] = [
 	{ token: "**", markName: "strong", requireWordBoundary: false },
+	{ token: "__", markName: "strong", requireWordBoundary: true },
 	{ token: "~~", markName: "strike", requireWordBoundary: false },
 	{ token: "*", markName: "em", requireWordBoundary: false },
 	{ token: "_", markName: "underline", requireWordBoundary: true },
@@ -73,12 +79,25 @@ const canOpenSymmetricMark = (text: string, index: number, token: SymmetricMark)
 	if (!after) return false;
 	if (!hasClosingToken(text, index, token.token)) return false;
 	if (!token.requireWordBoundary) return true;
+	// Intraword underscores (snake_case) never open a mark; the opener must also
+	// hug the text it wraps, as in "_x_" and "__x__".
 	const before = index > 0 ? text[index - 1] : undefined;
-	return !isWordChar(before) && !isWordChar(after);
+	return !isWordChar(before) && !/\s/.test(after);
 };
 
 const matchInlineAtomAt = (text: string, index: number): InlineAtomMatch | null => {
 	const rest = text.slice(index);
+
+	const angleMatch = ANGLE_AUTOLINK_RE.exec(rest);
+	if (angleMatch) {
+		const url = angleMatch[1] ?? "";
+		return { type: "autolink", full: angleMatch[0], label: url, href: url };
+	}
+
+	if (isUrlStart(text, index)) {
+		const url = matchBareUrl(rest);
+		if (url) return { type: "autolink", full: url, label: url, href: hrefForUrl(url) };
+	}
 
 	const wikilinkMatch = WIKILINK_RE.exec(rest);
 	if (wikilinkMatch) {
@@ -149,10 +168,12 @@ const buildInlineAtomNodes = (schema: Schema, atom: InlineAtomMatch): PMNode[] =
 		return [schema.text(atom.full)];
 	}
 
-	// mdlink or wikilink
+	// mdlink, wikilink or autolink (autolink labels are literal: no emphasis parsing)
 	const href = atom.href.trim();
 	const label = atom.label.trim();
-	const content = label.length > 0 ? parseInlineNodes(schema, label) : [schema.text(href)];
+	const content = atom.type === "autolink"
+		? [schema.text(label)]
+		: label.length > 0 ? parseInlineNodes(schema, label) : [schema.text(href)];
 	const linkMarkType = schema.marks["link"];
 	if (!linkMarkType || href.length === 0) return content;
 	const mark = linkMarkType.create({ href });

@@ -502,6 +502,12 @@ div[data-admonition="todo"] {
 	background: color-mix(in srgb, var(--bg-1) 55%, var(--accent-0) 45%);
 }
 
+// The content wrapper holds block children (paragraphs, nested lists). Without an
+// explicit block display Firefox puts the bullet on its own line above the text.
+.zealot-task-content {
+	display: block;
+}
+
 li.zealot-task-item {
 	list-style: none;
 	display: flex;
