@@ -39,7 +39,7 @@ Use browse-then-read.
 - `browse_items(mode, type_filter?, sort?, limit?, offset?, detail?, fields?)` where mode is `root`, `recent`, `random`, or `most_viewed`. `root` alone returns items without a parent; `root` with `type_filter` returns every item of that type at any depth, sorted by `sort` and with `total`, which is how to list all Projects, Tickets, and so on.
 - `search_items(term, scope?, regex?, limit?, offset?, detail?, fields?)` where scope is `title`, `content`, or `heading`
 - `grep_items(pattern, regex?, under?, types?, context_lines?, limit?, offset?)` finds matching lines in item content, with line numbers, across all items or a subtree
-- `filter_items(filters?, types?, type_mode?, under?, sort?, limit?, offset?, detail?, fields?)` combines type, subtree, and attribute conditions in one call (details below)
+- `filter_items(filters?, any_of?, linked_from?, types?, type_mode?, under?, sort?, limit?, offset?, detail?, fields?)` combines type, subtree, and attribute conditions in one call (details below)
 - `get_linked_items(item, direction, detail?, limit?, offset?, fields?)` where direction is `children`, `related`, or `backlinks`
 - `create_item(title, content?, attributes?, types?, links?, parent?, full?)`. `parent` (id or title) is added to the `Parent` list attribute, merged with any `Parent` in `attributes`.
 - `update_item(item, title?, content?, expected_version?, full?)` replaces the whole body
@@ -87,16 +87,20 @@ Attributes are typed. Common wire formats:
 
 Use `list_item_types` and `list_attribute_kinds` before assuming schema names. Attribute keys are Title Case with spaces (`Strategic Score`, `End Date`). `Parent` is a list of item ids (`"Parent": [11]`).
 
-Use `filter_items` for queries; every part is optional but at least one of `types`, `under`, or `filters` is required, and all parts are ANDed:
+Use `filter_items` for queries; every part is optional but at least one of `types`, `under`, `filters`, `any_of`, or `linked_from` is required, and all parts are ANDed:
 
 - `types` is a list of item type names and `type_mode` is `any` (default) or `all`. `{"types": ["Ticket"]}` returns Tickets only, never Books or Epics.
 - `under` (id or exact title) keeps only descendants of that item at any depth, following `Parent` links (including items with several parents). It excludes the item itself. `{"types": ["Ticket"], "under": "Zealot", "filters": [{"key": "Status", "op": "eq", "value": "Working"}]}` answers "Working Tickets under Zealot" in one call.
 - `sort` is `{key, direction?}` (`asc` default, `desc`) over `title`, `created`, `updated`, or a scalar attribute such as `TicketID` or `Priority`; items without the attribute sort last. The next free TicketID is `{"types": ["Ticket"], "filters": [{"key": "TicketID", "op": "ilike", "value": "Z"}], "sort": {"key": "TicketID", "direction": "desc"}, "limit": 1, "fields": ["TicketID"]}`.
+- `any_of` is a list of filter groups: an item matches when every filter in at least one group matches. "Planned for today" is `{"any_of": [[{"key": "Date", "op": "eq", "value": "$today"}], [{"key": "Week", "op": "eq", "value": "$this_week"}]]}`.
+- `linked_from` (id or exact title) keeps only items that item links to with `[[wikilinks]]`, such as everything the monthly plan names.
 - The reply includes `total`.
 
 Attribute filters are shaped as `{key, op, value, list_mode?}`.
 
-- Ops are `eq`, `ne`, `gt`, `lt`, `gte`, `lte`, and `ilike`. `ilike` is a case-insensitive substring match on text values (`"TCK"` matches `"ATCK012"`).
+- Ops are `eq`, `ne`, `gt`, `lt`, `gte`, `lte`, `ilike`, `exists`, and `missing`. `ilike` is a case-insensitive substring match on text values (`"TCK"` matches `"ATCK012"`). `exists` and `missing` test whether the item has the attribute at all and take no `value`: Working items with no `Date` are `[{"key": "Status", "op": "eq", "value": "Working"}, {"key": "Date", "op": "missing"}]`.
+- The keys `created` and `updated` filter on the item's own timestamps, compared as UTC days (`YYYY-MM-DD`).
+- Values may be relative dates, resolved in the user's time zone when the query runs: `$today`, `$today-30d`, `$today+7d`, `$this_week`, `$this_week+1w` (ISO week), `$this_month` and `$this_year` (integers, matching `Month` and `Year`). "Working, untouched for a month" is `[{"key": "Status", "op": "eq", "value": "Working"}, {"key": "updated", "op": "lt", "value": "$today-30d"}]`.
 - `value` is one value or an array. `list_mode` says how an array combines: `any` (default), `all`, or `none` must match.
 - List attributes match when any element matches.
 - Item-valued attributes compare by numeric id, not title: `{"key": "Parent", "op": "eq", "value": 11}`.
@@ -141,6 +145,14 @@ Statistics are items with the `Statistic` type. Entries are numeric values with 
 - `record_statistic_entry(statistic, value, occurred_at?, related_item?, comment?)`. `occurred_at` defaults to now.
 - `edit_statistic_entry(statistic_entry_id, value?, occurred_at?, related_item?, clear_related_item?, comment?, clear_comment?)`
 - `delete_statistic_entry(statistic_entry_id)`
+
+## Saved Views
+
+A Saved View is an item with the `Saved View` type whose content holds one fenced `zealot-view` JSON block. Prose around the block documents the view. The definition is `{"query": {...}, "group_by"?: "<attribute>", "columns"?: ["<attribute>", ...]}`, where `query` takes everything `filter_items` takes (`types`, `type_mode`, `under`, `filters`, `any_of`, `linked_from`, `sort`, `limit`), including relative dates. Views compute on read, under your account, at most 100 items per page.
+
+- `run_view(view, limit?, offset?, detail?, fields?)` returns `{view_id, title, total, count, next_offset?, items, group_by?, groups?, warnings?}`. `groups` is `[{key, label, item_ids}]` over the returned page; item-valued keys such as `Parent` are labelled with the item's title. Without `detail` or `fields`, items show the view's `columns`.
+- `inspect_view(view)` shows the `resolved_query` (relative dates replaced), `today`, `time_zone`, `total`, `elapsed_ms` and `warnings`, such as an ignored query key.
+- `validate_view(definition)` checks an unsaved definition the same way. To save a view, `create_item` with `types: ["Saved View"]` and the definition inside a fenced code block whose info string is `zealot-view`. Edit it later with `edit_item`, like any content.
 
 ## Media
 

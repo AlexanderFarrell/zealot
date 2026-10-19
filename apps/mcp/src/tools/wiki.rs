@@ -121,11 +121,15 @@ pub struct SearchItemsParams {
 pub struct AttributeFilterParam {
     /// Attribute key/name to filter on
     pub key: String,
-    /// Operator: eq, ne, gt, lt, gte, lte, or ilike. `ilike` is a
-    /// case-insensitive substring match (`%value%`) on text values only
+    /// Operator: eq, ne, gt, lt, gte, lte, ilike, exists, or missing. `ilike` is a
+    /// case-insensitive substring match (`%value%`) on text values only. `exists`
+    /// and `missing` test whether the item has the attribute at all (no value needed)
     pub op: String,
     /// JSON value, or an array of values, to compare against. Item-valued
-    /// attributes (such as Parent) compare by numeric item ID, not title
+    /// attributes (such as Parent) compare by numeric item ID, not title. Relative
+    /// dates resolve in the user's time zone: `$today`, `$today-30d`, `$today+7d`,
+    /// `$this_week`, `$this_week+1w`, `$this_month`, `$this_year`
+    #[serde(default)]
     pub value: serde_json::Value,
     /// How an array `value` combines: any (default, at least one matches), all
     /// (every value matches), or none (no value matches). List attributes match
@@ -172,6 +176,15 @@ pub struct FilterItemsParams {
     /// or `under` is given.
     #[serde(default)]
     pub filters: Vec<AttributeFilterParam>,
+    /// OR groups of filters: an item matches when every filter in at least one
+    /// group matches. ANDed with everything else. For example Date is today OR
+    /// Week is this week: [[{"key":"Date","op":"eq","value":"$today"}],
+    /// [{"key":"Week","op":"eq","value":"$this_week"}]]
+    #[serde(default)]
+    pub any_of: Vec<Vec<AttributeFilterParam>>,
+    /// Item ID or exact title. Only return items this item links to with a
+    /// `[[wikilink]]` in its content
+    pub linked_from: Option<String>,
     /// Item type names the item must have (for example ["Ticket"])
     pub types: Option<Vec<String>>,
     /// `any` (default): has at least one of `types`; `all`: has every one
@@ -606,7 +619,7 @@ impl ZealotServer {
     }
 
     #[rmcp::tool(
-        description = "Filter items by type, subtree, and attribute values in one call; the reply includes `total` (all matches) and pages with `offset`. `types` (with `type_mode` any/all) limits to item types, e.g. [\"Ticket\"]; `under` (id or title) returns only descendants of that item through any depth of `Parent` links; `sort` is {key, direction?} over `title`, `created`, `updated`, or a scalar attribute (items lacking it sort last). At least one of `types`, `under`, or `filters` is required. Pass `filters` as an array of {key, op, value, list_mode?}; supported ops are eq, ne, gt, lt, gte, lte, and ilike. `ilike` is a case-insensitive substring match on text values (the server wraps the value in `%...%`). `value` may be one value or an array; `list_mode` says whether any (default), all, or none of the array values must match. List attributes match when any element matches. Item-valued attributes such as `Parent` compare by numeric item ID (`{\"key\":\"Parent\",\"op\":\"eq\",\"value\":11}`). All filters are ANDed. Returns compact summaries by default; pass detail:\"full\" for complete content."
+        description = "Filter items by type, subtree, and attribute values in one call; the reply includes `total` (all matches) and pages with `offset`. `types` (with `type_mode` any/all) limits to item types, e.g. [\"Ticket\"]; `under` (id or title) returns only descendants of that item through any depth of `Parent` links; `sort` is {key, direction?} over `title`, `created`, `updated`, or a scalar attribute (items lacking it sort last). At least one of `types`, `under`, `filters`, `any_of`, or `linked_from` is required. Pass `filters` as an array of {key, op, value, list_mode?}; supported ops are eq, ne, gt, lt, gte, lte, ilike, exists, and missing. `ilike` is a case-insensitive substring match on text values (the server wraps the value in `%...%`); `exists`/`missing` test whether the attribute is set at all and need no value. The keys `created` and `updated` filter on the item's timestamps by UTC day (`YYYY-MM-DD`). Values may use relative dates resolved in the user's time zone: `$today`, `$today-30d`, `$this_week`, `$this_week+1w`, `$this_month`, `$this_year`. `any_of` is a list of filter groups ORed together (each group ANDed). `linked_from` (id or title) keeps only items that item wikilinks to. `value` may be one value or an array; `list_mode` says whether any (default), all, or none of the array values must match. List attributes match when any element matches. Item-valued attributes such as `Parent` compare by numeric item ID (`{\"key\":\"Parent\",\"op\":\"eq\",\"value\":11}`). `filters` are ANDed with each other and with `any_of`. Returns compact summaries by default; pass detail:\"full\" for complete content."
     )]
     pub async fn filter_items(
         &self,
@@ -619,12 +632,22 @@ impl ZealotServer {
             Some(under) => Some(self.resolve_item(under).await?.item_id),
             None => None,
         };
+        let linked_from = match &p.linked_from {
+            Some(source) => Some(self.resolve_item(source).await?.item_id),
+            None => None,
+        };
         let query = ItemQueryDto {
             include_archived: p.include_archived,
             types: p.types.unwrap_or_default(),
             type_mode: p.type_mode.unwrap_or_default(),
             under,
             filters: p.filters.into_iter().map(Into::into).collect(),
+            any_of: p
+                .any_of
+                .into_iter()
+                .map(|group| group.into_iter().map(Into::into).collect())
+                .collect(),
+            linked_from,
             sort: p.sort.map(Into::into),
             limit: Some(limit),
             offset,

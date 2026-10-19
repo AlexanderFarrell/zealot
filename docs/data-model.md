@@ -548,3 +548,18 @@ Each observation is stored in statistic_entry with a stable statistic_entry_id, 
 RFC 3339 occurrence time, optional related item and comment, and audit timestamps. Raw entries
 are ordered newest first. Period ranges include start and exclude end. Existing Tracker data is
 not converted automatically.
+
+## Saved Views
+
+A Saved View is an ordinary item assigned the system `Saved View` type (migration 0021). Its
+content holds exactly one fenced `zealot-view` block with a JSON definition:
+
+```
+{"query": <ItemQueryDto>, "group_by": "<attribute key>", "columns": ["<attribute key>"]}
+```
+
+`query` is the same object `POST /item/query` takes, so relative dates such as `$today` are
+resolved each time the view runs. `group_by` and `columns` are optional. No new table is used:
+the definition is versioned, diffed, exported and edited as content, and the prose around the
+block documents the view. A view runs under the caller's account, so it can never show another
+account's items. Results are not cached.

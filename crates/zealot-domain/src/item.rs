@@ -39,6 +39,7 @@ pub type ItemRelationship = String;
 /// Well-known relationship keys (lowercase, matching DB storage).
 pub mod relationship {
     pub const PARENT: &str = "parent";
+    pub const WIKILINK: &str = "wikilink";
     pub const BLOCKS: &str = "blocks";
     pub const TAG: &str = "tag";
     pub const TOPIC: &str = "topic";
@@ -149,6 +150,13 @@ pub struct ItemQueryDto {
     pub under: Option<i64>,
     #[serde(default)]
     pub filters: Vec<crate::attribute::AttributeFilterDto>,
+    /// OR groups: an item matches when every filter in at least one group matches.
+    /// Combined with the rest of the query by AND. Empty means no constraint.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub any_of: Vec<Vec<crate::attribute::AttributeFilterDto>>,
+    /// Only items that this item links to with a wikilink (`[[...]]` in its content)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub linked_from: Option<i64>,
     #[serde(default)]
     pub sort: Option<ItemSortDto>,
     #[serde(default)]

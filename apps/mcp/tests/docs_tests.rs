@@ -27,6 +27,7 @@ const TOOL_VERBS: &[&str] = &[
     "filter",
     "get",
     "habit",
+    "inspect",
     "list",
     "orphaned",
     "rebuild",
@@ -38,6 +39,7 @@ const TOOL_VERBS: &[&str] = &[
     "unassign",
     "update",
     "upload",
+    "validate",
     "wiki",
 ];
 

@@ -18,6 +18,7 @@ use zealot_mcp::{
         planner::{AddCommentParams, AddJournalEntryParams, DayDashboardParams, GetPlanParams},
         statistic::{RecordStatisticEntryParams, StatisticQueryParams},
         time_block::CreateTimeBlockParams,
+        view::{RunViewParams, ValidateViewParams},
         wiki::{
             AppendToItemParams, AttributeFilterParam, BrowseItemsParams, BrowseMode,
             CreateItemParams, FilterItemsParams, ItemRefParam, LinkDirection, LinkParam,
@@ -1104,6 +1105,8 @@ async fn filter_items_sends_types_under_and_sort_and_reports_total() {
     let result = server
         .filter_items(Parameters(FilterItemsParams {
             include_archived: false,
+            any_of: vec![],
+            linked_from: None,
             filters: vec![AttributeFilterParam {
                 key: "Status".to_string(),
                 op: "eq".to_string(),
@@ -1144,6 +1147,8 @@ async fn filter_items_last_page_has_no_next_offset() {
     let result = server
         .filter_items(Parameters(FilterItemsParams {
             include_archived: false,
+            any_of: vec![],
+            linked_from: None,
             filters: vec![],
             types: Some(vec!["Ticket".to_string()]),
             type_mode: None,
@@ -1211,6 +1216,8 @@ async fn filter_items_fields_projects_named_attributes_only() {
     let result = server
         .filter_items(Parameters(FilterItemsParams {
             include_archived: false,
+            any_of: vec![],
+            linked_from: None,
             filters: vec![],
             types: Some(vec!["Ticket".to_string()]),
             type_mode: None,
@@ -1589,4 +1596,116 @@ async fn archived_linked_items_opt_in_is_forwarded() {
         .await
         .unwrap();
     assert!(text_of(result).contains("\"archived\":true"));
+}
+
+#[tokio::test]
+async fn filter_items_sends_any_of_and_resolved_linked_from() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("GET"))
+        .and(path("/item/title/October%202026"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(item(4753, "October 2026", "")))
+        .mount(&mock)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/item/query"))
+        .and(body_json(json!({
+            "types": [], "include_archived": false, "type_mode": "", "under": null,
+            "filters": [{"key": "Date", "op": "missing", "value": null, "list_mode": "any"}],
+            "any_of": [[{"key": "Week", "op": "eq", "value": "$this_week", "list_mode": "any"}]],
+            "linked_from": 4753, "sort": null, "limit": 50, "offset": 0
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"items": [], "total": 0})))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    let filter = |key: &str, op: &str, value: Value| AttributeFilterParam {
+        key: key.to_string(),
+        op: op.to_string(),
+        value,
+        list_mode: None,
+    };
+    server
+        .filter_items(Parameters(FilterItemsParams {
+            include_archived: false,
+            filters: vec![filter("Date", "missing", Value::Null)],
+            any_of: vec![vec![filter("Week", "eq", json!("$this_week"))]],
+            linked_from: Some("October 2026".to_string()),
+            types: None,
+            type_mode: None,
+            under: None,
+            sort: None,
+            limit: None,
+            offset: None,
+            detail: Detail::Meta,
+            fields: None,
+        }))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn run_view_resolves_title_and_shapes_items_by_view_columns() {
+    let (server, mock) = make_server().await;
+    Mock::given(method("GET"))
+        .and(path("/item/title/AI%20Queue"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(item(10, "AI Queue", "")))
+        .mount(&mock)
+        .await;
+    let mut plan = item(3, "Plan A", "long content that should not appear");
+    plan["attributes"] = json!({"Status": "To Do", "Executor": "LLM"});
+    Mock::given(method("POST"))
+        .and(path("/view/10/run"))
+        .and(body_json(json!({"limit": null, "offset": 2})))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "view_id": 10, "title": "AI Queue", "total": 5, "offset": 2,
+            "items": [plan],
+            "group_by": "Parent",
+            "groups": [{"key": 1, "label": "Zealot", "item_ids": [3]}],
+            "columns": ["Status"]
+        })))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    let result = server
+        .run_view(Parameters(RunViewParams {
+            view: "AI Queue".to_string(),
+            limit: None,
+            offset: Some(2),
+            detail: None,
+            fields: None,
+        }))
+        .await
+        .unwrap();
+    let value: Value = serde_json::from_str(&text_of(result)).unwrap();
+    assert_eq!(value["total"], 5);
+    assert_eq!(value["next_offset"], 3);
+    assert_eq!(value["groups"][0]["label"], "Zealot");
+    // Default shape comes from the view's columns: Status only, no content.
+    assert_eq!(value["items"][0]["attributes"], json!({"Status": "To Do"}));
+    assert!(value["items"][0].get("content").is_none());
+}
+
+#[tokio::test]
+async fn validate_view_posts_the_definition() {
+    let (server, mock) = make_server().await;
+    let definition = json!({"query": {"types": ["Plan"]}});
+    Mock::given(method("POST"))
+        .and(path("/view/validate"))
+        .and(body_json(json!({"definition": definition})))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "definition": definition, "resolved_query": {"types": ["Plan"]},
+            "today": "2026-10-02", "time_zone": "Europe/London", "total": 4, "elapsed_ms": 1
+        })))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    let result = server
+        .validate_view(Parameters(ValidateViewParams { definition }))
+        .await
+        .unwrap();
+    let value: Value = serde_json::from_str(&text_of(result)).unwrap();
+    assert_eq!(value["total"], 4);
 }

@@ -20,9 +20,11 @@ use zealot_domain::{
         self, ContentEditDto, ContentError, ContentWriteDto, GrepHitDto, GrepPageDto, GrepQueryDto,
     },
     item_type::{ItemType, ItemTypeRef},
+    query_tokens,
 };
 
 use crate::{
+    clock,
     ports::events::{EventPort, ZealotEvent},
     repos::{
         attribute::AttributeRepo,
@@ -311,6 +313,8 @@ impl ItemService {
                 include_archived: query.include_archived,
                 under,
                 filters: Vec::new(),
+                any_of: Vec::new(),
+                linked_from: None,
                 sort: None,
                 limit: GREP_MAX_CANDIDATES,
                 offset: 0,
@@ -559,10 +563,19 @@ impl ItemService {
         dto: &ItemQueryDto,
         account: &Account,
     ) -> Result<(Vec<Item>, i64), ItemServiceError> {
-        let filters: Vec<AttributeFilter> = dto
-            .filters
+        let today = clock::local_today(account);
+        let filters = parse_filters(&dto.filters, today)?;
+        let any_of = dto
+            .any_of
             .iter()
-            .map(|f| AttributeFilter::try_from(f).map_err(ItemServiceError::InvalidFilter))
+            .map(|group| {
+                if group.is_empty() {
+                    return Err(ItemServiceError::InvalidFilter(String::from(
+                        "any_of groups must not be empty",
+                    )));
+                }
+                parse_filters(group, today)
+            })
             .collect::<Result<Vec<_>, _>>()?;
         let all_types = match dto.type_mode.as_str() {
             "" | "any" => false,
@@ -592,9 +605,18 @@ impl ItemService {
             .under
             .map(|id| Id::try_from(id).map_err(|e| ItemServiceError::InvalidFilter(e.to_string())))
             .transpose()?;
-        if dto.types.is_empty() && under.is_none() && filters.is_empty() {
+        let linked_from = dto
+            .linked_from
+            .map(|id| Id::try_from(id).map_err(|e| ItemServiceError::InvalidFilter(e.to_string())))
+            .transpose()?;
+        if dto.types.is_empty()
+            && under.is_none()
+            && filters.is_empty()
+            && any_of.is_empty()
+            && linked_from.is_none()
+        {
             return Err(ItemServiceError::InvalidFilter(String::from(
-                "query needs at least one of types, under, or filters",
+                "query needs at least one of types, under, filters, any_of, or linked_from",
             )));
         }
         let query = ItemQuery {
@@ -603,6 +625,8 @@ impl ItemService {
             include_archived: dto.include_archived,
             under,
             filters,
+            any_of,
+            linked_from,
             sort,
             limit: dto.limit.unwrap_or(50).clamp(1, 100),
             offset: dto.offset.max(0),
@@ -622,16 +646,15 @@ impl ItemService {
         include_archived: bool,
         account: &Account,
     ) -> Result<Vec<Item>, ItemServiceError> {
-        let filters: Vec<AttributeFilter> = filter_dtos
-            .iter()
-            .map(|dto| AttributeFilter::try_from(dto).map_err(ItemServiceError::InvalidFilter))
-            .collect::<Result<Vec<_>, _>>()?;
+        let filters = parse_filters(filter_dtos, clock::local_today(account))?;
 
         let query = ItemQuery {
             types: vec![],
             all_types: false,
             under: None,
             filters,
+            any_of: Vec::new(),
+            linked_from: None,
             sort: None,
             include_archived,
             limit: limit.unwrap_or(i64::MAX),
@@ -1696,6 +1719,22 @@ pub fn scan_regex_matches<T>(
         scan_offset += fetched;
     }
     Ok(page)
+}
+
+/// Parse filter DTOs, resolving relative date tokens (`$today`, `$this_week`, ...) against `today`.
+fn parse_filters(
+    dtos: &[AttributeFilterDto],
+    today: chrono::NaiveDate,
+) -> Result<Vec<AttributeFilter>, ItemServiceError> {
+    dtos.iter()
+        .map(|dto| {
+            let mut filter =
+                AttributeFilter::try_from(dto).map_err(ItemServiceError::InvalidFilter)?;
+            filter.value = query_tokens::resolve_value(&filter.value, today)
+                .map_err(ItemServiceError::InvalidFilter)?;
+            Ok(filter)
+        })
+        .collect()
 }
 
 #[cfg(test)]

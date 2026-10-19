@@ -7925,6 +7925,7 @@ name = "zealot-app"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "chrono-tz",
  "croner",
  "hex",
  "rand 0.8.5",

@@ -25,6 +25,10 @@ pub struct ItemQuery {
     pub all_types: bool,
     pub under: Option<Id>,
     pub filters: Vec<AttributeFilter>,
+    /// OR groups, each ANDed internally; ANDed with the rest of the query. Empty means none.
+    pub any_of: Vec<Vec<AttributeFilter>>,
+    /// Only targets of this item's wikilinks
+    pub linked_from: Option<Id>,
     pub sort: Option<ItemSort>,
     pub limit: i64,
     pub offset: i64,

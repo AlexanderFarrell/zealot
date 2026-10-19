@@ -16,31 +16,17 @@ use zealot_domain::common::id::Id;
 const DATE_FORMAT: &str = "%Y-%m-%d";
 
 /// Resolve the account's time zone, falling back to `ZEALOT_TIMEZONE`, then UTC.
+/// Shares the rule with item queries (`zealot_app::clock`).
 pub fn resolve_timezone(services: &ZealotServices, account_id: Id) -> Tz {
-    let from_account = services
+    let settings = services
         .repos
         .account
         .get_account_by_id(&account_id)
         .ok()
         .flatten()
-        .and_then(|account| {
-            account
-                .settings
-                .get("timezone")
-                .and_then(|v| v.as_str())
-                .and_then(parse_timezone)
-        });
-    from_account
-        .or_else(|| {
-            std::env::var("ZEALOT_TIMEZONE")
-                .ok()
-                .and_then(|v| parse_timezone(&v))
-        })
-        .unwrap_or(Tz::UTC)
-}
-
-fn parse_timezone(name: &str) -> Option<Tz> {
-    name.trim().parse::<Tz>().ok()
+        .map(|account| account.settings)
+        .unwrap_or(serde_json::Value::Null);
+    zealot_app::clock::timezone_for_settings(&settings)
 }
 
 /// The local calendar date at `now` in `tz`.
@@ -120,6 +106,7 @@ pub fn register(zealot: &Table, lua: &Lua, tz: Tz) -> mlua::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use zealot_app::clock::parse_timezone;
 
     fn utc(text: &str) -> DateTime<Utc> {
         DateTime::parse_from_rfc3339(text)

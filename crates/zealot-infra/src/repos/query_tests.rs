@@ -67,6 +67,8 @@ fn query() -> ItemQuery {
         include_archived: false,
         under: None,
         filters: vec![],
+        any_of: vec![],
+        linked_from: None,
         sort: None,
         limit: 50,
         offset: 0,

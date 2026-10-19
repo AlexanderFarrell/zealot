@@ -139,6 +139,7 @@ At a high level, the server covers these workflows:
 - Analysis: wiki stats, orphan samples, attribute usage, and habit statistics.
 - Automation: list, inspect, create, update, delete, and run Lua rules.
 - Statistics: list series, record, edit, and delete entries, and read raw entries, daily series, and summaries.
+- Saved Views: run, inspect, and validate `Saved View` items, whose content holds a `zealot-view` query definition.
 - Schema: item types and attribute kinds.
 
 `apps/mcp/tests/docs_tests.rs` fails when either MCP doc names a tool the server does not register, or when the system prompt omits a registered tool. When checking a live server, prefer your MCP client's tool list over this human guide; a live server missing tools listed here is running an older build. If the client exposes an older tool surface, use the closest legacy tool names but keep the same operating rules: browse before deep reads, page until complete, verify schema before unfamiliar writes, and read before overwriting content.

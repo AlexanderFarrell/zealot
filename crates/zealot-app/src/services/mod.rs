@@ -7,7 +7,7 @@ use crate::{
         account::AccountService, analysis::AnalysisService, attribute::AttributeService,
         auth::AuthService, comment::CommentService, item::ItemService,
         item_type::{ItemTypeService, KindDefaults}, media::MediaService, planner::PlannerService, repeat::RepeatService, rule::RuleService,
-        statistic::StatisticService, time_block::TimeBlockService,
+        statistic::StatisticService, time_block::TimeBlockService, view::ViewService,
     },
 };
 
@@ -27,6 +27,7 @@ pub mod rule;
 pub mod scope;
 pub mod statistic;
 pub mod time_block;
+pub mod view;
 
 #[derive(Debug, Clone)]
 pub struct ZealotServices {
@@ -43,6 +44,7 @@ pub struct ZealotServices {
     pub rule: Arc<RuleService>,
     pub statistic: Arc<StatisticService>,
     pub time_block: Arc<TimeBlockService>,
+    pub view: Arc<ViewService>,
 
     pub ports: ZealotPorts,
     pub repos: ZealotRepos,
@@ -68,6 +70,7 @@ impl ZealotServices {
         let time_block = Arc::new(TimeBlockService::new(&Arc::clone(&repos.time_block), &item));
 
         let media = Arc::new(MediaService::new(&ports.media));
+        let view = Arc::new(ViewService::new(&item));
 
         Self {
             account: Arc::new(AccountService::new(&repos.account)),
@@ -90,6 +93,7 @@ impl ZealotServices {
             rule,
             statistic,
             time_block,
+            view,
             repos,
             ports,
         }
