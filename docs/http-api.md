@@ -434,13 +434,59 @@ Returns `200 OK`.
 }
 ```
 
-Filter operators: `eq` / `=`, `ne` / `!=` / `<>`, `gt` / `>`, `lt` / `<`, `gte` / `>=`, `lte` / `<=`, `ilike`.
+Filter operators: `eq` / `=`, `ne` / `!=` / `<>`, `gt` / `>`, `lt` / `<`, `gte` / `>=`, `lte` / `<=`, `ilike`, `exists`, `missing`. `exists` and `missing` test whether the item has the attribute at all; `value` may be omitted.
+
+The keys `created` and `updated` filter on the item's timestamps, compared as UTC days (`YYYY-MM-DD`). Values may use relative dates, resolved in the account time zone (setting `timezone`, then `ZEALOT_TIMEZONE`, then UTC) when the request runs: `$today`, `$today-Nd`, `$today+Nd`, `$this_week`, `$this_week±Nw`, `$this_month`, `$this_year`. Other strings starting with `$` are literals; a known token with a bad offset is a 400.
 
 `value` may be a scalar or an array of candidate values. `list_mode` applies when the attribute is a list type: `any` (default; any candidate may match), `all` (every candidate must match), `none` (no candidate may match). For scalar attributes use `any`.
 
 `ilike` performs a case-insensitive substring match for text values. `limit` defaults to 50 and is capped at 100. `offset` defaults to 0.
 
 Returns array of `ItemDto`.
+
+#### POST /item/query — query by type, subtree, links, and attributes
+
+The query behind MCP `filter_items`. Every part is optional, but at least one of `types`, `under`, `filters`, `any_of`, or `linked_from` is required. All parts are ANDed.
+
+```json
+{
+  "types": ["Ticket"],
+  "type_mode": "any",
+  "under": 11,
+  "filters": [{ "key": "Status", "op": "eq", "value": "Working" }],
+  "any_of": [
+    [{ "key": "Date", "op": "eq", "value": "$today" }],
+    [{ "key": "Week", "op": "eq", "value": "$this_week" }]
+  ],
+  "linked_from": 4753,
+  "sort": { "key": "Priority", "direction": "desc" },
+  "include_archived": false,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+- `under` keeps descendants of that item through `Parent` links, excluding the item itself.
+- `filters` use the operators, system keys and relative dates described under `POST /item/filter`.
+- `any_of` is a list of filter groups. Each group's filters are ANDed and the groups are ORed.
+- `linked_from` keeps only items that item links to with `[[wikilinks]]`.
+- `sort.key` is `title`, `created`, `updated`, or a scalar attribute. Items without the attribute sort last.
+- `limit` defaults to 50 and is capped at 100.
+
+Returns `{ "items": [ItemDto], "total": n }`, where `total` counts all matches.
+
+#### Saved Views — `/view`
+
+A Saved View is an item typed `Saved View` whose content holds one fenced `zealot-view` block
+with `{"query": <the /item/query body>, "group_by"?: "<key>", "columns"?: ["<key>"]}`.
+
+- `POST /view/{item_id}/run` with optional body `{ "limit"?: n, "offset"?: m }` returns
+  `{ view_id, title, total, offset, items: [ItemDto], group_by?, groups?: [{ key, label, item_ids }], columns?, warnings? }`.
+  `limit` defaults to the definition's limit, then 50, and is capped at 100. Groups cover the returned page.
+- `GET /view/{item_id}/inspect` returns `{ view_id, title, definition, resolved_query, today, time_zone, total, elapsed_ms, warnings? }`.
+- `POST /view/validate` with `{ "definition": {...} }` returns the same report for an unsaved definition.
+
+`400` means the item isn't a Saved View, its block is missing, duplicated, unclosed or invalid, or its query is rejected. The message names which.
 
 #### POST /item/rebuild-links
 

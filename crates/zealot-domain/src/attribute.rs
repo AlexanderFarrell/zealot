@@ -268,6 +268,10 @@ pub enum AttributeFilterOp {
     GreaterThanOrEqualTo,
     LessThanOrEqualTo,
     LikeCaseInsensitive,
+    /// The item has the attribute (as a scalar or a list value); the filter value is ignored.
+    Exists,
+    /// The item lacks the attribute; the filter value is ignored.
+    Missing,
 }
 
 #[derive(Debug, Clone)]
@@ -281,6 +285,8 @@ pub enum AttributeListMode {
 pub struct AttributeFilterDto {
     pub key: String,
     pub op: String,
+    /// Not needed for `exists` and `missing`
+    #[serde(default)]
     pub value: Value,
     #[serde(default = "default_filter_list_mode")]
     pub list_mode: String,
@@ -802,6 +808,8 @@ impl TryFrom<&str> for AttributeFilterOp {
             "lte" => Ok(Self::LessThanOrEqualTo),
             "<=" => Ok(Self::LessThanOrEqualTo),
             "ilike" => Ok(Self::LikeCaseInsensitive),
+            "exists" => Ok(Self::Exists),
+            "missing" => Ok(Self::Missing),
             _ => Err(format!("{} operation not supported", value)),
         }
     }

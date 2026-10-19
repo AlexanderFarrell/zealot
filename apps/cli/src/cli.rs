@@ -158,6 +158,10 @@ pub enum Command {
     #[command(subcommand)]
     Statistic(StatisticCmd),
 
+    /// Saved Views: run, inspect, or validate a saved item query (`zealot view` shows an item)
+    #[command(subcommand)]
+    Views(ViewCmd),
+
     /// Media files
     #[command(subcommand)]
     Media(MediaCmd),
@@ -381,6 +385,22 @@ pub enum BlockCmd {
     },
     /// Delete a time block
     Rm { block_id: i64 },
+}
+
+#[derive(Subcommand)]
+pub enum ViewCmd {
+    /// Run a Saved View and list its items (grouped when the view has group_by)
+    Run {
+        view: ItemRef,
+        #[arg(long, short = 'n')]
+        limit: Option<i64>,
+        #[arg(long)]
+        offset: Option<i64>,
+    },
+    /// Show the resolved query, total, time zone and timing for a Saved View
+    Inspect { view: ItemRef },
+    /// Validate a view definition (JSON) from an argument or stdin
+    Validate { definition: Option<String> },
 }
 
 #[derive(Subcommand)]

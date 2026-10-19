@@ -376,3 +376,54 @@ mod tests {
         assert_eq!(short.next_offset, None);
     }
 }
+
+/// Project items to JSON in the requested shape (the same shapes as `query_page`).
+fn project_items(items: &[ItemDto], shape: &Shape) -> serde_json::Value {
+    let value = match shape {
+        Shape::Detail(Detail::Full) => serde_json::to_value(items),
+        Shape::Detail(detail) => serde_json::to_value(
+            items
+                .iter()
+                .map(|i| ItemSummary::project(i, *detail))
+                .collect::<Vec<_>>(),
+        ),
+        Shape::Fields(fields) => serde_json::to_value(
+            items
+                .iter()
+                .map(|i| FieldRow::project(i, fields))
+                .collect::<Vec<_>>(),
+        ),
+    };
+    value.unwrap_or_default()
+}
+
+/// Render a Saved View run: paging like `query_page`, plus the view's groups and metadata.
+pub fn view_result(
+    result: zealot_domain::saved_view::ViewResultDto,
+    shape: Shape,
+) -> CallToolResult {
+    let count = result.items.len() as i64;
+    let next_offset = (result.offset + count < result.total).then_some(result.offset + count);
+    let mut out = serde_json::json!({
+        "view_id": result.view_id,
+        "title": result.title,
+        "total": result.total,
+        "count": count,
+        "items": project_items(&result.items, &shape),
+    });
+    let obj = out.as_object_mut().expect("object literal");
+    if let Some(next_offset) = next_offset {
+        obj.insert("next_offset".into(), next_offset.into());
+    }
+    if let Some(group_by) = result.group_by {
+        obj.insert("group_by".into(), group_by.into());
+        obj.insert(
+            "groups".into(),
+            serde_json::to_value(result.groups).unwrap_or_default(),
+        );
+    }
+    if !result.warnings.is_empty() {
+        obj.insert("warnings".into(), result.warnings.into());
+    }
+    json_result(&out)
+}

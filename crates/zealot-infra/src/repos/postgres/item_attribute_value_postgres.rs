@@ -439,11 +439,106 @@ fn attr_filter_col_and_values(
     Ok((column.unwrap(), parsed))
 }
 
+/// Clause for filters that do not compare a stored attribute value: `exists` and `missing`,
+/// and the item timestamps `created` and `updated`, compared as UTC calendar days.
+/// Placeholders start at `$param_offset`.
+fn special_filter_clause(
+    filter: &AttributeFilter,
+    param_offset: usize,
+) -> Result<Option<(String, Vec<SqlValue>)>, RepoError> {
+    if let AttributeFilterOp::Exists | AttributeFilterOp::Missing = filter.op {
+        let (p1, p2) = (param_offset, param_offset + 1);
+        let present = format!(
+            "(EXISTS (SELECT 1 FROM attribute_list_value alv WHERE alv.item_id = i.item_id AND alv.key = ${p1})
+             OR EXISTS (SELECT 1 FROM attribute a WHERE a.item_id = i.item_id AND a.key = ${p2}))"
+        );
+        let clause = match filter.op {
+            AttributeFilterOp::Exists => present,
+            _ => format!("NOT {present}"),
+        };
+        let key = SqlValue::Str(filter.key.clone());
+        return Ok(Some((clause, vec![key.clone(), key])));
+    }
+    let column = match filter_timestamp_column(&filter.key) {
+        Some(column) => column,
+        None => return Ok(None),
+    };
+    let op = timestamp_op(filter)?;
+    let days = timestamp_filter_days(filter)?;
+    let clauses: Vec<String> = (0..days.len())
+        .map(|n| format!("({column} AT TIME ZONE 'UTC')::date {op} ${}", param_offset + n))
+        .collect();
+    let values = days.into_iter().map(SqlValue::Date).collect();
+    Ok(Some((combine_list_mode(&clauses, &filter.list_mode), values)))
+}
+
+/// Item column for the system filter keys `created` and `updated` (case-insensitive).
+fn filter_timestamp_column(key: &str) -> Option<&'static str> {
+    match key.to_lowercase().as_str() {
+        "created" => Some("i.created_at"),
+        "updated" => Some("i.updated_at"),
+        _ => None,
+    }
+}
+
+/// SQL comparison for a timestamp filter; `ilike` makes no sense on a date.
+fn timestamp_op(filter: &AttributeFilter) -> Result<&'static str, RepoError> {
+    Ok(match filter.op {
+        AttributeFilterOp::Equal => "=",
+        AttributeFilterOp::NotEqual => "!=",
+        AttributeFilterOp::GreaterThan => ">",
+        AttributeFilterOp::LessThan => "<",
+        AttributeFilterOp::GreaterThanOrEqualTo => ">=",
+        AttributeFilterOp::LessThanOrEqualTo => "<=",
+        _ => {
+            return Err(RepoError::DatabaseError {
+                err: format!("filter '{}' supports eq, ne, gt, lt, gte and lte", filter.key),
+            });
+        }
+    })
+}
+
+/// The day(s) a timestamp filter compares against, parsed from `YYYY-MM-DD`.
+fn timestamp_filter_days(filter: &AttributeFilter) -> Result<Vec<NaiveDate>, RepoError> {
+    let values: Vec<&Value> = match &filter.value {
+        Value::Array(values) if !values.is_empty() => values.iter().collect(),
+        Value::Array(_) => {
+            return Err(RepoError::DatabaseError {
+                err: format!("filter '{}' value array must not be empty", filter.key),
+            });
+        }
+        value => vec![value],
+    };
+    values
+        .into_iter()
+        .map(|value| {
+            value
+                .as_str()
+                .and_then(|text| NaiveDate::parse_from_str(text, "%Y-%m-%d").ok())
+                .ok_or_else(|| RepoError::DatabaseError {
+                    err: format!("filter '{}' expects a date YYYY-MM-DD", filter.key),
+                })
+        })
+        .collect()
+}
+
+/// Join per-value clauses according to the filter's list mode.
+fn combine_list_mode(clauses: &[String], list_mode: &AttributeListMode) -> String {
+    match list_mode {
+        AttributeListMode::Any => format!("({})", clauses.join(" OR ")),
+        AttributeListMode::None => format!("NOT ({})", clauses.join(" OR ")),
+        AttributeListMode::All => format!("({})", clauses.join(" AND ")),
+    }
+}
+
 fn build_attr_filter_clause(
     filter: &AttributeFilter,
     kind_map: &HashMap<String, AttributeBaseScalarType>,
     param_offset: usize,
 ) -> Result<(String, Vec<SqlValue>), RepoError> {
+    if let Some(special) = special_filter_clause(filter, param_offset)? {
+        return Ok(special);
+    }
     let (col, values) = attr_filter_col_and_values(filter, kind_map)?;
     let (op_str, values) = match &filter.op {
         AttributeFilterOp::Equal => ("=", values),
@@ -472,6 +567,9 @@ fn build_attr_filter_clause(
                 .collect::<Result<Vec<_>, _>>()?;
             ("ILIKE", values)
         }
+        AttributeFilterOp::Exists | AttributeFilterOp::Missing => {
+            unreachable!("handled by special_filter_clause")
+        }
     };
 
     let mut clauses = Vec::new();
@@ -493,14 +591,7 @@ fn build_attr_filter_clause(
         clause_values.push(value);
     }
 
-    let joined = clauses.join(" OR ");
-    let clause = match &filter.list_mode {
-        AttributeListMode::Any => format!("({joined})"),
-        AttributeListMode::None => format!("NOT ({joined})"),
-        AttributeListMode::All => format!("({})", clauses.join(" AND ")),
-    };
-
-    Ok((clause, clause_values))
+    Ok((combine_list_mode(&clauses, &filter.list_mode), clause_values))
 }
 
 /// Scalar column that stores values of this attribute type, for sorting.
@@ -590,6 +681,30 @@ fn build_query_sql(
         let (clause, clause_values) = build_attr_filter_clause(filter, kind_map, 2 + values.len())?;
         parts.push(clause);
         values.extend(clause_values);
+    }
+
+    // Each group ANDs its filters; the groups OR together.
+    if !query.any_of.is_empty() {
+        let mut groups = Vec::new();
+        for group in &query.any_of {
+            let mut group_parts = Vec::new();
+            for filter in group {
+                let (clause, clause_values) =
+                    build_attr_filter_clause(filter, kind_map, 2 + values.len())?;
+                group_parts.push(clause);
+                values.extend(clause_values);
+            }
+            groups.push(format!("({})", group_parts.join(" AND ")));
+        }
+        parts.push(format!("({})", groups.join(" OR ")));
+    }
+
+    if let Some(source) = query.linked_from {
+        let source = placeholder(&mut values, SqlValue::Int(i64::from(source)));
+        let rel = placeholder(&mut values, SqlValue::Str(relationship::WIKILINK.to_string()));
+        parts.push(format!(
+            "i.item_id IN (SELECT second_item_id FROM item_item_link WHERE first_item_id = {source} AND relationship = {rel})"
+        ));
     }
     let where_len = values.len();
 

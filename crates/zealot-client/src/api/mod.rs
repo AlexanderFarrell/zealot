@@ -15,6 +15,7 @@ pub mod repeats;
 pub mod rules;
 pub mod statistics;
 pub mod time_blocks;
+pub mod views;
 
 /// Percent-encode a single path segment (titles, type names, keys).
 pub(crate) fn seg(value: &str) -> String {

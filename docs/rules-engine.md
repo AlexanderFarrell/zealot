@@ -171,7 +171,7 @@ local page2 = zealot.items.search("meeting", { limit = 20, offset = 20 })
 ```
 
 **`zealot.items.filter(filters, opts?)`**  
-Returns items matching a set of attribute filters. Each filter is a table with `key`, `op`, and `value`. Item-valued attributes such as `Parent` accept the id as a number or a numeric string. An empty filter list `{}` matches every item. `opts` is `{ limit = n, offset = m }`; without a limit every match is returned.
+Returns items matching a set of attribute filters. Each filter is a table with `key`, `op`, and `value`. Item-valued attributes such as `Parent` accept the id as a number or a numeric string. An empty filter list `{}` matches every item. Filters support the same ops as MCP `filter_items`, including `exists` and `missing` (no `value`), the `created` and `updated` keys (UTC days), and relative dates such as `"$today"`, `"$today-30d"` and `"$this_week"`. `opts` is `{ limit = n, offset = m }`; without a limit every match is returned.
 
 ```lua
 local items = zealot.items.filter({

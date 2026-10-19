@@ -187,6 +187,18 @@ zealot media get screenshots/diagram.png -o /tmp/d.png
 
 Times use RFC 3339. The global JSON flag emits the API DTOs.
 
+### Saved Views
+
+    zealot views run "AI Queue"
+    zealot views run "AI Queue" --limit 20 --offset 20
+    zealot views inspect "AI Queue"
+    zealot views validate '{"query": {"types": ["Ticket"], "filters": [{"key": "Status", "op": "eq", "value": "Working"}]}}'
+    echo '{"query": {"types": ["Plan"]}}' | zealot views validate
+
+`run` prints a table per group when the view has `group_by`, with one column per entry in
+`columns`. `inspect` and `validate` print the resolved query, total, time zone and timing as
+JSON. (`zealot view` without the `s` shows an item.)
+
 ---
 
 ## Scripting cookbook

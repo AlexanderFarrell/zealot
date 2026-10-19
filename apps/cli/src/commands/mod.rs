@@ -6,6 +6,7 @@ pub mod meta;
 pub mod planner;
 pub mod rule;
 pub mod statistic;
+pub mod saved_view;
 
 use anyhow::Result;
 
@@ -76,6 +77,7 @@ pub async fn run(cli: Cli) -> Result<()> {
         Command::Attr(cmd) => meta::attr_kind(&ctx, cmd).await,
         Command::Rule(cmd) => rule::run(&ctx, cmd).await,
         Command::Statistic(cmd) => statistic::run(&ctx, cmd).await,
+        Command::Views(cmd) => saved_view::run(&ctx, cmd).await,
         Command::Media(cmd) => media::run(&ctx, cmd).await,
 
         Command::Api { method, path, body } => api(&ctx, &method, &path, body.as_deref()).await,

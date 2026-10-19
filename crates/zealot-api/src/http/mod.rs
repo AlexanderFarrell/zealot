@@ -14,6 +14,7 @@ mod repeat;
 mod rule;
 mod statistic;
 mod time_block;
+mod view;
 
 use axum::Router;
 use axum::http::{HeaderName, HeaderValue, Method};
@@ -67,6 +68,7 @@ fn build_router(state: AppState) -> Router {
         .nest("/rule", rule::routes(state.clone()))
         .nest("/statistic", statistic::routes(state.clone()))
         .nest("/time_block", time_block::routes(state.clone()))
+        .nest("/view", view::routes(state.clone()))
         .layer(cors)
         .layer(
             TraceLayer::new_for_http()
