@@ -272,10 +272,10 @@ export function mountPlannerCardList(
     const createRowConfig = options.createRow;
     const defaultAttributes = { ...createRowConfig.defaultAttributes };
 
-    const newDraft = (): CreateDraftState => ({
+    const newDraft = (types: string[] = []): CreateDraftState => ({
         attributes: { ...defaultAttributes },
         title: '',
-        types: [],
+        types,
     });
 
     let draft = newDraft();
@@ -310,7 +310,8 @@ export function mountPlannerCardList(
         }).then((item) => {
             items.push(item);
             refreshCardList();
-            draft = newDraft();
+            // Keep the chosen type so several items can be added in a row.
+            draft = newDraft(draft.types.slice());
             rebuildPanel(true);
         });
     };
