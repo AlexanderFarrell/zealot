@@ -113,8 +113,9 @@ export function buildAddPanel(
                     typeSelect.appendChild(option);
                 });
 
-            if (selectedType) {
-                typeSelect.value = selectedType.Name;
+            const keptName = selectedType?.Name ?? draft.types[0];
+            if (keptName) {
+                typeSelect.value = keptName;
             } else if (createRowConfig.defaultTypes?.length) {
                 typeSelect.value = createRowConfig.defaultTypes[0] ?? '';
             }
