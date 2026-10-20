@@ -232,7 +232,11 @@ Attribute update tools only overwrite the keys you pass unless the specific tool
 
 Change part of an item with `edit_item` (exact text) or `replace_section` (one heading's section) instead of resending the body. Find the spot with `grep_items` or `get_item_outline`, read it with `read_item`, and pass the `version` from that read as `expected_version`: if the item changed in the meantime, the write is refused with a conflict instead of silently overwriting the other edit. `append_to_item` appends on the server.
 
-`update_item` updates only the fields you pass. Omitting `content` leaves the existing content unchanged. Omitting `title` leaves the title unchanged. Passing `content` replaces the whole body.
+`update_item` updates only the fields you pass. Omitting `content` leaves the existing content unchanged. Omitting `title` leaves the title unchanged. Passing `content` replaces the whole body. `update_item` changes only title and content: to change attributes, including `Parent` and `Status`, use `update_item_attributes` with `set`, `rename`, and `remove`.
+
+### Unknown Parameters Are Rejected
+
+Every tool rejects a parameter it does not define. The error names the field and lists the accepted ones, for example ``unknown field `attributes`, expected one of `item`, `set`, `remove`, `rename` ``, and nothing is written. `update_item_attributes` also rejects a call whose `set`, `rename`, and `remove` are all absent or empty, and its reply lists the keys it set, renamed, and removed, so a call that changed nothing cannot look like one that did. The server logs an `item attributes changed` line for each write.
 
 ### Show automation scripts before running
 

@@ -17,13 +17,14 @@ use zealot_domain::{
 
 use crate::{
     output::{self, DEFAULT_LIMIT, Detail, Shape},
-    tools::{ZealotServer, err_ctx, planner::now_timestamp},
+    tools::{NoParams, ZealotServer, err_ctx, planner::now_timestamp},
 };
 
 const SEARCH_DEFAULT_LIMIT: i64 = 20;
 const MAX_LIMIT: i64 = 100;
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ItemRefParam {
     /// Item ID or exact title
     pub item: String,
@@ -39,12 +40,14 @@ impl Detail {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ItemOutlineParams {
     /// Item ID or exact title
     pub item: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ReadItemParams {
     /// Item ID or exact title
     pub item: String,
@@ -71,6 +74,7 @@ pub enum BrowseMode {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct BrowseItemsParams {
     /// Include archived items (default false).
     #[serde(default)]
@@ -95,6 +99,7 @@ pub struct BrowseItemsParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SearchItemsParams {
     /// Include archived items (default false).
     #[serde(default)]
@@ -118,6 +123,7 @@ pub struct SearchItemsParams {
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct AttributeFilterParam {
     /// Attribute key/name to filter on
     pub key: String,
@@ -150,6 +156,7 @@ impl From<AttributeFilterParam> for AttributeFilterDto {
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SortParam {
     /// `title`, `created`, `updated`, or the key of a scalar attribute (for example
     /// `TicketID`, `Priority`). Items without the attribute sort last.
@@ -168,6 +175,7 @@ impl From<SortParam> for ItemSortDto {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct FilterItemsParams {
     /// Include archived items (default false).
     #[serde(default)]
@@ -218,6 +226,7 @@ pub enum LinkDirection {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct LinkedItemsParams {
     /// Include archived items (default false).
     #[serde(default)]
@@ -239,6 +248,7 @@ pub struct LinkedItemsParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct LinkParam {
     /// ID of the other item
     pub other_item_id: i64,
@@ -248,6 +258,7 @@ pub struct LinkParam {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CreateItemParams {
     /// Title of the new item
     pub title: String,
@@ -267,6 +278,7 @@ pub struct CreateItemParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct UpdateItemParams {
     /// Item ID or exact title
     pub item: String,
@@ -283,6 +295,7 @@ pub struct UpdateItemParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SetStatusParams {
     /// Item IDs or exact titles (max 50)
     pub items: Vec<String>,
@@ -300,6 +313,7 @@ fn status_needs_comment(status: &str) -> bool {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct AppendToItemParams {
     /// Item ID or exact title
     pub item: String,
@@ -310,6 +324,7 @@ pub struct AppendToItemParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct GrepItemsParams {
     /// Include archived items (default false).
     #[serde(default)]
@@ -332,6 +347,7 @@ pub struct GrepItemsParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ReplaceSectionParams {
     /// Item ID or exact title
     pub item: String,
@@ -347,6 +363,7 @@ pub struct ReplaceSectionParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct EditItemParams {
     /// Item ID or exact title
     pub item: String,
@@ -363,18 +380,21 @@ pub struct EditItemParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ItemOnlyParams {
     /// Item ID or exact title
     pub item: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct RenameAttributeParam {
     pub from: String,
     pub to: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct UpdateAttributesParams {
     /// Item ID or exact title
     pub item: String,
@@ -387,6 +407,7 @@ pub struct UpdateAttributesParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct AssignTypeParams {
     /// Item ID or exact title
     pub item: String,
@@ -744,7 +765,7 @@ impl ZealotServer {
     }
 
     #[rmcp::tool(
-        description = "Update an existing item's title and/or replace its whole content. Only provided fields are changed. To change part of the body use `edit_item` or `replace_section` instead. Pass `expected_version` (from a read) to refuse the write if the content changed since. Returns `{item_id, title, version, content_chars, changed_lines}`; pass `full: true` for the complete item."
+        description = "Update an existing item's title and/or replace its whole content. Only provided fields are changed. It changes only title and content: to change attributes (including Parent and Status) use `update_item_attributes`, and for types use `assign_item_type`; any other field is rejected. To change part of the body use `edit_item` or `replace_section` instead. Pass `expected_version` (from a read) to refuse the write if the content changed since. Returns `{item_id, title, version, content_chars, changed_lines}`; pass `full: true` for the complete item."
     )]
     pub async fn update_item(
         &self,
@@ -830,36 +851,62 @@ impl ZealotServer {
     }
 
     #[rmcp::tool(
-        description = "Set, rename, and/or remove attributes on an item in one call. `set` overwrites/creates keys, `rename` renames keys (applied after set), `remove` deletes keys (applied last)."
+        description = "Set, rename, and/or remove attributes on an item in one call. `set` overwrites/creates keys, `rename` renames keys (applied after set), `remove` deletes keys (applied last). At least one of `set`, `rename`, `remove` must be non-empty, and no other field is accepted. Replies `{item_id, status, set, renamed, removed}` listing the keys changed."
     )]
     pub async fn update_item_attributes(
         &self,
         Parameters(p): Parameters<UpdateAttributesParams>,
     ) -> Result<CallToolResult, McpError> {
+        let set = p.set.unwrap_or_default();
+        let rename = p.rename.unwrap_or_default();
+        let remove = p.remove.unwrap_or_default();
+        if set.is_empty() && rename.is_empty() && remove.is_empty() {
+            return Err(McpError::invalid_params(
+                "nothing to change: pass a non-empty `set`, `rename` or `remove`",
+                None,
+            ));
+        }
         let existing = self.resolve_item(&p.item).await?;
         let resource = format!("item #{}", existing.item_id);
 
-        if let Some(set) = p.set {
+        let mut set_keys: Vec<&String> = set.keys().collect();
+        set_keys.sort();
+        if !set.is_empty() {
             self.client
                 .set_item_attributes(existing.item_id, &set)
                 .await
                 .map_err(|e| err_ctx(&resource, e))?;
         }
-        for r in p.rename.into_iter().flatten() {
+        for r in &rename {
             self.client
                 .rename_item_attribute(existing.item_id, &r.from, &r.to)
                 .await
                 .map_err(|e| err_ctx(&resource, e))?;
         }
-        for key in p.remove.into_iter().flatten() {
+        for key in &remove {
             self.client
-                .delete_item_attribute(existing.item_id, &key)
+                .delete_item_attribute(existing.item_id, key)
                 .await
                 .map_err(|e| err_ctx(&resource, e))?;
         }
-        Ok(output::json_result(
-            &json!({"item_id": existing.item_id, "status": "attributes updated"}),
-        ))
+        tracing::info!(
+            item_id = existing.item_id,
+            set = ?set_keys,
+            renamed = rename.len(),
+            removed = ?remove,
+            "item attributes changed"
+        );
+        let renamed: Vec<_> = rename
+            .iter()
+            .map(|r| json!({"from": r.from, "to": r.to}))
+            .collect();
+        Ok(output::json_result(&json!({
+            "item_id": existing.item_id,
+            "status": "attributes updated",
+            "set": set_keys,
+            "renamed": renamed,
+            "removed": remove,
+        })))
     }
 
     #[rmcp::tool(
@@ -943,7 +990,10 @@ impl ZealotServer {
     #[rmcp::tool(
         description = "Rebuild the derived link index from item attributes (Parent, and other item-typed attributes). Run this if links/backlinks look stale after bulk attribute edits."
     )]
-    pub async fn rebuild_links(&self) -> Result<CallToolResult, McpError> {
+    pub async fn rebuild_links(
+        &self,
+        Parameters(_): Parameters<NoParams>,
+    ) -> Result<CallToolResult, McpError> {
         let result = self
             .client
             .rebuild_links()
@@ -1034,6 +1084,7 @@ fn slice_item_page(items: Vec<ItemDto>, shape: Shape, offset: i64, limit: i64) -
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ArchiveItemParams {
     /// Item ID or exact title
     pub item: String,

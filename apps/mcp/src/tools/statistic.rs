@@ -10,12 +10,14 @@ use crate::{
 };
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ListStatisticsParams {
     /// Optional parent item ID or exact title
     pub parent: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct StatisticQueryParams {
     /// Statistic item ID or exact title
     pub statistic: String,
@@ -30,6 +32,7 @@ pub struct StatisticQueryParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct RecordStatisticEntryParams {
     /// Statistic item ID or exact title
     pub statistic: String,
@@ -42,6 +45,7 @@ pub struct RecordStatisticEntryParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct EditStatisticEntryParams {
     pub statistic_entry_id: i64,
     pub value: Option<f64>,
@@ -56,6 +60,7 @@ pub struct EditStatisticEntryParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DeleteStatisticEntryParams {
     pub statistic_entry_id: i64,
 }

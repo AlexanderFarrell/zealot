@@ -42,15 +42,17 @@ Use browse-then-read.
 - `filter_items(filters?, any_of?, linked_from?, types?, type_mode?, under?, sort?, limit?, offset?, detail?, fields?)` combines type, subtree, and attribute conditions in one call (details below)
 - `get_linked_items(item, direction, detail?, limit?, offset?, fields?)` where direction is `children`, `related`, or `backlinks`
 - `create_item(title, content?, attributes?, types?, links?, parent?, full?)`. `parent` (id or title) is added to the `Parent` list attribute, merged with any `Parent` in `attributes`.
-- `update_item(item, title?, content?, expected_version?, full?)` replaces the whole body
+- `update_item(item, title?, content?, expected_version?, full?)` replaces the whole body. It changes only title and content: `attributes`, `parent`, and `types` are rejected (use `update_item_attributes` and `assign_item_type`).
 - `edit_item(item, old, new, replace_all?, expected_version?)` replaces exact text on the server
 - `append_to_item(item, text, expected_version?)` appends on the server
 - `replace_section(item, heading, content, expected_version?)` rewrites one heading's section body on the server
 - `delete_item(item)`
-- `update_item_attributes(item, set?, remove?, rename?)`
+- `update_item_attributes(item, set?, remove?, rename?)` where `set` is a `{key: value}` object, `remove` a list of keys, and `rename` a list of `{from, to}`. Pass at least one non-empty; `attributes` is not a parameter of this tool. The reply lists what changed: `{item_id, status, set, renamed, removed}`.
 - `set_status(items, status, comment?)` sets Status on up to 50 items and adds the same comment to each in one call. `comment` is required for `Hold`, `Blocked`, and `Rejected`. Items are independent: the reply lists `{item_id, title, status, comment_id?}` or `{item, error}` per item, with `updated` and `failed` counts.
 - `assign_item_type(item, type_name)` / `unassign_item_type(item, type_name)`
 - `rebuild_links()`
+
+Every tool rejects a parameter it does not define with an error naming the field and listing the accepted ones. A call that is accepted did what it says; a rejected call changed nothing.
 
 ## Editing Content
 

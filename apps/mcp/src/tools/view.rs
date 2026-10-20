@@ -10,6 +10,7 @@ use crate::{
 };
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct RunViewParams {
     /// Saved View item ID or exact title
     pub view: String,
@@ -25,12 +26,14 @@ pub struct RunViewParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ViewRefParams {
     /// Saved View item ID or exact title
     pub view: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ValidateViewParams {
     /// The view definition: the JSON object that goes inside the ```zealot-view block,
     /// `{"query": {...filter_items query...}, "group_by"?: "Parent", "columns"?: ["Status"]}`
