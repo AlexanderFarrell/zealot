@@ -687,3 +687,295 @@ item-view {
   margin-top: 6px;
   font-size: 12px;
 }
+
+// Saved View result box (Z196): the live result of a view, in an embed or on the view's own page.
+.view-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 10px;
+  background: var(--panel-1);
+  border: 1px solid var(--border-0);
+  border-radius: 8px;
+}
+
+.view-box__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.view-box__title {
+  font-weight: 600;
+  color: var(--text-0);
+  text-decoration: none;
+}
+
+// Beats the global link colour and underline.
+.view-box a.view-box__title {
+  color: var(--text-0);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.view-box__actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  align-items: center;
+}
+
+// One compact button look for the result box and the builder. The global `button` is a full-width bar.
+.view-box__mode,
+.view-box__refresh,
+.view-box__edit,
+.view-box__more,
+.view-builder__cancel,
+.view-builder__done,
+.view-builder__add,
+.view-builder__remove {
+  width: auto;
+  padding: 4px 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: nowrap;
+  color: var(--text-0);
+  background: transparent;
+  border: 1px solid var(--border-0);
+  border-radius: 6px;
+  box-shadow: none;
+
+  &:hover:not(:disabled) {
+    background: var(--panel-2);
+    filter: none;
+    box-shadow: none;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+.view-box__mode[aria-pressed="true"] {
+  background: var(--panel-2);
+  border-color: var(--accent-0, #4f8eff);
+}
+
+.view-box__refresh {
+  padding: 4px 8px;
+}
+
+.view-box__edit,
+.view-builder__done {
+  background: var(--bg-3);
+  border-color: transparent;
+
+  &:hover:not(:disabled) {
+    background: var(--bg-3);
+    filter: brightness(1.12);
+  }
+}
+
+.view-box__tables {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.view-box__error {
+  margin: 0;
+}
+
+.view-box__warning {
+  margin: 0;
+}
+
+.zealot-view-block {
+  margin: 8px 0;
+}
+
+// Saved View builder (Z196): form, JSON and live preview side by side, stacked on mobile.
+.view-builder {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  background: var(--panel-1);
+  border: 1px solid var(--border-0);
+  border-radius: 8px;
+}
+
+.view-builder__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.view-builder__actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.view-builder__add {
+  align-self: flex-start;
+  color: var(--text-1);
+  border-style: dashed;
+}
+
+.view-builder__remove {
+  flex: 0 0 auto;
+  min-width: 28px;
+  padding: 4px 6px;
+  color: var(--text-1);
+}
+
+// Selects and inputs are full-width by default; in the builder they take the room they need.
+.view-builder__editor select {
+  width: auto;
+  min-width: 9rem;
+  max-width: 100%;
+  align-self: flex-start;
+}
+
+.view-builder__row > select,
+.view-builder__field select,
+.view-builder__field input[type="number"] {
+  align-self: auto;
+}
+
+.view-builder__field input[type="number"] {
+  width: 5rem;
+}
+
+.view-builder__field input[type="checkbox"] {
+  width: auto;
+}
+
+.view-builder__body {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.view-builder__editor,
+.view-builder__preview {
+  flex: 1 1 320px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.view-builder__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+
+  h4 {
+    margin: 0;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-1);
+  }
+}
+
+.view-builder__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+// A filter is the attribute and operator on one line, the remove button at the end, the value below.
+.view-builder__filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 6px;
+  background: var(--panel-0);
+  border: 1px solid var(--border-0);
+  border-radius: 6px;
+
+  .view-builder__key {
+    order: 1;
+    flex: 1 1 8rem;
+    width: auto;
+    min-width: 0;
+  }
+
+  select {
+    order: 2;
+    flex: 0 1 auto;
+    width: auto;
+    min-width: 7rem;
+  }
+
+  .view-builder__remove {
+    order: 3;
+  }
+
+  .view-builder__value {
+    order: 4;
+    flex: 1 1 100%;
+  }
+}
+
+.view-builder__group {
+  padding: 6px;
+  border: 1px dashed var(--border-0);
+  border-radius: 6px;
+}
+
+.view-builder__field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.view-builder__field--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.view-builder__label {
+  font-size: 11px;
+  color: var(--text-1);
+}
+
+.view-builder__value {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.view-builder__choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.view-builder__json {
+  width: 100%;
+  font-family: monospace;
+  box-sizing: border-box;
+}
+
+.view-builder__note {
+  margin: 0;
+}

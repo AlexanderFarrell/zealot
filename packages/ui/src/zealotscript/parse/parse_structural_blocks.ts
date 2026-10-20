@@ -5,6 +5,7 @@ import { parseCodeBlock } from "./parse_code_block";
 import { parseParagraphs } from "./parse_paragraph";
 import { parseMarkdownTable } from "./parse_table";
 import { parseMathBlock } from "./parse_math_block";
+import { parseViewEmbed } from "./parse_view_embed";
 
 const parseHeading = (schema: Schema, line: string): PMNode | null => {
 	const match = /^(#{1,6})\s+(.*)$/.exec(line);
@@ -25,6 +26,9 @@ const parseBlockContent = (schema: Schema, lines: string[]): PMNode[] => {
 
 		const headingNode = parseHeading(schema, line);
 		if (headingNode) { blocks.push(headingNode); index++; continue; }
+
+		const embed = parseViewEmbed(schema, line);
+		if (embed) { blocks.push(embed); index++; continue; }
 
 		const list = parseList(schema, lines, index);
 		if (list) { blocks.push(list.node); index += list.linesConsumed; continue; }

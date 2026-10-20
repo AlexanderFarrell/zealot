@@ -12,7 +12,7 @@ const itemApi = new ItemAPI('/api');
 const STATUS_ORDER = ['Working', 'Specify', 'To Do', 'On Going', 'Hold', 'Blocked', 'Complete'];
 const BOTTOM_STATUS_ORDER = ['Rejected', 'Retired'];
 
-function buildCard(item: Item, showStatus: boolean, showParent: boolean, onDrop?: () => void): HTMLElement {
+function buildCard(item: Item, showStatus: boolean, showParent: boolean, onDrop?: () => void, dropZones = true): HTMLElement {
     const card = document.createElement('button');
     card.type = 'button';
     card.className = 'item-card';
@@ -27,20 +27,22 @@ function buildCard(item: Item, showStatus: boolean, showParent: boolean, onDrop?
         if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
     });
 
-    registerDropZone({
-        element: card,
-        onDragOver: (e) => {
-            if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-            card.classList.add('item-card--drop-target');
-        },
-        onDrop: (draggedItemId) => {
-            if (draggedItemId === item.ItemID) return;
-            void attrApi.set_value(draggedItemId, 'Parent', [item.ItemID]).then(() => onDrop?.());
-        },
-        onDragLeave: () => {
-            card.classList.remove('item-card--drop-target');
-        },
-    });
+    if (dropZones) {
+        registerDropZone({
+            element: card,
+            onDragOver: (e) => {
+                if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+                card.classList.add('item-card--drop-target');
+            },
+            onDrop: (draggedItemId) => {
+                if (draggedItemId === item.ItemID) return;
+                void attrApi.set_value(draggedItemId, 'Parent', [item.ItemID]).then(() => onDrop?.());
+            },
+            onDragLeave: () => {
+                card.classList.remove('item-card--drop-target');
+            },
+        });
+    }
 
     registerContextMenu(card, () => [
         { label: 'Open', onClick: () => getNavigator().openItemById(item.ItemID) },
@@ -114,7 +116,7 @@ function buildCard(item: Item, showStatus: boolean, showParent: boolean, onDrop?
     return card;
 }
 
-function buildGroup(label: string, items: Item[], showStatus: boolean, showParent: boolean, statusValue?: string, onDrop?: () => void): HTMLElement {
+function buildGroup(label: string, items: Item[], showStatus: boolean, showParent: boolean, statusValue?: string, onDrop?: () => void, dropZones = true): HTMLElement {
     const group = document.createElement('div');
     group.className = 'item-card-group';
 
@@ -123,7 +125,7 @@ function buildGroup(label: string, items: Item[], showStatus: boolean, showParen
     heading.textContent = label;
     group.appendChild(heading);
 
-    if (statusValue !== undefined) {
+    if (statusValue !== undefined && dropZones) {
         registerDropZone({
             element: heading,
             onDragOver: (e: DragEvent) => {
@@ -140,7 +142,7 @@ function buildGroup(label: string, items: Item[], showStatus: boolean, showParen
     }
 
     for (const item of items) {
-        group.appendChild(buildCard(item, showStatus, showParent, onDrop));
+        group.appendChild(buildCard(item, showStatus, showParent, onDrop, dropZones));
     }
 
     return group;
@@ -205,7 +207,15 @@ function groupItems(items: Item[]): Array<{ label: string; items: Item[]; showSt
 export function buildItemCardList(
     items: Item[],
     emptyMessage: string,
-    options: { grouped?: boolean; showParent?: boolean; onDrop?: () => void } = {},
+    options: {
+        grouped?: boolean;
+        showParent?: boolean;
+        onDrop?: () => void;
+        /** Groups in the caller's order (a Saved View's `groups`), instead of grouping by Status. */
+        groups?: Array<{ label: string; items: Item[] }>;
+        /** Card-on-card Parent drops and Status header drops; off for embedded lists. Default on. */
+        dropZones?: boolean;
+    } = {},
 ): HTMLElement {
     const list = document.createElement('div');
     list.className = 'item-card-list';
@@ -219,14 +229,19 @@ export function buildItemCardList(
     }
 
     const showParent = options.showParent ?? false;
+    const dropZones = options.dropZones ?? true;
 
-    if (options.grouped) {
+    if (options.groups) {
+        for (const { label, items: bucketItems } of options.groups) {
+            list.appendChild(buildGroup(label, bucketItems, true, showParent, undefined, options.onDrop, dropZones));
+        }
+    } else if (options.grouped) {
         for (const { label, items: bucketItems, showStatus, statusValue } of groupItems(items)) {
-            list.appendChild(buildGroup(label, bucketItems, showStatus, showParent, statusValue, options.onDrop));
+            list.appendChild(buildGroup(label, bucketItems, showStatus, showParent, statusValue, options.onDrop, dropZones));
         }
     } else {
         for (const item of items) {
-            list.appendChild(buildCard(item, true, showParent, options.onDrop));
+            list.appendChild(buildCard(item, true, showParent, options.onDrop, dropZones));
         }
     }
 

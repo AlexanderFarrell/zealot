@@ -502,7 +502,7 @@ ZealotScript does not support:
 
 - Raw `<script>`, `<style>`, `<iframe>`, or other arbitrary HTML beyond the specific tags listed above (`<mark>`, `<sub>`, `<sup>`, `<br>`)
 - JSX / React component syntax
-- Obsidian-style `![[transclusion]]` (planned but not yet implemented)
+- Obsidian-style `![[transclusion]]` of item content (not implemented; `![[View]]` embeds a Saved View result only)
 - Mermaid diagrams (planned but not yet implemented)
 
 Standard GFM constructs (headings, lists, tables, fenced code blocks, blockquotes, bold, italic, strikethrough, external links) are fully supported.
@@ -555,7 +555,7 @@ A Saved View is an ordinary item assigned the system `Saved View` type (migratio
 content holds exactly one fenced `zealot-view` block with a JSON definition:
 
 ```
-{"query": <ItemQueryDto>, "group_by": "<attribute key>", "columns": ["<attribute key>"]}
+{"query": <ItemQueryDto>, "group_by": "<attribute key>", "columns": ["<attribute key>"], "display": "cards"}
 ```
 
 `query` is the same object `POST /item/query` takes, so relative dates such as `$today` are
@@ -563,3 +563,15 @@ resolved each time the view runs. `group_by` and `columns` are optional. No new 
 the definition is versioned, diffed, exported and edited as content, and the prose around the
 block documents the view. A view runs under the caller's account, so it can never show another
 account's items. Results are not cached.
+
+`display` (`cards` or `table`) is optional and only chooses how the web UI first shows the result;
+the viewer can switch, and the choice is written back into the definition.
+
+In the web UI a Saved View's page shows its block as the live result, with an **Edit view** button
+that opens a form, the raw JSON and a live preview. A line holding only `![[View Title]]`, or
+`![[View Title|cards]]` / `![[View Title|table]]`, embeds that view's result in any item (also in
+quotes, admonitions, details, columns and tabs). The `|cards` / `|table` suffix is the remembered
+display mode. An embed counts as a wikilink, so a view's backlinks show where it is used. Run
+`rebuild_links` once after upgrading: link extraction now strips `|label` and `#anchor` and only a
+leading `type:`, so links the old extraction dropped (`[[X|label]]`, `[[X#section]]`, titles with a
+colon) appear in the link graph.

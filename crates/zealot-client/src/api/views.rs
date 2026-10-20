@@ -1,7 +1,9 @@
-//! Saved Views (`/view`): run, inspect, and validate.
+//! Saved Views (`/view`): run (saved or unsaved), inspect, and validate.
 
 use serde_json::Value;
-use zealot_domain::saved_view::{RunViewDto, ValidateViewDto, ViewInspectDto, ViewResultDto};
+use zealot_domain::saved_view::{
+    RunDefinitionDto, RunViewDto, ValidateViewDto, ViewInspectDto, ViewResultDto,
+};
 
 use crate::{ZealotClient, error::ApiError};
 
@@ -16,6 +18,24 @@ impl ZealotClient {
         self.post(
             &format!("/view/{view_id}/run"),
             &RunViewDto { limit, offset },
+        )
+        .await
+    }
+
+    /// Run an unsaved view definition for one page, as the web builder's preview does.
+    pub async fn run_view_definition(
+        &self,
+        definition: Value,
+        limit: Option<i64>,
+        offset: Option<i64>,
+    ) -> Result<ViewResultDto, ApiError> {
+        self.post(
+            "/view/run",
+            &RunDefinitionDto {
+                definition,
+                limit,
+                offset,
+            },
         )
         .await
     }

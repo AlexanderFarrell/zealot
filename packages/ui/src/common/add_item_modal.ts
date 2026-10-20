@@ -12,6 +12,8 @@ import {
     loadAttributeKinds,
     type AttributeValueInputBinding,
 } from '../views/attribute_value_input';
+import { starterContent } from '../views/view_definition';
+import { markStartEditing } from '../zealotscript/view_block_view';
 import { confirmDiscard, registerPendingWork, type PendingWork } from './unsaved_changes';
 
 const itemApi = new ItemAPI('/api');
@@ -26,12 +28,14 @@ export class AddItemModal extends HTMLElement {
     private attrContainer: HTMLElement | null = null;
     private rendered = false;
     private creating = false;
+    private savedView = false;
     private selectedType: ItemType | null = null;
     private attributeKinds: Record<string, AttributeKind> = {};
     private attributeBindings: Array<{ key: string; binding: AttributeValueInputBinding }> = [];
     private unregisterPendingWork: (() => void) | null = null;
 
-    static show(): AddItemModal {
+    /** Opens the modal; `savedView` starts a Saved View with its starter block and opens it in Edit view. */
+    static show(options: { savedView?: boolean } = {}): AddItemModal {
         const existing = document.querySelector('add-item-modal') as AddItemModal | null;
         if (existing) {
             existing.focusTitle();
@@ -39,6 +43,7 @@ export class AddItemModal extends HTMLElement {
         }
 
         const modal = new AddItemModal();
+        if (options.savedView) modal.savedView = true;
         (document.body ?? document.documentElement).appendChild(modal);
         queueMicrotask(() => modal.focusTitle());
         return modal;
@@ -146,13 +151,16 @@ export class AddItemModal extends HTMLElement {
                 this.typeSelect?.appendChild(option);
             });
             this.typeSelect.value = selectedValue;
+            if (this.savedView && sortedTypes.some((t) => t.Name === 'Saved View')) {
+                this.typeSelect.value = 'Saved View';
+            }
         } catch {
             this.typeSelect.innerHTML = '<option value="">None</option>';
         } finally {
             this.typeSelect.disabled = false;
         }
 
-        this.typeSelect.addEventListener('change', () => {
+        const typeChanged = (): void => {
             const name = this.typeSelect?.value ?? '';
             if (!name) {
                 this.selectedType = null;
@@ -164,7 +172,9 @@ export class AddItemModal extends HTMLElement {
                 this.selectedType = type;
                 this.renderAttributeFields();
             });
-        });
+        };
+        this.typeSelect.addEventListener('change', typeChanged);
+        if (this.typeSelect.value) typeChanged();
     }
 
     private renderAttributeFields(): void {
@@ -228,7 +238,7 @@ export class AddItemModal extends HTMLElement {
             const typeName = this.typeSelect?.value.trim() ?? '';
             const parentIds = this.parentChips?.value ?? [];
             const dto: AddItemDto = {
-                content: '',
+                content: this.savedView ? starterContent() : '',
                 title,
             };
 
@@ -250,6 +260,7 @@ export class AddItemModal extends HTMLElement {
             const created = await itemApi.Add(dto);
 
             Events.emit(ItemEvents.created, created);
+            if (this.savedView) markStartEditing(created.ItemID);
             this.close();
             getNavigator().openItem(created.Title);
         } catch (error) {

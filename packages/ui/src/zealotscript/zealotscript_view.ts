@@ -9,6 +9,7 @@ import ZealotSchema from "./schema";
 import { parseZealotScript } from "./parser";
 import { serializeZealotScript } from "./serializer";
 import { YoutubeEmbedView } from "./zealotscript_editor";
+import { ViewEmbedView } from "./view_embed_view";
 import { setIconRefElement } from "./icon_registry";
 import { highlightToHtml, whenHighlighterReady } from "./highlight";
 
@@ -217,6 +218,7 @@ export class ZealotScriptView extends HTMLElement {
 			editable: () => false,
 			nodeViews: {
 				youtube_embed: (node) => new YoutubeEmbedView(node),
+				view_embed: (node) => new ViewEmbedView(node, null, null),
 				tabs: (node) => new TabsView(node),
 				icon_ref: (node) => {
 					const span = document.createElement("span");

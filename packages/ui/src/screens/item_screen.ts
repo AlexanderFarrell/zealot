@@ -7,6 +7,7 @@ import { icons } from '@zealot/content';
 import { AttributeEditor } from '../views/attribute_editor';
 import { CommentsView } from '../views/comments_view';
 import { ZealotScriptEditor } from '../zealotscript/zealotscript_editor';
+import { consumeStartEditing } from '../zealotscript/view_block_view';
 import { buildItemCardList } from '../views/item_card_list';
 import { buildAddPanel } from '../views/item_table_add_panel';
 import { createItem } from '../views/item_table_save';
@@ -622,6 +623,13 @@ export class ItemScreen extends BaseElementEmpty {
     private renderContent(item: Item, container: HTMLElement): void {
         const editor = document.createElement('zealotscript-editor') as ZealotScriptEditor;
         this._contentEditor = editor;
+        if (item.Types.some((t) => t.Name === 'Saved View')) {
+            editor.savedView = {
+                viewId: item.ItemID,
+                title: item.DisplayTitle,
+                startEditing: consumeStartEditing(item.ItemID),
+            };
+        }
         editor.content = item.Content;
         editor.addEventListener('change', (e: Event) => {
             const value = (e as CustomEvent<string>).detail;

@@ -39,6 +39,8 @@ export interface ItemTableViewConfig {
     emptyMessage?: string;
     items: Item[];
     onOpenItem?: (item: Item) => void;
+    /** Called after a cell edit or delete changed an item, so an embedding view can refresh. */
+    onChange?: () => void;
 }
 
 export interface CreateDraftState {

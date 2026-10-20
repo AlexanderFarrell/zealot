@@ -166,3 +166,40 @@ describe("ItemTypeAPI writes", () => {
         ]);
     });
 });
+
+describe("ViewAPI", () => {
+    const dto = {
+        view_id: 7, title: "AI Queue", total: 3, offset: 0,
+        items: [{ item_id: 1, title: "A", content: "" }, { item_id: 2, title: "B", content: "" }],
+        group_by: "Parent",
+        groups: [
+            { key: 9, label: "P", item_ids: [1, 2] },
+            { key: 10, label: "Q", item_ids: [2] },
+        ],
+        display: "table",
+    };
+
+    it("runs a saved view and resolves group items, repeating multi-group items", async () => {
+        const requests = mockFetch(() => ({ json: dto }));
+        const result = await new ZealotAPI("/api").View.Run(7, { limit: 2 });
+        expect(requests[0]?.url).toBe("/api/view/7/run");
+        expect(result.Display).toBe("table");
+        expect(result.Remaining).toBe(1);
+        expect(result.Groups.map(g => g.items.map(i => i.ItemID))).toEqual([[1, 2], [2]]);
+    });
+
+    it("runs an unsaved definition", async () => {
+        const requests = mockFetch(() => ({ json: { ...dto, view_id: undefined } }));
+        const result = await new ZealotAPI("/api").View.RunDefinition({ query: {} }, { limit: 5 });
+        expect(requests[0]?.url).toBe("/api/view/run");
+        expect(result.ViewID).toBeNull();
+    });
+
+    it("reports an invalid definition with the server's message", async () => {
+        mockFetch(() => ({ status: 400, text: "unknown op" }));
+        await expect(new ZealotAPI("/api").View.RunDefinition({})).rejects.toMatchObject({
+            kind: "invalid",
+            message: "unknown op",
+        });
+    });
+});

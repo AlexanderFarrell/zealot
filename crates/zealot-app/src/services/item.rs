@@ -1382,7 +1382,10 @@ impl ItemService {
         Ok(())
     }
 
-    /// Extracts all `[[Title]]` and `[[type:Title]]` wiki link titles from content.
+    /// Extracts all wiki link titles from content, matching how the editor reads a link:
+    /// `[[Title]]`, `[[Title#anchor]]`, `[[Title|label]]`, `[[type:Title]]`, and embeds such as
+    /// `![[Title|table]]` (the `!` sits outside the brackets). Only a leading `type:` is a
+    /// prefix; any other colon belongs to the title.
     fn extract_wiki_link_titles(content: &str) -> Vec<String> {
         let mut titles = Vec::new();
         let mut chars = content.chars().peekable();
@@ -1400,11 +1403,9 @@ impl ItemService {
                         None => break,
                     }
                 }
-                let title = if let Some(pos) = inner.find(':') {
-                    inner[pos + 1..].trim().to_string()
-                } else {
-                    inner.trim().to_string()
-                };
+                let target = inner.split(['|', '#']).next().unwrap_or_default();
+                let target = target.strip_prefix("type:").unwrap_or(target);
+                let title = target.trim().to_string();
                 if !title.is_empty() {
                     titles.push(title);
                 }
@@ -1749,9 +1750,30 @@ mod tests {
 
     #[test]
     fn extract_wiki_link_titles_type_prefix() {
-        let titles =
-            ItemService::extract_wiki_link_titles("[[Project:My Project]] and [[My Note]]");
-        assert_eq!(titles, vec!["My Project", "My Note"]);
+        let titles = ItemService::extract_wiki_link_titles("[[type:Project]] and [[My Note]]");
+        assert_eq!(titles, vec!["Project", "My Note"]);
+    }
+
+    #[test]
+    fn extract_wiki_link_titles_keeps_colons_in_titles() {
+        let titles = ItemService::extract_wiki_link_titles(
+            "[[SYN-619 MDBS: Implement Result History Support]] and [[Kubernetes: Up and Running]]",
+        );
+        assert_eq!(
+            titles,
+            vec![
+                "SYN-619 MDBS: Implement Result History Support",
+                "Kubernetes: Up and Running"
+            ]
+        );
+    }
+
+    #[test]
+    fn extract_wiki_link_titles_strips_label_anchor_and_embed() {
+        let titles = ItemService::extract_wiki_link_titles(
+            "[[Foo|the foo]], [[Bar#Section]], [[Baz#Part|label]]\n![[AI Queue|table]]\n![[AI Queue]]",
+        );
+        assert_eq!(titles, vec!["Foo", "Bar", "Baz", "AI Queue", "AI Queue"]);
     }
 
     #[test]

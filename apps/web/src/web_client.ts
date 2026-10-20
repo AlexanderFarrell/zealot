@@ -29,6 +29,9 @@ class ZealotWebClient extends BaseElementEmpty {
         commands.runner.register(ModalCommands.newItem, [new Hotkey('n', [CTRL_OR_META_KEY])], () => {
             AddItemModal.show();
         });
+        commands.runner.register(ModalCommands.newSavedView, [], () => {
+            AddItemModal.show({ savedView: true });
+        });
         commands.runner.register(ModalCommands.openGlobalSearch, [new Hotkey('o', [CTRL_OR_META_KEY])], () => {
             ItemSearchModal.show();
         });

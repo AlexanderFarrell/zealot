@@ -10,6 +10,7 @@ import { PlannerAPI } from "./planner";
 import { RepeatAPI } from "./repeat";
 import { RuleAPI } from "./rule";
 import { StatisticAPI } from "./statistic";
+import { ViewAPI } from "./view";
 
 class ZealotAPI extends BaseAPI {
     public Auth: AuthAPI;
@@ -23,6 +24,7 @@ class ZealotAPI extends BaseAPI {
     public Repeat: RepeatAPI;
     public Rule: RuleAPI;
     public Statistic: StatisticAPI;
+    public View: ViewAPI;
 
     public constructor(baseUrl: string) {
         super(baseUrl)
@@ -37,6 +39,7 @@ class ZealotAPI extends BaseAPI {
         this.Repeat = new RepeatAPI(baseUrl);
         this.Rule = new RuleAPI(baseUrl);
         this.Statistic = new StatisticAPI(baseUrl);
+        this.View = new ViewAPI(baseUrl);
     }
 }
 

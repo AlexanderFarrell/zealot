@@ -194,6 +194,7 @@ export class ItemTableView extends HTMLElement {
                     Popups.add(`Deleted ${item.DisplayTitle}`);
                     this._items = this._items.filter((i) => i.ItemID !== item.ItemID);
                     this._render();
+                    this._config?.onChange?.();
                 })();
             }},
         ]);
@@ -280,6 +281,7 @@ export class ItemTableView extends HTMLElement {
             attributeKey: key,
             onCommit: async (value) => {
                 const result = await saveAttribute(item, key, value, kind);
+                if (result === 'saved' || result === 'removed') this._config?.onChange?.();
                 if (result === 'saved') {
                     item.Attributes[key] = value;
                     if (this._sortColumnKey === keyForColumn(column)) {
