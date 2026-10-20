@@ -13,6 +13,7 @@ use crate::{
 };
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DayDashboardParams {
     /// Include archived items (default false).
     #[serde(default)]
@@ -22,6 +23,7 @@ pub struct DayDashboardParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct GetPlanParams {
     /// Include archived items (default false).
     #[serde(default)]
@@ -41,6 +43,7 @@ pub struct GetPlanParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ListHabitsParams {
     /// Output detail: "meta", "summary" (default), or "full"
     #[serde(default)]
@@ -48,6 +51,7 @@ pub struct ListHabitsParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct HabitEntriesParams {
     /// Start date (inclusive), YYYY-MM-DD
     pub start_date: String,
@@ -56,6 +60,7 @@ pub struct HabitEntriesParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SetHabitStatusParams {
     /// Item ID or exact title
     pub item: String,
@@ -68,6 +73,7 @@ pub struct SetHabitStatusParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct GetCommentsParams {
     /// Item ID or exact title — mutually exclusive with `date`
     pub item: Option<String>,
@@ -76,6 +82,7 @@ pub struct GetCommentsParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct AddCommentParams {
     /// Item ID or exact title
     pub item: String,
@@ -88,18 +95,21 @@ pub struct AddCommentParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct AddJournalEntryParams {
     /// Journal entry text
     pub content: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct UpdateCommentParams {
     pub comment_id: i64,
     pub content: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CommentIdParam {
     pub comment_id: i64,
 }

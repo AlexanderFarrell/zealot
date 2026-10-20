@@ -18,12 +18,14 @@ const MAX_TEXT_BYTES: usize = 100 * 1024;
 const MAX_INLINE_BYTES: usize = 2 * 1024 * 1024;
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct MediaPathParam {
     /// Relative path to a file or directory (empty or omit for root)
     pub path: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct GetMediaParams {
     /// Relative path to a file or directory
     pub path: String,
@@ -37,6 +39,7 @@ pub enum MediaEncoding {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct UploadMediaParams {
     /// Full relative path for the new file, e.g. "images/2025/photo.png"
     pub path: String,
@@ -47,12 +50,14 @@ pub struct UploadMediaParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CreateFolderParams {
     /// Full relative path of the folder to create (e.g. "images/2025")
     pub folder: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct RenameMediaParams {
     /// Current relative path of the file or folder
     pub old_location: String,
@@ -61,6 +66,7 @@ pub struct RenameMediaParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DeleteMediaParams {
     /// Relative path to the file or directory to delete
     pub path: String,

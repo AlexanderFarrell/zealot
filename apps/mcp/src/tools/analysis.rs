@@ -9,25 +9,28 @@ use zealot_domain::{item::ItemDto, repeat::RepeatEntryDto};
 
 use crate::{
     output::{self, Detail},
-    tools::{ZealotServer, err_ctx, local_today, parse_date},
+    tools::{NoParams, ZealotServer, err_ctx, local_today, parse_date},
 };
 
 const FETCH_PAGE_SIZE: i64 = 100;
 const FETCH_CAP: usize = 1000;
 
 #[derive(Debug, Default, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct WikiStatsParams {
     /// Include the per-type counts (default false; `list_item_types` returns the same data)
     pub include_types: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct LimitParams {
     /// Max items to return (default 50, max 1000)
     pub limit: Option<usize>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct HabitStatsParams {
     /// Start date (inclusive), YYYY-MM-DD
     pub start_date: String,
@@ -161,7 +164,10 @@ impl ZealotServer {
     #[rmcp::tool(
         description = "Analyze attribute usage across up to 1000 recent items. Reports counts per used key, unused defined attribute kinds, and undefined keys found on items."
     )]
-    pub async fn attribute_usage(&self) -> Result<CallToolResult, McpError> {
+    pub async fn attribute_usage(
+        &self,
+        Parameters(_): Parameters<NoParams>,
+    ) -> Result<CallToolResult, McpError> {
         let (items, kinds) =
             tokio::join!(fetch_all_items(self), self.client.list_attribute_kinds());
         let (items, truncated) = items?;

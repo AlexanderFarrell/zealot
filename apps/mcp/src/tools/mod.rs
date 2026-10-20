@@ -47,6 +47,12 @@ Change content with `edit_item` (exact text) or `replace_section`, passing the \
 `version` from your read as `expected_version` so a concurrent edit is never \
 overwritten; use `append_to_item` for log-style additions.";
 
+/// Parameters for a tool that takes none. Naming the empty struct makes the
+/// server reject any argument instead of silently ignoring it.
+#[derive(Debug, Default, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct NoParams {}
+
 #[derive(Clone)]
 pub struct ZealotServer {
     pub client: ZealotClient,

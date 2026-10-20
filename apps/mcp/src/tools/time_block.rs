@@ -39,6 +39,7 @@ fn block_row(b: &zealot_domain::time_block::TimeBlockDto) -> serde_json::Value {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct GetTimeBlocksParams {
     /// Start date (inclusive), YYYY-MM-DD. Ignored if `item` is set.
     pub start_date: Option<String>,
@@ -49,6 +50,7 @@ pub struct GetTimeBlocksParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CreateTimeBlockParams {
     /// Item ID or exact title to attach the block to
     pub item: String,
@@ -63,6 +65,7 @@ pub struct CreateTimeBlockParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct UpdateTimeBlockParams {
     /// Numeric block ID to update
     pub block_id: i64,
@@ -77,6 +80,7 @@ pub struct UpdateTimeBlockParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DeleteTimeBlockParams {
     pub block_id: i64,
 }

@@ -10,7 +10,7 @@ use zealot_domain::{
 
 use crate::{
     output,
-    tools::{ZealotServer, err_ctx},
+    tools::{NoParams, ZealotServer, err_ctx},
 };
 
 // schemars 1.x generates boolean `true` for serde_json::Value, which the MCP
@@ -35,11 +35,13 @@ fn parse_trigger(v: serde_json::Value) -> Result<TriggerKind, McpError> {
 // ── Rules ─────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct RuleIdParam {
     pub rule_id: i64,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CreateRuleParams {
     pub name: String,
     pub description: Option<String>,
@@ -54,6 +56,7 @@ pub struct CreateRuleParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct UpdateRuleParams {
     pub rule_id: i64,
     pub name: Option<String>,
@@ -66,6 +69,7 @@ pub struct UpdateRuleParams {
 // ── Item Types ────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ListItemTypesParams {
     /// Include archived items in counts (default false).
     #[serde(default)]
@@ -73,6 +77,7 @@ pub struct ListItemTypesParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ItemTypeNameParam {
     pub name: String,
     /// Also return each required attribute's kind: `attributes: [{key, base_type, config}]`
@@ -81,6 +86,7 @@ pub struct ItemTypeNameParam {
 }
 
 #[derive(Debug, Default, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ListAttributeKindsParams {
     /// Only these attribute keys
     pub keys: Option<Vec<String>>,
@@ -89,11 +95,13 @@ pub struct ListAttributeKindsParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ItemTypeIdParam {
     pub type_id: i64,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CreateItemTypeParams {
     /// Unique name for the type (e.g. "Goal", "Project", "Habit")
     pub name: String,
@@ -104,6 +112,7 @@ pub struct CreateItemTypeParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct UpdateItemTypeParams {
     pub type_id: i64,
     pub name: Option<String>,
@@ -116,6 +125,7 @@ pub struct UpdateItemTypeParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct NonCompliantItemsParams {
     /// Item type name
     pub name: String,
@@ -124,6 +134,7 @@ pub struct NonCompliantItemsParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DeleteItemTypeParams {
     pub type_id: i64,
     /// Delete even if items still use this type (default false)
@@ -133,11 +144,13 @@ pub struct DeleteItemTypeParams {
 // ── Attribute Kinds ───────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct AttributeKeyParam {
     pub key: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CreateAttributeKindParams {
     /// Unique attribute key, used verbatim as the attribute name. Existing keys
     /// are Title Case with spaces (e.g. "Strategic Score", "End Date")
@@ -150,6 +163,7 @@ pub struct CreateAttributeKindParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct UpdateAttributeKindParams {
     pub kind_id: i64,
     pub key: Option<String>,
@@ -159,6 +173,7 @@ pub struct UpdateAttributeKindParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DeleteAttributeKindParams {
     pub key: String,
     /// Delete even if items still use this attribute (default false)
@@ -172,7 +187,10 @@ impl ZealotServer {
     #[rmcp::tool(
         description = "List all automation rules. Rules are Lua scripts triggered by events, schedules, or manually. Script bodies are omitted here — use get_rule for the full script."
     )]
-    pub async fn list_rules(&self) -> Result<CallToolResult, McpError> {
+    pub async fn list_rules(
+        &self,
+        Parameters(_): Parameters<NoParams>,
+    ) -> Result<CallToolResult, McpError> {
         let rules = self
             .client
             .list_rules()
