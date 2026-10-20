@@ -30,7 +30,7 @@ Everything after the scales is passed to `bench.py run`:
 It never touches a real Zealot: databases live in `test/bench/.work` (SQLite) or
 in a throwaway `postgres:16-alpine` container (`zealot-bench-pg`, port 47214,
 `shared_buffers=1GB`, `synchronous_commit=on`), and the server listens on port
-47213. Override with `BENCH_PORT`, `BENCH_PG_PORT`, `BENCH_PG_IMAGE`,
+47213. Override with `BENCH_PORT`, `BENCH_PG_PORT`, `BENCH_PG_IMAGE`, `BENCH_PG_NAME`,
 `BENCH_WORK_DIR`, `BENCH_RESULTS_DIR`.
 
 Each scale runs from a fresh database: start the server (migrations), create the

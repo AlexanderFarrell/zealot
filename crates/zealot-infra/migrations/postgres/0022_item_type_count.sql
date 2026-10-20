@@ -17,33 +17,42 @@ JOIN item i ON i.item_id = l.item_id
 LEFT JOIN attribute a ON a.item_id = i.item_id AND a.key = 'Archived' AND a.value_int = 1
 GROUP BY i.account_id, l.type_id;
 
+-- The link triggers run once per statement over the statement's transition table,
+-- so a bulk import or restore adds up its rows first and updates each counter
+-- once. One update per row would rewrite the same few counter rows a million
+-- times inside one transaction, which is quadratic in PostgreSQL.
 CREATE FUNCTION item_type_count_link_insert() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
     INSERT INTO item_type_count (account_id, type_id, total_count, archived_count)
-    SELECT i.account_id, NEW.type_id, 1,
-           (EXISTS (SELECT 1 FROM attribute a
-                    WHERE a.item_id = i.item_id AND a.key = 'Archived' AND a.value_int = 1))::int
-    FROM item i WHERE i.item_id = NEW.item_id
+    SELECT i.account_id, n.type_id, COUNT(*), COUNT(a.item_id)
+    FROM new_links n
+    JOIN item i ON i.item_id = n.item_id
+    LEFT JOIN attribute a ON a.item_id = i.item_id AND a.key = 'Archived' AND a.value_int = 1
+    GROUP BY i.account_id, n.type_id
     ON CONFLICT (account_id, type_id) DO UPDATE SET
-        total_count = item_type_count.total_count + 1,
+        total_count = item_type_count.total_count + EXCLUDED.total_count,
         archived_count = item_type_count.archived_count + EXCLUDED.archived_count;
     RETURN NULL;
 END $$;
 
--- No-op while the item itself is being deleted (item_type_count_item_delete has
--- already taken its links out of the counts, and the item row is gone by then),
--- and while its type is being deleted (the type's count rows go with it; updating
--- them in the same transaction would re-check their foreign key).
+-- Rows of an item that is itself being deleted find no item here: its links were
+-- already taken out of the counts by item_type_count_item_delete. Rows of a type
+-- being deleted find no type: the type's count rows go with it, and updating them
+-- in the same transaction would re-check their foreign key.
 CREATE FUNCTION item_type_count_link_delete() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-    UPDATE item_type_count SET
-        total_count = total_count - 1,
-        archived_count = archived_count - (EXISTS (
-            SELECT 1 FROM attribute a
-            WHERE a.item_id = OLD.item_id AND a.key = 'Archived' AND a.value_int = 1))::int
-    WHERE type_id = OLD.type_id
-      AND account_id = (SELECT account_id FROM item WHERE item_id = OLD.item_id)
-      AND EXISTS (SELECT 1 FROM item_type WHERE type_id = OLD.type_id);
+    UPDATE item_type_count c SET
+        total_count = c.total_count - d.total,
+        archived_count = c.archived_count - d.archived
+    FROM (
+        SELECT i.account_id, o.type_id, COUNT(*) AS total, COUNT(a.item_id) AS archived
+        FROM old_links o
+        JOIN item i ON i.item_id = o.item_id
+        JOIN item_type t ON t.type_id = o.type_id
+        LEFT JOIN attribute a ON a.item_id = i.item_id AND a.key = 'Archived' AND a.value_int = 1
+        GROUP BY i.account_id, o.type_id
+    ) d
+    WHERE c.account_id = d.account_id AND c.type_id = d.type_id;
     RETURN NULL;
 END $$;
 
@@ -91,9 +100,11 @@ BEGIN
 END $$;
 
 CREATE TRIGGER trg_type_count_link_insert AFTER INSERT ON item_item_type_link
-    FOR EACH ROW EXECUTE FUNCTION item_type_count_link_insert();
+    REFERENCING NEW TABLE AS new_links
+    FOR EACH STATEMENT EXECUTE FUNCTION item_type_count_link_insert();
 CREATE TRIGGER trg_type_count_link_delete AFTER DELETE ON item_item_type_link
-    FOR EACH ROW EXECUTE FUNCTION item_type_count_link_delete();
+    REFERENCING OLD TABLE AS old_links
+    FOR EACH STATEMENT EXECUTE FUNCTION item_type_count_link_delete();
 CREATE TRIGGER trg_type_count_item_delete BEFORE DELETE ON item
     FOR EACH ROW EXECUTE FUNCTION item_type_count_item_delete();
 CREATE TRIGGER trg_type_count_archive_insert AFTER INSERT ON attribute
