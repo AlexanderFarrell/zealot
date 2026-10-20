@@ -5,6 +5,13 @@ import { renderItemTitle } from './item_title';
 
 const repeatApi = new RepeatAPI('/api');
 const repeatGroups = ['Morning', 'Afternoon', 'Evening', 'Anytime'] as const;
+const repeatIcons: Record<RepeatStatusType, string> = {
+    Alternate: '⇄',
+    Complete: '✓',
+    'Not Complete': '○',
+    Skip: '–',
+};
+const repeatMenuStatuses: RepeatStatusType[] = ['Skip', 'Alternate', 'Not Complete'];
 const repeatLabels: Record<RepeatStatusType, string> = {
     Alternate: 'Alternate',
     Complete: 'Done',
@@ -105,20 +112,41 @@ export class RepeatsSidebarView extends HTMLElement {
         });
         statusEl.value = entry.Status;
 
+        // Phone controls (Z238): one tap completes, the ⋯ menu holds the rest.
+        const check = document.createElement('button');
+        check.type = 'button';
+        check.className = 'sidebar-repeat-check';
+        const more = document.createElement('button');
+        more.type = 'button';
+        more.className = 'sidebar-repeat-more';
+        more.textContent = '⋯';
+        more.setAttribute('aria-label', 'More statuses');
+        more.setAttribute('aria-expanded', 'false');
+        const menu = document.createElement('div');
+        menu.className = 'sidebar-repeat-menu';
+        menu.hidden = true;
+
+        const paint = (): void => {
+            const status = entry.Status as RepeatStatusType;
+            check.textContent = repeatIcons[status] ?? '○';
+            check.dataset.status = status;
+            check.setAttribute('aria-label', status === 'Complete' ? 'Mark not done' : 'Mark done');
+            check.setAttribute('aria-pressed', String(status === 'Complete'));
+            row.dataset.status = status;
+            row.classList.toggle('is-complete', status === 'Complete');
+            statusEl.value = status;
+        };
+
         let saving = false;
-        statusEl.addEventListener('change', () => {
-            if (saving) {
+        const save = (nextStatus: RepeatStatusType): void => {
+            if (saving || nextStatus === entry.Status) {
                 return;
             }
 
-            const nextStatus = statusEl.value as RepeatStatusType;
-            if (nextStatus === entry.Status) {
-                return;
-            }
-
-            const previousStatus = entry.Status;
             saving = true;
             statusEl.disabled = true;
+            check.disabled = true;
+            more.disabled = true;
 
             void repeatApi
                 .SetStatus({
@@ -129,11 +157,12 @@ export class RepeatsSidebarView extends HTMLElement {
                 })
                 .then(() => {
                     entry.Status = nextStatus;
-                    row.classList.toggle('is-complete', nextStatus === 'Complete');
+                    paint();
                     onStatusChange();
+                    row.dispatchEvent(new CustomEvent('repeat-status-change', { bubbles: true }));
                 })
                 .catch((error: unknown) => {
-                    statusEl.value = previousStatus;
+                    paint();
                     Popups.add_error(
                         error instanceof Error && error.message
                             ? error.message
@@ -143,10 +172,37 @@ export class RepeatsSidebarView extends HTMLElement {
                 .finally(() => {
                     saving = false;
                     statusEl.disabled = false;
+                    check.disabled = false;
+                    more.disabled = false;
                 });
+        };
+
+        statusEl.addEventListener('change', () => {
+            save(statusEl.value as RepeatStatusType);
+        });
+        check.addEventListener('click', () => {
+            save(entry.Status === 'Complete' ? 'Not Complete' : 'Complete');
         });
 
-        row.append(title, statusEl);
+        repeatMenuStatuses.forEach((value) => {
+            const option = document.createElement('button');
+            option.type = 'button';
+            option.className = 'sidebar-repeat-menu-option';
+            option.textContent = value === 'Not Complete' ? 'Not done' : (repeatLabels[value] ?? value);
+            option.addEventListener('click', () => {
+                menu.hidden = true;
+                more.setAttribute('aria-expanded', 'false');
+                save(value);
+            });
+            menu.appendChild(option);
+        });
+        more.addEventListener('click', () => {
+            menu.hidden = !menu.hidden;
+            more.setAttribute('aria-expanded', String(!menu.hidden));
+        });
+
+        paint();
+        row.append(check, title, more, statusEl, menu);
         return row;
     }
 }

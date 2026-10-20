@@ -1,6 +1,7 @@
 import { DateTime } from 'luxon';
 import { getNavigator, registerDropZone, unregisterDropZone, unregisterDropZonesIn } from '@websoil/engine';
 import { icons } from '@zealot/content';
+import { createMobilePaneSwitch } from '../shell/mobile_pane_switch';
 import type { AttributeKind } from '@zealot/domain/src/attribute';
 import type { Item } from '@zealot/domain/src/item';
 import { loadAttributeKinds } from '../views/attribute_value_input';
@@ -118,6 +119,7 @@ function buildActionButton(action: PlannerHeaderAction, className: string): HTML
     const button = document.createElement('button');
     button.type = 'button';
     button.className = className;
+    button.setAttribute('aria-label', action.label);
     button.addEventListener('click', action.onClick);
 
     const icon = document.createElement('img');
@@ -153,14 +155,18 @@ export function createPlannerHeader(
     crossLinks?: PlannerHeaderAction[],
 ): HTMLElement {
     const header = document.createElement('header');
-    header.className = 'planner-header';
+    header.className = 'planner-header mobile-pane-keep';
 
     const heading = document.createElement('h1');
     heading.className = 'planner-header-title';
     heading.textContent = title;
+    // On phones the date title doubles as the Today button (Z239).
+    const today = actions.find((action) => action.label === 'Today');
+    if (today) heading.addEventListener('click', today.onClick);
 
     const actionBar = document.createElement('div');
     actionBar.className = 'planner-header-actions';
+    actionBar.appendChild(createMobilePaneSwitch('icon'));
     actions.forEach((action) => {
         actionBar.appendChild(buildActionButton(action, 'planner-header-button'));
     });

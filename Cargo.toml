@@ -67,3 +67,8 @@ mime_guess = "2"
 # Logging
 tracing = "0.1"
 tracing-subscriber = {version = "0.3", features = ["env-filter"]}
+# Swift 6.4 (Xcode for macOS 27) hides internal @_cdecl functions, which breaks the
+# iOS link. vendor/tauri is tauri 2.11.2 with those functions made public.
+# Drop once upstream tauri ships the fix.
+[patch.crates-io]
+tauri = { path = "vendor/tauri" }

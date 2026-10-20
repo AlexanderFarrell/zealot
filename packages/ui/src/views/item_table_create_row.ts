@@ -19,6 +19,9 @@ export function buildCreateRow(
 
     for (const column of config.columns) {
         const cell = document.createElement('td');
+        cell.dataset.colKind = column.kind;
+        // Labels the field on the phone card layout (Z241).
+        cell.dataset.label = column.kind === 'attribute' ? column.attributeKey : (column.label ?? column.kind);
         cell.appendChild(buildCreateCell(column, draft, attributeKinds, onSubmit, config.createRow));
         row.appendChild(cell);
     }

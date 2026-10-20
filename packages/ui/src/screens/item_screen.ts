@@ -1,3 +1,4 @@
+import { createMobilePaneSwitch } from '../shell/mobile_pane_switch';
 import { BaseElementEmpty, Popups, commands, getNavigator, openInNewTab, getRightSidebarHost, registerContextMenu, showContextMenu, unregisterContextMenu, unregisterContextMenuIn, type ContextAction } from '@websoil/engine';
 import { ItemAPI } from '@zealot/api/src/item';
 import type { Item } from '@zealot/domain/src/item';
@@ -82,6 +83,7 @@ export class ItemScreen extends BaseElementEmpty {
     private last_loaded_title: string | null = null;
     private _titleListener: ((title: string) => void) | null = null;
     private _sidebarEl: HTMLElement | null = null;
+    private _relatedCount: number | null = null;
     private _saveQueue: ItemSaveQueue | null = null;
     private _unregisterPendingWork: (() => void) | null = null;
     private _contentEditor: ZealotScriptEditor | null = null;
@@ -93,7 +95,7 @@ export class ItemScreen extends BaseElementEmpty {
     }
 
     onActivated(): void {
-        getRightSidebarHost()?.setContent(this._sidebarEl);
+        getRightSidebarHost()?.setContent(this._sidebarEl, { label: 'Related', count: this._relatedCount });
     }
 
     async render() {
@@ -124,6 +126,7 @@ export class ItemScreen extends BaseElementEmpty {
     private async fetchAndRender(fetch: () => Promise<Item>): Promise<void> {
         unregisterContextMenu(this);
         this._sidebarEl = null;
+        this._relatedCount = null;
         getRightSidebarHost()?.setContent(null);
         this.innerHTML = '';
         this.appendChild(new LoadingSpinner());
@@ -201,7 +204,7 @@ export class ItemScreen extends BaseElementEmpty {
         attrsSection.className = 'item-attributes';
 
         const titleRow = document.createElement('div');
-        titleRow.className = 'item-title-row';
+        titleRow.className = 'item-title-row mobile-pane-keep';
         const iconEl = document.createElement('span');
         iconEl.className = 'item-title-icon';
         iconEl.draggable = true;
@@ -228,6 +231,11 @@ export class ItemScreen extends BaseElementEmpty {
             { label: 'Copy Link', onClick: () => {
                 void navigator.clipboard.writeText(window.location.href);
                 Popups.add('Link copied');
+            }},
+            { label: 'Toggle Content', onClick: () => {
+                content_visible = !content_visible;
+                const section = this.querySelector('.item-content') as HTMLElement | null;
+                if (section) section.style.display = content_visible ? 'block' : 'none';
             }},
             { label: 'Open in New Tab', onClick: () => openInNewTab(window.location.pathname) },
             { label: 'Open in New Window', onClick: () => window.open(window.location.href, '_blank', 'noopener,noreferrer') },
@@ -311,7 +319,7 @@ export class ItemScreen extends BaseElementEmpty {
         collectionsEl.className = 'item-collections';
         this._sidebarEl = collectionsEl;
         this._titleListener?.(item.Title);
-        getRightSidebarHost()?.setContent(collectionsEl);
+        getRightSidebarHost()?.setContent(collectionsEl, { label: 'Related' });
         void this.renderCollections(item, collectionsEl);
 
         if (item.Types.some(typeRef => typeRef.Name === 'Statistic')) {
@@ -374,7 +382,7 @@ export class ItemScreen extends BaseElementEmpty {
 
     private buildActions(item: Item, onManageTypes: () => void, itemActions: () => ContextAction[]): HTMLElement {
         const row = document.createElement('div');
-        row.className = 'button_row row gap';
+        row.className = 'button_row row gap mobile-pane-keep';
 
         // Secondary actions collapse into the "More" menu on phones.
         const makeBtn = (iconUrl: string, label: string, onClick: () => void, secondary = false): HTMLButtonElement => {
@@ -402,7 +410,7 @@ export class ItemScreen extends BaseElementEmpty {
         row.appendChild(makeBtn(icons.link, 'Copy Link', () => {
             void navigator.clipboard.writeText(window.location.href);
             Popups.add('Link copied');
-        }));
+        }, true));
 
         row.appendChild(makeBtn(icons.expand, 'Open in New Tab', () => {
             openInNewTab(window.location.pathname);
@@ -412,7 +420,7 @@ export class ItemScreen extends BaseElementEmpty {
             content_visible = !content_visible;
             const section = this.querySelector('.item-content') as HTMLElement | null;
             if (section) section.style.display = content_visible ? 'block' : 'none';
-        }));
+        }, true));
 
         for (const subtree of [false, true]) {
             const button = document.createElement('button');
@@ -475,6 +483,8 @@ export class ItemScreen extends BaseElementEmpty {
             updateViewBtn(next);
         });
         row.appendChild(viewBtn);
+
+        row.appendChild(createMobilePaneSwitch());
 
         const moreBtn = makeBtn(icons.more, 'More', () => {
             const rect = moreBtn.getBoundingClientRect();
@@ -734,6 +744,13 @@ export class ItemScreen extends BaseElementEmpty {
         container.appendChild(related.section);
         container.appendChild(backlinksSection);
 
+        // The phone strip shows one Related count for children and related together.
+        const counts = { children: 0, related: 0 };
+        const publishCount = (): void => {
+            this._relatedCount = counts.children + counts.related;
+            getRightSidebarHost()?.setCount(this._relatedCount);
+        };
+
         await Promise.all([
             this.renderCollectionCards({
                 container: children.content,
@@ -741,7 +758,12 @@ export class ItemScreen extends BaseElementEmpty {
                 emptyMessage: 'No child items.',
                 errorMessage: 'Failed to load child items.',
                 grouped: true,
-                loader: () => itemApi.GetChildren(item.ItemID),
+                loader: async () => {
+                    const loaded = await itemApi.GetChildren(item.ItemID);
+                    counts.children = loaded.length;
+                    publishCount();
+                    return loaded;
+                },
             }),
             this.renderCollectionCards({
                 container: related.content,
@@ -749,7 +771,12 @@ export class ItemScreen extends BaseElementEmpty {
                 errorMessage: 'Failed to load related items.',
                 grouped: true,
                 showParent: true,
-                loader: () => itemApi.GetRelated(item.ItemID),
+                loader: async () => {
+                    const loaded = await itemApi.GetRelated(item.ItemID);
+                    counts.related = loaded.length;
+                    publishCount();
+                    return loaded;
+                },
             }),
         ]);
     }

@@ -11,6 +11,7 @@ import {
 } from '@websoil/engine';
 import { AddItemModal, ItemSearchModal, RightSidebar } from '@zealot/ui';
 import '@zealot/ui/src/shell/mobile_title_bar';
+import '@zealot/ui/src/shell/mobile_pane_switch';
 import { MobileNavigator } from './mobile_navigator';
 
 class MobileClient extends BaseElementEmpty {

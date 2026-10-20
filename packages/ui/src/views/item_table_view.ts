@@ -224,7 +224,13 @@ export class ItemTableView extends HTMLElement {
         for (const column of this._config!.columns) {
             const cell = document.createElement('td');
             cell.dataset.colKind = column.kind;
-            cell.appendChild(this._buildItemCell(item, column));
+            // Phone card layout labels each value with its column name and drops empty read-only values.
+            cell.dataset.label = this._labelForColumn(column);
+            const content = this._buildItemCell(item, column);
+            cell.appendChild(content);
+            if (!content.textContent?.trim() && !content.matches('input, select, chips-input, item-chips-input, item-picker-input')) {
+                cell.dataset.empty = 'true';
+            }
             row.appendChild(cell);
         }
 
