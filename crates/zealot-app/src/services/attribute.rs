@@ -22,6 +22,8 @@ pub enum AttributeServiceError {
     ReadOnly(String),
     #[error("{0}")]
     InvalidDefault(String),
+    #[error("{0}")]
+    Duplicate(String),
     #[error("repo error: {0}")]
     Repo(#[from] RepoError),
 }
@@ -70,7 +72,7 @@ impl AttributeService {
         let kind = self
             .repo
             .add_attribute_kind(dto, account_id)
-            .map_err(AttributeServiceError::Repo)?;
+            .map_err(|e| duplicate_or_repo(e, &dto.key))?;
         if let Some(ref k) = kind {
             tracing::info!(account_id = ?account_id, key = %k.key, "attribute kind created");
         }
@@ -97,7 +99,13 @@ impl AttributeService {
         let kind = self
             .repo
             .update_attribute_kind(dto, account_id)
-            .map_err(AttributeServiceError::Repo)?;
+            .map_err(|e| {
+                let key = dto
+                    .key
+                    .as_deref()
+                    .or(current.as_ref().map(|c| c.key.as_str()));
+                duplicate_or_repo(e, key.unwrap_or_default())
+            })?;
         if let Some(ref k) = kind {
             tracing::info!(account_id = ?account_id, key = %k.key, "attribute kind updated");
         }
@@ -143,6 +151,16 @@ impl AttributeService {
             .map_err(AttributeServiceError::Repo)?;
         tracing::info!(account_id = ?account_id, %key, force, "attribute kind deleted");
         Ok(())
+    }
+}
+
+/// Names the key a unique-constraint violation collided on; other repo errors pass through.
+fn duplicate_or_repo(err: RepoError, key: &str) -> AttributeServiceError {
+    match err {
+        RepoError::Conflict => {
+            AttributeServiceError::Duplicate(format!("Attribute kind '{key}' already exists."))
+        }
+        other => AttributeServiceError::Repo(other),
     }
 }
 

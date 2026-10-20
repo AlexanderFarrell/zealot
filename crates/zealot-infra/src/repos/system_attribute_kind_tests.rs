@@ -1,4 +1,4 @@
-//! System attribute kinds are read-only through `AttributeService`, and user kinds update and delete,
+//! System attribute kinds are read-only through `AttributeService`, user kinds update and delete, and a duplicate key is a conflict,
 //! checked against the real repositories and migrations. No production data.
 //!
 //! The PostgreSQL tests start a throwaway container with testcontainers, so they are `#[ignore]`d and
@@ -172,6 +172,43 @@ async fn check_user_kinds_update_and_delete(db: &impl RawDb, repos: ZealotRepos)
     assert_eq!(count_values(db, "Status").await, 1);
 }
 
+async fn check_duplicate_key_is_a_conflict(repos: ZealotRepos) {
+    let svc = AttributeService::new(&repos.attribute);
+    svc.add_attribute_kind(&add("Icon", "text", json!({})), &account_id())
+        .unwrap();
+    svc.add_attribute_kind(&add("Shape", "text", json!({})), &account_id())
+        .unwrap();
+
+    // Create with an existing key.
+    let err = svc
+        .add_attribute_kind(&add("Icon", "text", json!({})), &account_id())
+        .unwrap_err();
+    assert!(
+        matches!(&err, AttributeServiceError::Duplicate(msg) if msg.contains("'Icon'")),
+        "{err:?}"
+    );
+
+    // Rename onto an existing key.
+    let shape = svc
+        .get_kind_by_key("Shape", &account_id())
+        .unwrap()
+        .unwrap();
+    let rename = UpdateAttributeKindDto {
+        kind_id: i64::from(shape.kind_id),
+        key: Some("Icon".into()),
+        description: None,
+        base_type: None,
+        config: None,
+    };
+    let err = svc
+        .update_attribute_kind(&rename, &account_id())
+        .unwrap_err();
+    assert!(
+        matches!(&err, AttributeServiceError::Duplicate(msg) if msg.contains("'Icon'")),
+        "{err:?}"
+    );
+}
+
 async fn sqlite_pool() -> SqlitePool {
     let pool = SqlitePoolOptions::new()
         .max_connections(1)
@@ -237,4 +274,17 @@ async fn system_kinds_reject_delete_and_update_on_postgres() {
 async fn user_kinds_update_and_delete_on_postgres() {
     let (pool, _container) = postgres_pool().await;
     check_user_kinds_update_and_delete(&pool, get_postgres_repos(pool.clone())).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn duplicate_key_is_a_conflict_on_sqlite() {
+    let pool = sqlite_pool().await;
+    check_duplicate_key_is_a_conflict(get_sqlite_repos(pool.clone())).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "starts a PostgreSQL container; requires a running Docker daemon"]
+async fn duplicate_key_is_a_conflict_on_postgres() {
+    let (pool, _container) = postgres_pool().await;
+    check_duplicate_key_is_a_conflict(get_postgres_repos(pool.clone())).await;
 }
