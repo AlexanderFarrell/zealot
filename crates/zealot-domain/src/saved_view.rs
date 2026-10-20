@@ -54,6 +54,19 @@ pub struct SavedViewDefinition {
     /// Attribute keys a client should show per item; informational for API callers
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub columns: Vec<String>,
+    /// How the web UI shows the result by default; a viewer preference, not part of the query
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display: Option<ViewDisplay>,
+}
+
+/// Display modes a client can show a view result in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ViewDisplay {
+    /// Item cards, as in the planners
+    Cards,
+    /// The item table
+    Table,
 }
 
 /// A definition plus the non-fatal problems found while parsing it.
@@ -168,6 +181,16 @@ pub struct RunViewDto {
     pub offset: Option<i64>,
 }
 
+/// Body of `POST /view/run`: an unsaved definition plus paging, for previews.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunDefinitionDto {
+    pub definition: Value,
+    #[serde(default)]
+    pub limit: Option<i64>,
+    #[serde(default)]
+    pub offset: Option<i64>,
+}
+
 /// Body of `POST /view/validate`: a definition that is not saved anywhere yet.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidateViewDto {
@@ -188,7 +211,9 @@ pub struct ViewGroupDto {
 /// The result of running a view.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ViewResultDto {
-    pub view_id: i64,
+    /// `None` when running an unsaved definition
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub view_id: Option<i64>,
     pub title: String,
     pub total: i64,
     pub offset: i64,
@@ -200,6 +225,8 @@ pub struct ViewResultDto {
     pub groups: Vec<ViewGroupDto>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub columns: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display: Option<ViewDisplay>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<String>,
 }
@@ -236,6 +263,20 @@ mod tests {
         assert_eq!(parsed.definition.query.filters.len(), 1);
         assert_eq!(parsed.definition.group_by.as_deref(), Some("Parent"));
         assert!(parsed.warnings.is_empty());
+    }
+
+    #[test]
+    fn reads_display_and_rejects_unknown_modes() {
+        let table = parse_definition(r#"{"query": {}, "display": "table"}"#).unwrap();
+        assert_eq!(table.definition.display, Some(ViewDisplay::Table));
+        assert_eq!(
+            parse_definition(r#"{"query": {}}"#)
+                .unwrap()
+                .definition
+                .display,
+            None
+        );
+        assert!(parse_definition(r#"{"query": {}, "display": "pie"}"#).is_err());
     }
 
     #[test]

@@ -13,7 +13,7 @@ import ZealotSchema from "./schema";
 import { parseZealotScript } from "./parser";
 import { importMarkdown, looksLikeMarkdown } from "./import_markdown";
 import { autolinkPlugin } from "./autolink_plugin";
-import { taskItemInputRule, wikilinkHref, wikilinkInputRule } from "./link_input_rules";
+import { taskItemInputRule, viewEmbedInputRule, wikilinkHref, wikilinkInputRule } from "./link_input_rules";
 import { ensureTrailingParagraph, stripTrailingParagraph, trailingParagraphPlugin } from "./trailing_paragraph";
 import { serializeZealotScript } from "./serializer";
 import { tableEditing, columnResizing, goToNextCell, addRowBefore, addRowAfter, deleteRow, addColumnBefore, addColumnAfter, deleteColumn, deleteTable, toggleHeaderRow } from "prosemirror-tables";
@@ -28,6 +28,9 @@ import { MediaAPI } from "@zealot/api/src/media";
 import { ItemSearchInline } from "../views/item_search_inline";
 import type { Item } from "@zealot/domain/src/item";
 import type MermaidType from "mermaid";
+import { ViewEmbedView } from "./view_embed_view";
+import { isFirstViewBlock, isViewFence, SavedViewBlockView } from "./view_block_view";
+import type { SavedViewHost } from "./view_block_view";
 
 const mediaApi = new MediaAPI('/api');
 
@@ -305,6 +308,8 @@ const buildInputRules = (schema: Schema) => {
 		}));
 	}
 
+	const embedRule = viewEmbedInputRule(schema);
+	if (embedRule) rules.push(embedRule);
 	const wikilinkRule = wikilinkInputRule(schema);
 	if (wikilinkRule) rules.push(wikilinkRule);
 	const taskRule = taskItemInputRule(schema);
@@ -414,9 +419,14 @@ export class ZealotScriptEditor extends HTMLElement {
 	private _view: EditorView | null = null;
 	private _saveTimer: number | null = null;
 	private _lastValue = "";
+
+	/** Set on a Saved View's own page, before the editor connects, to render its `zealot-view` block as a live result. */
+	public savedView: SavedViewHost | null = null;
 	private _wikilinkPickerEl: HTMLDivElement | null = null;
 	private _wikilinkPickerSearch: ItemSearchInline | null = null;
 	private _wikilinkPickerFrom: number | null = null;
+	/** True when the picker opened from `![[` at the start of a line: it then lists Saved Views and inserts an embed. */
+	private _wikilinkPickerEmbed = false;
 	private _outsideClickListener: ((e: MouseEvent) => void) | null = null;
 	private _shortcodePicker: ShortcodePicker | null = null;
 	private _shortcodePickerFrom: number | null = null;
@@ -456,7 +466,22 @@ export class ZealotScriptEditor extends HTMLElement {
 		el.style.top = `${coords.bottom + 4}px`;
 		el.style.left = `${coords.left}px`;
 
+		this._syncPickerMode(from);
 		this._wikilinkPickerSearch?.setQuery(query);
+	}
+
+	/** `![[` opening a line offers Saved Views; anywhere else it is an ordinary link picker. */
+	private _syncPickerMode(from: number): void {
+		const state = this._view?.state;
+		if (!state || !this._wikilinkPickerSearch) return;
+		const $from = state.doc.resolve(from);
+		const embed = $from.parent.type.name === "paragraph"
+			&& $from.parentOffset === 1
+			&& $from.parent.textBetween(0, 1) === "!";
+		this._wikilinkPickerEmbed = embed;
+		this._wikilinkPickerSearch.ResultsFilter = embed
+			? (items) => items.filter((item) => item.Types.some((t) => t.Name === "Saved View"))
+			: null;
 	}
 
 	private _updateWikilinkPicker(from: number, query: string): void {
@@ -469,6 +494,7 @@ export class ZealotScriptEditor extends HTMLElement {
 		const coords = this._view.coordsAtPos(from);
 		this._wikilinkPickerEl.style.top = `${coords.bottom + 4}px`;
 		this._wikilinkPickerEl.style.left = `${coords.left}px`;
+		this._syncPickerMode(from);
 		this._wikilinkPickerSearch?.setQuery(query);
 	}
 
@@ -488,6 +514,19 @@ export class ZealotScriptEditor extends HTMLElement {
 		const { state } = this._view;
 		const from = this._wikilinkPickerFrom;
 		const to = state.selection.from;
+		const embed = state.schema.nodes["view_embed"];
+		if (this._wikilinkPickerEmbed && embed) {
+			const $from = state.doc.resolve(from);
+			const container = $from.node($from.depth - 1);
+			const index = $from.index($from.depth - 1);
+			if (container.canReplaceWith(index, index + 1, embed)) {
+				const node = embed.create({ title: item.Title });
+				this._view.dispatch(state.tr.replaceWith($from.before(), $from.after(), node));
+				this._hideWikilinkPicker();
+				this._view.focus();
+				return;
+			}
+		}
 		const linkMark = state.schema.marks["link"];
 		const textNode = linkMark
 			? state.schema.text(item.Title, [linkMark.create({ href: wikilinkHref(item.Title) })])
@@ -786,10 +825,15 @@ export class ZealotScriptEditor extends HTMLElement {
 			state,
 			nodeViews: {
 				youtube_embed: (node) => new YoutubeEmbedView(node),
+				view_embed: (node, view, getPos) => new ViewEmbedView(node, view, getPos),
 				icon_ref: (node) => new IconRefView(node),
 				list_item: (node, view, getPos) => new TaskListItemView(node, view, getPos),
 				tabs: (node) => new TabsView(node),
-				code_block: (node) => {
+				code_block: (node, view, getPos) => {
+					const host = this.savedView;
+					if (host && isViewFence(node) && isFirstViewBlock(view, getPos)) {
+						return new SavedViewBlockView(node, view, getPos, host);
+					}
 					if (node.attrs.language === "mermaid") return new MermaidBlockView(node);
 					const pre = document.createElement("pre");
 					pre.setAttribute("data-language", (node.attrs.language as string) ?? "");

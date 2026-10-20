@@ -77,7 +77,7 @@ describe("Rule", () => {
 describe("domain barrel", () => {
     it("re-exports each module namespace", () => {
         expect(Object.keys(domain).sort()).toEqual([
-            "account", "attribute", "comment", "item", "item_type", "media", "repeat", "rule", "statistic", "time_block",
+            "account", "attribute", "comment", "item", "item_type", "media", "repeat", "rule", "saved_view", "statistic", "time_block",
         ]);
     });
 });

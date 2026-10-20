@@ -44,7 +44,7 @@ const getCodeBlockLanguage = (element: HTMLElement): string => {
 
 const codeBlockSpec: NodeSpec = {
 	...(baseSchema.spec.nodes.get("code_block") as NodeSpec),
-	attrs: { language: { default: "" } },
+	attrs: { language: { default: "" }, fence: { default: "```" } },
 	parseDOM: [
 		{
 			tag: "pre",
@@ -123,6 +123,24 @@ const youtubeEmbedSpec: NodeSpec = {
 	],
 	toDOM(node) {
 		return ["div", { "data-youtube": node.attrs.videoId, class: "zealot-youtube-embed" }];
+	}
+};
+
+const viewEmbedSpec: NodeSpec = {
+	group: "block",
+	atom: true,
+	attrs: { title: { default: "" }, display: { default: "" } },
+	parseDOM: [
+		{
+			tag: "div[data-view-embed]",
+			getAttrs: (e) => ({
+				title: (e as HTMLElement).getAttribute("data-view-embed") ?? "",
+				display: (e as HTMLElement).getAttribute("data-display") ?? "",
+			})
+		}
+	],
+	toDOM(node) {
+		return ["div", { "data-view-embed": node.attrs.title, "data-display": node.attrs.display, class: "zealot-view-embed" }];
 	}
 };
 
@@ -353,6 +371,7 @@ const nodes = addListNodes(
 	admonition: admonitionSpec,
 	...pmTableNodes,
 	youtube_embed: youtubeEmbedSpec,
+	view_embed: viewEmbedSpec,
 	math_inline: mathInlineSpec,
 	math_block: mathBlockSpec,
 	icon_ref: iconRefSpec,

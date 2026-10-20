@@ -20,6 +20,7 @@ use zealot_app::{
 use zealot_domain::{
     account::Account,
     common::{email::Email, id::Id},
+    saved_view::ViewDisplay,
 };
 
 /// Projects 1 and 2; LLM Plans 3, 4 (under 1) and 5 (under 2); 6 an Alexander Plan.
@@ -110,6 +111,8 @@ fn verify(repos: ZealotRepos) {
     // The definition's limit pages the run; the other account's LLM plan never appears.
     let page = svc.run(&id(10), None, None, &user).unwrap();
     assert_eq!(page.title, "AI Queue");
+    assert_eq!(page.view_id, Some(10));
+    assert_eq!(page.display, None);
     assert_eq!(page.total, 3);
     let ids: Vec<i64> = page.items.iter().map(|i| i.item_id).collect();
     assert_eq!(ids, [3, 4]);
@@ -165,6 +168,36 @@ fn verify(repos: ZealotRepos) {
             &user,
         ),
         "invalid date token",
+    );
+
+    // An unsaved definition runs like a saved one, with paging, grouping and display echoed.
+    let preview = svc
+        .run_definition(
+            &json!({"query": {"types": ["Plan"], "filters": [{"key": "Executor", "op": "eq", "value": "LLM"}], "sort": {"key": "title"}},
+                    "group_by": "Parent", "display": "table"}),
+            Some(2),
+            Some(1),
+            &user,
+        )
+        .unwrap();
+    assert!(preview.view_id.is_none());
+    assert_eq!(preview.total, 3);
+    assert_eq!(
+        preview.items.iter().map(|i| i.item_id).collect::<Vec<_>>(),
+        [4, 5]
+    );
+    assert_eq!(
+        preview
+            .groups
+            .iter()
+            .map(|g| g.label.as_str())
+            .collect::<Vec<_>>(),
+        ["Zealot", "Elephant"]
+    );
+    assert_eq!(preview.display, Some(ViewDisplay::Table));
+    invalid(
+        svc.run_definition(&json!({"query": {}, "display": "pie"}), None, None, &user),
+        "unknown variant",
     );
 
     // Not a Saved View, a broken definition, a missing item, another account's item.

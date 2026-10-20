@@ -12,7 +12,7 @@ import { autolinkPlugin } from "./autolink_plugin";
 import { ensureTrailingParagraph, stripTrailingParagraph, trailingParagraphPlugin } from "./trailing_paragraph";
 import { exitCodeBlockOnBlankLine } from "./commands";
 import { hrefForUrl, isUrlStart, matchBareUrl } from "./linkify";
-import { taskItemInputRule, wikilinkInputRule, WIKILINK_TYPED_RE, wikilinkHref } from "./link_input_rules";
+import { taskItemInputRule, viewEmbedInputRule, wikilinkInputRule, WIKILINK_TYPED_RE, wikilinkHref } from "./link_input_rules";
 
 const parse = (md: string): PMNode => parseZealotScript(ZealotSchema, md);
 const roundTrip = (md: string): string => serializeZealotScript(parse(md));
@@ -374,5 +374,42 @@ describe("typed link and task syntax", () => {
 			ZealotSchema.nodes["paragraph"]!.create(null, ZealotSchema.text("[x] ")),
 		]);
 		expect(apply(rule, plain, 5, "[x] ", 1)).toBeNull();
+	});
+});
+
+describe("typed view embeds", () => {
+	const rule = viewEmbedInputRule(ZealotSchema)!;
+	const run = (doc: PMNode, typed: string, pos: number, from: number) => {
+		const state = stateAt(doc, pos, []);
+		const match = (rule as unknown as { match: RegExp }).match.exec(typed);
+		if (!match) return "no match";
+		const handler = (rule as unknown as { handler: (s: EditorState, m: RegExpExecArray, a: number, b: number) => unknown }).handler;
+		const tr = handler(state, match, from, pos) as import("prosemirror-state").Transaction | null;
+		return tr ? state.apply(tr).doc : null;
+	};
+	const para = (text: string) => ZealotSchema.nodes["paragraph"]!.create(null, ZealotSchema.text(text));
+	const docOf = (...blocks: PMNode[]) => ZealotSchema.nodes["doc"]!.create(null, blocks);
+
+	it("turns a line that is only ![[Title]] into an embed at once", () => {
+		const typed = "![[AI Queue]]";
+		const doc = run(docOf(para(typed)), typed, 1 + typed.length, 1) as PMNode;
+		expect(doc.child(0).type.name).toBe("view_embed");
+		expect(serializeZealotScript(doc)).toBe(typed);
+	});
+
+	it("keeps a |table suffix", () => {
+		const typed = "![[AI Queue|table]]";
+		const doc = run(docOf(para(typed)), typed, 1 + typed.length, 1) as PMNode;
+		expect(serializeZealotScript(doc)).toBe(typed);
+	});
+
+	it("does not fire after other text on the line", () => {
+		expect(run(docOf(para("see ![[AI Queue]]")), "see ![[AI Queue]]", 18, 1)).toBe("no match");
+	});
+
+	it("does not fire where a block cannot go (a list item's first paragraph)", () => {
+		const item = ZealotSchema.nodes["list_item"]!.create({ checked: null }, [para("![[AI Queue]]")]);
+		const doc = docOf(ZealotSchema.nodes["bullet_list"]!.create(null, [item]));
+		expect(run(doc, "![[AI Queue]]", 3 + 13, 3)).toBeNull();
 	});
 });

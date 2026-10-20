@@ -5,6 +5,7 @@ import { parseCodeBlock } from "./parse/parse_code_block";
 import { parseInlineNodes } from "./parse/parse_inline";
 import { parseMarkdownTable, parseFencedTable } from "./parse/parse_table";
 import { parseYoutubeEmbed } from "./parse/parse_youtube";
+import { parseViewEmbed } from "./parse/parse_view_embed";
 import { parseMathBlock } from "./parse/parse_math_block";
 import { parseDetails, parseSpoiler, parseDefinitionList, parseColumns, parseTabs } from "./parse/parse_structural_blocks";
 
@@ -32,6 +33,9 @@ const parseAdmonitionContent = (schema: Schema, lines: string[]): PMNode[] => {
 
 		const headingNode = parseHeading(schema, line);
 		if (headingNode) { blocks.push(headingNode); index++; continue; }
+
+		const embed = parseViewEmbed(schema, line);
+		if (embed) { blocks.push(embed); index++; continue; }
 
 		const list = parseList(schema, lines, index);
 		if (list) { blocks.push(list.node); index += list.linesConsumed; continue; }
@@ -147,6 +151,7 @@ const parseHorizontalRule = (schema: Schema, line: string): PMNode | null => {
 
 const blockTypes: Array<(schema: Schema, line: string) => PMNode | null> = [
 	parseHeading,
+	parseViewEmbed,
 	parseHorizontalRule,
 ];
 

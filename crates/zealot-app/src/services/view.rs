@@ -29,6 +29,8 @@ use super::item::{ItemService, ItemServiceError};
 const DEFAULT_LIMIT: i64 = 50;
 /// Hard page cap, matching `ItemService::query_items`.
 const MAX_LIMIT: i64 = 100;
+/// Title reported for a run of an unsaved definition.
+const UNSAVED_TITLE: &str = "Unsaved view";
 /// Label for the group of items that lack the `group_by` attribute.
 const NONE_LABEL: &str = "(none)";
 
@@ -85,6 +87,33 @@ impl ViewService {
         account: &Account,
     ) -> Result<ViewResultDto, ViewServiceError> {
         let (item, parsed) = self.load(view_id, account)?;
+        let mut result = self.execute(parsed, limit, offset, account)?;
+        tracing::debug!(view = %item.title, total = result.total, "ran saved view");
+        result.view_id = Some(i64::from(item.item_id));
+        result.title = item.title;
+        Ok(result)
+    }
+
+    /// Run an unsaved definition, as `run` does for a saved one; the builder's preview uses it.
+    pub fn run_definition(
+        &self,
+        definition: &Value,
+        limit: Option<i64>,
+        offset: Option<i64>,
+        account: &Account,
+    ) -> Result<ViewResultDto, ViewServiceError> {
+        let parsed = saved_view::parse_definition_value(definition)?;
+        self.execute(parsed, limit, offset, account)
+    }
+
+    /// Execute a parsed definition for one page, grouping it when the definition says so.
+    fn execute(
+        &self,
+        parsed: ParsedView,
+        limit: Option<i64>,
+        offset: Option<i64>,
+        account: &Account,
+    ) -> Result<ViewResultDto, ViewServiceError> {
         let ParsedView {
             definition,
             warnings,
@@ -98,20 +127,20 @@ impl ViewService {
         );
         query.offset = offset.unwrap_or(definition.query.offset).max(0);
         let (items, total) = self.item_service.query_items(&query, account)?;
-        tracing::debug!(view = %item.title, total, "ran saved view");
         let groups = match &definition.group_by {
             Some(key) => self.group(&items, key, account),
             None => Vec::new(),
         };
         Ok(ViewResultDto {
-            view_id: i64::from(item.item_id),
-            title: item.title.clone(),
+            view_id: None,
+            title: String::from(UNSAVED_TITLE),
             total,
             offset: query.offset,
             items: items.iter().map(ItemDto::from).collect(),
             group_by: definition.group_by,
             groups,
             columns: definition.columns,
+            display: definition.display,
             warnings,
         })
     }

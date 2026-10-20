@@ -37,3 +37,25 @@ export const taskItemInputRule = (schema: Schema): InputRule | null => {
 		return tr.setNodeMarkup(itemPos, undefined, { ...item.attrs, checked: (match[1] ?? " ") !== " " });
 	});
 };
+
+// Typing a line that is only `![[Title]]` (or `|cards` / `|table`) turns it into a Saved View
+// embed at once. It must run before the wikilink rule, which would otherwise take the `[[...]]`.
+export const VIEW_EMBED_TYPED_RE = /^!\[\[([^[\]|#]+)(?:\|(cards|table))?\]\]$/;
+
+export const viewEmbedInputRule = (schema: Schema): InputRule | null => {
+	const embed = schema.nodes["view_embed"];
+	if (!embed) return null;
+	return new InputRule(VIEW_EMBED_TYPED_RE, (state, match, start) => {
+		const title = (match[1] ?? "").trim();
+		if (title.length === 0) return null;
+		const $start = state.doc.resolve(start);
+		const paragraph = $start.parent;
+		if (paragraph.type.name !== "paragraph" || $start.parentOffset !== 0) return null;
+		// Only where a block fits (not a list item's first paragraph, a table cell, a heading).
+		const container = $start.node($start.depth - 1);
+		const index = $start.index($start.depth - 1);
+		if (!container.canReplaceWith(index, index + 1, embed)) return null;
+		const node = embed.create({ title, display: match[2] ?? "" });
+		return state.tr.replaceWith($start.before(), $start.after(), node);
+	});
+};

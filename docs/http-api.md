@@ -478,11 +478,13 @@ Returns `{ "items": [ItemDto], "total": n }`, where `total` counts all matches.
 #### Saved Views — `/view`
 
 A Saved View is an item typed `Saved View` whose content holds one fenced `zealot-view` block
-with `{"query": <the /item/query body>, "group_by"?: "<key>", "columns"?: ["<key>"]}`.
+with `{"query": <the /item/query body>, "group_by"?: "<key>", "columns"?: ["<key>"], "display"?: "cards" | "table"}`.
+`display` is how the web UI shows the result by default; it is a viewer preference and never changes the query.
 
 - `POST /view/{item_id}/run` with optional body `{ "limit"?: n, "offset"?: m }` returns
   `{ view_id, title, total, offset, items: [ItemDto], group_by?, groups?: [{ key, label, item_ids }], columns?, warnings? }`.
-  `limit` defaults to the definition's limit, then 50, and is capped at 100. Groups cover the returned page.
+  `limit` defaults to the definition's limit, then 50, and is capped at 100. Groups cover the returned page. `display` is echoed when the definition sets it.
+- `POST /view/run` with `{ "definition": {...}, "limit"?: n, "offset"?: m }` runs an unsaved definition (the builder preview). The result is the same shape with no `view_id`.
 - `GET /view/{item_id}/inspect` returns `{ view_id, title, definition, resolved_query, today, time_zone, total, elapsed_ms, warnings? }`.
 - `POST /view/validate` with `{ "definition": {...} }` returns the same report for an unsaved definition.
 

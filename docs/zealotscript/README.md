@@ -28,6 +28,7 @@ structured content.
 | **Table** | Standard Markdown pipes |
 | **Admonitions** | `:::note … :::` |
 | **YouTube embed** | `:::youtube VIDEO_ID` |
+| **Saved View embed** | `![[View Title]]`, `![[View Title\|table]]` on its own line (see `data-model.md`) |
 | **Inline math** | `$E = mc^2$` |
 | **Math block** | `:::math … :::` |
 | **Emoji** | `:smile:` → 😄 |

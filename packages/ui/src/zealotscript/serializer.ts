@@ -225,8 +225,9 @@ const serializeHeading = (node: PMNode) => {
 const serializeCodeBlock = (node: PMNode) => {
 	const content = node.textContent || "";
 	const language = (node.attrs.language || "").trim();
-	const fence = language.length > 0 ? `\`\`\`${language}` : "```";
-	return `${fence}\n${content}\n\`\`\``;
+	const marker = (node.attrs.fence as string | undefined) || "```";
+	const open = language.length > 0 ? `${marker}${language}` : marker;
+	return `${open}\n${content}\n${marker}`;
 };
 
 const serializeBlockquote = (node: PMNode): string => {
@@ -327,6 +328,11 @@ const serializeYoutubeEmbed = (node: PMNode): string => {
 	return `:::youtube ${(node.attrs.videoId || "").trim()}`;
 };
 
+const serializeViewEmbed = (node: PMNode): string => {
+	const display = (node.attrs.display || "") as string;
+	return display ? `![[${node.attrs.title}|${display}]]` : `![[${node.attrs.title}]]`;
+};
+
 const serializeMathBlock = (node: PMNode): string => {
 	const src = (node.attrs.src || "").trim();
 	return `:::math\n${src}\n:::`;
@@ -418,6 +424,7 @@ const nodeSerializers: Record<string, (node: PMNode) => string> = {
 	table: serializeTable,
 	admonition: serializeAdmonition,
 	youtube_embed: serializeYoutubeEmbed,
+	view_embed: serializeViewEmbed,
 	math_block: serializeMathBlock,
 	math_inline: serializeMathInlineNode,
 	icon_ref: (node) => `:${node.attrs.name}:`,

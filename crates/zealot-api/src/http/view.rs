@@ -9,7 +9,7 @@ use zealot_domain::{
     account::Account,
     auth::Actor,
     common::id::Id,
-    saved_view::{RunViewDto, ValidateViewDto, ViewInspectDto, ViewResultDto},
+    saved_view::{RunDefinitionDto, RunViewDto, ValidateViewDto, ViewInspectDto, ViewResultDto},
 };
 
 use crate::http::{
@@ -17,10 +17,11 @@ use crate::http::{
     middleware::{auth_middleware, csrf_middleware},
 };
 
-/// Saved View routes: run, inspect, and validate (Z161).
+/// Saved View routes: run (saved or unsaved), inspect, and validate (Z161, Z196).
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/validate", post(validate))
+        .route("/run", post(run_definition))
         .route("/{item_id}/run", post(run))
         .route("/{item_id}/inspect", get(inspect))
         .route_layer(middleware::from_fn_with_state(
@@ -71,6 +72,21 @@ async fn run(
         .services
         .view
         .run(&view_id(item_id)?, page.limit, page.offset, &account)
+        .map_err(service_error)?;
+    Ok(Json(result))
+}
+
+/// `POST /view/run` with `{definition, limit?, offset?}`: run an unsaved definition.
+async fn run_definition(
+    State(state): State<AppState>,
+    Extension(actor): Extension<Actor>,
+    Json(dto): Json<RunDefinitionDto>,
+) -> Result<Json<ViewResultDto>, HttpError> {
+    let account = require_account(&actor)?;
+    let result = state
+        .services
+        .view
+        .run_definition(&dto.definition, dto.limit, dto.offset, &account)
         .map_err(service_error)?;
     Ok(Json(result))
 }
