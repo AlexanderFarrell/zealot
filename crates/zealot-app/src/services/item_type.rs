@@ -26,6 +26,11 @@ pub trait RequirementDefaults: std::fmt::Debug + Send + Sync {
     fn kind_default(&self, account_id: &Id, key: &str) -> Option<Attribute>;
     /// Parse a type-level default for `key` with the kind's own rules.
     fn parse_override(&self, account_id: &Id, key: &str, raw: &Value) -> Result<Attribute, String>;
+    /// Whether `key` names an attribute kind the account can use. Implementations without a
+    /// kind store accept every key.
+    fn kind_exists(&self, _account_id: &Id, _key: &str) -> Result<bool, String> {
+        Ok(true)
+    }
 }
 
 /// No kind has a default and any type-level default is accepted as given. For tests.
@@ -67,6 +72,13 @@ impl RequirementDefaults for KindDefaults {
                 None
             }
         }
+    }
+
+    fn kind_exists(&self, account_id: &Id, key: &str) -> Result<bool, String> {
+        self.attributes
+            .get_attribute_kind(key, account_id)
+            .map(|kind| kind.is_some())
+            .map_err(|err| format!("attribute kind lookup failed: {err}"))
     }
 
     fn parse_override(&self, account_id: &Id, key: &str, raw: &Value) -> Result<Attribute, String> {
@@ -115,6 +127,9 @@ pub enum ItemTypeServiceError {
     InvalidDefault(String),
     /// A requirement change would leave existing items without a value and has no default to
     /// give them. Nothing was changed.
+    /// Required attributes that name no existing attribute kind. Nothing was changed.
+    #[error("{0}")]
+    UnknownAttributes(String),
     #[error("{message}")]
     WouldInvalidate {
         message: String,
@@ -187,6 +202,7 @@ impl ItemTypeService {
         dto: &AddItemTypeDto,
         account_id: &Id,
     ) -> Result<Option<ItemType>, ItemTypeServiceError> {
+        self.ensure_kinds_exist(account_id, &dto.required_attributes)?;
         let overrides = match &dto.required_defaults {
             Some(raw) if !raw.is_empty() => {
                 self.parse_overrides(account_id, &dto.required_attributes, raw)?
@@ -202,7 +218,8 @@ impl ItemTypeService {
         };
         tracing::info!(account_id = ?account_id, type_id = ?created.type_id, name = %created.name, "item type created");
         if overrides.is_empty() {
-            return Ok(Some(created));
+            // Read back, so the response shows what was stored.
+            return self.get_item_type(&created.type_id, account_id);
         }
         // A new type has no members, so only the stored defaults need writing.
         self.repo
@@ -336,6 +353,35 @@ impl ItemTypeService {
             .map_err(ItemTypeServiceError::Repo)
     }
 
+    /// Rejects keys that are not existing attribute kinds, naming all of them.
+    fn ensure_kinds_exist(
+        &self,
+        account_id: &Id,
+        keys: &[String],
+    ) -> Result<(), ItemTypeServiceError> {
+        let mut unknown = Vec::new();
+        for key in keys {
+            if unknown.contains(key) {
+                continue;
+            }
+            let exists = self
+                .defaults
+                .kind_exists(account_id, key)
+                .map_err(|err| ItemTypeServiceError::Repo(RepoError::DatabaseError { err }))?;
+            if !exists {
+                unknown.push(key.clone());
+            }
+        }
+        if unknown.is_empty() {
+            return Ok(());
+        }
+        let names: Vec<String> = unknown.iter().map(|key| format!("'{key}'")).collect();
+        Err(ItemTypeServiceError::UnknownAttributes(format!(
+            "Unknown attribute kind(s): {}. Create the attribute kind first.",
+            names.join(", ")
+        )))
+    }
+
     /// Validate type-level defaults for a new type: each key must be required, each value must
     /// fit its kind. Returns the validated raw JSON with its parsed form.
     fn parse_overrides(
@@ -403,6 +449,7 @@ impl ItemTypeService {
         override_changes: BTreeMap<String, Option<(Value, Attribute)>>,
         dry_run: bool,
     ) -> Result<ItemTypeChange, ItemTypeServiceError> {
+        self.ensure_kinds_exist(account_id, &add)?;
         let type_id = i64::from(current.type_id);
         let mut report = RequiredChangeReport {
             dry_run,

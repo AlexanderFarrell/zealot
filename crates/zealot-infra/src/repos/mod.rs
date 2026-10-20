@@ -39,6 +39,8 @@ mod system_attribute_kind_tests;
 #[cfg(test)]
 mod type_default_override_tests;
 #[cfg(test)]
+mod unknown_required_attribute_tests;
+#[cfg(test)]
 mod scale_tests;
 #[cfg(test)]
 mod view_query_tests;
