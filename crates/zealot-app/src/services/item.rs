@@ -1237,6 +1237,8 @@ impl ItemService {
                 attributes: attributes.remove(&item.item_id).unwrap_or_default(),
                 types: type_refs.remove(&item.item_id).unwrap_or_default(),
                 links: links.remove(&item.item_id).unwrap_or_default(),
+                created_at: item.created_at,
+                updated_at: item.updated_at,
             })
             .collect())
     }

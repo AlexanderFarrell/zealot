@@ -9,6 +9,7 @@ import { buildAddPanel } from './item_table_add_panel';
 import { buildCreateRow } from './item_table_create_row';
 import { saveAttribute, saveTitle, saveTypes, createItem } from './item_table_save';
 import { keyForColumn, sortItems, toggleSort } from './item_table_sort';
+import { formatTimestamp, timestampOf } from './item_timestamps';
 import ChipsInput from './chips_input';
 import {
     createAttributeValueInput,
@@ -269,6 +270,10 @@ export class ItemTableView extends HTMLElement {
             return chips;
         }
 
+        if (column.kind === 'timestamp') {
+            return this._readOnlyCell(formatTimestamp(timestampOf(item, column.field)));
+        }
+
         const key = column.attributeKey;
         const kind = this._attributeKinds[key];
 
@@ -367,6 +372,7 @@ export class ItemTableView extends HTMLElement {
         if (column.label) return column.label;
         if (column.kind === 'title') return 'Title';
         if (column.kind === 'types') return 'Type';
+        if (column.kind === 'timestamp') return column.field === 'created' ? 'Created' : 'Updated';
         return column.attributeKey;
     }
 

@@ -25,6 +25,8 @@ struct ItemRow {
     item_id: i64,
     title: String,
     content: String,
+    created_at: i64,
+    updated_at: i64,
 }
 
 fn row_to_item_core(row: ItemRow) -> Result<ItemCore, RepoError> {
@@ -34,6 +36,8 @@ fn row_to_item_core(row: ItemRow) -> Result<ItemCore, RepoError> {
         })?,
         title: row.title,
         content: row.content,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
     })
 }
 
@@ -48,7 +52,7 @@ async fn fetch_items_by_ids(
 
     let placeholders = item_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
     let sql = format!(
-        "SELECT item_id, title, content FROM item
+        "SELECT item_id, title, content, created_at, updated_at FROM item
          WHERE account_id = ? AND item_id IN ({})",
         placeholders
     );
@@ -83,7 +87,7 @@ impl ItemRepo for ItemSqliteRepo {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
                 let row = sqlx::query_as::<_, ItemRow>(
-                    "SELECT item_id, title, content FROM item
+                    "SELECT item_id, title, content, created_at, updated_at FROM item
                      WHERE item_id = ? AND account_id = ?",
                 )
                 .bind(item_id_val)
@@ -131,7 +135,7 @@ impl ItemRepo for ItemSqliteRepo {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
                 let rows = sqlx::query_as::<_, ItemRow>(
-                    "SELECT item_id, title, content FROM item
+                    "SELECT item_id, title, content, created_at, updated_at FROM item
                      WHERE title = ? AND account_id = ?",
                 )
                 .bind(&title)
@@ -160,7 +164,7 @@ impl ItemRepo for ItemSqliteRepo {
             return tokio::task::block_in_place(|| {
                 tokio::runtime::Handle::current().block_on(async move {
                     let rows = sqlx::query_as::<_, ItemRow>(
-                        "SELECT i.item_id, i.title, i.content FROM item i
+                        "SELECT i.item_id, i.title, i.content, i.created_at, i.updated_at FROM item i
                          LEFT JOIN (SELECT item_id, COUNT(*) as view_count FROM item_view GROUP BY item_id) iv ON iv.item_id = i.item_id
                          WHERE i.title LIKE '%' AND i.account_id = ?
                          ORDER BY COALESCE(iv.view_count, 0) DESC, i.item_id DESC LIMIT ? OFFSET ?",
@@ -183,7 +187,7 @@ impl ItemRepo for ItemSqliteRepo {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
                 let rows = sqlx::query_as::<_, ItemRow>(
-                    "SELECT i.item_id, i.title, i.content FROM item i
+                    "SELECT i.item_id, i.title, i.content, i.created_at, i.updated_at FROM item i
                      LEFT JOIN (SELECT item_id, COUNT(*) as view_count FROM item_view GROUP BY item_id) iv ON iv.item_id = i.item_id
                      WHERE i.title LIKE ? AND i.account_id = ?
                      ORDER BY CASE WHEN LOWER(i.title) = LOWER(?) THEN 0 ELSE 1 END ASC,
@@ -218,7 +222,7 @@ impl ItemRepo for ItemSqliteRepo {
             return tokio::task::block_in_place(|| {
                 tokio::runtime::Handle::current().block_on(async move {
                     let rows = sqlx::query_as::<_, ItemRow>(
-                        "SELECT item_id, title, content FROM item
+                        "SELECT item_id, title, content, created_at, updated_at FROM item
                          WHERE account_id = ?
                          ORDER BY item_id DESC LIMIT ? OFFSET ?",
                     )
@@ -238,7 +242,7 @@ impl ItemRepo for ItemSqliteRepo {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
                 let rows = sqlx::query_as::<_, ItemRow>(
-                    "SELECT item_id, title, content FROM item
+                    "SELECT item_id, title, content, created_at, updated_at FROM item
                      WHERE content LIKE ? AND account_id = ?
                      ORDER BY item_id DESC LIMIT ? OFFSET ?",
                 )
@@ -273,11 +277,13 @@ impl ItemRepo for ItemSqliteRepo {
                     item_id: i64,
                     title: String,
                     content: String,
+                    created_at: i64,
+                    updated_at: i64,
                     heading_text: String,
                 }
 
                 let rows = sqlx::query_as::<_, ItemWithHeadingRow>(
-                    "SELECT i.item_id, i.title, i.content, h.text AS heading_text
+                    "SELECT i.item_id, i.title, i.content, i.created_at, i.updated_at, h.text AS heading_text
                      FROM item i
                      JOIN item_heading h ON h.item_id = i.item_id
                      WHERE i.account_id = ? AND h.text LIKE ?
@@ -297,6 +303,8 @@ impl ItemRepo for ItemSqliteRepo {
                             item_id: r.item_id,
                             title: r.title,
                             content: r.content,
+                            created_at: r.created_at,
+                            updated_at: r.updated_at,
                         })?;
                         Ok((core, r.heading_text))
                     })
@@ -325,7 +333,7 @@ impl ItemRepo for ItemSqliteRepo {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
                 let rows = sqlx::query_as::<_, ItemRow>(
-                    "SELECT item_id, title, content FROM item
+                    "SELECT item_id, title, content, created_at, updated_at FROM item
                      WHERE account_id = ?
                      ORDER BY created_at DESC LIMIT ? OFFSET ?",
                 )
@@ -356,7 +364,7 @@ impl ItemRepo for ItemSqliteRepo {
                 let row = sqlx::query_as::<_, ItemRow>(
                     "INSERT INTO item (title, content, account_id)
                      VALUES (?, ?, ?)
-                     RETURNING item_id, title, content",
+                     RETURNING item_id, title, content, created_at, updated_at",
                 )
                 .bind(&title)
                 .bind(&content)
@@ -399,7 +407,7 @@ impl ItemRepo for ItemSqliteRepo {
                 .map_err(RepoError::from)?;
 
                 let row = sqlx::query_as::<_, ItemRow>(
-                    "SELECT item_id, title, content FROM item
+                    "SELECT item_id, title, content, created_at, updated_at FROM item
                      WHERE item_id = ? AND account_id = ?",
                 )
                 .bind(item_id_val)
@@ -481,7 +489,7 @@ impl ItemRepo for ItemSqliteRepo {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
                 let rows = sqlx::query_as::<_, ItemRow>(
-                    "SELECT item_id, title, content FROM item
+                    "SELECT item_id, title, content, created_at, updated_at FROM item
                      WHERE account_id = ? AND item_id > ? ORDER BY item_id LIMIT ?",
                 )
                 .bind(account_id_val)

@@ -575,6 +575,7 @@ export class ViewBuilder extends HTMLElement {
 
         const columns = new ChipsInput();
         columns.value = [...(this._def!.columns ?? [])];
+        columns.suggestionsListId = 'view-builder-keys';
         const sync = (): void => {
             this._def!.columns = columns.value.slice();
             this._formChanged();

@@ -141,9 +141,14 @@ Returned by all item endpoints.
   "links": [
     { "other_item_id": 10, "relationship": "parent" }
   ],
-  "version": "3f1a9c0b2d4e5f60"
+  "version": "3f1a9c0b2d4e5f60",
+  "archived": false,
+  "created_at": 1782777600,
+  "updated_at": 1782864000
 }
 ```
+
+`created_at` and `updated_at` are when the item was created and last changed, in Unix seconds (UTC). They are read-only: item requests do not take them. Servers that predate them omit the fields, and clients read a missing value as 0.
 
 `version` is a short SHA-256 hash of `content`. It changes exactly when the body changes. Send it back as `expected_version` on a content write to have the write refused (409) if someone else changed the body since you read it.
 
@@ -479,6 +484,7 @@ Returns `{ "items": [ItemDto], "total": n }`, where `total` counts all matches.
 
 A Saved View is an item typed `Saved View` whose content holds one fenced `zealot-view` block
 with `{"query": <the /item/query body>, "group_by"?: "<key>", "columns"?: ["<key>"], "display"?: "cards" | "table"}`.
+A column key is an attribute key, or `created` / `updated` for the item's read-only timestamp (`created_at` / `updated_at` on each `ItemDto`), which a table shows as a date.
 `display` is how the web UI shows the result by default; it is a viewer preference and never changes the query.
 
 - `POST /view/{item_id}/run` with optional body `{ "limit"?: n, "offset"?: m }` returns

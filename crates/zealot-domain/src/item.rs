@@ -22,6 +22,10 @@ pub struct Item {
     pub attributes: HashMap<String, Attribute>,
     pub types: Vec<ItemTypeRef>,
     pub links: Vec<ItemLink>,
+    /// Unix seconds.
+    pub created_at: i64,
+    /// Unix seconds.
+    pub updated_at: i64,
 }
 
 #[derive(Debug, Clone)]
@@ -29,6 +33,10 @@ pub struct ItemCore {
     pub item_id: Id,
     pub title: String,
     pub content: String,
+    /// Unix seconds.
+    pub created_at: i64,
+    /// Unix seconds.
+    pub updated_at: i64,
 }
 
 /// A free-form relationship label stored in `item_item_link.relationship`.
@@ -86,6 +94,12 @@ pub struct ItemDto {
     /// True when the Archived boolean attribute is set.
     #[serde(default)]
     pub archived: bool,
+    /// When the item was created, in Unix seconds. 0 from servers that predate it.
+    #[serde(default)]
+    pub created_at: i64,
+    /// When the item last changed, in Unix seconds. 0 from servers that predate it.
+    #[serde(default)]
+    pub updated_at: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -316,6 +330,8 @@ impl From<&Item> for ItemDto {
             links: value.links.iter().map(ItemLinkDto::from).collect(),
             archived: value.is_archived(),
             version: crate::item_content::content_version(&value.content),
+            created_at: value.created_at,
+            updated_at: value.updated_at,
         }
     }
 }

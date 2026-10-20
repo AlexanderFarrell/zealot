@@ -77,6 +77,9 @@ export function buildCreateCell(
         return chips;
     }
 
+    // A new item has no timestamps yet.
+    if (column.kind === 'timestamp') return document.createElement('span');
+
     const kind = attributeKinds[column.attributeKey];
     const controlOptions: Parameters<typeof createAttributeValueInput>[0] = {
         allowEmpty: true,

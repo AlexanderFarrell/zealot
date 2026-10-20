@@ -5,6 +5,7 @@ import type { ViewDisplay, ViewResult } from '@zealot/domain/src/saved_view';
 import { buildItemCardList } from './item_card_list';
 import { ItemTableView } from './item_table_view';
 import type { ItemTableColumn } from './item_table_types';
+import { TIMESTAMP_KEYS } from './view_definition';
 
 
 const DEFAULT_COLUMNS = ['Status', 'Priority'];
@@ -251,7 +252,11 @@ export class ViewResultBox extends HTMLElement {
         const keys = this._columns.length > 0 ? this._columns : DEFAULT_COLUMNS;
         const columns: ItemTableColumn[] = [{ kind: 'title', sortable: false }];
         for (const key of keys) {
-            columns.push({ kind: 'attribute', attributeKey: key, sortable: false });
+            if ((TIMESTAMP_KEYS as readonly string[]).includes(key)) {
+                columns.push({ kind: 'timestamp', field: key as 'created' | 'updated', sortable: false });
+            } else {
+                columns.push({ kind: 'attribute', attributeKey: key, sortable: false });
+            }
         }
         return columns;
     }
