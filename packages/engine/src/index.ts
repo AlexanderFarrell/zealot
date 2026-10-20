@@ -12,6 +12,7 @@ import { ModalCommands } from './ui/modal_commands';
 import { NavigationCommands, setNavigator, getNavigator, registerNavigationCommands, setOpenInNewTabHandler, openInNewTab, setTabHistoryController, getTabHistoryController } from './ui/navigator';
 import { ToolCommands, getToolHost, registerToolCommands, setToolHost } from './ui/tool_host';
 import { setRightSidebarHost, getRightSidebarHost } from './ui/right_sidebar_host';
+import { MobilePaneState } from './mobile_pane';
 import { registerDropZone, unregisterDropZone, unregisterDropZonesIn } from './ui/drag_drop';
 import { registerContextMenu, unregisterContextMenu, unregisterContextMenuIn, showContextMenu } from './ui/context_menu';
 import { AppSettings } from './settings';
@@ -68,6 +69,7 @@ export {
     registerToolCommands,
     setRightSidebarHost,
     getRightSidebarHost,
+    MobilePaneState,
     registerDropZone,
     unregisterDropZone,
     unregisterDropZonesIn,
@@ -82,6 +84,7 @@ export type { ContextAction } from './ui/context_menu'
 
 export type { Navigator, SettingsSection, PlannerView, TimeBlockView, AppLocation, LocationListener, TabHistoryController } from './ui/navigator'
 export type { ToolHost, ToolShowOptions, ToolView } from './ui/tool_host'
-export type { RightSidebarHost } from './ui/right_sidebar_host'
+export type { RightSidebarHost, SideViewMeta } from './ui/right_sidebar_host'
+export type { MobilePane, MobileSide } from './mobile_pane'
 export type { Settings } from './settings'
 export type { DesktopMode } from './desktop_mode'

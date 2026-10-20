@@ -219,6 +219,12 @@ body.tauri-app {
     padding-top: env(safe-area-inset-top);
     padding-bottom: calc(env(safe-area-inset-bottom) + 48px);
   }
+
+  /* While typing, the on-screen keyboard owns the bottom of the screen. Left
+     in place, iOS pans the page at its end and the bar rides above the keys. */
+  &:has(:is(input, textarea, select, [contenteditable="true"]):focus) mobile-title-bar {
+    display: none;
+  }
 }
 
 #main_mobile_ui {
@@ -1272,7 +1278,11 @@ mobile-title-bar {
   box-shadow: none !important;
 }
 
-@media (max-width: 1100px) and (min-width: 769px) {
+mobile-pane-switch {
+  display: none;
+}
+
+@media (max-width: 1100px) and (min-width: 769px) and (hover: hover) {
   #main_web_ui {
     --left-panel-w: 200px;
     --right-panel-w: 0px;
@@ -1299,7 +1309,7 @@ mobile-title-bar {
   }
 }
 
-@media only screen and (max-width: 768px) {
+@media only screen and (max-width: 768px), only screen and (max-width: 1100px) and (hover: none) and (pointer: coarse) {
     .desktop_only {
         display: none !important;
     }
@@ -1337,6 +1347,92 @@ mobile-title-bar {
 
     right-sidebar {
       height: auto;
+    }
+
+    /* The side view (Related / Repeats) is as wide as what it replaces: the
+       item's view mode, or the planner's 800px column. Full width has no cap. */
+    body:has(item-screen.item-screen--narrow) right-sidebar {
+      max-width: 600px;
+      margin-inline: auto;
+    }
+
+    body:has(item-screen.item-screen--reader) right-sidebar {
+      max-width: 900px;
+      margin-inline: auto;
+    }
+
+    body:has(item-screen.item-screen--wide) right-sidebar {
+      max-width: 1400px;
+      margin-inline: auto;
+    }
+
+    body:has(daily-planner-screen, weekly-planner-screen, monthly-planner-screen,
+      annual-planner-screen, time-blocks-screen) right-sidebar {
+      max-width: 800px;
+      margin-inline: auto;
+    }
+
+    /* One pane at a time: Content, or the side view (Related / Repeats), picked
+       from the strip so neither sits at the bottom of a long scroll (Z165). */
+    mobile-pane-switch {
+      display: inline-flex;
+      gap: 2px;
+      flex-shrink: 0;
+      margin-left: auto;
+      padding: 2px;
+      border-radius: 10px;
+      background: var(--bg-2);
+
+      &[hidden] {
+        display: none;
+      }
+
+      button {
+        min-height: 36px;
+        padding: 4px 9px;
+        font-size: 14px;
+        border-radius: 8px;
+        box-shadow: none;
+        background: transparent;
+        opacity: 0.65;
+        white-space: nowrap;
+
+        &[aria-selected="true"] {
+          opacity: 1;
+          font-weight: 600;
+          background: var(--panel-1);
+        }
+      }
+    }
+
+    mobile-pane-switch + .item-action-btn--more {
+      margin-left: 6px;
+    }
+
+    /* The side pane keeps each screen's top rows (item buttons and title,
+       planner header) so the switch stays under the thumb, and swaps out
+       everything below them for the side view. */
+    body[data-mobile-side][data-mobile-pane="side"] center-content > * > :not(.mobile-pane-keep) {
+      /* The item's content section sets an inline display. */
+      display: none !important;
+    }
+
+    /* Hidden children leave their padding and empty grid rows behind as a blank
+       band between the kept rows and the side view. */
+    body[data-mobile-side][data-mobile-pane="side"] center-content {
+      padding-bottom: 0;
+
+      > * {
+        padding-bottom: 0;
+      }
+
+      item-screen {
+        grid-template-rows: none;
+      }
+    }
+
+    body[data-mobile-side]:not([data-mobile-pane="side"]) right-sidebar {
+      display: none;
     }
 
     *[name="generic_results"] {
@@ -1692,7 +1788,7 @@ desktop-dock-host {
   pointer-events: none;
 }
 
-@media only screen and (max-width: 768px) {
+@media only screen and (max-width: 768px), only screen and (max-width: 1100px) and (hover: none) and (pointer: coarse) {
   .mobile-collapsible-toggle {
     display: flex;
     justify-content: space-between;

@@ -1,7 +1,8 @@
-import { BaseElementEmpty, getNavigator, getRightSidebarHost, unregisterDropZonesIn } from '@websoil/engine';
+import { BaseElementEmpty, MobilePaneState, getNavigator, getRightSidebarHost, unregisterDropZonesIn } from '@websoil/engine';
 import { AttributeAPI } from '@zealot/api/src/attribute';
 import { PlannerAPI } from '@zealot/api/src/planner';
 import { RepeatAPI } from '@zealot/api/src/repeat';
+import type { RepeatEntry } from '@zealot/domain/src/repeat';
 import { icons } from '@zealot/content';
 import { LoadingSpinner } from '../common/loading_spinner';
 import { CommentsView } from '../views/comments_view';
@@ -31,9 +32,11 @@ export class DailyPlannerScreen extends BaseElementEmpty {
     private renderId = 0;
     private headerEl: HTMLElement | null = null;
     private _sidebarEl: HTMLElement | null = null;
+    private _repeatCount: number | null = null;
+    private _unsubscribePane: (() => void) | null = null;
 
     onActivated(): void {
-        getRightSidebarHost()?.setContent(this._sidebarEl);
+        getRightSidebarHost()?.setContent(this._sidebarEl, { label: 'Repeats', count: this._repeatCount });
     }
 
     async render() {
@@ -149,13 +152,48 @@ export class DailyPlannerScreen extends BaseElementEmpty {
         if (repeatsResult.status === 'fulfilled') {
             const panel = new RepeatsSidebarView().init(repeatsResult.value, date);
             this._sidebarEl = panel;
-            getRightSidebarHost()?.setContent(panel);
+            this._repeatCount = repeatsResult.value.length;
+            this._mountRepeatPill(repeatsResult.value, panel);
+            getRightSidebarHost()?.setContent(panel, { label: 'Repeats', count: repeatsResult.value.length });
         } else {
             this._sidebarEl = null;
         }
     }
 
+    /**
+     * Phone-only pill under the header (Z238). It reads `Repeats 3/27` on the
+     * day's items and `← Items` in the Repeats view, so both pane switches use
+     * the same spot.
+     */
+    private _mountRepeatPill(entries: RepeatEntry[], panel: HTMLElement): void {
+        if (entries.length === 0 || !this.headerEl) return;
+
+        const pill = document.createElement('button');
+        pill.type = 'button';
+        pill.className = 'planner-repeat-progress mobile-pane-keep';
+        const paint = (): void => {
+            if (MobilePaneState.getPane() === 'side') {
+                pill.textContent = '← Items';
+                pill.classList.remove('is-done');
+                return;
+            }
+            const done = entries.filter((entry) => entry.Status === 'Complete').length;
+            pill.textContent = `Repeats ${done}/${entries.length}`;
+            pill.classList.toggle('is-done', done === entries.length);
+        };
+        paint();
+        pill.addEventListener('click', () => {
+            MobilePaneState.setPane(MobilePaneState.getPane() === 'side' ? 'content' : 'side');
+        });
+        panel.addEventListener('repeat-status-change', paint);
+        this._unsubscribePane?.();
+        this._unsubscribePane = MobilePaneState.subscribe(paint);
+        this.headerEl.after(pill);
+    }
+
     disconnectedCallback(): void {
+        this._unsubscribePane?.();
+        this._unsubscribePane = null;
         getRightSidebarHost()?.setContent(null);
         if (this.headerEl) {
             unregisterDropZonesIn(this.headerEl);

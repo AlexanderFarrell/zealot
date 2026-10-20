@@ -24,6 +24,7 @@ import { ItemSearchModal } from './common/item_search_modal';
 import { LoadingSpinner } from './common/loading_spinner';
 import { CenterContent } from './shell/center_content';
 import { HeaderBar } from './shell/header_bar';
+import { MobilePaneSwitch, createMobilePaneSwitch } from './shell/mobile_pane_switch';
 import { MobileTitleBar } from './shell/mobile_title_bar';
 import { RightSidebar } from './shell/right_sidebar';
 import { SideBar } from './shell/side_bar';
@@ -76,6 +77,8 @@ export {
     HeaderBar,
     ItemSearchModal,
     LoadingSpinner,
+    MobilePaneSwitch,
+    createMobilePaneSwitch,
     MobileTitleBar,
     NavTreeToolView,
     RandomToolView,

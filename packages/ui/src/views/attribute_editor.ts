@@ -1,5 +1,6 @@
 import { Popups } from '@websoil/engine';
 import { AttributeAPI } from '@zealot/api/src/attribute';
+import { ItemAPI } from '@zealot/api/src/item';
 import type { Item } from '@zealot/domain/src/item';
 import type { AttributeKind } from '@zealot/domain/src/attribute';
 import {
@@ -10,6 +11,7 @@ import {
 } from './attribute_value_input';
 
 const attrApi = new AttributeAPI('/api');
+const itemApi = new ItemAPI('/api');
 
 /**
  * <attribute-editor>
@@ -26,6 +28,8 @@ const attrApi = new AttributeAPI('/api');
 export class AttributeEditor extends HTMLElement {
     private _item: Item | null = null;
     public onIconChange: (() => void) | null = null;
+    // Phones show one summary line; tapping it reveals the table (Z240).
+    private _expanded = false;
 
     init(item: Item): this {
         this._item = item;
@@ -63,6 +67,9 @@ export class AttributeEditor extends HTMLElement {
             datalist.appendChild(opt);
         }
 
+        this.classList.toggle('attribute-editor-host--expanded', this._expanded);
+        this.appendChild(this._buildSummary(item));
+
         const container = document.createElement('div');
         container.className = 'attribute-editor';
         container.appendChild(datalist);
@@ -73,6 +80,69 @@ export class AttributeEditor extends HTMLElement {
 
         container.appendChild(this._buildAddRow(item, kinds, datalistId));
         this.appendChild(container);
+    }
+
+    private _buildSummary(item: Item): HTMLElement {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'attribute-summary';
+        button.setAttribute('aria-expanded', String(this._expanded));
+        button.title = this._expanded ? 'Hide attributes' : 'Show attributes';
+
+        const entries = Object.entries(item.Attributes);
+        if (entries.length === 0) {
+            const empty = document.createElement('span');
+            empty.className = 'attribute-summary-empty';
+            empty.textContent = 'Attributes';
+            button.appendChild(empty);
+        }
+        const chips = entries.map(([key, value]) => {
+            const text = Array.isArray(value)
+                ? value.map((entry) => (typeof entry === 'object' ? JSON.stringify(entry) : String(entry))).join(', ')
+                : typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value);
+            return { key, value, label: key === 'Icon' ? text : `${key}: ${text}`, text };
+        }).filter((chip) => chip.text);
+        // Parent leads; the rest go smallest pill first so short ones stay
+        // visible before the scroll.
+        chips.sort((a, b) => {
+            if (a.key === 'Parent' || b.key === 'Parent') return a.key === 'Parent' ? -1 : 1;
+            return a.label.length - b.label.length;
+        });
+        for (const { key, value, label } of chips) {
+            const chip = document.createElement('span');
+            chip.className = 'attribute-summary-chip';
+            chip.textContent = label;
+            button.appendChild(chip);
+            if (key === 'Parent') void this._nameParents(chip, value);
+        }
+        const caret = document.createElement('span');
+        caret.className = 'attribute-summary-caret';
+        caret.setAttribute('aria-hidden', 'true');
+        caret.textContent = this._expanded ? '▲' : '▼';
+        button.appendChild(caret);
+
+        button.addEventListener('click', () => {
+            this._expanded = !this._expanded;
+            void this._render();
+        });
+        return button;
+    }
+
+    // Parent holds item ids; the summary shows the parent's title instead,
+    // trimmed to keep the pill short.
+    private async _nameParents(chip: HTMLElement, value: unknown): Promise<void> {
+        const ids = (Array.isArray(value) ? value : [value]).filter((v): v is number => typeof v === 'number');
+        if (ids.length === 0) return;
+        try {
+            const parents = await Promise.all(ids.map((id) => itemApi.GetById(id)));
+            const names = parents.map((parent) => {
+                const title = parent.Title;
+                return title.length > 25 ? `${title.slice(0, 25).trimEnd()}…` : title;
+            });
+            chip.textContent = `Parent: ${names.join(', ')}`;
+        } catch {
+            // Keep the id form when the title cannot be loaded.
+        }
     }
 
     private async _renderAndFocusNewKey(): Promise<void> {

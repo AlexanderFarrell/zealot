@@ -15,6 +15,7 @@ import {
 import { API } from "./core";
 import { AddItemModal, CommandPaletteModal, ItemSearchModal, RightSidebar, default_side_button_entries, SideButtons } from "@zealot/ui";
 import "@zealot/ui/src/shell/mobile_title_bar";
+import "@zealot/ui/src/shell/mobile_pane_switch";
 import { WebNavigator } from "./web_navigator";
 import "./web_tool_host";
 import { WebToolHost } from "./web_tool_host";

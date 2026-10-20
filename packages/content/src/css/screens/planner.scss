@@ -151,7 +151,7 @@ time-blocks-screen {
   margin: 0;
 }
 
-@media only screen and (max-width: 768px) {
+@media only screen and (max-width: 768px), only screen and (max-width: 1100px) and (hover: none) and (pointer: coarse) {
   /* On phones the right sidebar (Repeats, planner shortcuts) stacks below the
      planner, so don't pad the planner out to a full screen first (Z195). */
   daily-planner-screen,
@@ -160,6 +160,104 @@ time-blocks-screen {
   annual-planner-screen,
   time-blocks-screen {
     min-height: 0;
+    /* Wide tablets: a full-width planner row is too long to scan. */
+    max-width: 800px;
+    margin-inline: auto;
+  }
+
+  /* Compact header (Z239): title line + one scrolling action row. */
+  .planner-header {
+    gap: 6px;
+  }
+
+  .planner-header-title {
+    font-size: 1.1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .planner-header-actions {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    align-items: center;
+  }
+
+  .planner-header-actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .planner-header-actions > * {
+    flex: 0 0 auto;
+  }
+
+  /* Previous / Today / Next become icon-only; chips keep their labels. */
+  .planner-header-button > span {
+    display: none;
+  }
+
+  .planner-header-link > span {
+    display: none;
+  }
+
+  /* Every header control is the same icon-only square (Z239). */
+  .planner-header-actions mobile-pane-switch {
+    display: contents;
+    margin: 0;
+    padding: 0;
+    background: none;
+  }
+
+  .planner-header-actions mobile-pane-switch[hidden] {
+    display: none;
+  }
+
+  .planner-header-actions button {
+    box-sizing: border-box;
+    flex: 0 0 40px;
+    width: 40px;
+    height: 36px;
+    min-height: 0;
+    padding: 0;
+    justify-content: center;
+    opacity: 1;
+    font-size: 1rem;
+  }
+
+  /* The generic pane-switch tab styling would dim this button; match its siblings. */
+  .planner-header-actions mobile-pane-switch button {
+    background: var(--bg-3) !important;
+    box-shadow: 0 6px 16px var(--shadow-color-3) !important;
+    opacity: 1 !important;
+    border-radius: inherit !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+  }
+
+  .planner-header-actions button[aria-pressed="true"],
+  .planner-header-link--active {
+    background: var(--panel-1);
+    box-shadow: inset 0 0 0 1px var(--accent-0, #4f8eff);
+    text-decoration: none;
+  }
+
+  .planner-header-actions button > img {
+    width: 20px;
+    height: 20px;
+  }
+
+  .planner-screen {
+    gap: 10px;
+  }
+
+  .planner-section {
+    padding: 8px 12px;
+    gap: 6px;
+  }
+
+  .planner-section > h2 {
+    font-size: 1rem;
   }
 
   .planner-repeat-row {
@@ -552,4 +650,90 @@ time-blocks-screen {
   padding: 1px 4px;
   font: inherit;
   cursor: pointer;
+}
+
+/* --- Mobile repeat check-off (Z238) --- */
+
+.sidebar-repeat-check,
+.sidebar-repeat-more,
+.sidebar-repeat-menu,
+.planner-repeat-progress {
+  display: none;
+}
+
+@media only screen and (max-width: 768px), only screen and (max-width: 1100px) and (hover: none) and (pointer: coarse) {
+  /* The pill under the header names the view, so the heading is redundant. */
+  .sidebar-repeats-title {
+    display: none;
+  }
+
+  .planner-repeat-progress {
+    display: inline-flex;
+    justify-self: start;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--bg-3);
+    color: var(--text-1);
+    border: 1px solid var(--border-0);
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .planner-repeat-progress.is-done {
+    color: var(--accent-1, var(--text-1));
+  }
+
+  .sidebar-repeat-group {
+    gap: 3px;
+  }
+
+  .sidebar-repeat-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    padding: 0 4px;
+    gap: 2px 4px;
+  }
+
+  .sidebar-repeat-row.is-complete {
+    opacity: 0.55;
+  }
+
+  .sidebar-repeat-status {
+    display: none;
+  }
+
+  .sidebar-repeat-check,
+  .sidebar-repeat-more {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    min-height: 36px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    color: var(--text-1);
+    font-size: 1.1rem;
+  }
+
+  .sidebar-repeat-check[data-status='Complete'] {
+    color: var(--accent-1, var(--text-1));
+  }
+
+  .sidebar-repeat-menu:not([hidden]) {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 6px;
+    padding: 0 0 6px 40px;
+  }
+
+  .sidebar-repeat-menu-option {
+    min-height: 36px;
+    padding: 0 12px;
+    border-radius: 10px;
+    background: var(--bg-3);
+    border: 1px solid var(--border-0);
+    color: var(--text-1);
+    font-size: 0.85rem;
+  }
 }

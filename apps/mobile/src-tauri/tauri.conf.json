@@ -27,6 +27,9 @@
     "active": true,
     "icon": [
       "icons/icon.png"
-    ]
+    ],
+    "iOS": {
+      "minimumSystemVersion": "15.0"
+    }
   }
 }

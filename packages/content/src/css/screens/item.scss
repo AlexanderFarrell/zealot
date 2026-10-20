@@ -447,6 +447,9 @@ item-view {
 .item-card {
   display: flex;
   flex-direction: column;
+  /* WebKit's button default is align-items: flex-start, which shrinks the header
+     to its content and crushes the flex: 1 title to a character wide on iOS. */
+  align-items: stretch;
   gap: 3px;
   width: 100%;
   padding: 8px 10px;
@@ -978,4 +981,138 @@ item-view {
 
 .view-builder__note {
   margin: 0;
+}
+
+/* Phones: attributes are one summary line until tapped, and the editor
+   toolbar only exists while editing (Z240). */
+.attribute-summary {
+  display: none;
+}
+
+@media only screen and (max-width: 768px), only screen and (max-width: 1100px) and (hover: none) and (pointer: coarse) {
+  .attribute-summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    min-height: 32px;
+    padding: 4px 8px;
+    box-sizing: border-box;
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none;
+    text-align: left;
+    background: none;
+    box-shadow: none;
+    border: 1px solid var(--border-1);
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .attribute-summary-chip {
+    flex: 0 0 auto;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--bg-3);
+    font-size: 0.8rem;
+  }
+
+  .attribute-summary-empty {
+    flex: 1 1 auto;
+    opacity: 0.7;
+    font-size: 0.8rem;
+  }
+
+  .attribute-summary-caret {
+    margin-left: auto;
+    flex: 0 0 auto;
+    font-size: 0.7em;
+    opacity: 0.6;
+  }
+
+  attribute-editor:not(.attribute-editor-host--expanded) .attribute-editor {
+    display: none;
+  }
+
+  .zealotscript-toolbar {
+    display: none;
+  }
+
+  /* Shown in flow above the text while editing. Pinning it (fixed to the
+     bottom, or sticky to the top) either hid behind the iOS keyboard or sat
+     over the first lines of the content in the app shell. */
+  zealotscript-editor:focus-within .zealotscript-toolbar {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+
+    button {
+      flex: 0 0 auto;
+      min-height: 36px;
+    }
+  }
+}
+
+// Tables as cards on phones (Z241): each row becomes a stacked card.
+@media (max-width: 640px) {
+  .item-table-shell { overflow-x: visible; }
+
+  .item-table,
+  .item-table tbody,
+  .item-table thead { display: block; min-width: 0; width: 100%; }
+
+  // Header row becomes a strip of sort chips; the open-arrow header is dropped.
+  .item-table thead tr { display: flex; flex-wrap: nowrap; gap: 6px; padding-bottom: 6px; overflow-x: auto; }
+  .item-table th { border: 0; padding: 2px 8px; border-radius: 12px; background: var(--panel-0); font-size: 11px; white-space: nowrap; flex: none; }
+  .item-table th.item-table-actions-header { display: none; }
+
+  .item-table tbody tr {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+    padding: 8px;
+    margin-bottom: 8px;
+    border: 1px solid var(--border-1);
+    border-radius: 8px;
+  }
+
+  .item-table tbody td {
+    display: block;
+    min-width: 0 !important;
+    max-width: none !important;
+    width: auto !important;
+    padding: 0;
+    border: 0;
+  }
+
+  .item-table tbody td[data-empty="true"] { display: none; }
+
+  // Attribute values carry their column name above them.
+  .item-table tbody td[data-label]:not([data-col-kind="title"])::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-2);
+  }
+
+  // Title leaves room on the right for the open arrow.
+  .item-table tbody td[data-col-kind="title"] { order: -1; font-weight: 600; overflow-wrap: anywhere; padding-right: 40px; }
+
+  .item-table tbody td > chips-input,
+  .item-table tbody td > item-chips-input { max-width: none; min-width: 0; }
+
+  // Open arrow sits top-right of the card.
+  .item-table tbody td.item-table-actions {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    padding: 0;
+    order: -2;
+  }
 }

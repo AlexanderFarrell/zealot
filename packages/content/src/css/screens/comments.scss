@@ -127,7 +127,7 @@ comments-view {
   margin: 0;
 }
 
-@media only screen and (max-width: 768px) {
+@media only screen and (max-width: 768px), only screen and (max-width: 1100px) and (hover: none) and (pointer: coarse) {
   .comments-view-card {
     gap: 6px;
     padding: 10px;
