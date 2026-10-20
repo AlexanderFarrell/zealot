@@ -128,6 +128,7 @@ async fn add_attribute_kind(
             Err(HttpError::Internal)
         }
         Err(AttributeServiceError::InvalidDefault(err)) => Err(HttpError::UserError { err }),
+        Err(AttributeServiceError::Duplicate(message)) => Err(HttpError::Conflict { message }),
         Err(e) => {
             tracing::error!(account_id = ?account.account_id, %e, "failed to add attribute kind");
             Err(HttpError::Internal)
@@ -153,6 +154,7 @@ async fn update_attribute_kind(
         Err(AttributeServiceError::ReadOnly(err) | AttributeServiceError::InvalidDefault(err)) => {
             Err(HttpError::UserError { err })
         }
+        Err(AttributeServiceError::Duplicate(message)) => Err(HttpError::Conflict { message }),
         Err(e) => {
             tracing::error!(account_id = ?account.account_id, %e, "failed to update attribute kind");
             Err(HttpError::Internal)
