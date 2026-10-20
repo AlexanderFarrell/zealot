@@ -41,6 +41,8 @@ mod type_default_override_tests;
 #[cfg(test)]
 mod scale_tests;
 #[cfg(test)]
+mod type_count_tests;
+#[cfg(test)]
 mod view_query_tests;
 
 pub async fn get_repo_from_config(config: &ZealotConfig) -> Result<ZealotRepos, String> {

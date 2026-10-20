@@ -162,6 +162,13 @@ impl ItemTypeService {
             .map_err(ItemTypeServiceError::Repo)
     }
 
+    /// Repair: recompute the stored per-type item counts, which triggers normally keep correct.
+    pub fn rebuild_item_type_counts(&self, account_id: &Id) -> Result<(), ItemTypeServiceError> {
+        self.repo
+            .recompute_item_type_counts(account_id)
+            .map_err(ItemTypeServiceError::Repo)
+    }
+
     pub fn get_item_type(
         &self,
         type_id: &Id,
@@ -705,6 +712,9 @@ mod tests {
         }
         fn get_item_type_summaries(&self, _: &Id) -> Result<Vec<ItemTypeSummary>, RepoError> {
             Ok(vec![])
+        }
+        fn recompute_item_type_counts(&self, _: &Id) -> Result<(), RepoError> {
+            Ok(())
         }
         fn get_item_type(&self, _: &Id, _: &Id) -> Result<Option<ItemType>, RepoError> {
             Ok(self.item_type.clone())
