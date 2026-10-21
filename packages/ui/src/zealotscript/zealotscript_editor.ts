@@ -138,14 +138,19 @@ export class TaskListItemView {
 				this.view.dispatch(tr);
 			});
 			li.appendChild(input);
+
+			const content = document.createElement("span");
+			content.className = "zealot-task-content";
+			li.appendChild(content);
+			this.dom = li;
+			this.contentDOM = content;
+			return;
 		}
 
-		const content = document.createElement("span");
-		content.className = "zealot-task-content";
-		li.appendChild(content);
-
+		// Plain items keep their paragraphs directly in the <li>. A block wrapper here
+		// made WebKit (macOS desktop app) drop the list marker while typing (Z259).
 		this.dom = li;
-		this.contentDOM = content;
+		this.contentDOM = li;
 	}
 
 	update(node: import("prosemirror-model").Node): boolean {
