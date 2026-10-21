@@ -60,8 +60,21 @@ if [ ! -d node_modules ]; then
     npm install
 fi
 
-# Install Playwright browsers if not present
-if [ ! -d node_modules/.cache/ms-playwright ] && [ ! -d "$HOME/.cache/ms-playwright" ]; then
+# Install Playwright browsers if not present. The cache is ~/.cache on Linux and
+# ~/Library/Caches on macOS; only a browser with its completion marker counts,
+# because an interrupted install leaves a folder Playwright later deletes.
+if [ -n "${PLAYWRIGHT_BROWSERS_PATH-}" ]; then
+    browser_caches="$PLAYWRIGHT_BROWSERS_PATH"
+else
+    browser_caches="$HOME/.cache/ms-playwright $HOME/Library/Caches/ms-playwright"
+fi
+chromium_installed=false
+for cache in $browser_caches; do
+    for marker in "$cache"/chromium-*/INSTALLATION_COMPLETE; do
+        [ -e "$marker" ] && chromium_installed=true
+    done
+done
+if [ "$chromium_installed" = false ]; then
     echo "[playwright] Installing Playwright browsers"
     npx playwright install chromium
 fi

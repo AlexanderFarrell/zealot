@@ -10,7 +10,8 @@
         "lint": "eslint src",
         "tauri": "tauri",
         "tauri:desktop": "tauri dev",
-        "tauri:desktop:build": "tauri build"
+        "tauri:desktop:build": "tauri build",
+        "tauri:desktop:dev-app": "tauri build --debug --bundles app --config src-tauri/tauri.dev.conf.json"
     },
     "dependencies": {
         "@tauri-apps/api": "^2",

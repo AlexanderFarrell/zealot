@@ -1,0 +1,17 @@
+{
+  "productName": "Zealot Dev",
+  "identifier": "com.zealot.desktop.dev",
+  "app": {
+    "windows": [
+      {
+        "title": "Zealot Dev",
+        "width": 1280,
+        "height": 800,
+        "resizable": true,
+        "decorations": false,
+        "transparent": false,
+        "dragDropEnabled": false
+      }
+    ]
+  }
+}
