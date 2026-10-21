@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures';
 import { uniqueTitle, generateSuffix } from '../helpers/unique';
 import { APP_SHELL } from '../helpers/selectors';
+import { expandAttributes } from '../helpers/attributes';
 
 test('semantic attribute kinds render typed, linked, editable controls', async ({ page, request }) => {
   const suffix = generateSuffix();
@@ -43,6 +44,7 @@ test('semantic attribute kinds render typed, linked, editable controls', async (
 
   await page.goto(`/item/${encodeURIComponent(title)}`);
   await expect(page.locator(APP_SHELL.webClient)).toBeVisible({ timeout: 10_000 });
+  await expandAttributes(page);
 
   // Rows list attributes alphabetically; keys are input values, so address rows by position.
   const rows = page.locator('attribute-editor .attribute');

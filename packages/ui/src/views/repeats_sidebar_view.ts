@@ -112,7 +112,7 @@ export class RepeatsSidebarView extends HTMLElement {
         });
         statusEl.value = entry.Status;
 
-        // Phone controls (Z238): one tap completes, the ⋯ menu holds the rest.
+        // Row controls (Z238, Z253): one tap or click completes, the ⋯ menu holds the rest.
         const check = document.createElement('button');
         check.type = 'button';
         check.className = 'sidebar-repeat-check';
@@ -121,6 +121,7 @@ export class RepeatsSidebarView extends HTMLElement {
         more.className = 'sidebar-repeat-more';
         more.textContent = '⋯';
         more.setAttribute('aria-label', 'More statuses');
+        more.title = 'Skip, Alternate, Not done';
         more.setAttribute('aria-expanded', 'false');
         const menu = document.createElement('div');
         menu.className = 'sidebar-repeat-menu';
@@ -131,6 +132,7 @@ export class RepeatsSidebarView extends HTMLElement {
             check.textContent = repeatIcons[status] ?? '○';
             check.dataset.status = status;
             check.setAttribute('aria-label', status === 'Complete' ? 'Mark not done' : 'Mark done');
+            check.title = status === 'Complete' ? 'Mark not done' : 'Mark done';
             check.setAttribute('aria-pressed', String(status === 'Complete'));
             row.dataset.status = status;
             row.classList.toggle('is-complete', status === 'Complete');
