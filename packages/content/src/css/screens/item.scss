@@ -259,6 +259,7 @@ span[name="value_view"] > select {
 item-screen {
   min-height: 100vh;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto auto auto 1fr auto;
   gap: 12px;
   min-width: 0;
@@ -1032,6 +1033,12 @@ item-view {
   flex: 0 0 auto;
   font-size: 0.7em;
   opacity: 0.6;
+}
+
+attribute-editor {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
 }
 
 attribute-editor:not(.attribute-editor-host--expanded) .attribute-editor {
