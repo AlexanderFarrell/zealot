@@ -24,8 +24,8 @@
         "luxon": "^3.7.2"
     },
     "devDependencies": {
+        "@tauri-apps/cli": "^2.12.4",
         "eslint": "^10.0.3",
-        "@tauri-apps/cli": "^2",
         "typescript": "*",
         "vite": "^7.1.7"
     }
