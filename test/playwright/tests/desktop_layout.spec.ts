@@ -148,4 +148,19 @@ test.describe(`desktop viewport ${WIDTH}x${HEIGHT} (Z253)`, () => {
     await first.getByRole('button', { name: 'Skipped' }).click();
     await expect(first).toHaveAttribute('data-status', 'Skip');
   });
+
+  test('long attribute chips do not widen the content editor', async ({ page, request }) => {
+    const title = uniqueTitle('DesktopWide');
+    await createItem(request, title, {
+      Status: 'Working', Priority: 7, Executor: 'Mixed', Date: '2026-10-21',
+      Description: 'Dump off-host and then keep going with a very long description '.repeat(4),
+    }, 'word '.repeat(400));
+    await page.goto(`/item/${encodeURIComponent(title)}`);
+    await expect(page.locator('item-screen .attribute-summary')).toBeVisible();
+
+    const editorBox = await page.locator('item-screen .ProseMirror').boundingBox();
+    expect(editorBox!.x + editorBox!.width, 'editor stays inside the window').toBeLessThanOrEqual(WIDTH);
+    const page_ = await page.evaluate(() => document.querySelector('item-screen')!.scrollWidth <= document.querySelector('item-screen')!.clientWidth);
+    expect(page_, 'item screen does not overflow sideways').toBe(true);
+  });
 });
