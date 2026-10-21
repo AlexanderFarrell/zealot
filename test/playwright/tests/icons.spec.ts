@@ -1,5 +1,6 @@
 import type { APIRequestContext, Page } from '@playwright/test';
 import { test, expect } from '../fixtures';
+import { expandAttributes } from '../helpers/attributes';
 import { uniqueTitle } from '../helpers/unique';
 import { csrfHeaders } from '../helpers/csrf';
 import { ADD_ITEM, APP_SHELL, COMMENTS, ITEM, SIDEBAR } from '../helpers/selectors';
@@ -39,9 +40,10 @@ const ensureAttributeKind = async (request: APIRequestContext, key: string): Pro
   await expectApiOk(response);
 };
 
-const openItemScreen = async (page: Page, title: string): Promise<void> => {
+const openItemScreen = async (page: Page, title: string, { attributes = false } = {}): Promise<void> => {
   await page.goto(`/item/${encodeURIComponent(title)}`);
   await expect(page.locator(ITEM.screen)).toBeVisible();
+  if (attributes) await expandAttributes(page);
 };
 
 test.beforeEach(async ({ page }) => {
@@ -148,7 +150,7 @@ test('item attribute Icon fields use the shortcode picker and save icon shortcod
   const itemId = await createItem(title);
   await patchItemAttributes(request, itemId, { Icon: ':folder:' });
 
-  await openItemScreen(page, title);
+  await openItemScreen(page, title, { attributes: true });
 
   const iconRow = page.locator('.attribute').first();
   await expect(iconRow.locator('input[type="text"]').first()).toHaveValue('Icon');
@@ -173,7 +175,7 @@ test('adding an Icon attribute can insert emoji from the shortcode picker', asyn
   const title = uniqueTitle('AttrEmoji');
   await createItem(title);
 
-  await openItemScreen(page, title);
+  await openItemScreen(page, title, { attributes: true });
 
   const addRow = page.locator('.attribute', {
     has: page.locator('input[placeholder="New key"]'),
@@ -255,7 +257,7 @@ test('the shortcode picker hides shadowed collisions and keeps winning source pr
   const title = uniqueTitle('TargetPicker');
   await createItem(title);
 
-  await openItemScreen(page, title);
+  await openItemScreen(page, title, { attributes: true });
 
   const composerEditor = page.locator('comments-view zealotscript-editor[data-comments-draft="true"] .ProseMirror');
   // The composer is collapsed until the toggle is clicked.

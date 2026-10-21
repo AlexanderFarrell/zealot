@@ -120,6 +120,8 @@ function buildActionButton(action: PlannerHeaderAction, className: string): HTML
     button.type = 'button';
     button.className = className;
     button.setAttribute('aria-label', action.label);
+    // Chips drop their text when the column is narrow, so the label stays on hover (Z253).
+    button.title = action.label;
     button.addEventListener('click', action.onClick);
 
     const icon = document.createElement('img');

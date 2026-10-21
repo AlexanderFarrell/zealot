@@ -8,6 +8,8 @@ time-blocks-screen {
   max-width: 1100px;
   min-height: 100vh;
   margin: 0 auto;
+  // Lets the header drop chip labels by the column's width, not the window's (Z253).
+  container-type: inline-size;
 }
 
 .planner-screen {
@@ -652,13 +654,85 @@ time-blocks-screen {
   cursor: pointer;
 }
 
-/* --- Mobile repeat check-off (Z238) --- */
+/* --- Repeat check-off (Z238 phones, Z253 desktop) --- */
 
-.sidebar-repeat-check,
-.sidebar-repeat-more,
-.sidebar-repeat-menu,
+/* A little air around the title pill on desktop (phones keep it flush). */
+@media only screen and (min-width: 769px) and (not ((max-width: 1100px) and (hover: none) and (pointer: coarse))) {
+  .sidebar-repeat-title {
+    padding: 2px;
+  }
+}
+
 .planner-repeat-progress {
   display: none;
+}
+
+/* Click the row's mark to complete, again to clear; ⋯ holds the other statuses.
+   On desktop the ⋯ shows on hover or focus; phones always show it. */
+.sidebar-repeat-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 2px;
+  gap: 2px 4px;
+}
+
+.sidebar-repeat-status {
+  display: none;
+}
+
+.sidebar-repeat-check,
+.sidebar-repeat-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  min-height: 26px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: var(--text-1);
+  font-size: 1rem;
+}
+
+.sidebar-repeat-more {
+  opacity: 0;
+}
+
+.sidebar-repeat-row:hover .sidebar-repeat-more,
+.sidebar-repeat-row:focus-within .sidebar-repeat-more,
+.sidebar-repeat-more[aria-expanded='true'] {
+  opacity: 1;
+}
+
+.sidebar-repeat-check[data-status='Complete'] {
+  color: var(--accent-1, var(--text-1));
+}
+
+.sidebar-repeat-check[data-status='Skip'],
+.sidebar-repeat-check[data-status='Alternate'] {
+  color: var(--text-muted);
+}
+
+.sidebar-repeat-menu {
+  display: none;
+}
+
+.sidebar-repeat-menu:not([hidden]) {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 0 4px 30px;
+}
+
+.sidebar-repeat-menu-option {
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 10px;
+  background: var(--bg-3);
+  border: 1px solid var(--border-0);
+  color: var(--text-1);
+  font-size: 0.8rem;
 }
 
 @media only screen and (max-width: 768px), only screen and (max-width: 1100px) and (hover: none) and (pointer: coarse) {
@@ -688,52 +762,87 @@ time-blocks-screen {
   }
 
   .sidebar-repeat-row {
-    grid-template-columns: auto minmax(0, 1fr) auto;
     padding: 0 4px;
-    gap: 2px 4px;
-  }
-
-  .sidebar-repeat-row.is-complete {
-    opacity: 0.55;
-  }
-
-  .sidebar-repeat-status {
-    display: none;
   }
 
   .sidebar-repeat-check,
   .sidebar-repeat-more {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     min-width: 36px;
     min-height: 36px;
-    padding: 0;
-    background: transparent;
-    border: none;
-    box-shadow: none;
-    color: var(--text-1);
     font-size: 1.1rem;
   }
 
-  .sidebar-repeat-check[data-status='Complete'] {
-    color: var(--accent-1, var(--text-1));
+  .sidebar-repeat-more {
+    opacity: 1;
   }
 
   .sidebar-repeat-menu:not([hidden]) {
-    grid-column: 1 / -1;
-    display: flex;
-    gap: 6px;
+    flex-wrap: nowrap;
     padding: 0 0 6px 40px;
   }
 
   .sidebar-repeat-menu-option {
     min-height: 36px;
     padding: 0 12px;
-    border-radius: 10px;
-    background: var(--bg-3);
-    border: 1px solid var(--border-0);
-    color: var(--text-1);
     font-size: 0.85rem;
+  }
+}
+
+/* --- Desktop planner header (Z253): `‹ Wed 21 Oct ›` and chips on one row --- */
+
+@media only screen and (min-width: 769px) and (not ((max-width: 1100px) and (hover: none) and (pointer: coarse))) {
+  .planner-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+  }
+
+  .planner-header-title {
+    order: 1;
+    font-size: 1.25rem;
+    cursor: pointer;
+  }
+
+  // The actions bar dissolves so prev / title / next / Today sit on the title's row.
+  .planner-header-actions {
+    display: contents;
+  }
+
+  .planner-header-actions mobile-pane-switch {
+    display: none;
+  }
+
+  .planner-header-button:nth-of-type(1) {
+    order: 0;
+  }
+
+  .planner-header-button:nth-of-type(2) {
+    order: 3;
+  }
+
+  .planner-header-button:nth-of-type(3) {
+    order: 2;
+  }
+
+  .planner-header-sep {
+    order: 4;
+  }
+
+  .planner-header-link {
+    order: 5;
+  }
+
+  // Previous / Next read as arrows; Today stays a labelled chip.
+  .planner-header-button:nth-of-type(1) > span,
+  .planner-header-button:nth-of-type(3) > span {
+    display: none;
+  }
+
+  @container (max-width: 1000px) {
+    .planner-header-link > span,
+    .planner-header-button:nth-of-type(2) > span {
+      display: none;
+    }
   }
 }

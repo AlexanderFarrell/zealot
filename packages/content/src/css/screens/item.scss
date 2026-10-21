@@ -983,57 +983,65 @@ item-view {
   margin: 0;
 }
 
-/* Phones: attributes are one summary line until tapped, and the editor
-   toolbar only exists while editing (Z240). */
+/* Attributes are one summary line until clicked (Z240 phones, Z253 desktop).
+   Phones also hide the editor toolbar until editing. */
 .attribute-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 32px;
+  padding: 4px 8px;
+  box-sizing: border-box;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+  text-align: left;
+  background: none;
+  box-shadow: none;
+  border: 1px solid var(--border-1);
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.attribute-summary-chip {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--bg-3);
+  font-size: 0.8rem;
+}
+
+/* Parent chips navigate on desktop; on phones a tap still toggles. */
+.attribute-summary-chip--link {
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.attribute-summary-empty {
+  flex: 1 1 auto;
+  opacity: 0.7;
+  font-size: 0.8rem;
+}
+
+.attribute-summary-caret {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 0.7em;
+  opacity: 0.6;
+}
+
+attribute-editor:not(.attribute-editor-host--expanded) .attribute-editor {
   display: none;
 }
 
 @media only screen and (max-width: 768px), only screen and (max-width: 1100px) and (hover: none) and (pointer: coarse) {
-  .attribute-summary {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    width: 100%;
-    min-height: 32px;
-    padding: 4px 8px;
-    box-sizing: border-box;
-    overflow-x: auto;
-    white-space: nowrap;
-    scrollbar-width: none;
-    text-align: left;
-    background: none;
-    box-shadow: none;
-    border: 1px solid var(--border-1);
-
-    &::-webkit-scrollbar {
-      display: none;
-    }
-  }
-
-  .attribute-summary-chip {
-    flex: 0 0 auto;
-    padding: 2px 8px;
-    border-radius: 10px;
-    background: var(--bg-3);
-    font-size: 0.8rem;
-  }
-
-  .attribute-summary-empty {
-    flex: 1 1 auto;
-    opacity: 0.7;
-    font-size: 0.8rem;
-  }
-
-  .attribute-summary-caret {
-    margin-left: auto;
-    flex: 0 0 auto;
-    font-size: 0.7em;
-    opacity: 0.6;
-  }
-
-  attribute-editor:not(.attribute-editor-host--expanded) .attribute-editor {
-    display: none;
+  .attribute-summary-chip--link {
+    text-decoration: none;
+    cursor: inherit;
   }
 
   .zealotscript-toolbar {
@@ -1052,6 +1060,27 @@ item-view {
     button {
       flex: 0 0 auto;
       min-height: 36px;
+    }
+  }
+}
+
+/* Desktop (Z253): the toolbar is always there, on one line, and stays at the
+   top of the editor while its text scrolls. */
+@media only screen and (min-width: 769px) and (not ((max-width: 1100px) and (hover: none) and (pointer: coarse))) {
+  zealotscript-editor {
+    overflow-x: clip;
+  }
+
+  .zealotscript-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+
+    button {
+      flex: 0 0 auto;
     }
   }
 }

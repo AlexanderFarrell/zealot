@@ -1,4 +1,4 @@
-import { Popups } from '@websoil/engine';
+import { Popups, getNavigator } from '@websoil/engine';
 import { AttributeAPI } from '@zealot/api/src/attribute';
 import { ItemAPI } from '@zealot/api/src/item';
 import type { Item } from '@zealot/domain/src/item';
@@ -12,6 +12,30 @@ import {
 
 const attrApi = new AttributeAPI('/api');
 const itemApi = new ItemAPI('/api');
+const EXPANDED_KEY = 'zealot.attributes.expanded';
+
+function readExpanded(): boolean {
+    try {
+        return localStorage.getItem(EXPANDED_KEY) === '1';
+    } catch {
+        return false;
+    }
+}
+
+function writeExpanded(expanded: boolean): void {
+    try {
+        localStorage.setItem(EXPANDED_KEY, expanded ? '1' : '0');
+    } catch {
+        // The choice just won't persist.
+    }
+}
+
+function numericIds(value: unknown): number[] {
+    return (Array.isArray(value) ? value : [value]).filter((v): v is number => typeof v === 'number');
+}
+
+// Phones keep a tap on a chip as a toggle; desktop lets Parent chips navigate.
+const desktopQuery = '(min-width: 769px) and (not ((max-width: 1100px) and (hover: none) and (pointer: coarse)))';
 
 /**
  * <attribute-editor>
@@ -28,8 +52,9 @@ const itemApi = new ItemAPI('/api');
 export class AttributeEditor extends HTMLElement {
     private _item: Item | null = null;
     public onIconChange: (() => void) | null = null;
-    // Phones show one summary line; tapping it reveals the table (Z240).
-    private _expanded = false;
+    // One summary line; clicking it reveals the table (Z240, Z253). The choice is
+    // remembered per browser so it follows you from item to item.
+    private _expanded = readExpanded();
 
     init(item: Item): this {
         this._item = item;
@@ -109,11 +134,15 @@ export class AttributeEditor extends HTMLElement {
             return a.label.length - b.label.length;
         });
         for (const { key, value, label } of chips) {
+            const parentIds = key === 'Parent' ? numericIds(value) : [];
+            if (parentIds.length > 0) {
+                this._appendParentChips(button, parentIds);
+                continue;
+            }
             const chip = document.createElement('span');
             chip.className = 'attribute-summary-chip';
             chip.textContent = label;
             button.appendChild(chip);
-            if (key === 'Parent') void this._nameParents(chip, value);
         }
         const caret = document.createElement('span');
         caret.className = 'attribute-summary-caret';
@@ -123,26 +152,34 @@ export class AttributeEditor extends HTMLElement {
 
         button.addEventListener('click', () => {
             this._expanded = !this._expanded;
+            writeExpanded(this._expanded);
             void this._render();
         });
         return button;
     }
 
-    // Parent holds item ids; the summary shows the parent's title instead,
-    // trimmed to keep the pill short.
-    private async _nameParents(chip: HTMLElement, value: unknown): Promise<void> {
-        const ids = (Array.isArray(value) ? value : [value]).filter((v): v is number => typeof v === 'number');
-        if (ids.length === 0) return;
-        try {
-            const parents = await Promise.all(ids.map((id) => itemApi.GetById(id)));
-            const names = parents.map((parent) => {
-                const title = parent.Title;
-                return title.length > 25 ? `${title.slice(0, 25).trimEnd()}…` : title;
+    // One chip per parent so each can be opened (Z253). The first leads with
+    // "Parent:"; each shows the parent's title, trimmed to keep the pill short.
+    private _appendParentChips(button: HTMLElement, ids: number[]): void {
+        ids.forEach((id, index) => {
+            const prefix = index === 0 ? 'Parent: ' : '';
+            const chip = document.createElement('span');
+            chip.className = 'attribute-summary-chip attribute-summary-chip--link';
+            chip.setAttribute('role', 'link');
+            chip.textContent = `${prefix}${id}`;
+            chip.addEventListener('click', (event) => {
+                if (!window.matchMedia(desktopQuery).matches) return;
+                event.stopPropagation();
+                getNavigator().openItemById(id);
             });
-            chip.textContent = `Parent: ${names.join(', ')}`;
-        } catch {
-            // Keep the id form when the title cannot be loaded.
-        }
+            button.appendChild(chip);
+            void itemApi.GetById(id).then((parent) => {
+                const title = parent.Title;
+                chip.textContent = `${prefix}${title.length > 25 ? `${title.slice(0, 25).trimEnd()}…` : title}`;
+            }).catch(() => {
+                // Keep the id form when the title cannot be loaded.
+            });
+        });
     }
 
     private async _renderAndFocusNewKey(): Promise<void> {
