@@ -6,6 +6,7 @@ import type { AddAttributeKindDto, AttributeBaseType, AttributeConfig } from '@z
 import { ConfirmDialog } from '../common/confirm_dialog';
 import { formatDefaultInput, parseDefaultInput } from '../common/default_input';
 import { LoadingSpinner } from '../common/loading_spinner';
+import { buildAddPanel, buildDisclosure, buildSectionHeader } from '../common/settings_layout';
 
 const attributeKindApi = new AttributeKindAPI('/api');
 
@@ -26,18 +27,14 @@ export class AttrKindSettingsScreen extends BaseElementEmpty {
         const shell = document.createElement('div');
         shell.className = 'attr-kind-settings-shell';
 
-        const header = document.createElement('div');
-        header.className = 'attr-kind-settings-header';
-
-        const heading = document.createElement('h2');
-        heading.textContent = 'Attribute Kinds';
-        const copy = document.createElement('p');
-        copy.className = 'tool-muted';
-        copy.textContent = 'Manage the attribute kinds used to describe items.';
-        header.append(heading, copy);
-
+        const { element: header, addButton } = buildSectionHeader(
+            'Attribute Kinds',
+            'Manage the attribute kinds used to describe items.',
+            'Add Kind',
+        );
         const form = this.buildAddForm();
-        shell.append(header, form);
+        const addPanel = buildAddPanel(form, addButton!, 'Add Kind', this.createError != null || this.creating);
+        shell.append(header, addPanel);
 
         if (this.createError) {
             const error = document.createElement('p');
@@ -188,7 +185,11 @@ export class AttrKindSettingsScreen extends BaseElementEmpty {
             }));
         }
 
-        container.append(systemSection, userSection);
+        // Kinds you can edit come first; the built-in ones are tucked away.
+        container.append(
+            userSection,
+            buildDisclosure(`System Kinds (${systemKinds.length})`, systemSection),
+        );
     }
 
     private async addKind(dto: AddAttributeKindDto): Promise<void> {

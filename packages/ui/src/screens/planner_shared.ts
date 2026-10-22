@@ -9,7 +9,7 @@ import { buildItemCardList } from '../views/item_card_list';
 import { buildAddPanel } from '../views/item_table_add_panel';
 import { createItem } from '../views/item_table_save';
 import type { CreateDraftState, ItemTableCreateRowConfig } from '../views/item_table_types';
-import { makeMobileCollapsible } from '../common/mobile_collapsible';
+import { makeCollapsible } from '../common/collapsible_section';
 
 export interface PlannerHeaderAction {
     iconURL: string;
@@ -190,14 +190,14 @@ export function createPlannerHeader(
 
 export function createPlannerSection(
     title: string,
-    options: { collapsedOnMobile?: boolean } = {},
+    options: { collapsed?: boolean } = {},
 ): PlannerSectionElements {
     const section = document.createElement('section');
     section.className = 'planner-section';
 
     const heading = document.createElement('h2');
     heading.textContent = title;
-    if (options.collapsedOnMobile) makeMobileCollapsible(section, heading, title);
+    if (options.collapsed) makeCollapsible(section, heading, title);
     section.appendChild(heading);
 
     const body = document.createElement('div');

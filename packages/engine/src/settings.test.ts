@@ -11,15 +11,17 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
+const defaults = { item_actions: "toolbar", interface_size: "default", start_screen: "home" };
+
 describe("AppSettings", () => {
     it("starts from defaults", async () => {
         const settings = await loadSettings();
-        expect(settings.get()).toEqual({ theme: "light", show_tips: true });
+        expect(settings.get()).toEqual({ ...defaults, theme: "light", show_tips: true });
     });
 
     it("restores saved values over defaults and survives corrupt storage", async () => {
         localStorage.setItem("zealot_settings", JSON.stringify({ theme: "dark" }));
-        expect((await loadSettings()).get()).toEqual({ theme: "dark", show_tips: true });
+        expect((await loadSettings()).get()).toEqual({ ...defaults, theme: "dark", show_tips: true });
         localStorage.setItem("zealot_settings", "{not json");
         expect((await loadSettings()).get().theme).toBe("light");
     });
@@ -44,7 +46,7 @@ describe("AppSettings", () => {
         expect(sync).not.toHaveBeenCalled();
         await vi.advanceTimersByTimeAsync(500);
         expect(sync).toHaveBeenCalledOnce();
-        expect(sync).toHaveBeenCalledWith({ theme: "dark", show_tips: false });
+        expect(sync).toHaveBeenCalledWith({ ...defaults, theme: "dark", show_tips: false });
     });
 
     it("lets server settings win without syncing back", async () => {

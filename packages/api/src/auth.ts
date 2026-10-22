@@ -1,4 +1,4 @@
-import { delete_req, get_json, patch_req, post_json, post_req } from "@websoil/engine";
+import { AppSettings, delete_req, get_json, patch_req, post_json, post_req } from "@websoil/engine";
 import { BaseAPI } from "./common";
 import { Account, ApiKey, type ApiKeyDto, type CreateApiKeyResponseDto, type AccountDto, type LoginBasicDto, type RegisterBasicDto } from "@zealot/domain/src/account";
 
@@ -10,7 +10,7 @@ export class AuthAPI extends BaseAPI {
         super(baseURL);
         this.Account = null;
         this.Basic = new BasicAuthAPI(baseURL,
-            (dto) => { this.Account = new Account(dto); },
+            (dto) => { this.signedIn(dto); },
             ()    => { this.Account = null; }
         );
     }
@@ -21,11 +21,22 @@ export class AuthAPI extends BaseAPI {
         }
         try {
             const dto = await get_json(`${this.baseUrl}/auth/is_logged_in`) as AccountDto;
-            this.Account = new Account(dto);
+            this.signedIn(dto);
             return true;
         } catch {
             return false;
         }
+    }
+
+    /** Remembers the account, then hands its saved settings to the app and starts saving changes back. */
+    private signedIn(dto: AccountDto): void {
+        this.Account = new Account(dto);
+        AppSettings.loadFromServer(dto.settings ?? {});
+        AppSettings.registerSync((settings) => {
+            this.patchSettings({ ...settings }).catch(() => {
+                // Settings stay in the browser; the next change tries again.
+            });
+        });
     }
 
     public async patchSettings(settings: Record<string, unknown>): Promise<void> {

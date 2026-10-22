@@ -20,7 +20,8 @@ export class SettingsScreen extends BaseElementEmpty {
         title.textContent = 'Settings';
 
         const nav = document.createElement('div');
-        nav.className = 'settings-section-nav';
+        nav.className = 'settings-tabs';
+        nav.setAttribute('role', 'tablist');
 
         const sections: Array<{ key: SettingsSection; label: string }> = [
             { key: 'attributes', label: 'Attributes' },
@@ -35,7 +36,8 @@ export class SettingsScreen extends BaseElementEmpty {
             const button = document.createElement('button');
             button.type = 'button';
             button.textContent = label;
-            button.className = key === this.section ? 'is-active' : '';
+            button.setAttribute('role', 'tab');
+            button.setAttribute('aria-selected', String(key === this.section));
             button.addEventListener('click', () => {
                 getNavigator().openSettings(key);
             });

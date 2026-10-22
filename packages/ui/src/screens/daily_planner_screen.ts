@@ -113,7 +113,7 @@ export class DailyPlannerScreen extends BaseElementEmpty {
         );
 
         const items = createPlannerSection('Items');
-        const comments = createPlannerSection('Comments', { collapsedOnMobile: true });
+        const comments = createPlannerSection('Comments', { collapsed: true });
         items.body.appendChild(new LoadingSpinner());
         comments.body.appendChild(new CommentsView().init({
             scope: { kind: 'day', date },

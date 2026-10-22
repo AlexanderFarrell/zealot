@@ -1,9 +1,10 @@
-import { BaseElementEmpty, Events } from '@websoil/engine';
+import { AppSettings, BaseElementEmpty, Events, type InterfaceSize, type ItemActionsMode, type Settings, type StartScreen } from '@websoil/engine';
 import { AuthAPI } from '@zealot/api/src/auth';
 import { ItemAPI } from '@zealot/api/src/item';
 import { ApiKey } from '@zealot/domain/src/account';
 import { LoadingSpinner } from '../common/loading_spinner';
 import { ConfirmDialog } from '../common/confirm_dialog';
+import { buildSectionHeader } from '../common/settings_layout';
 
 let authApi = new AuthAPI('/api');
 let itemApi = new ItemAPI('/api');
@@ -42,9 +43,7 @@ export class UserSettingsScreen extends BaseElementEmpty {
         const shell = document.createElement('div');
         shell.className = 'user-settings-shell';
 
-        const heading = document.createElement('h2');
-        heading.textContent = 'User Settings';
-        shell.appendChild(heading);
+        shell.appendChild(buildSectionHeader('User', 'Your account and how the app looks and opens for you.').element);
 
         const spinner = new LoadingSpinner();
         shell.appendChild(spinner);
@@ -94,6 +93,7 @@ export class UserSettingsScreen extends BaseElementEmpty {
             </tbody>
         `;
         shell.appendChild(infoTable);
+        shell.appendChild(this.renderPreferencesSection());
 
         if (!isTauriEnv()) {
             shell.appendChild(this.renderApiKeySection());
@@ -115,6 +115,67 @@ export class UserSettingsScreen extends BaseElementEmpty {
             void this.logout();
         });
         shell.appendChild(logoutButton);
+    }
+
+    private renderPreferencesSection(): HTMLElement {
+        const section = document.createElement('div');
+        section.className = 'preferences-section';
+
+        const heading = document.createElement('h3');
+        heading.textContent = 'Preferences';
+        section.appendChild(heading);
+
+        section.append(
+            this.preferenceField<ItemActionsMode>('item_actions', 'Item actions', [
+                { value: 'toolbar', text: 'Toolbar (a row of buttons)' },
+                { value: 'menu', text: 'Menu (one "…" button beside the title)' },
+            ], 'Applies on desktop. Phones always use the compact layout.'),
+            this.preferenceField<InterfaceSize>('interface_size', 'Interface size', [
+                { value: 'small', text: 'Small (90%)' },
+                { value: 'default', text: 'Default (100%)' },
+                { value: 'large', text: 'Large (112%)' },
+                { value: 'larger', text: 'Larger (125%)' },
+            ], 'Scales text and controls across the app.'),
+            this.preferenceField<StartScreen>('start_screen', 'Open on', [
+                { value: 'home', text: 'Home' },
+                { value: 'daily', text: 'Daily planner' },
+                { value: 'last_item', text: 'Last item (this device)' },
+            ], 'What opens when you launch the app. Links to a specific page still open that page.'),
+        );
+        return section;
+    }
+
+    private preferenceField<T extends string>(
+        key: 'item_actions' | 'interface_size' | 'start_screen',
+        labelText: string,
+        options: Array<{ value: T; text: string }>,
+        help: string,
+    ): HTMLElement {
+        const field = document.createElement('div');
+        field.className = 'preference-field';
+
+        const label = document.createElement('label');
+        const name = document.createElement('span');
+        name.textContent = labelText;
+        const select = document.createElement('select');
+        for (const { value, text } of options) {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = text;
+            select.appendChild(option);
+        }
+        select.value = AppSettings.get()[key];
+        select.addEventListener('change', () => {
+            AppSettings.set({ [key]: select.value } as Partial<Settings>);
+        });
+        label.append(name, select);
+
+        const note = document.createElement('p');
+        note.className = 'tool-muted';
+        note.textContent = help;
+
+        field.append(label, note);
+        return field;
     }
 
     private renderApiKeySection(): HTMLElement {

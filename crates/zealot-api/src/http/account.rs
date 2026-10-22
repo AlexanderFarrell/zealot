@@ -44,6 +44,11 @@ async fn update_settings(
         return Err(HttpError::Unauthorized);
     }
     let account = actor.account.ok_or(HttpError::Unauthorized)?;
+    if !settings.is_object() {
+        return Err(HttpError::UserError {
+            err: "settings must be a JSON object".to_string(),
+        });
+    }
     state
         .services
         .account

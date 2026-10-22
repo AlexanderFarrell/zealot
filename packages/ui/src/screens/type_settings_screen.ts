@@ -3,6 +3,7 @@ import { ItemTypeAPI } from '@zealot/api/src/item_type';
 import type { ItemTypeSummary } from '@zealot/domain/src/item_type';
 import { ConfirmDialog } from '../common/confirm_dialog';
 import { LoadingSpinner } from '../common/loading_spinner';
+import { buildAddPanel, buildSectionHeader } from '../common/settings_layout';
 
 const itemTypeApi = new ItemTypeAPI('/api');
 
@@ -21,15 +22,11 @@ export class TypeSettingsScreen extends BaseElementEmpty {
         const shell = document.createElement('div');
         shell.className = 'type-settings-shell';
 
-        const header = document.createElement('div');
-        header.className = 'type-settings-header';
-
-        const heading = document.createElement('h2');
-        heading.textContent = 'Item Types';
-        const copy = document.createElement('p');
-        copy.className = 'tool-muted';
-        copy.textContent = 'Create, inspect, and delete item types.';
-        header.append(heading, copy);
+        const { element: header, addButton } = buildSectionHeader(
+            'Item Types',
+            'Create, inspect, and delete item types.',
+            'Add Type',
+        );
 
         const form = document.createElement('form');
         form.className = 'type-settings-create';
@@ -61,7 +58,7 @@ export class TypeSettingsScreen extends BaseElementEmpty {
             void this.createType();
         });
 
-        shell.append(header, form);
+        shell.append(header, buildAddPanel(form, addButton!, 'Add Type', this.createError != null || this.creating));
 
         if (this.createError) {
             const error = document.createElement('p');

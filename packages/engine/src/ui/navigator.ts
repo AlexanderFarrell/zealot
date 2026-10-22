@@ -125,7 +125,8 @@ export function registerNavigationCommands(): void {
     runner.register('Analysis: Overdue', [], () => getNavigator().openAnalysisOverdue());
     runner.register('Analysis: Most Viewed', [], () => getNavigator().openAnalysisMostViewed());
     runner.register(NavigationCommands.openRules, [new Hotkey('2', [CTRL_OR_META_KEY, SHIFT_KEY])], () => getNavigator().openRules());
-    runner.register(NavigationCommands.openSettings, [new Hotkey('3', [CTRL_OR_META_KEY, SHIFT_KEY])], () => getNavigator().openSettings());
+    // Cmd+, on macOS and Ctrl+, elsewhere is the platform's usual Settings shortcut.
+    runner.register(NavigationCommands.openSettings, [new Hotkey('3', [CTRL_OR_META_KEY, SHIFT_KEY]), new Hotkey(',', [CTRL_OR_META_KEY])], () => getNavigator().openSettings());
     runner.register('Settings: Attributes', [], () => getNavigator().openSettings('attributes'));
     runner.register('Settings: Types', [], () => getNavigator().openSettings('types'));
     runner.register('Settings: Planner', [], () => getNavigator().openSettings('planner'));

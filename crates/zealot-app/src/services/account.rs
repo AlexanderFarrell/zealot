@@ -21,12 +21,28 @@ impl AccountService {
         Self { repo: repo.clone() }
     }
 
+    /// Merges `patch` into the account's settings, one top-level key at a time.
+    ///
+    /// Keys absent from `patch` are kept, so a client that only knows some settings (the
+    /// `timezone` key, for one, is read by the server and never sent by the UI) cannot erase the
+    /// rest. A non-object `patch` is rejected.
     pub fn update_settings(
         &self,
         account_id: &Id,
-        settings: serde_json::Value,
+        patch: serde_json::Value,
     ) -> Result<(), RepoError> {
-        self.repo.update_settings(account_id, &settings)
+        let serde_json::Value::Object(patch) = patch else {
+            return Err(RepoError::DatabaseError {
+                err: "settings must be a JSON object".to_string(),
+            });
+        };
+        let current = self
+            .repo
+            .get_account_by_id(account_id)?
+            .ok_or(RepoError::NotFound)?
+            .settings;
+        let merged = merge_settings(current, patch);
+        self.repo.update_settings(account_id, &merged)
     }
 
     /// Generates a new API key, stores its hash, and returns the record plus the raw key (shown once).
@@ -79,8 +95,49 @@ impl AccountService {
     }
 }
 
+fn merge_settings(
+    current: serde_json::Value,
+    patch: serde_json::Map<String, serde_json::Value>,
+) -> serde_json::Value {
+    let mut merged = match current {
+        serde_json::Value::Object(map) => map,
+        _ => serde_json::Map::new(),
+    };
+    merged.extend(patch);
+    serde_json::Value::Object(merged)
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum AccountError {
     #[error("server error")]
     ServerError,
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::merge_settings;
+
+    fn patch(value: serde_json::Value) -> serde_json::Map<String, serde_json::Value> {
+        value.as_object().cloned().unwrap()
+    }
+
+    #[test]
+    fn merge_keeps_keys_the_patch_does_not_mention() {
+        let merged = merge_settings(
+            json!({"timezone": "Europe/London", "theme": "light"}),
+            patch(json!({"theme": "dark", "item_actions": "menu"})),
+        );
+        assert_eq!(
+            merged,
+            json!({"timezone": "Europe/London", "theme": "dark", "item_actions": "menu"})
+        );
+    }
+
+    #[test]
+    fn merge_replaces_a_non_object_current_value() {
+        let merged = merge_settings(json!(null), patch(json!({"theme": "dark"})));
+        assert_eq!(merged, json!({"theme": "dark"}));
+    }
 }

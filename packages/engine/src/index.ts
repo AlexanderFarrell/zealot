@@ -86,5 +86,5 @@ export type { Navigator, SettingsSection, PlannerView, TimeBlockView, AppLocatio
 export type { ToolHost, ToolShowOptions, ToolView } from './ui/tool_host'
 export type { RightSidebarHost, SideViewMeta } from './ui/right_sidebar_host'
 export type { MobilePane, MobileSide } from './mobile_pane'
-export type { Settings } from './settings'
+export type { Settings, ItemActionsMode, InterfaceSize, StartScreen } from './settings'
 export type { DesktopMode } from './desktop_mode'

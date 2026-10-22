@@ -3,6 +3,7 @@ import { AuthAPI } from "@zealot/api/src/auth";
 import { account } from "@zealot/domain";
 import { AuthScreen } from "../auth/auth_screen";
 import { LoadingSpinner } from "../common/loading_spinner";
+import { initAppearance } from "../common/appearance";
 
 interface MainScreenData {
     AuthAPI: AuthAPI,
@@ -11,6 +12,7 @@ interface MainScreenData {
 
 export class MainScreen extends BaseElement<MainScreenData> {
     public async render() {
+        initAppearance();
         Events.on('to_auth', () => {
             this.to_auth();
         })

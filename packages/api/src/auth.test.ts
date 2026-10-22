@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { AppSettings } from "@websoil/engine";
 import { AuthAPI } from "./auth";
 import { mockFetch, restoreFetch } from "./testing/fetch_mock";
 
@@ -38,6 +39,25 @@ describe("AuthAPI", () => {
     it("is not logged in when the server refuses", async () => {
         mockFetch(() => ({ status: 401 }));
         expect(await new AuthAPI("/api").IsLoggedIn()).toBe(false);
+    });
+
+    it("loads saved settings after login and saves later changes", async () => {
+        vi.useFakeTimers();
+        try {
+            const requests = mockFetch((r) => (r.url.endsWith("/is_logged_in")
+                ? { json: { ...account, settings: { item_actions: "menu", timezone: "Europe/London" } } }
+                : { json: {} }));
+            const auth = new AuthAPI("/api");
+            await auth.IsLoggedIn();
+            expect(AppSettings.get().item_actions).toBe("menu");
+            AppSettings.set({ interface_size: "large" });
+            await vi.advanceTimersByTimeAsync(600);
+            const patch = requests.find((r) => r.method === "PATCH");
+            expect(patch?.url).toBe("/api/account/settings");
+            expect(patch?.body).toMatchObject({ item_actions: "menu", interface_size: "large" });
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it("manages api keys", async () => {

@@ -1781,36 +1781,29 @@ desktop-dock-host {
   --dv-drag-over-border-color: var(--accent-0);
 }
 
-/* ── Mobile collapsible sections (makeMobileCollapsible) ─────────────────── */
+/* ── Collapsible sections (makeCollapsible) ─────────────────────────────── */
 
-.mobile-collapsible-toggle {
+.collapsible-toggle {
   all: unset;
-  pointer-events: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  cursor: pointer;
+
+  &::after {
+    content: '▲';
+    font-size: 0.7em;
+    opacity: 0.6;
+  }
 }
 
-@media only screen and (max-width: 768px), only screen and (max-width: 1100px) and (hover: none) and (pointer: coarse) {
-  .mobile-collapsible-toggle {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-    cursor: pointer;
-    pointer-events: auto;
-
-    &::after {
-      content: '▲';
-      font-size: 0.7em;
-      opacity: 0.6;
-    }
+.collapsible--collapsed {
+  .collapsible-toggle::after {
+    content: '▼';
   }
 
-  .mobile-collapsible--collapsed {
-    .mobile-collapsible-toggle::after {
-      content: '▼';
-    }
-
-    > :not(h2) {
-      display: none;
-    }
+  > :not(h2) {
+    display: none;
   }
 }

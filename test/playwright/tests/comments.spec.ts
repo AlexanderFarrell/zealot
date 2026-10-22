@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test';
 import { test, expect } from '../fixtures';
 import { uniqueTitle } from '../helpers/unique';
 import { ITEM, COMMENTS, CONFIRM, APP_SHELL } from '../helpers/selectors';
+import { expandComments } from '../helpers/comments';
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
@@ -14,6 +15,8 @@ async function navigateToItem(
 ) {
   await page.goto(`/item/${encodeURIComponent(title)}`);
   await expect(page.locator(ITEM.screen)).toBeVisible({ timeout: 10_000 });
+  // Comments start collapsed under their heading.
+  await expandComments(page);
 }
 
 // The composer is collapsed behind an "Add Comment" toggle until opened.
@@ -21,6 +24,22 @@ async function openComposer(page: Page) {
   await page.locator(COMMENTS.composerToggle).click();
   await expect(page.locator(COMMENTS.draftTextarea)).toBeVisible();
 }
+
+test('comments start collapsed and open from their heading', async ({ page, createItem }) => {
+  const title = uniqueTitle('CommentsCollapsed');
+  await createItem(title);
+  await page.goto(`/item/${encodeURIComponent(title)}`);
+  await expect(page.locator(ITEM.screen)).toBeVisible({ timeout: 10_000 });
+
+  await expect(page.locator('.collapsible-toggle', { hasText: 'Comments' })).toBeVisible();
+  await expect(page.locator(COMMENTS.view)).toBeHidden();
+
+  await expandComments(page);
+  await expect(page.locator(COMMENTS.view)).toBeVisible();
+
+  await page.locator('.collapsible-toggle', { hasText: 'Comments' }).click();
+  await expect(page.locator(COMMENTS.view)).toBeHidden();
+});
 
 test('comments section is visible on item screen', async ({ page, createItem }) => {
   const title = uniqueTitle('CommentsItem');
