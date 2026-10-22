@@ -1,11 +1,22 @@
+export type ItemActionsMode = 'toolbar' | 'menu';
+export type InterfaceSize = 'small' | 'default' | 'large' | 'larger';
+export type StartScreen = 'home' | 'daily' | 'last_item';
+
 export interface Settings {
     theme: 'light' | 'dark';
     show_tips: boolean;
+    /** How the item screen shows its actions on desktop: a row of buttons or one "…" menu. */
+    item_actions: ItemActionsMode;
+    interface_size: InterfaceSize;
+    start_screen: StartScreen;
 }
 
 const DEFAULTS: Settings = {
     theme: 'light',
     show_tips: true,
+    item_actions: 'toolbar',
+    interface_size: 'default',
+    start_screen: 'home',
 };
 
 const STORAGE_KEY = 'zealot_settings';

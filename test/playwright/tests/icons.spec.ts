@@ -4,6 +4,7 @@ import { expandAttributes } from '../helpers/attributes';
 import { uniqueTitle } from '../helpers/unique';
 import { csrfHeaders } from '../helpers/csrf';
 import { ADD_ITEM, APP_SHELL, COMMENTS, ITEM, SIDEBAR } from '../helpers/selectors';
+import { expandComments } from '../helpers/comments';
 
 const CTRL_N = 'Control+n';
 
@@ -237,6 +238,7 @@ test('the shortcode picker includes icon entries and inserts icon refs', async (
 
   const composerEditor = page.locator('comments-view zealotscript-editor[data-comments-draft="true"] .ProseMirror');
   // The composer is collapsed until the toggle is clicked.
+  await expandComments(page);
   await page.locator(COMMENTS.composerToggle).click();
   await expect(composerEditor).toBeVisible();
   // click() would hit the sticky toolbar when the editor is scrolled into view.
@@ -261,6 +263,7 @@ test('the shortcode picker hides shadowed collisions and keeps winning source pr
 
   const composerEditor = page.locator('comments-view zealotscript-editor[data-comments-draft="true"] .ProseMirror');
   // The composer is collapsed until the toggle is clicked.
+  await expandComments(page);
   await page.locator(COMMENTS.composerToggle).click();
   await expect(composerEditor).toBeVisible();
   // click() would hit the sticky toolbar when the editor is scrolled into view.
@@ -289,6 +292,7 @@ test('icon shortcodes render in the editor and persist as shortcodes in rendered
 
   const composerEditor = page.locator('comments-view zealotscript-editor[data-comments-draft="true"] .ProseMirror');
   // The composer is collapsed until the toggle is clicked.
+  await expandComments(page);
   await page.locator(COMMENTS.composerToggle).click();
   await expect(composerEditor).toBeVisible();
   // click() would hit the sticky toolbar when the editor is scrolled into view.
@@ -324,6 +328,8 @@ test('icon shortcodes render in the editor and persist as shortcodes in rendered
   expect(saved?.content).not.toContain('<svg');
 
   await page.reload();
+  // Comments are collapsed again after a reload.
+  await expandComments(page);
   const reloadedComment = page.locator('.comments-view-card').first();
   await expect(reloadedComment.locator('.comments-view-content .zealot-icon[data-icon-ref="firefox"] svg')).toBeVisible();
   await expect(reloadedComment.locator('.comments-view-content .zealot-icon[data-icon-ref="alarm-clock-check"] svg')).toBeVisible();

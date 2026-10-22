@@ -24,12 +24,176 @@
   gap: 12px;
 }
 
-.settings-section-nav {
-  flex-wrap: wrap;
+// Tabs across the top of Settings.
+.settings-tabs {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border-0);
+
+  > button {
+    width: auto;
+    flex: none;
+    padding: 9px 16px;
+    border-radius: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    box-shadow: none;
+    color: var(--text-1);
+    font-weight: 600;
+
+    &:hover {
+      color: var(--text-0);
+      filter: none;
+      box-shadow: none;
+      background: var(--panel-0);
+    }
+
+    &[aria-selected="true"] {
+      color: var(--text-0);
+      border-bottom-color: var(--accent-0);
+    }
+  }
 }
 
-.settings-section-nav > button.is-active {
-  border-color: var(--fg-0);
+// The title, description and primary action at the top of every Settings tab.
+.settings-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+
+  h2 {
+    margin: 0 0 4px;
+  }
+
+  .settings-add {
+    width: auto;
+    flex: none;
+    padding: 7px 16px;
+    border-radius: 8px;
+    background: var(--accent-0);
+    color: var(--bg--1);
+    font-weight: 600;
+  }
+}
+
+// Panels group related controls: the add forms and the sections of the User and Data tabs.
+.settings-add-panel,
+.preferences-section,
+.api-key-section,
+.admin-section,
+.data-settings-section,
+.settings-empty {
+  background: var(--panel-0);
+  border: 1px solid var(--border-0);
+  border-radius: 10px;
+  padding: 16px;
+
+  h3 {
+    margin: 0 0 8px;
+  }
+}
+
+.settings-add-panel {
+  &[hidden] {
+    display: none;
+  }
+
+  form,
+  .attr-kind-settings-create,
+  .type-settings-create {
+    display: grid;
+    gap: 14px;
+  }
+
+  input,
+  select {
+    width: 100%;
+  }
+}
+
+.settings-empty {
+  text-align: center;
+  padding: 32px 16px;
+}
+
+.settings-section-shell,
+.user-settings-shell,
+.attr-kind-settings-shell,
+.data-settings-shell {
+  display: grid;
+  gap: 16px;
+}
+
+.preference-field {
+  display: grid;
+  gap: 4px;
+  padding: 10px 0;
+
+  + .preference-field {
+    border-top: 1px solid var(--border-1);
+  }
+
+  label {
+    display: grid;
+    grid-template-columns: minmax(120px, 200px) minmax(0, 360px);
+    align-items: center;
+    gap: 12px;
+    font-weight: 600;
+  }
+
+  select {
+    width: 100%;
+  }
+}
+
+.settings-disclosure {
+  > summary {
+    cursor: pointer;
+    padding: 8px 0;
+    font-weight: 600;
+    color: var(--text-1);
+
+    &:hover {
+      color: var(--text-0);
+    }
+  }
+}
+
+.attr-kind-table,
+.api-keys-table,
+.user-info-table {
+  width: 100%;
+  border-collapse: collapse;
+
+  th,
+  td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border-0);
+  }
+
+  th {
+    color: var(--text-1);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  td input,
+  td select {
+    width: 100%;
+  }
+}
+
+@media (max-width: 720px) {
+  .settings-header {
+    flex-direction: column;
+  }
+
+  .preference-field label {
+    grid-template-columns: 1fr;
+  }
 }
 
 .types-screen-body,

@@ -26,6 +26,7 @@ test('"Create Type" button on types screen navigates to /settings/types', async 
 test('/settings/types shows the type creation form', async ({ page }) => {
   await page.goto('/settings/types');
   await expect(page.locator('settings-screen')).toBeVisible();
+  await page.getByRole('button', { name: 'Add Type' }).click();
   await expect(page.locator('[name="type_name"]')).toBeVisible();
   await expect(page.locator('.type-settings-create button[type="submit"]')).toBeVisible();
 });
@@ -34,6 +35,7 @@ test('create a new type via settings and navigate to its type screen', async ({ 
   const typeName = `Type_${generateSuffix()}`;
 
   await page.goto('/settings/types');
+  await page.getByRole('button', { name: 'Add Type' }).click();
   await expect(page.locator('[name="type_name"]')).toBeVisible();
 
   await page.fill('[name="type_name"]', typeName);
@@ -46,6 +48,7 @@ test('create a new type via settings and navigate to its type screen', async ({ 
 
 test('create type with blank name shows error', async ({ page }) => {
   await page.goto('/settings/types');
+  await page.getByRole('button', { name: 'Add Type' }).click();
   await expect(page.locator('[name="type_name"]')).toBeVisible();
 
   // Submit without filling the name

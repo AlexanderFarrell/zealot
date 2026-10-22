@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures';
 import { COMMENTS, SIDEBAR, APP_SHELL } from '../helpers/selectors';
+import { expandComments } from '../helpers/comments';
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
@@ -67,8 +68,9 @@ test('daily planner shows comment composer', async ({ page }) => {
   await page.goto('/planner/daily/2026-01-15');
   await expect(page.locator('daily-planner-screen')).toBeVisible();
 
+  // Comments are collapsed under their heading, and the composer behind a toggle.
+  await expandComments(page);
   await expect(page.locator(COMMENTS.view)).toBeVisible();
-  // The composer is collapsed until the toggle is clicked.
   await expect(page.locator(COMMENTS.composerToggle)).toBeVisible();
   await page.locator(COMMENTS.composerToggle).click();
   await expect(page.locator(COMMENTS.draftTextarea)).toBeVisible();

@@ -13,6 +13,7 @@ import { TimeBlocksScreen } from '@zealot/ui/src/screens/time_blocks_screen';
 import { RulesScreen } from '@zealot/ui/src/screens/rules_screen';
 import { SettingsScreen } from '@zealot/ui/src/screens/settings_screen';
 import { confirmLeave } from '@zealot/ui/src/common/unsaved_changes';
+import { openStartScreen } from '@zealot/ui/src/common/start_screen';
 
 function todayIso(): string {
     return DateTime.local().toISODate() ?? DateTime.local().toFormat('yyyy-MM-dd');
@@ -40,6 +41,7 @@ export class MobileNavigator implements Navigator {
     private location: AppLocation = { kind: 'not_found', path: window.location.pathname };
     private currentPath = window.location.pathname;
     private readonly listeners = new Set<LocationListener>();
+    private startScreenChecked = false;
 
     constructor() {
         window.addEventListener('popstate', () => { void this.renderAfterPopstate(); });
@@ -173,6 +175,11 @@ export class MobileNavigator implements Navigator {
     }
 
     resolve(): void {
+        // The first screen of a launch honours the Start screen setting; later resolves do not.
+        if (!this.startScreenChecked) {
+            this.startScreenChecked = true;
+            if (openStartScreen(window.location.pathname, (path) => this.navigate(path, 'replace'))) return;
+        }
         this.renderCurrent();
     }
 

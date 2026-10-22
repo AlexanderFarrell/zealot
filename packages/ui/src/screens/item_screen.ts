@@ -1,5 +1,5 @@
 import { createMobilePaneSwitch } from '../shell/mobile_pane_switch';
-import { BaseElementEmpty, Popups, commands, getNavigator, openInNewTab, getRightSidebarHost, registerContextMenu, showContextMenu, unregisterContextMenu, unregisterContextMenuIn, type ContextAction } from '@websoil/engine';
+import { AppSettings, BaseElementEmpty, Popups, commands, getNavigator, openInNewTab, getRightSidebarHost, registerContextMenu, showContextMenu, unregisterContextMenu, unregisterContextMenuIn, type ContextAction } from '@websoil/engine';
 import { ItemAPI } from '@zealot/api/src/item';
 import type { Item } from '@zealot/domain/src/item';
 import { ConfirmDialog } from '../common/confirm_dialog';
@@ -20,11 +20,15 @@ import { createItemTitleIconElement } from '../views/item_title';
 import { StatisticsView } from '../views/statistics_view';
 import { getItemSaveQueue, type ItemSaveQueue } from './item_save_queue';
 import { registerPendingWork, type PendingWork } from '../common/unsaved_changes';
-import { makeMobileCollapsible } from '../common/mobile_collapsible';
+import { makeCollapsible } from '../common/collapsible_section';
+import { rememberLastItem } from '../common/start_screen';
 
 const itemApi = new ItemAPI('/api');
 
 let content_visible = true;
+
+/** Matches the phone layout in item.scss, which ignores the item actions setting. */
+const PHONE_QUERY = '(max-width: 640px)';
 
 const VIEW_MODE_KEY = 'zealot:view-mode';
 
@@ -86,6 +90,7 @@ export class ItemScreen extends BaseElementEmpty {
     private _relatedCount: number | null = null;
     private _saveQueue: ItemSaveQueue | null = null;
     private _unregisterPendingWork: (() => void) | null = null;
+    private _unsubscribeSettings: (() => void) | null = null;
     private _contentEditor: ZealotScriptEditor | null = null;
     private _titleEditor: HTMLElement | null = null;
     private _saveStatus: HTMLElement | null = null;
@@ -114,6 +119,8 @@ export class ItemScreen extends BaseElementEmpty {
     }
 
     disconnectedCallback(): void {
+        this._unsubscribeSettings?.();
+        this._unsubscribeSettings = null;
         this._unregisterPendingWork?.();
         this._unregisterPendingWork = null;
         getRightSidebarHost()?.setContent(null);
@@ -191,9 +198,18 @@ export class ItemScreen extends BaseElementEmpty {
         this._unregisterPendingWork?.();
         this._saveQueue = getItemSaveQueue(item.ItemID);
         this._unregisterPendingWork = registerPendingWork(this.pendingWork(item));
+        // Home is what the start screen falls back to, so it is never the "last item".
+        if (window.location.pathname !== '/') rememberLastItem(item.ItemID);
         // Apply persisted view mode
         const viewConfigs = getViewModeConfig(icons);
         applyViewMode(this, getViewMode(), viewConfigs);
+
+        // Item actions: the button row or the title's "…" menu (item.scss shows one of them)
+        this._unsubscribeSettings?.();
+        this.dataset['actions'] = AppSettings.get().item_actions;
+        this._unsubscribeSettings = AppSettings.subscribe((settings) => {
+            this.dataset['actions'] = settings.item_actions;
+        });
 
         // Types
         const typesDiv = document.createElement('div');
@@ -246,6 +262,7 @@ export class ItemScreen extends BaseElementEmpty {
             { label: 'Download as PDF', onClick: () => { window.location.href = itemApi.ExportPdfUrl(item.ItemID); } },
             { label: 'Download as DOCX', onClick: () => { window.location.href = itemApi.ExportDocxUrl(item.ItemID); } },
             { separator: true },
+            ...this.desktopOnlyActions(item, viewConfigs),
             { label: 'Manage Types', onClick: () => AssignTypeModal.show(item, () => onTypesDone()) },
             { label: 'Paste Template', onClick: () => {
                 PasteTemplateModal.show((templateContent) => {
@@ -300,6 +317,7 @@ export class ItemScreen extends BaseElementEmpty {
         });
         this._titleEditor = title;
         titleRow.appendChild(title);
+        titleRow.appendChild(this.buildTitleMenuButton(itemActions));
         this.appendChild(titleRow);
 
         this.appendChild(typesDiv);
@@ -328,7 +346,7 @@ export class ItemScreen extends BaseElementEmpty {
             this.appendChild(statisticsSection.section);
         }
 
-        const commentsSection = this.buildCollectionSection('Comments', { collapsedOnMobile: true });
+        const commentsSection = this.buildCollectionSection('Comments', { collapsed: true });
         const commentsView = new CommentsView().init({
             scope: { kind: 'item', itemId: item.ItemID },
         });
@@ -482,6 +500,7 @@ export class ItemScreen extends BaseElementEmpty {
             applyViewMode(this, next, viewConfigs);
             updateViewBtn(next);
         });
+        viewBtn.addEventListener('zealot:view-mode', () => updateViewBtn(getViewMode()));
         row.appendChild(viewBtn);
 
         row.appendChild(createMobilePaneSwitch());
@@ -494,6 +513,36 @@ export class ItemScreen extends BaseElementEmpty {
         row.appendChild(moreBtn);
 
         return row;
+    }
+
+    /** Time Blocks and the view toggle, which the phone layout leaves out of its menu. */
+    private desktopOnlyActions(item: Item, viewConfigs: Record<ViewMode, ViewModeConfig>): ContextAction[] {
+        if (window.matchMedia(PHONE_QUERY).matches) return [];
+        const next = nextViewMode(getViewMode());
+        return [
+            { label: 'Time Blocks', onClick: () => getNavigator().openTimeBlocksForItem(item.ItemID) },
+            { label: `Switch to ${viewConfigs[next].title}`, onClick: () => {
+                applyViewMode(this, next, viewConfigs);
+                this.querySelector('.item-action-btn--view-toggle')?.dispatchEvent(new Event('zealot:view-mode'));
+            }},
+        ];
+    }
+
+    /** The "…" after the title; item.scss shows it on desktop in Menu mode. */
+    private buildTitleMenuButton(itemActions: () => ContextAction[]): HTMLButtonElement {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.title = 'More';
+        btn.className = 'item-action-btn item-title-more';
+        const img = document.createElement('img');
+        img.src = icons.more;
+        img.alt = 'More';
+        btn.appendChild(img);
+        btn.addEventListener('click', () => {
+            const rect = btn.getBoundingClientRect();
+            showContextMenu(itemActions(), rect.left, rect.bottom + 4);
+        });
+        return btn;
     }
 
     private buildDownloadBtn(item: Item): HTMLElement {
@@ -783,14 +832,14 @@ export class ItemScreen extends BaseElementEmpty {
 
     private buildCollectionSection(
         title: string,
-        options: { collapsedOnMobile?: boolean } = {},
+        options: { collapsed?: boolean } = {},
     ): { content: HTMLElement; section: HTMLElement } {
         const section = document.createElement('section');
         section.className = 'item-collection-section';
 
         const heading = document.createElement('h2');
         heading.textContent = title;
-        if (options.collapsedOnMobile) makeMobileCollapsible(section, heading, title);
+        if (options.collapsed) makeCollapsible(section, heading, title);
         section.appendChild(heading);
 
         const content = document.createElement('div');

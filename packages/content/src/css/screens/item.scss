@@ -295,6 +295,38 @@ item-screen {
   display: none;
 }
 
+// The "…" after the title replaces the button row on desktop when the user chose Menu
+// (Settings → User). Phones keep their own layout below and ignore the setting.
+.item-title-more {
+  display: none;
+  flex: none;
+  align-self: center;
+  margin-left: auto;
+}
+
+@media (min-width: 641px) {
+  item-screen[data-actions="menu"] {
+    .button_row {
+      display: none;
+    }
+
+    // The grid above has a row per child, with content taking the spare height. Without the
+    // button row there is one row fewer, so drop the first "auto" to keep the comments at the bottom.
+    grid-template-rows: auto auto auto 1fr auto;
+
+    .item-title-more {
+      display: inline-flex;
+    }
+
+    // With the button row gone, the title sits at the top of the screen. Centre it against the
+    // "…" button and give it room above, so the space around it is even.
+    .item-title-row {
+      align-items: center;
+      padding: 8px 0 4px;
+    }
+  }
+}
+
 @media (max-width: 640px) {
   .item-action-btn--view-toggle {
     display: none;
