@@ -74,6 +74,8 @@ Fire immediately when something happens in Zealot.
 
 For `on_type_assign`, `on_type_unassign`, and `on_attribute_set` you can optionally filter by a specific type name or attribute key. Leave the field blank to match any.
 
+`on_attribute_set` fires only when the value actually changed. A write that leaves the value as it was (for example setting `Status` to `Complete` on an item that is already `Complete`) fires no rule, and a rule filtered to one attribute key never runs for a write to a different attribute. This holds for every write path: the editor, `zealot.items.set_attribute` and `remove_attribute`, and the MCP `update_item_attributes`. Creating an item, `update_item`, and assigning a type do not fire it at all (see below).
+
 Attributes written as part of creating an item (`on_item_create`) or inside an `update_item` call (`on_item_update`) do **not** fire `on_attribute_set`. Those writes fire only the create or update event, and the item in that event already carries the attributes. A rule that must react to a value however it was written (for example `Status = Complete`) needs both an `on_attribute_set` rule and an `on_item_create` rule; the second can read `zealot.event.item.attributes` directly.
 
 When an event trigger fires, `zealot.event` is populated with details about what happened. See [zealot.event](#zealothevent) below.
@@ -414,7 +416,7 @@ zealot.event.new_value      -- the value after the write, or nil if the attribut
 
 Removing an attribute also fires `on_attribute_set`, with `new_value` nil.
 
-`old_value` and `new_value` let a rule tell a real transition from a re-save of the same value:
+The engine already skips an event whose `old_value` equals `new_value`, so a rule never sees a re-save of the same value. `old_value` and `new_value` still let a rule react to a specific transition:
 ```lua
 if zealot.event.new_value == "Complete" and zealot.event.old_value ~= "Complete" then
     -- first time this item became Complete
@@ -734,7 +736,7 @@ When Status is set to "Complete", record the date it happened. Status is a dropd
 
 ```lua
 local item = zealot.event.item
--- Only stamp on a real transition, not when Complete is re-saved.
+-- Only stamp on a transition into Complete.
 if zealot.event.new_value == "Complete" and zealot.event.old_value ~= "Complete" then
     zealot.items.set_attribute(item.id, "Completed At", zealot.date)
 end

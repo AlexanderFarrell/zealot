@@ -97,7 +97,10 @@ impl LuaRuleRunner {
         };
 
         let mut results = vec![];
-        for rule in rules {
+        for rule in rules
+            .into_iter()
+            .filter(|rule| event.should_fire(&rule.trigger))
+        {
             let context = RuleContext::Event(event.clone());
             let runner = self.clone();
             let result =
