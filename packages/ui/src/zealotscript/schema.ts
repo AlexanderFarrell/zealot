@@ -273,6 +273,15 @@ const listItemSpec: NodeSpec = {
 	}
 };
 
+// Outline list: dotted-decimal numbering (1. / 1.1 / 1.2) computed from position by
+// outline_numbers.ts. It nests outline_list inside list_item, like the other list types.
+const outlineListSpec: NodeSpec = {
+	group: "block",
+	content: "list_item+",
+	parseDOM: [{ tag: "ol.zealot-outline" }],
+	toDOM() { return ["ol", { class: "zealot-outline" }, 0]; }
+};
+
 const detailsSpec: NodeSpec = {
 	group: "block",
 	content: "block+",
@@ -369,6 +378,7 @@ const nodes = addListNodes(
 	"block"
 ).update("list_item", listItemSpec).append({
 	admonition: admonitionSpec,
+	outline_list: outlineListSpec,
 	...pmTableNodes,
 	youtube_embed: youtubeEmbedSpec,
 	view_embed: viewEmbedSpec,

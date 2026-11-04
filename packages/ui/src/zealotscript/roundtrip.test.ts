@@ -42,6 +42,8 @@ const STABLE: Array<[string, string]> = [
 	["bullet nesting", "- a\n\t- b\n- c"],
 	["ordered", "1. a\n2. b"],
 	["task list", "- [ ] a\n- [x] b"],
+	["outline", ":::outline\n1. Goals\n  1.1 Learn\n  1.2 Ship\n    1.2.1 Parse\n2. Risks\n:::"],
+	["outline tasks", ":::outline\n1. [x] done\n  1.1 [ ] open\n  1.2 plain\n2. [ ] next\n:::"],
 	["table", "| a | b |\n| --- | --- |\n| 1 | 2 |"],
 	["table escaped pipe", "| a | b |\n| --- | --- |\n| x \\| y | 2 |"],
 	["headerless table", ":::table\na | b\nc | d\n:::"],

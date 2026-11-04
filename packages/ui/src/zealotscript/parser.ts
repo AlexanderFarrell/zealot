@@ -7,6 +7,7 @@ import { parseMarkdownTable, parseFencedTable } from "./parse/parse_table";
 import { parseYoutubeEmbed } from "./parse/parse_youtube";
 import { parseViewEmbed } from "./parse/parse_view_embed";
 import { parseMathBlock } from "./parse/parse_math_block";
+import { parseOutline } from "./parse/parse_outline";
 import { parseDetails, parseSpoiler, parseDefinitionList, parseColumns, parseTabs } from "./parse/parse_structural_blocks";
 
 const ADMONITION_KINDS = new Set([
@@ -160,6 +161,8 @@ const multiblockTypes: Array<
 > = [
 	parseYoutubeEmbed,
 	parseMathBlock,
+	// Before parseAdmonitionBlock, which would otherwise read ":::outline" as a note.
+	parseOutline,
 	parseDetails,
 	parseSpoiler,
 	parseDefinitionList,

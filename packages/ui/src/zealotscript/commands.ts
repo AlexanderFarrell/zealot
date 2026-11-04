@@ -1,5 +1,7 @@
 import { TextSelection, type EditorState, type Transaction } from "prosemirror-state";
 import { isInTable } from "prosemirror-tables";
+import { wrapInList } from "prosemirror-schema-list";
+import type { Node as PMNode } from "prosemirror-model";
 import { extractYouTubeVideoId } from "./parse/parse_youtube";
 
 export { extractYouTubeVideoId, isInTable };
@@ -136,6 +138,51 @@ export const exitCodeBlockOnBlankLine: PMCommand = (state, dispatch) => {
 		const insertAt = blockEnd - 1;
 		tr.insert(insertAt, paragraph.create());
 		tr.setSelection(TextSelection.create(tr.doc, insertAt + 1));
+		dispatch(tr.scrollIntoView());
+	}
+	return true;
+};
+
+const LIST_TYPES = new Set(["bullet_list", "ordered_list", "outline_list"]);
+
+// Positions of every list in the tree rooted at `list`, including the root. Changing a list's
+// type does not change its size, so these positions stay valid while the type is swapped.
+const collectListPositions = (list: PMNode, pos: number, out: number[]): void => {
+	out.push(pos);
+	list.forEach((item, itemOffset) => {
+		item.forEach((child, childOffset) => {
+			if (LIST_TYPES.has(child.type.name)) collectListPositions(child, pos + 1 + itemOffset + 1 + childOffset, out);
+		});
+	});
+};
+
+// With the cursor in a list, converts the whole list (top-level list and every nested one) to
+// `target`, keeping item text, nesting and checkbox state. Outside a list, wraps the block.
+// A nested outline_list must sit in an outline_list for the numbers to read right, which is why
+// the whole tree changes together.
+export const convertListTo = (target: "bullet_list" | "ordered_list" | "outline_list"): PMCommand => (state, dispatch) => {
+	const targetType = state.schema.nodes[target];
+	if (!targetType) return false;
+	const { $from } = state.selection;
+
+	let depth = -1;
+	for (let d = $from.depth; d > 0; d--) {
+		if (LIST_TYPES.has($from.node(d).type.name)) { depth = d; break; }
+	}
+	if (depth === -1) return wrapInList(targetType)(state, dispatch);
+
+	// Climb to the outermost list of the chain list > list_item > list > ...
+	while (depth >= 2 && $from.node(depth - 1).type.name === "list_item" && LIST_TYPES.has($from.node(depth - 2).type.name)) {
+		depth -= 2;
+	}
+	const root = $from.node(depth);
+	if (root.type === targetType) return true;
+
+	if (dispatch) {
+		const positions: number[] = [];
+		collectListPositions(root, $from.before(depth), positions);
+		const tr = state.tr;
+		for (const pos of positions) tr.setNodeMarkup(pos, targetType);
 		dispatch(tr.scrollIntoView());
 	}
 	return true;

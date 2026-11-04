@@ -17,7 +17,8 @@ import { taskItemInputRule, viewEmbedInputRule, wikilinkHref, wikilinkInputRule 
 import { ensureTrailingParagraph, stripTrailingParagraph, trailingParagraphPlugin } from "./trailing_paragraph";
 import { serializeZealotScript } from "./serializer";
 import { tableEditing, columnResizing, goToNextCell, addRowBefore, addRowAfter, deleteRow, addColumnBefore, addColumnAfter, deleteColumn, deleteTable, toggleHeaderRow } from "prosemirror-tables";
-import { exitCodeBlockOnBlankLine, insertTable, insertAdmonition, insertYoutubeEmbed, insertMermaidBlock, extractYouTubeVideoId, insertDetails, insertSpoiler, insertColumns, insertTabs, isInTable } from "./commands";
+import { outlineNumbersPlugin } from "./outline_numbers";
+import { convertListTo, exitCodeBlockOnBlankLine, insertTable, insertAdmonition, insertYoutubeEmbed, insertMermaidBlock, extractYouTubeVideoId, insertDetails, insertSpoiler, insertColumns, insertTabs, isInTable } from "./commands";
 import { TabsView } from "./zealotscript_view";
 import { lookupEmoji } from "./emoji_map";
 import { hasIcon, setIconRefElement } from "./icon_registry";
@@ -387,6 +388,7 @@ const buildPlugins = (schema: Schema) => {
 		autolinkPlugin(),
 		trailingParagraphPlugin(),
 		codeHighlightPlugin(),
+		outlineNumbersPlugin(),
 	];
 };
 
@@ -742,6 +744,14 @@ export class ZealotScriptEditor extends HTMLElement {
 		const sep1 = document.createElement("span");
 		sep1.className = "zealotscript-toolbar-sep";
 		bar.appendChild(sep1);
+
+		bar.appendChild(btn("\u2022 List", "Bullet list (converts the list at the cursor)", () => runCommand(convertListTo("bullet_list"))));
+		bar.appendChild(btn("1. List", "Numbered list (converts the list at the cursor)", () => runCommand(convertListTo("ordered_list"))));
+		bar.appendChild(btn("1.1 Outline", "Outline list: 1. / 1.1 / 1.2 (converts the list at the cursor)", () => runCommand(convertListTo("outline_list"))));
+
+		const sepLists = document.createElement("span");
+		sepLists.className = "zealotscript-toolbar-sep";
+		bar.appendChild(sepLists);
 
 		bar.appendChild(btn("B", "Bold (Ctrl+B)", () => toggleMark("strong")));
 		bar.appendChild(btn("I", "Italic (Ctrl+I)", () => toggleMark("em")));

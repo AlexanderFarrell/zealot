@@ -24,6 +24,7 @@ structured content.
 | **Blockquote** | `> text` |
 | **Bullet list** | `- item` |
 | **Ordered list** | `1. item` |
+| **Outline list** | `:::outline … :::` (see [Outline lists](./outline.md)) |
 | **Code block** | ` ```lang … ``` ` |
 | **Table** | Standard Markdown pipes |
 | **Admonitions** | `:::note … :::` |
@@ -41,6 +42,7 @@ structured content.
 ## Guide pages
 
 - [Math (LaTeX)](./math.md) — inline `$…$` and block `:::math` expressions
+- [Outline lists](./outline.md) — `:::outline` numbered 1. / 1.1 / 1.2 lists, with optional checkboxes
 - [Emoji shortcodes](./emoji.md) — `:smile:` shortcode expansion, live picker, full reference
 
 ## Architecture reference
