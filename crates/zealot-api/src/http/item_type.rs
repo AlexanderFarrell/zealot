@@ -43,6 +43,7 @@ struct DeleteParams {
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/summary", get(get_item_type_summaries))
+        .route("/rebuild-counts", post(rebuild_item_type_counts))
         .route("/name/{name}", get(get_item_type_by_name))
         .route("/", get(get_item_types).post(add_item_type))
         .route(
@@ -100,6 +101,19 @@ async fn get_item_type_summaries(
         .item_type
         .get_item_type_summaries_with_archived(&account.account_id, visibility.include_archived)
         .map(|types| Json(types.iter().map(ItemTypeSummaryDto::from).collect()))
+        .map_err(item_type_service_err)
+}
+
+async fn rebuild_item_type_counts(
+    State(state): State<AppState>,
+    Extension(actor): Extension<Actor>,
+) -> Result<StatusCode, HttpError> {
+    let account = require_account(&actor)?;
+    state
+        .services
+        .item_type
+        .rebuild_item_type_counts(&account.account_id)
+        .map(|()| StatusCode::NO_CONTENT)
         .map_err(item_type_service_err)
 }
 

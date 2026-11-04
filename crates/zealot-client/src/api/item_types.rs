@@ -23,6 +23,11 @@ impl ZealotClient {
         .await
     }
 
+    /// Repair: recompute the stored per-type item counts.
+    pub async fn rebuild_item_type_counts(&self) -> Result<(), ApiError> {
+        self.post_empty("/item_type/rebuild-counts").await
+    }
+
     pub async fn get_item_type_by_name(&self, name: &str) -> Result<ItemTypeDto, ApiError> {
         self.get(&format!("/item_type/name/{}", seg(name))).await
     }

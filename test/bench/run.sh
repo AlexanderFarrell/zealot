@@ -20,7 +20,7 @@ PORT=${BENCH_PORT:-47213}
 URL="http://127.0.0.1:$PORT"
 PG_PORT=${BENCH_PG_PORT:-47214}
 PG_IMAGE=${BENCH_PG_IMAGE:-postgres:16-alpine}
-PG_NAME=zealot-bench-pg
+PG_NAME=${BENCH_PG_NAME:-zealot-bench-pg}
 TARGET_DIR=${CARGO_TARGET_DIR:-"$REPO_ROOT/target"}
 SERVER_BIN=${ZEALOT_SERVER_BIN:-"$TARGET_DIR/release/zealot-server"}
 

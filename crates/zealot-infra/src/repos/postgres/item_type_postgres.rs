@@ -149,11 +149,9 @@ impl ItemTypeRepo for ItemTypePostgresRepo {
                         it.account_id,
                         (SELECT COUNT(*) FROM item_type_attribute_kind_link lnk
                          WHERE lnk.item_type_id = it.type_id) AS required_attributes_count,
-                        (SELECT COUNT(*) FROM item_item_type_link item_lnk
-                         JOIN item i ON i.item_id = item_lnk.item_id
-                         WHERE item_lnk.type_id = it.type_id AND i.account_id = $1
-                           AND ($2 OR NOT EXISTS (SELECT 1 FROM attribute a WHERE a.item_id = i.item_id AND a.key = 'Archived' AND a.value_int = 1))
-                        ) AS item_count
+                        COALESCE((SELECT c.total_count - CASE WHEN $2 THEN 0 ELSE c.archived_count END
+                                  FROM item_type_count c
+                                  WHERE c.account_id = $1 AND c.type_id = it.type_id), 0)::bigint AS item_count
                      FROM item_type it
                      WHERE (it.account_id = $1 OR it.account_id IS NULL)
                      ORDER BY LOWER(it.name), it.type_id",
@@ -165,6 +163,36 @@ impl ItemTypeRepo for ItemTypePostgresRepo {
                 .map_err(RepoError::from)?;
 
                 rows_to_item_type_summaries(rows)
+            })
+        })
+    }
+
+    fn recompute_item_type_counts(&self, account_id: &Id) -> Result<(), RepoError> {
+        let account_id_val = i64::from(*account_id);
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let mut tx = pool.begin().await.map_err(RepoError::from)?;
+                sqlx::query("DELETE FROM item_type_count WHERE account_id = $1")
+                    .bind(account_id_val)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(RepoError::from)?;
+                sqlx::query(
+                    "INSERT INTO item_type_count (account_id, type_id, total_count, archived_count)
+                     SELECT i.account_id, l.type_id, COUNT(*), COUNT(a.item_id)
+                     FROM item_item_type_link l
+                     JOIN item i ON i.item_id = l.item_id
+                     LEFT JOIN attribute a ON a.item_id = i.item_id AND a.key = 'Archived' AND a.value_int = 1
+                     WHERE i.account_id = $1
+                     GROUP BY i.account_id, l.type_id",
+                )
+                .bind(account_id_val)
+                .execute(&mut *tx)
+                .await
+                .map_err(RepoError::from)?;
+                tx.commit().await.map_err(RepoError::from)?;
+                Ok(())
             })
         })
     }

@@ -66,6 +66,8 @@ pub trait ItemTypeRepo: Debug + Send + Sync {
         self.get_item_type_summaries(account_id)
     }
     fn get_item_type_summaries(&self, account_id: &Id) -> Result<Vec<ItemTypeSummary>, RepoError>;
+    /// Repair: recompute the stored per-type item counts of an account from the type links.
+    fn recompute_item_type_counts(&self, account_id: &Id) -> Result<(), RepoError>;
     fn get_item_type(
         &self,
         item_type_id: &Id,
