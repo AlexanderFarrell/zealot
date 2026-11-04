@@ -533,6 +533,27 @@ li.zealot-task-item[data-checked="true"] > .zealot-task-content {
 	text-decoration: line-through;
 }
 
+// Outline lists (:::outline). The number is a pseudo-element fed by the data-outline-number
+// decoration, so it is never part of the text. --outline-w reserves room for it.
+ol.zealot-outline {
+	list-style: none;
+	padding-left: 0;
+}
+
+ol.zealot-outline > li[data-outline-number] {
+	position: relative;
+	padding-left: var(--outline-w, 2.5ch);
+	margin-left: 0;
+}
+
+ol.zealot-outline > li[data-outline-number]::before {
+	content: attr(data-outline-number);
+	position: absolute;
+	left: 0;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-1, inherit);
+}
+
 .zealot-image {
 	max-width: 100%;
 	height: auto;

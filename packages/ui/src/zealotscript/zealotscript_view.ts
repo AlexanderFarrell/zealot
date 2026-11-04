@@ -8,6 +8,7 @@ import { getNavigator } from "@websoil/engine";
 import ZealotSchema from "./schema";
 import { parseZealotScript } from "./parser";
 import { serializeZealotScript } from "./serializer";
+import { outlineNumbersPlugin } from "./outline_numbers";
 import { YoutubeEmbedView } from "./zealotscript_editor";
 import { ViewEmbedView } from "./view_embed_view";
 import { setIconRefElement } from "./icon_registry";
@@ -211,6 +212,7 @@ export class ZealotScriptView extends HTMLElement {
 		const state = EditorState.create({
 			schema: ZealotSchema,
 			doc: parseZealotScript(ZealotSchema, this._content),
+			plugins: [outlineNumbersPlugin()],
 		});
 
 		this._view = new EditorView(container, {

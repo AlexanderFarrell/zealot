@@ -1,5 +1,6 @@
 import type { Mark, Node as PMNode } from "prosemirror-model";
 import { escapeTableCell } from "./table_utils";
+import { outlineLabel } from "./outline_numbers";
 
 const MARK_ORDER = [
 	"strong",
@@ -274,6 +275,34 @@ const serializeList = (node: PMNode, ordered: boolean, indentLevel = 0): string 
 	return lines.join("\n");
 };
 
+// Outline numbers are derived from position and always written out ("1.", "1.1", "1.2.1"),
+// so a reader of the raw text (an MCP client, another tool) can cite an item by its number.
+// The parser ignores them and renumbers from structure.
+const serializeOutlineItems = (list: PMNode, path: number[], lines: string[]): void => {
+	let n = 0;
+	list.forEach((item) => {
+		n++;
+		const itemPath = [...path, n];
+		let text = "";
+		const nested: PMNode[] = [];
+		item.forEach((child) => {
+			if (child.type.name === "paragraph" && text.length === 0) text = serializeInline(child);
+			else if (child.type.name === "outline_list") nested.push(child);
+		});
+		const checked: boolean | null = item.attrs.checked ?? null;
+		const taskPrefix = checked === null ? "" : checked ? "[x] " : "[ ] ";
+		lines.push(("  ".repeat(path.length) + outlineLabel(itemPath) + " " + taskPrefix + text).trimEnd());
+		for (const child of nested) serializeOutlineItems(child, itemPath, lines);
+	});
+};
+
+const serializeOutline = (node: PMNode): string => {
+	const lines: string[] = [":::outline"];
+	serializeOutlineItems(node, [], lines);
+	lines.push(":::");
+	return lines.join("\n");
+};
+
 const serializeTableCell = (cell: PMNode): string => {
 	const parts: string[] = [];
 	cell.forEach((child) => {
@@ -419,6 +448,7 @@ const nodeSerializers: Record<string, (node: PMNode) => string> = {
 	horizontal_rule: () => "---",
 	bullet_list: (node) => serializeList(node, false),
 	ordered_list: (node) => serializeList(node, true),
+	outline_list: serializeOutline,
 	code_block: serializeCodeBlock,
 	blockquote: serializeBlockquote,
 	table: serializeTable,
