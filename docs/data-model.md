@@ -38,9 +38,13 @@ If the item has an `Icon` attribute (type `text`) its value is prepended to the 
   ],
   "links": [
     { "other_item_id": 7, "relationship": "parent" }
-  ]
+  ],
+  "created_at": 1781000000,
+  "updated_at": 1781000000
 }
 ```
+
+`created_at` and `updated_at` are Unix seconds (UTC), set by the database and read-only over the API. They are the `created` and `updated` that queries filter and sort on.
 
 ---
 
@@ -559,7 +563,8 @@ content holds exactly one fenced `zealot-view` block with a JSON definition:
 ```
 
 `query` is the same object `POST /item/query` takes, so relative dates such as `$today` are
-resolved each time the view runs. `group_by` and `columns` are optional. No new table is used:
+resolved each time the view runs. `group_by` and `columns` are optional; a column is an attribute
+key, or `created` / `updated` for a read-only date column from the item's timestamps. No new table is used:
 the definition is versioned, diffed, exported and edited as content, and the prose around the
 block documents the view. A view runs under the caller's account, so it can never show another
 account's items. Results are not cached.

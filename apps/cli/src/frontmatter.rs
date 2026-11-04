@@ -128,6 +128,8 @@ mod tests {
             types: vec![],
             links: vec![],
             version: String::new(),
+            created_at: 0,
+            updated_at: 0,
         };
         let buffer = to_buffer(&item);
         let parsed = parse_buffer(&buffer).unwrap();

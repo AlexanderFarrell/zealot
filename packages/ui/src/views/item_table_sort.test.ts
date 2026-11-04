@@ -21,6 +21,24 @@ describe("keyForColumn", () => {
     });
 });
 
+describe("timestamp columns", () => {
+    const created: ItemTableColumn = { kind: "timestamp", field: "created" };
+    const updated: ItemTableColumn = { kind: "timestamp", field: "updated" };
+    const stamped = (id: number, createdAt: number, updatedAt: number): Item =>
+        new Item({ item_id: id, title: `t${id}`, content: "", created_at: createdAt, updated_at: updatedAt });
+
+    it("namespaces timestamp columns", () => {
+        expect(keyForColumn(created)).toBe("timestamp:created");
+        expect(keyForColumn(updated)).toBe("timestamp:updated");
+    });
+
+    it("sorts by the chosen timestamp, unknown last", () => {
+        const items = [stamped(1, 300, 10), stamped(2, 0, 30), stamped(3, 100, 20)];
+        expect(sortItems(items, "timestamp:created", "asc", [created], {}).map((i) => i.ItemID)).toEqual([3, 1, 2]);
+        expect(sortItems(items, "timestamp:updated", "desc", [updated], {}).map((i) => i.ItemID)).toEqual([2, 3, 1]);
+    });
+});
+
 describe("toggleSort", () => {
     it("cycles asc, desc, off for one column", () => {
         const first = toggleSort(null, null, title);

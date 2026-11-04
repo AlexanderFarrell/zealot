@@ -17,6 +17,10 @@ export class Item {
     public Attributes: Record<string, any>;
     public Types: Array<ItemTypeRef>;
     public Links: Array<ItemLink>;
+    /** Unix seconds; 0 when the server predates timestamps. */
+    public CreatedAt: number;
+    /** Unix seconds; 0 when the server predates timestamps. */
+    public UpdatedAt: number;
 
     public constructor(dto: ItemDto) {
         this.ItemID = dto.item_id;
@@ -29,6 +33,8 @@ export class Item {
         this.Links = dto.links?.map(r => {
             return new ItemLink(r);
         }) || [];
+        this.CreatedAt = dto.created_at ?? 0;
+        this.UpdatedAt = dto.updated_at ?? 0;
     }
 
     public get Archived(): boolean {
@@ -55,7 +61,9 @@ export interface ItemDto {
     content: string,
     attributes?: Record<string, any>,
     types?: Array<ItemTypeRefDto>,
-    links?: Array<ItemLinkDto>
+    links?: Array<ItemLinkDto>,
+    created_at?: number,
+    updated_at?: number
 }
 
 /** Free-form relationship label (lowercase, e.g. `"parent"`, `"blocks"`, or

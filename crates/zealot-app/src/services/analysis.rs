@@ -260,6 +260,8 @@ mod tests {
             item_id: Id::try_from(id).unwrap(),
             title: title.to_string(),
             content: String::new(),
+            created_at: 0,
+            updated_at: 0,
         }
     }
 

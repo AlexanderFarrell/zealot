@@ -99,6 +99,20 @@ fn ids(svc: &ItemService, q: &ItemQueryDto) -> Vec<i64> {
 
 fn verify(repos: ZealotRepos) {
     let svc = service(&repos);
+
+    // Items carry their timestamps, for a table's created/updated columns. Item 4 was
+    // backdated to 2026-01-01 12:00 UTC; the rest were just inserted.
+    let q = ItemQueryDto {
+        types: vec!["Ticket".into()],
+        ..Default::default()
+    };
+    let (items, _) = svc.query_items(&q, &account()).unwrap();
+    let backdated = items.iter().find(|i| i64::from(i.item_id) == 4).unwrap();
+    assert_eq!(backdated.updated_at, 1_767_268_800);
+    assert!(backdated.created_at > backdated.updated_at);
+    for item in &items {
+        assert!(item.created_at > 0 && item.updated_at > 0);
+    }
     let tickets = || ItemQueryDto {
         types: vec!["Ticket".into()],
         ..Default::default()

@@ -19,6 +19,13 @@ class ChipsInput extends HTMLElement {
     private enforce_unique: boolean = true;
     private on_click_item: ((item: string) => void) | null = null;
     private _inputType: 'text' | 'number' | 'date' = 'text';
+    private _listId = '';
+
+    /** The id of a `<datalist>` that suggests values for the input. */
+    public set suggestionsListId(id: string) {
+        this._listId = id;
+        if (this.isConnected) this.refresh();
+    }
 
     public set OnClickItem(value: (item: string) => void) {
         this.on_click_item = value;
@@ -113,6 +120,7 @@ class ChipsInput extends HTMLElement {
         this.innerHTML = `<div type="items"></div><input type="${this._inputType}">`;
         this.items_container = this.querySelector('[type="items"]')!
         this.input = this.querySelector('input')!;
+        if (this._listId) this.input.setAttribute('list', this._listId);
 
         this.input.addEventListener('keydown', (e: KeyboardEvent) => {
             if (e.key == "Enter") {

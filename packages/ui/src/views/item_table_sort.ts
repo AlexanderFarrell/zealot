@@ -1,10 +1,13 @@
 import type { AttributeKind } from '@zealot/domain/src/attribute';
 import type { Item } from '@zealot/domain/src/item';
 import { getComparableAttributeValue } from './attribute_value_input';
+import { timestampOf } from './item_timestamps';
 import type { ItemTableColumn, SortDirection } from './item_table_types';
 
 export function keyForColumn(column: ItemTableColumn): string {
-    return column.kind === 'attribute' ? `attr:${column.attributeKey}` : column.kind;
+    if (column.kind === 'attribute') return `attr:${column.attributeKey}`;
+    if (column.kind === 'timestamp') return `timestamp:${column.field}`;
+    return column.kind;
 }
 
 export function sortItems(
@@ -52,6 +55,11 @@ function sortValueForItem(
     if (column.kind === 'types') {
         const typeNames = item.Types.map((t) => t.Name).join('\u0000').toLowerCase();
         return typeNames === '' ? null : typeNames;
+    }
+
+    if (column.kind === 'timestamp') {
+        const seconds = timestampOf(item, column.field);
+        return seconds > 0 ? seconds : null;
     }
 
     return getComparableAttributeValue(

@@ -11,6 +11,14 @@ describe("Item", () => {
         expect(item.Links).toEqual([]);
     });
 
+    it("maps created_at and updated_at, defaulting to 0 from older servers", () => {
+        expect(new Item(base).CreatedAt).toBe(0);
+        expect(new Item(base).UpdatedAt).toBe(0);
+        const item = new Item({ ...base, created_at: 1_767_225_600, updated_at: 1_767_268_800 });
+        expect(item.CreatedAt).toBe(1_767_225_600);
+        expect(item.UpdatedAt).toBe(1_767_268_800);
+    });
+
     it("maps types and links", () => {
         const item = new Item({
             ...base,

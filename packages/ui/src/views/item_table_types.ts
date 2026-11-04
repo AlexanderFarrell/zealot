@@ -14,6 +14,13 @@ export type ItemTableColumn =
         sortable?: boolean;
     }
     | {
+        /** A read-only item timestamp, shown as a date. */
+        field: 'created' | 'updated';
+        kind: 'timestamp';
+        label?: string;
+        sortable?: boolean;
+    }
+    | {
         attributeKey: string;
         kind: 'attribute';
         editable?: boolean;

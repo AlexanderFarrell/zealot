@@ -140,6 +140,8 @@ mod tests {
                 other_item_id: id(7),
                 relationship: "parent".to_string(),
             }],
+            created_at: 0,
+            updated_at: 0,
         }
     }
 
