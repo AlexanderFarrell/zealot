@@ -46,6 +46,8 @@ mod scale_tests;
 mod type_count_tests;
 #[cfg(test)]
 mod view_query_tests;
+#[cfg(test)]
+mod type_precedence_tests;
 
 pub async fn get_repo_from_config(config: &ZealotConfig) -> Result<ZealotRepos, String> {
     match config.database.as_str() {

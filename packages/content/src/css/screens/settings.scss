@@ -290,3 +290,27 @@
     justify-content: flex-start;
   }
 }
+
+/* Planner settings checklists (Z277) */
+.preference-checklist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 0;
+  padding: 0;
+  border: none;
+
+  legend {
+    font-weight: 600;
+    padding: 0 0 6px;
+    width: 100%;
+  }
+}
+
+.preference-field .preference-checklist__option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 400;
+  cursor: pointer;
+}

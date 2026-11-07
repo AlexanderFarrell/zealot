@@ -5,7 +5,7 @@ import { createMobilePaneSwitch } from '../shell/mobile_pane_switch';
 import type { AttributeKind } from '@zealot/domain/src/attribute';
 import type { Item } from '@zealot/domain/src/item';
 import { loadAttributeKinds } from '../views/attribute_value_input';
-import { buildItemCardList } from '../views/item_card_list';
+import { buildItemCardList, type ItemCardExtras, type ItemCardGroup } from '../views/item_card_list';
 import { buildAddPanel } from '../views/item_table_add_panel';
 import { createItem } from '../views/item_table_save';
 import type { CreateDraftState, ItemTableCreateRowConfig } from '../views/item_table_types';
@@ -250,18 +250,34 @@ export function renderPlannerMessage(
     container.appendChild(paragraph);
 }
 
+/** A labelled group of cards, in the order the caller wants them shown; may be collapsible. */
+export type PlannerCardGroup = ItemCardGroup;
+
+/** Lets a screen add items to a mounted card list and redraw it. */
+export interface PlannerCardListHandle {
+    /** The live list; mutate it and call `refresh`. */
+    items: Item[];
+    refresh: () => void;
+}
+
 export function mountPlannerCardList(
     container: HTMLElement,
     options: {
         createRow?: Pick<ItemTableCreateRowConfig, 'defaultAttributes' | 'submitLabel' | 'enabled'>;
         emptyMessage: string;
         items: Item[];
+        /** Groups the cards itself (the daily planner's Mine and Alongside); default groups by Status. */
+        groupBy?: (items: Item[]) => PlannerCardGroup[];
+        /** Per-card additions such as points chips. */
+        extras?: ItemCardExtras;
+        /** Called after every redraw, for example to update a score. */
+        onChange?: (items: Item[]) => void;
     },
-): void {
+): PlannerCardListHandle {
     container.innerHTML = '';
 
     const items = [...options.items];
-    const { emptyMessage } = options;
+    const { emptyMessage, groupBy, extras, onChange } = options;
 
     const cardListDiv = document.createElement('div');
     container.appendChild(cardListDiv);
@@ -269,12 +285,21 @@ export function mountPlannerCardList(
     const refreshCardList = (): void => {
         unregisterDropZonesIn(cardListDiv);
         cardListDiv.innerHTML = '';
-        cardListDiv.appendChild(buildItemCardList(items, emptyMessage, { grouped: true, showParent: true, onDrop: refreshCardList }));
+        const groups = groupBy?.(items).filter((group) => group.items.length > 0);
+        cardListDiv.appendChild(buildItemCardList(items, emptyMessage, {
+            grouped: true,
+            showParent: true,
+            onDrop: refreshCardList,
+            ...(groups ? { groups } : {}),
+            ...(extras ? { extras } : {}),
+        }));
+        onChange?.(items);
     };
+    const handle: PlannerCardListHandle = { items, refresh: refreshCardList };
 
     if (!options.createRow) {
         refreshCardList();
-        return;
+        return handle;
     }
 
     const createRowConfig = options.createRow;
@@ -336,6 +361,8 @@ export function mountPlannerCardList(
         const isOpen = panelEl !== null && !panelEl.classList.contains('item-table-add-panel--collapsed');
         rebuildPanel(isOpen);
     });
+
+    return handle;
 }
 
 export function journalTitleForWeek(date: DateTime): string {
