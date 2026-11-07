@@ -103,6 +103,15 @@ fn rows_to_item_type_summaries(
         .collect()
 }
 
+/// Types an account sees: its own, plus system types it has not shadowed with
+/// one of the same name (Z277). `param` is the account id's placeholder, e.g. `$2`.
+fn visible_type(param: &str) -> String {
+    format!(
+        "(it.account_id = {param} OR (it.account_id IS NULL AND NOT EXISTS (
+            SELECT 1 FROM item_type own WHERE own.account_id = {param} AND own.name = it.name)))"
+    )
+}
+
 const ITEM_TYPE_SELECT: &str = "
     SELECT it.type_id, it.name, it.description, it.account_id, ak.key AS required_key, lnk.default_value::text AS required_default
     FROM item_type it
@@ -117,8 +126,9 @@ impl ItemTypeRepo for ItemTypePostgresRepo {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
                 let rows = sqlx::query_as::<_, ItemTypeWithRequiredRow>(&format!(
-                    "{} WHERE (it.account_id = $1 OR it.account_id IS NULL) ORDER BY it.type_id",
-                    ITEM_TYPE_SELECT
+                    "{} WHERE {} ORDER BY it.type_id",
+                    ITEM_TYPE_SELECT,
+                    visible_type("$1")
                 ))
                 .bind(account_id_val)
                 .fetch_all(&pool)
@@ -142,7 +152,7 @@ impl ItemTypeRepo for ItemTypePostgresRepo {
         let pool = self.pool.clone();
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
-                let rows = sqlx::query_as::<_, ItemTypeSummaryRow>(
+                let rows = sqlx::query_as::<_, ItemTypeSummaryRow>(&format!(
                     "SELECT
                         it.type_id,
                         it.name,
@@ -153,9 +163,10 @@ impl ItemTypeRepo for ItemTypePostgresRepo {
                                   FROM item_type_count c
                                   WHERE c.account_id = $1 AND c.type_id = it.type_id), 0)::bigint AS item_count
                      FROM item_type it
-                     WHERE (it.account_id = $1 OR it.account_id IS NULL)
+                     WHERE {}
                      ORDER BY LOWER(it.name), it.type_id",
-                )
+                    visible_type("$1")
+                ))
                 .bind(account_id_val)
                 .bind(include_archived)
                 .fetch_all(&pool)
@@ -232,8 +243,9 @@ impl ItemTypeRepo for ItemTypePostgresRepo {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
                 let rows = sqlx::query_as::<_, ItemTypeWithRequiredRow>(&format!(
-                    "{} WHERE it.name = $1 AND (it.account_id = $2 OR it.account_id IS NULL) ORDER BY it.type_id",
-                    ITEM_TYPE_SELECT
+                    "{} WHERE it.name = $1 AND {} ORDER BY it.type_id",
+                    ITEM_TYPE_SELECT,
+                    visible_type("$2")
                 ))
                 .bind(&name)
                 .bind(account_id_val)
@@ -545,15 +557,16 @@ impl ItemTypeRepo for ItemTypePostgresRepo {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async move {
                 for name in &names {
-                    sqlx::query(
+                    sqlx::query(&format!(
                         "INSERT INTO item_item_type_link (item_id, type_id)
                          SELECT i.item_id, it.type_id
                          FROM item i
                          CROSS JOIN item_type it
                          WHERE i.item_id = $1 AND i.account_id = $2 AND it.name = $3
-                           AND (it.account_id = $2 OR it.account_id IS NULL)
+                           AND {}
                          ON CONFLICT DO NOTHING",
-                    )
+                        visible_type("$2")
+                    ))
                     .bind(item_id_val)
                     .bind(account_id_val)
                     .bind(name)

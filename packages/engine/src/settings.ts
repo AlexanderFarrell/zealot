@@ -9,6 +9,16 @@ export interface Settings {
     item_actions: ItemActionsMode;
     interface_size: InterfaceSize;
     start_screen: StartScreen;
+    /** Daily planner: the dropdown attribute its items group by; '' for no grouping (Z277). */
+    planner_group_by: string;
+    /** Daily planner: integer attributes multiplied into points; empty turns points off (Z277). */
+    planner_points_from: string[];
+    /** Daily planner: item types shown as header links instead of cards (Z277). */
+    planner_header_types: string[];
+    /** Daily planner: collapsed groups, as grouping attribute → collapsed values (Z277). */
+    planner_collapsed_groups: Record<string, string[]>;
+    /** Daily planner: dropdown and number attributes that edit inline on cards; Status is the card's select (Z277). */
+    planner_card_fields: string[];
 }
 
 const DEFAULTS: Settings = {
@@ -17,6 +27,11 @@ const DEFAULTS: Settings = {
     item_actions: 'toolbar',
     interface_size: 'default',
     start_screen: 'home',
+    planner_group_by: 'Status',
+    planner_points_from: [],
+    planner_header_types: [],
+    planner_collapsed_groups: {},
+    planner_card_fields: ['Status'],
 };
 
 const STORAGE_KEY = 'zealot_settings';

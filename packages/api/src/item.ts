@@ -94,9 +94,21 @@ export class ItemAPI extends BaseAPI {
         return dtos.map(d => new Item(d));
     }
 
-    async Filter(filters: AttributeFilterDto[]): Promise<Item[]> {
-        const dtos = await post_json(`${this.baseUrl}/item/filter`, { filters }) as ItemDto[];
+    /** Items matching every filter (`POST /item/filter`); one page, 50 by default, at most 100. */
+    async Filter(filters: AttributeFilterDto[], page: { limit?: number; offset?: number } = {}): Promise<Item[]> {
+        const dtos = await post_json(`${this.baseUrl}/item/filter`, { filters, ...page }) as ItemDto[];
         return dtos.map(d => new Item(d));
+    }
+
+    /** Every item matching the filters, fetched 100 at a time. */
+    async FilterAll(filters: AttributeFilterDto[]): Promise<Item[]> {
+        const pageSize = 100;
+        const all: Item[] = [];
+        for (let offset = 0; ; offset += pageSize) {
+            const page = await this.Filter(filters, { limit: pageSize, offset });
+            all.push(...page);
+            if (page.length < pageSize) return all;
+        }
     }
 
     /** One page of items of the given types (`POST /item/query`); `total` counts every match. */

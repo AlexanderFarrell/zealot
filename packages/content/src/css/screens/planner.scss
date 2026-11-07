@@ -846,3 +846,87 @@ time-blocks-screen {
     }
   }
 }
+
+/* --- Daily score, Logs and points (Z277) --- */
+
+.planner-day-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.planner-day-bar:empty {
+  display: none;
+}
+
+.planner-day-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  font-size: 0.9rem;
+  color: var(--text-1);
+}
+
+.planner-day-score {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--bg-3);
+  border: 1px solid var(--border-0);
+
+  strong {
+    color: var(--accent-1, var(--text-0));
+    font-size: 1rem;
+  }
+}
+
+.planner-day-score__label {
+  font-weight: 600;
+}
+
+.planner-day-log {
+  color: var(--text-1);
+  font-size: 0.85rem;
+  text-decoration: none;
+  opacity: 0.75;
+
+  &::before { content: '📓 '; }
+
+  &:hover {
+    opacity: 1;
+    text-decoration: underline;
+  }
+}
+
+.planner-section--carried .item-card {
+  border-style: dashed;
+}
+
+
+/* Status at a glance on the daily planner (Z277): cards stay sorted by points,
+   so in-flight work gets an edge and finished or parked work fades back. */
+daily-planner-screen .item-card {
+  border-left-width: 3px;
+
+  &[data-status='Working'] {
+    border-left-color: var(--accent-0, #4f8eff);
+  }
+
+  &[data-status='Blocked'] {
+    border-left-color: var(--warning-0, #e0a040);
+  }
+
+  &[data-status='Complete'] {
+    opacity: 0.55;
+  }
+
+  &[data-status='Hold'],
+  &[data-status='Rejected'],
+  &[data-status='Retired'] {
+    opacity: 0.45;
+  }
+}

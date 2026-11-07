@@ -102,6 +102,11 @@ fn rows_to_item_type_summaries(
         .collect()
 }
 
+/// Types an account sees: its own, plus system types it has not shadowed with
+/// one of the same name (Z277). Binds the account id twice.
+const VISIBLE_TYPE: &str = "(it.account_id = ? OR (it.account_id IS NULL AND NOT EXISTS (
+        SELECT 1 FROM item_type own WHERE own.account_id = ? AND own.name = it.name)))";
+
 const ITEM_TYPE_SELECT: &str = "
     SELECT it.type_id, it.name, it.description, it.account_id, ak.key AS required_key, lnk.default_value AS required_default
     FROM item_type it
@@ -115,9 +120,10 @@ impl ItemTypeRepo for ItemTypeSqliteRepo {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
                 let rows = sqlx::query_as::<_, ItemTypeWithRequiredRow>(&format!(
-                    "{} WHERE (it.account_id = ? OR it.account_id IS NULL) ORDER BY it.type_id",
-                    ITEM_TYPE_SELECT
+                    "{} WHERE {} ORDER BY it.type_id",
+                    ITEM_TYPE_SELECT, VISIBLE_TYPE
                 ))
+                .bind(account_id_val)
                 .bind(account_id_val)
                 .fetch_all(&self.pool)
                 .await
@@ -139,7 +145,7 @@ impl ItemTypeRepo for ItemTypeSqliteRepo {
         let account_id_val = i64::from(*account_id);
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
-                let rows = sqlx::query_as::<_, ItemTypeSummaryRow>(
+                let rows = sqlx::query_as::<_, ItemTypeSummaryRow>(&format!(
                     "SELECT
                         it.type_id,
                         it.name,
@@ -150,10 +156,11 @@ impl ItemTypeRepo for ItemTypeSqliteRepo {
                                   FROM item_type_count c
                                   WHERE c.account_id = ? AND c.type_id = it.type_id), 0) AS item_count
                      FROM item_type it
-                     WHERE (it.account_id = ? OR it.account_id IS NULL)
+                     WHERE {VISIBLE_TYPE}
                      ORDER BY LOWER(it.name), it.type_id",
-                )
+                ))
                 .bind(include_archived)
+                .bind(account_id_val)
                 .bind(account_id_val)
                 .bind(account_id_val)
                 .fetch_all(&self.pool)
@@ -227,10 +234,11 @@ impl ItemTypeRepo for ItemTypeSqliteRepo {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
                 let rows = sqlx::query_as::<_, ItemTypeWithRequiredRow>(&format!(
-                    "{} WHERE it.name = ? AND (it.account_id = ? OR it.account_id IS NULL) ORDER BY it.type_id",
-                    ITEM_TYPE_SELECT
+                    "{} WHERE it.name = ? AND {} ORDER BY it.type_id",
+                    ITEM_TYPE_SELECT, VISIBLE_TYPE
                 ))
                 .bind(&name)
+                .bind(account_id_val)
                 .bind(account_id_val)
                 .fetch_all(&self.pool)
                 .await
@@ -523,17 +531,18 @@ impl ItemTypeRepo for ItemTypeSqliteRepo {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
                 for name in &names {
-                    sqlx::query(
+                    sqlx::query(&format!(
                         "INSERT OR IGNORE INTO item_item_type_link (item_id, type_id)
                          SELECT i.item_id, it.type_id
                          FROM item i
                          JOIN item_type it
                          WHERE i.item_id = ? AND i.account_id = ? AND it.name = ?
-                           AND (it.account_id = ? OR it.account_id IS NULL)",
-                    )
+                           AND {VISIBLE_TYPE}",
+                    ))
                     .bind(item_id_val)
                     .bind(account_id_val)
                     .bind(name)
+                    .bind(account_id_val)
                     .bind(account_id_val)
                     .execute(&self.pool)
                     .await

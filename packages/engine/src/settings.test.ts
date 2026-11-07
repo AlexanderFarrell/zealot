@@ -11,7 +11,16 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
-const defaults = { item_actions: "toolbar", interface_size: "default", start_screen: "home" };
+const defaults = {
+    item_actions: "toolbar",
+    interface_size: "default",
+    start_screen: "home",
+    planner_group_by: "Status",
+    planner_points_from: [],
+    planner_header_types: [],
+    planner_collapsed_groups: {},
+    planner_card_fields: ["Status"],
+};
 
 describe("AppSettings", () => {
     it("starts from defaults", async () => {
