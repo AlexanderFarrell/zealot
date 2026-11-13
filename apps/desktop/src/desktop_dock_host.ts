@@ -1,6 +1,6 @@
 import { DockviewComponent } from 'dockview-core';
 import type { IContentRenderer, GroupPanelPartInitParameters } from 'dockview-core';
-import { getRightSidebarHost } from '@websoil/engine';
+import { attach_hotkeys, getRightSidebarHost, getZoom, onZoomChange } from '@websoil/engine';
 import type { DesktopNavigator } from './desktop_navigator';
 
 interface PanelParams {
@@ -129,8 +129,28 @@ export class DesktopDockHost extends HTMLElement {
             }
         });
 
+        // Popout windows are separate documents the main window renders into, so
+        // native zoom can't reach them: give them the same zoom level and hotkeys.
+        this._dockview.api.onDidLayoutChange(() => this.syncPopouts());
+        onZoomChange(() => this.syncPopouts());
+
         this.openInNewTab('/');
         return this;
+    }
+
+    private readonly hotkeyDocs = new WeakSet<Document>();
+
+    syncPopouts(): void {
+        const zoom = getZoom() / 100;
+        for (const group of this._dockview?.api.groups ?? []) {
+            const doc = group.element.ownerDocument;
+            if (doc === document) continue;
+            doc.documentElement.style.zoom = String(zoom);
+            if (!this.hotkeyDocs.has(doc)) {
+                this.hotkeyDocs.add(doc);
+                attach_hotkeys(doc);
+            }
+        }
     }
 
     connectedCallback(): void {

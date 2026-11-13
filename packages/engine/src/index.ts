@@ -18,6 +18,8 @@ import { registerContextMenu, unregisterContextMenu, unregisterContextMenuIn, sh
 import { AppSettings } from './settings';
 import { setDesktopMode, getDesktopMode, getRemoteHost } from './desktop_mode';
 import { logInfo, logError } from './log';
+import { ZoomCommands, ZOOM_STEPS, ZOOM_DEFAULT, getZoom, setZoom, zoomIn, zoomOut, resetZoom, canZoomIn, canZoomOut, onZoomChange, initZoom, registerZoomCommands } from './ui/zoom';
+import { attach_hotkeys } from './ui/hotkeys';
 
 export {
     api,
@@ -77,6 +79,20 @@ export {
     unregisterContextMenu,
     unregisterContextMenuIn,
     showContextMenu,
+    ZoomCommands,
+    ZOOM_STEPS,
+    ZOOM_DEFAULT,
+    getZoom,
+    setZoom,
+    zoomIn,
+    zoomOut,
+    resetZoom,
+    canZoomIn,
+    canZoomOut,
+    onZoomChange,
+    initZoom,
+    registerZoomCommands,
+    attach_hotkeys,
 }
 
 export type { DropZone } from './ui/drag_drop'
