@@ -40,6 +40,10 @@ fn menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<Menu<R>> 
     let time_blocks_day = item(app, "time-blocks-day", "Time Blocks: Today", None)?;
     let time_blocks_week = item(app, "time-blocks-week", "Time Blocks: This Week", None)?;
 
+    let zoom_in = item(app, "zoom-in", "Zoom In", Some("CmdOrCtrl+="))?;
+    let zoom_out = item(app, "zoom-out", "Zoom Out", Some("CmdOrCtrl+-"))?;
+    let zoom_reset = item(app, "zoom-reset", "Actual Size", Some("CmdOrCtrl+0"))?;
+
     let media = item(app, "open-media", "Media", Some("CmdOrCtrl+M"))?;
     let analysis = item(app, "open-analysis", "Analysis", Some("CmdOrCtrl+Shift+1"))?;
     let analysis_recent = item(
@@ -105,6 +109,10 @@ fn menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<Menu<R>> 
             &PredefinedMenuItem::separator(app)?,
             &time_blocks_day,
             &time_blocks_week,
+            &PredefinedMenuItem::separator(app)?,
+            &zoom_in,
+            &zoom_out,
+            &zoom_reset,
         ],
     )?;
     let navigate = Submenu::with_items(

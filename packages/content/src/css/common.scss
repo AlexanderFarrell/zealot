@@ -73,6 +73,29 @@ header-bar {
   }
 }
 
+.header-bar-zoom {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+
+  button[name="zoom-level"] {
+    min-width: 48px;
+    height: 28px;
+    padding: 0 6px;
+    font-size: 12px;
+    background: none;
+    box-shadow: none;
+    color: var(--text-1);
+
+    &:hover {
+      background: var(--panel-2);
+      color: var(--text-0);
+      box-shadow: none;
+    }
+  }
+}
+
 .header-bar-window-controls {
   display: flex;
   align-items: center;

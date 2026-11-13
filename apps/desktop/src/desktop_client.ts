@@ -8,6 +8,9 @@ import {
     getNavigator,
     registerNavigationCommands,
     registerToolCommands,
+    registerZoomCommands,
+    initZoom,
+    ZoomCommands,
     setNavigator,
     setRightSidebarHost,
     setToolHost,
@@ -32,6 +35,12 @@ class DesktopClient extends BaseElementEmpty {
         commands.runner.clear();
         registerNavigationCommands();
         registerToolCommands();
+        registerZoomCommands();
+        // Native webview zoom scales the whole main window; popouts follow in the dock host.
+        initZoom(async (level) => {
+            const { getCurrentWebview } = await import('@tauri-apps/api/webview');
+            await getCurrentWebview().setZoom(level / 100);
+        });
         commands.runner.register(ModalCommands.newItem, [new Hotkey('n', [CTRL_OR_META_KEY])], () => {
             AddItemModal.show();
         });
@@ -75,6 +84,9 @@ class DesktopClient extends BaseElementEmpty {
                     'open-rules': NavigationCommands.openRules,
                     'open-types': NavigationCommands.openTypes,
                     'open-settings': NavigationCommands.openSettings,
+                    'zoom-in': ZoomCommands.zoomIn,
+                    'zoom-out': ZoomCommands.zoomOut,
+                    'zoom-reset': ZoomCommands.resetZoom,
                     'global-search': ModalCommands.openGlobalSearch,
                     'command-palette': ModalCommands.openCommandRunner,
                 };

@@ -1,4 +1,4 @@
-import { BaseElementEmpty, NavigationCommands, commands, getTabHistoryController } from "@websoil/engine";
+import { BaseElementEmpty, NavigationCommands, ZoomCommands, canZoomIn, canZoomOut, commands, getTabHistoryController, getZoom, onZoomChange } from "@websoil/engine";
 import { ZealotIcon, icons } from "@zealot/content";
 
 const RIGHT_COLLAPSED_KEY = 'zealot:right-sidebar-collapsed';
@@ -7,6 +7,7 @@ const RIGHT_COLLAPSED_CLASS = 'right-panel-collapsed';
 export class HeaderBar extends BaseElementEmpty {
     private unsubscribeHistory: (() => void) | null = null;
     private unlistenWindowResize: (() => void) | null = null;
+    private unsubscribeZoom: (() => void) | null = null;
 
     async render() {
         this.classList.add('box');
@@ -18,6 +19,11 @@ export class HeaderBar extends BaseElementEmpty {
         <button name="back" class="tauri_only header-bar-icon-btn" title="Back" disabled><img src="${icons.back}" alt="Back"></button>
         <button name="forward" class="tauri_only header-bar-icon-btn" title="Forward" disabled><img src="${icons.forward}" alt="Forward"></button>
         <div class="header-bar-spacer" data-tauri-drag-region></div>
+        <div class="header-bar-zoom tauri_only" role="group" aria-label="Zoom">
+            <button name="zoom-out" class="header-bar-icon-btn" title="Zoom out">&#x2212;</button>
+            <button name="zoom-level" title="Reset zoom to 100%">100%</button>
+            <button name="zoom-in" class="header-bar-icon-btn" title="Zoom in">+</button>
+        </div>
         <button name="toggle-right" class="desktop_only header-bar-icon-btn" title="Toggle right sidebar">&#x25E7;</button>
         <div class="header-bar-window-controls tauri_only">
             <button name="minimise" title="Minimise">&#x2013;</button>
@@ -46,6 +52,20 @@ export class HeaderBar extends BaseElementEmpty {
             updateHistoryButtons();
             this.unsubscribeHistory = controller.subscribe(updateHistoryButtons);
         });
+
+        const zoomOutBtn = this.querySelector<HTMLButtonElement>('[name="zoom-out"]')!;
+        const zoomInBtn = this.querySelector<HTMLButtonElement>('[name="zoom-in"]')!;
+        const zoomLevelBtn = this.querySelector<HTMLButtonElement>('[name="zoom-level"]')!;
+        const syncZoom = () => {
+            zoomLevelBtn.textContent = `${getZoom()}%`;
+            zoomOutBtn.disabled = !canZoomOut();
+            zoomInBtn.disabled = !canZoomIn();
+        };
+        zoomOutBtn.addEventListener('click', () => commands.runner.run(ZoomCommands.zoomOut));
+        zoomInBtn.addEventListener('click', () => commands.runner.run(ZoomCommands.zoomIn));
+        zoomLevelBtn.addEventListener('click', () => commands.runner.run(ZoomCommands.resetZoom));
+        syncZoom();
+        this.unsubscribeZoom = onZoomChange(syncZoom);
 
         const main = document.getElementById('main_web_ui');
         const toggleRightBtn = this.querySelector<HTMLButtonElement>('[name="toggle-right"]')!;
@@ -100,6 +120,8 @@ export class HeaderBar extends BaseElementEmpty {
         this.unsubscribeHistory = null;
         this.unlistenWindowResize?.();
         this.unlistenWindowResize = null;
+        this.unsubscribeZoom?.();
+        this.unsubscribeZoom = null;
     }
 }
 
